@@ -2,7 +2,13 @@
 
 ## Pitch
 
-A 2–4 player couch brawler set in a cozy family home. Players smash furniture into letter tiles and spell new objects to fight with. Everything is made of letters, including what you summon.
+**Wreck the room, build the word!**
+
+A 2–4 player couch party game where everything is made of letters. Smash furniture into letter tiles, grab them, and spell them into new things. Everything you summon can be smashed and re-spelled too.
+
+- **Genre:** Party, brawler, word game
+- **Theme:** Moving day in a cozy world where everything is made of words
+- **Art style:** Toybox Workshop
 
 ![Gameplay mockup](art/gameplay_mockup.jpg)
 
@@ -16,12 +22,38 @@ A 2–4 player couch brawler set in a cozy family home. Players smash furniture 
 
 Smash → Scavenge → Spell → Summon. Summoned objects can themselves be smashed, scattering their letters for anyone to steal.
 
-## Rules
+## Premise (trailer)
+
+Roommates carry boxes through the door → one box turns out to be made of B-O-X → it pops open and tiles spill out → two roommates grab for the same letters → the fight begins.
+
+## Hub
+
+Your own customisable house, where you can also customise your character. Friends join by picking up a controller and walking in the door. Choose a mode at the typewriter.
+
+## Modes
+
+### Tutorial
+
+Teaches smashing, grabbing, spelling and summoning.
+
+### Versus: "Dibs!"
+
+Fight your roommates for the best stuff. Letters are your health.
 
 - Carry at most **6 letters**.
 - A hit knocks **2 letters** loose. A hit with **0 letters** is a knockout.
 - Last player standing wins the round. First to **3 rounds** wins.
 - After **90 seconds** the room starts collapsing to force fights.
+
+Later variations: **Furnish First** (race to furnish the room), and more.
+
+### Co-op: "Moving Day"
+
+Furnish the house together, 1–4 players. Unpack boxes, spell the checklist items and place them in the right rooms, with obstacles and a time limit. Each level awards 1–3 stars.
+
+### Creative: "Home Sweet Home"
+
+The typewriter prints endless letters to build and decorate your house. Hit **Play** to turn it into a Dibs! arena with custom rules. Rooms can be saved and loaded.
 
 ## Words
 
@@ -29,19 +61,21 @@ About 40 curated words in four categories: Weapon, Defence, Movement, Chaos. Lon
 
 ## Characters
 
-Cartoonish round-headed people in knitted sweaters with a big initial letter, driven by ragdoll physics. Stable core, floppy limbs. All four play the same; differences are cosmetic.
+Cartoonish, blobby ragdoll characters (in the spirit of Fall Guys and PEAK) in knitted sweaters with a big initial letter, customisable in the hub. Stable core, floppy limbs. All four play the same; differences are cosmetic.
 
 ## Maps
 
 1. **Living room** (main, fully polished): sofa, coffee table, lamp, mug, plate, vase.
-2. **Kitchen** (stretch goal)
-3. **Bedroom** (stretch goal)
+2. **Bedroom**
+3. **Kitchen**
+4. **Garden**
+5. More to come
 
 A mischievous letter **cat** wanders the room, steals loose letters and runs off with them.
 
 ## Art direction: Toybox Workshop
 
-Warm wooden letter tiles, cream and sage walls, terracotta accents. Objects are built from their own letters. Fonts: Lilita One (display), Nunito (UI), Gochi Hand (tagline).
+Warm wooden letter tiles, cartoonish blobby ragdoll characters, cream and sage walls, terracotta accents. Objects are built from their own letters. Fonts: Lilita One (display), Nunito (UI), Gochi Hand (tagline).
 
 ## Technical highlights (for the Technicality grade)
 

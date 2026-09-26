@@ -4,7 +4,13 @@
 
 ![Key art](docs/art/key_art.jpg)
 
-Wreckabulary is a 2–4 player couch brawler for COMP4122. Smash furniture into letter tiles, grab the letters, and spell them into weapons and gadgets to knock your friends out. Everything in the room is made of letters, including what you summon, so every object can be smashed and re-spelled.
+Wreckabulary is a 2–4 player couch party game for COMP4122 where everything is made of letters. Smash furniture into letter tiles, grab them, and spell them into new things. Everything you summon can be smashed and re-spelled too.
+
+| | |
+|---|---|
+| Genre | Party, brawler, word game |
+| Theme | Moving day in a cozy world where everything is made of words |
+| Art style | Toybox Workshop: warm wooden letter tiles, blobby ragdoll characters, objects built from their own letters |
 
 ## Core loop
 
@@ -15,9 +21,18 @@ Wreckabulary is a 2–4 player couch brawler for COMP4122. Smash furniture into 
 3. **Spell** with the word wheel, which shows what your letters can make.
 4. **Summon** the object instantly, like a BLADE, WINGS or BEES.
 
-## Win condition: Last Word Standing
+## Modes
 
-Your letters are both your ammo and your health. A hit knocks letters off you, and a hit while holding no letters is a knockout. Last player standing wins the round, and the first to 3 rounds wins the match.
+Everything starts in the **hub**, your own customisable house. Friends join by picking up a controller and walking in the door, and you choose a mode at the typewriter.
+
+| Mode | Players | Summary |
+|---|---|---|
+| Tutorial | 1–4 | Learn to smash, grab and spell. |
+| **Versus: "Dibs!"** | 2–4 | Fight your roommates for the best stuff. Letters are your health. Last roommate standing wins the round, first to 3 wins. |
+| **Co-op: "Moving Day"** | 1–4 | Furnish the house together: unpack boxes, spell the checklist items and place them in the right rooms against the clock. 1–3 stars per level. |
+| **Creative: "Home Sweet Home"** | 1–4 | The typewriter prints endless letters to build and decorate. Hit Play to turn your room into a Dibs! arena with custom rules. Save and load rooms. |
+
+Maps: living room, bedroom, kitchen, garden, and more.
 
 ## Tech
 
