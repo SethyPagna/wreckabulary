@@ -40,10 +40,14 @@ Teaches smashing, grabbing, spelling and summoning.
 
 Fight your roommates for the best stuff. Letters are your health.
 
+- Everyone starts a round with **3 letters**, so the first hit isn't a knockout.
 - Carry at most **6 letters**.
 - A hit knocks **2 letters** loose. A hit with **0 letters** is a knockout.
 - Last player standing wins the round. First to **3 rounds** wins.
 - After **90 seconds** the room starts collapsing to force fights.
+
+- When the room runs low on letters, labelled **delivery boxes** drop in (PIZZA, QUILT, SOCKS…). Smash one to get the letters on its label.
+- Summons **fall apart into their letters** when used up (a weapon out of swings, SKATES wearing off), so spent letters come back into play.
 
 Later variations: **Furnish First** (race to furnish the room), and more.
 
@@ -57,11 +61,13 @@ The typewriter prints endless letters to build and decorate your house. Hit **Pl
 
 ## Words
 
-About 40 curated words in four categories: Weapon, Defence, Movement, Chaos. Longer words and rare letters (Q, Z, X, J) are stronger. Hidden words are not shown in the word wheel until discovered. Full list: `Assets/_Project/Data/word_list.csv`.
+About 40 curated words in four categories: Weapon, Defence, Movement, Chaos. Longer words and rare letters (Q, Z, X, J) are stronger. Hidden words are not shown in the word wheel until discovered. Full list: `Assets/_Project/Data/word_list.csv`. What each word does is in `SummonEffects.cs`.
+
+Note: UMBRELLA has 8 letters but players carry at most 6, so it can never be spelled. Either raise the carry limit or swap it for a shorter word.
 
 ## Characters
 
-Cartoonish, blobby ragdoll characters (in the spirit of Fall Guys and PEAK) in knitted sweaters with a big initial letter, customisable in the hub. Stable core, floppy limbs. All four play the same; differences are cosmetic.
+Cartoonish, blobby ragdoll characters (in the spirit of Fall Guys and PEAK) in knitted sweaters with a big initial letter, customisable in the hub. In the prototype the four sweater initials spell W, O, R, D. Stable core, floppy limbs. All four play the same; differences are cosmetic.
 
 ## Maps
 

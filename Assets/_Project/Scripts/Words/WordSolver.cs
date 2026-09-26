@@ -46,12 +46,29 @@ namespace Wreckabulary
         }
 
         /// <summary>Spellable words, best score first.</summary>
-        public static List<WordEntry> Spellable(WordDatabase db, IEnumerable<char> letters)
+        public static List<WordEntry> Spellable(IEnumerable<WordEntry> words, IEnumerable<char> letters)
         {
             var have = Count(letters);
-            return db.words.Where(w => CanSpell(have, w.word))
-                           .OrderByDescending(w => w.Score)
-                           .ToList();
+            return words.Where(w => CanSpell(have, w.word))
+                        .OrderByDescending(w => w.Score)
+                        .ToList();
+        }
+
+        public static List<WordEntry> Spellable(WordDatabase db, IEnumerable<char> letters) => Spellable(db.Words, letters);
+
+        /// <summary>
+        /// Words you are close to spelling, for greyed-out hints in the word wheel.
+        /// Hidden words and words longer than you can carry are never hinted.
+        /// </summary>
+        public static List<(WordEntry entry, string missing)> Hints(IEnumerable<WordEntry> words, IEnumerable<char> letters,
+                                                                    int capacity, int maxMissing = 1)
+        {
+            var have = Count(letters);
+            return words.Where(w => !w.hidden && w.word.Length <= capacity && !CanSpell(have, w.word))
+                        .Select(w => (entry: w, missing: Missing(have, w.word)))
+                        .Where(h => h.missing.Length <= maxMissing)
+                        .OrderByDescending(h => h.entry.Score)
+                        .ToList();
         }
     }
 }

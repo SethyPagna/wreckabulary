@@ -1,0 +1,5 @@
+﻿<Solution>
+  <Project Path="Wreckabulary.Tests.csproj" />
+  <Project Path="Wreckabulary.csproj" />
+  <Project Path="Wreckabulary.Editor.csproj" />
+</Solution>
