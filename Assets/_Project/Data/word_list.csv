@@ -1,0 +1,22 @@
+word,category,hidden,notes
+AXE,Weapon,false,fast and weak
+BOW,Weapon,false,ranged
+BAT,Weapon,false,knockback
+BLADE,Weapon,false,TABLE plus a D
+SWORD,Weapon,false,
+SPEAR,Weapon,false,anagram of PEARS
+CANNON,Weapon,false,heavy and slow
+WALL,Defence,false,blocks a doorway
+SHIELD,Defence,false,
+ARMOR,Defence,false,absorbs one hit
+UMBRELLA,Defence,true,long and powerful
+WINGS,Movement,false,short glide
+SPRING,Movement,false,big jump
+SKATES,Movement,false,speed boost
+ROPE,Movement,false,grapple
+BEES,Chaos,false,swarm chases nearest player
+FLOOD,Chaos,false,slippery floor
+MAGNET,Chaos,false,pulls loose letters
+DUCK,Chaos,false,decoy
+QUAKE,Chaos,true,legendary: shakes the whole room
+ZAP,Chaos,true,legendary: stuns nearby players
