@@ -66,12 +66,12 @@ Cartoonish, blobby ragdoll characters (in the spirit of Fall Guys and PEAK) in k
 ## Maps
 
 1. **Living room** (main, fully polished): sofa, coffee table, lamp, mug, plate, vase.
-2. **Bedroom**
-3. **Kitchen**
-4. **Garden**
+2. **Bedroom** (should have)
+3. **Kitchen** (stretch goal)
+4. **Garden** (stretch goal)
 5. More to come
 
-A mischievous letter **cat** wanders the room, steals loose letters and runs off with them.
+Stretch goal: a mischievous letter **cat** wanders the room, steals loose letters and runs off with them.
 
 ## Art direction: Toybox Workshop
 
