@@ -38,10 +38,10 @@ Maps: living room, bedroom, kitchen, garden, and more.
 
 | | |
 |---|---|
-| Engine | Unity 6 LTS (6000.0.x) |
+| Engine | Unity 6 (6000.6.3f1) |
 | Render pipeline | URP |
-| Input | Unity Input System, 4 controllers |
-| Physics | Active ragdoll characters, pooled rigidbody letter tiles |
+| Input | Unity Input System: up to 4 gamepads, or 2 players sharing a keyboard |
+| Physics | Rigidbody roommates with a wobbly visual rig, pooled rigidbody letter tiles |
 | Platform | Windows PC, local multiplayer |
 
 ## Getting started
@@ -50,32 +50,67 @@ Maps: living room, bedroom, kitchen, garden, and more.
 2. Clone the repo: `git clone <repo-url>`
 3. Open the folder with **Unity Hub → Add project from disk**, using the Unity version above.
 4. Open `Assets/_Project/Scenes/LivingRoom.unity` and press Play.
+5. Join by pressing a button (Space, `.`, or A on a gamepad). With 2 or more roommates in, press Enter or Start.
 
-First-time setup (one person only): create a new URP project in Unity Hub, copy this repository's files into it, commit `Assets/`, `Packages/` and `ProjectSettings/`, then push. Everyone else just clones.
+## What's playable
 
-## Controls (planned)
+**Dibs!** in the living room, first to 3 rounds:
 
-| Action | Controller | Keyboard |
-|---|---|---|
-| Move | Left stick | WASD |
-| Grab / pick up | RT | Space |
-| Attack / use | X | J |
-| Spell (open word wheel) | Y (hold) | K (hold) |
-| Choose word | Right stick | Arrow keys |
+- Smash furniture (SOFA, TABLE, LAMP, CHAIR…) with punches or by throwing things. It bursts into its own letters.
+- Walk over letters to pick them up. You carry up to 6, and you start each round with 3.
+- Hold spell to open the word wheel. It shows the words you can make, plus near misses in grey. Release to summon.
+- All 20 words in `word_list.csv` do something: weapons, WALL, SHIELD, ARMOR, WINGS, SPRING, SKATES, ROPE, BEES, FLOOD, MAGNET, DUCK, QUAKE, ZAP.
+- Summons fall apart back into their letters when they're used up, so they can be grabbed and re-spelled.
+- A hit knocks 2 letters loose. A hit with no letters is a knockout.
+- Delivery boxes drop in when the room runs low on letters. After 90 seconds the room collapses and boxes rain down.
+
+Everything is placeholder art built from blocks. Not in yet: audio, the hub, Tutorial, Co-op and Creative.
+
+## Controls
+
+| Action | Gamepad | Keyboard (left) | Keyboard (right) |
+|---|---|---|---|
+| Join | A / X / Start | Space or J | `.` or `/` |
+| Move | Left stick / d-pad | WASD | Arrow keys |
+| Grab, throw | A or RT | Space | `.` or Numpad 1 |
+| Attack, use weapon | X | J | `/` or Numpad 2 |
+| Spell (hold, release to summon) | Y | K | Right Shift or Numpad 3 |
+| Choose word (while spelling) | Stick or d-pad up/down | W / S | Up / Down |
+| Cancel spelling | A | Space | `.` |
+| Start match | Start | Enter | Numpad Enter |
 
 ## Project structure
 
 ```
 Assets/_Project/
   Scripts/
-    Letters/   LetterTile, TilePool, Smashable, LetterScores
-    Words/     WordDatabase, WordSolver
-    Player/    LetterInventory, Summoner, PlayerHealth
-    Game/      RoundManager
+    Core/      GameAssets (shared art/data), World, Popup
+    Input/     InputBinding: keyboard halves, gamepads, scripted input for tests
+    Letters/   LetterTile, TilePool, LetterBlocks, LetterBuilt, Smashable, LetterScores
+    Words/     WordDatabase (reads word_list.csv), WordSolver
+    Player/    PlayerController, PlayerHealth, LetterInventory, PlayerCombat, Summoner, PlayerHud
+    Summons/   SummonEffects (what each word does), HeldWeapon, Projectile, BeeSwarm, DuckWalker, ...
+    Game/      RoundManager, PlayerJoinManager, RoomBuilder, DeliverySpawner, GameHud, CameraRig
+  Editor/      PrototypeBuilder: generates the scene, prefabs and materials
+  Tests/       Play mode tests for the core loop
   Data/        word_list.csv
-  Prefabs/  Scenes/  Art/  Audio/  Materials/
+  Prefabs/  Scenes/  Resources/  Materials/  Art/  Audio/
 docs/          design doc, roadmap, workflow, asset log, contribution table
 ```
+
+**Adding a word:** add a row to `word_list.csv`. It works straight away with a default effect for its category. For a custom effect, add a `case` in `SummonEffects.cs`.
+
+**Regenerating the prototype:** **Wreckabulary → Rebuild Prototype** recreates the materials, prefabs and `LivingRoom.unity` from `PrototypeBuilder.cs`. It overwrites the scene, so once someone starts editing the scene by hand, change the builder or stop using it.
+
+## Tests
+
+**Window → General → Test Runner → PlayMode → Run All.** Or, from the command line:
+
+```
+Unity.exe -batchmode -projectPath . -runTests -testPlatform PlayMode -testResults results.xml
+```
+
+`CaptureTests` is explicit, so it only runs when selected. It saves screenshots of the living room to `Temp/Captures`.
 
 ## Documents
 

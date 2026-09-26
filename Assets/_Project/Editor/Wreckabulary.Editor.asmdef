@@ -1,0 +1,14 @@
+{
+    "name": "Wreckabulary.Editor",
+    "rootNamespace": "Wreckabulary.EditorTools",
+    "references": [
+        "Wreckabulary",
+        "Unity.TextMeshPro",
+        "UnityEngine.UI",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "autoReferenced": false
+}

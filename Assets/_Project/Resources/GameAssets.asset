@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9cf6195b9f251f3408b8179580b8d631, type: 3}
+  m_Name: GameAssets
+  m_EditorClassIdentifier: Wreckabulary::Wreckabulary.GameAssets
+  font: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  blockMesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  tileCommon: {fileID: 2100000, guid: 9be1129355b48984eacb7dccb1a7498b, type: 2}
+  tileRare: {fileID: 2100000, guid: b8c8478022e894047a46b3177304a4bc, type: 2}
+  tileLegendary: {fileID: 2100000, guid: df365a571354e544d81ab4cd58d17c47, type: 2}
+  ink: {r: 0.23, g: 0.15, b: 0.09, a: 1}
+  tintBase: {fileID: 2100000, guid: 55e2994131d72ea45b0e714f080d5d82, type: 2}
+  cardboard: {fileID: 2100000, guid: 1630f5f591721f8468cd272a6384c2fc, type: 2}
+  tints:
+  - {fileID: 2100000, guid: 033bb0923c4d537449dd6ece2a94f3da, type: 2}
+  - {fileID: 2100000, guid: 16b1c244d8715ee4d93855d23664cb6a, type: 2}
+  - {fileID: 2100000, guid: c83a4e7ef3c0a934d867134f6c0b5c64, type: 2}
+  - {fileID: 2100000, guid: cc31d8116977d93478a6856a11572990, type: 2}
+  - {fileID: 2100000, guid: a2cc249328e9c2341bd576e46fb8d87b, type: 2}
+  - {fileID: 2100000, guid: 550e200d949f1a94da480284cffaee84, type: 2}
+  - {fileID: 2100000, guid: e8b55d4672b43644d893756e6b8d3839, type: 2}
+  - {fileID: 2100000, guid: a8dcce8744854984eafdc2b642f79afe, type: 2}
+  - {fileID: 2100000, guid: 3b5d64ea64481a444819b562c2fd8521, type: 2}
+  - {fileID: 2100000, guid: 0267f0ae36b360245b6d0f3d37670cec, type: 2}
+  - {fileID: 2100000, guid: 2a38a763e3f24a043a942f53bb55afc0, type: 2}
+  - {fileID: 2100000, guid: d5342d6c472b255488233777c5fb5b13, type: 2}
+  tilePrefab: {fileID: 279869507977457874, guid: e55dc87e1ec766b438d440947a517934, type: 3}
+  playerPrefab: {fileID: 6559939407275357181, guid: 786da980fe0631447b88c6a7c203d101, type: 3}
+  words: {fileID: 11400000, guid: 67dce8d9b7f6ac34a8966cc71ccee989, type: 2}
+  playerColors:
+  - {r: 0.91, g: 0.34, b: 0.29, a: 1}
+  - {r: 0.25, g: 0.56, b: 0.88, a: 1}
+  - {r: 0.36, g: 0.73, b: 0.39, a: 1}
+  - {r: 0.95, g: 0.7, b: 0.24, a: 1}
+  playerInitials: WORD
