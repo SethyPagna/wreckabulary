@@ -1,32 +1,43 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace Wreckabulary
 {
     /// <summary>
-    /// The word wheel. Hold spell to open it, step through the words you can make,
-    /// and release to summon the selected one. Moving is slowed while spelling.
+    /// Spelling. Press spell to start: your letters appear over your head. Move left/right to pick one,
+    /// add it to the word, undo if you slip, and press spell again to cast. If it isn't a word it fizzles
+    /// and you keep your letters. You stand still while spelling, so pick your moment.
     /// </summary>
     [RequireComponent(typeof(LetterInventory))]
+    [DefaultExecutionOrder(-30)] // before combat, so a spelling key press isn't also a punch or a grab
     public class Summoner : MonoBehaviour
     {
         [SerializeField] WordDatabase database;
-        [SerializeField] float moveScaleWhileSpelling = 0.35f;
         [SerializeField] int maxHints = 3;
 
         LetterInventory inventory;
         PlayerController controller;
+        readonly List<int> picked = new();
+        readonly List<char> pickedLetters = new();
 
         public bool IsSpelling { get; private set; }
-        /// <summary>Words that can be summoned right now, best first.</summary>
-        public List<WordEntry> Ready { get; private set; } = new();
-        /// <summary>Near misses shown greyed out, with the letters still needed.</summary>
-        public List<(WordEntry entry, string missing)> Hints { get; private set; } = new();
-        public int Selected { get; private set; }
-        public WordEntry SelectedWord => Selected < Ready.Count ? Ready[Selected] : null;
+        /// <summary>True on the frame spelling ended, so that key press isn't reused.</summary>
+        public bool JustClosed => closedFrame == Time.frameCount;
+        int closedFrame = -1;
+        /// <summary>Index of the highlighted letter in the inventory, or -1 if every letter is used.</summary>
+        public int Cursor { get; private set; }
+        /// <summary>Inventory indices added to the word so far, in order.</summary>
+        public IReadOnlyList<int> Picked => picked;
+        public string Spelled => new(pickedLetters.ToArray());
+        /// <summary>The word being spelled, if it's a real one.</summary>
+        public WordEntry Match => Find(Spelled);
+        /// <summary>Words you could still finish from here with the letters you hold, best first.</summary>
+        public List<WordEntry> Hints { get; private set; } = new();
 
         public event Action<string> Summoned;
+        public event Action<string> Fizzled;
 
         /// <summary>Set by a mode to replace the word list, e.g. Moving Day's checklist.</summary>
         public IReadOnlyList<WordEntry> WordsOverride { get; set; }
@@ -37,7 +48,7 @@ namespace Wreckabulary
         {
             inventory = GetComponent<LetterInventory>();
             controller = GetComponent<PlayerController>();
-            inventory.Changed += () => { if (IsSpelling) Refresh(); };
+            inventory.Changed += OnLettersChanged;
         }
 
         void Update()
@@ -48,56 +59,99 @@ namespace Wreckabulary
                 return;
             }
             var c = controller.Commands;
-            if (c.spellDown) Open();
-            if (!IsSpelling) return;
-
-            if (c.up) Step(-1);
-            if (c.down) Step(1);
-            if (c.grab) { Close(); return; }
-            if (c.spellUp || !c.spellHeld)
+            if (!IsSpelling)
             {
-                var word = SelectedWord;
-                Close();
-                if (word != null) Summon(word);
+                if (c.spellDown) Open();
+                return;
             }
+
+            if (c.left) Move(-1);
+            if (c.right) Move(1);
+            if (c.confirm) Add();
+            if (c.back) Undo();
+            if (c.spellDown) Cast();
         }
 
         public void Open()
         {
             IsSpelling = true;
-            Selected = 0;
+            picked.Clear();
+            pickedLetters.Clear();
+            Cursor = -1;
+            MoveToFree(0, 1);
             Refresh();
-            controller.MoveScale = moveScaleWhileSpelling;
+            controller.MoveScale = 0f;
         }
 
         public void Close()
         {
             if (!IsSpelling) return;
             IsSpelling = false;
+            closedFrame = Time.frameCount;
+            picked.Clear();
+            pickedLetters.Clear();
             controller.MoveScale = 1f;
         }
 
-        void Refresh()
+        /// <summary>Moves the highlight to the next letter not already in the word.</summary>
+        public void Move(int dir)
         {
-            var keep = SelectedWord;
-            Ready = WordSolver.Spellable(Words, inventory.Letters);
-            var hints = WordSolver.Hints(Words, inventory.Letters, inventory.Capacity);
-            Hints = hints.GetRange(0, Mathf.Min(maxHints, hints.Count));
-            Selected = keep != null && Ready.Contains(keep) ? Ready.IndexOf(keep) : 0;
+            int n = inventory.Count;
+            if (n == 0) return;
+            int start = Cursor < 0 ? 0 : Cursor + dir;
+            MoveToFree(((start % n) + n) % n, dir);
         }
 
-        void Step(int delta)
+        void MoveToFree(int from, int dir)
         {
-            if (Ready.Count == 0) return;
-            Selected = (Selected + delta + Ready.Count) % Ready.Count;
+            int n = inventory.Count;
+            for (int k = 0; k < n; k++)
+            {
+                int i = (((from + k * dir) % n) + n) % n;
+                if (!picked.Contains(i)) { Cursor = i; return; }
+            }
+            Cursor = -1;
         }
 
+        /// <summary>Adds the highlighted letter to the word.</summary>
+        public void Add()
+        {
+            if (Cursor < 0 || picked.Contains(Cursor)) return;
+            picked.Add(Cursor);
+            pickedLetters.Add(inventory.Letters[Cursor]);
+            MoveToFree(Cursor, 1);
+            Refresh();
+        }
+
+        /// <summary>Takes back the last letter, or stops spelling if the word is empty.</summary>
+        public void Undo()
+        {
+            if (picked.Count == 0) { Close(); return; }
+            Cursor = picked[^1];
+            picked.RemoveAt(picked.Count - 1);
+            pickedLetters.RemoveAt(pickedLetters.Count - 1);
+            Refresh();
+        }
+
+        /// <summary>Summons the spelled word if it's real; otherwise it fizzles and nothing is spent.</summary>
+        public bool Cast()
+        {
+            string word = Spelled;
+            var entry = Match;
+            Close();
+            if (word.Length == 0) return false;
+            if (entry != null) return Summon(entry);
+
+            Popup.Show($"{word}?", controller.OverheadPosition + Vector3.up * 0.6f, new Color(1f, 1f, 1f, 0.8f), 3.5f);
+            Fizzled?.Invoke(word);
+            return false;
+        }
+
+        /// <summary>Spells a whole word in one go (tests, bots). Uses the same letters and rules.</summary>
         public bool Summon(string word)
         {
-            word = word.ToUpperInvariant();
-            foreach (var entry in Words)
-                if (entry.word == word) return Summon(entry);
-            return false;
+            var entry = Find(word);
+            return entry != null && Summon(entry);
         }
 
         public bool Summon(WordEntry entry)
@@ -106,6 +160,42 @@ namespace Wreckabulary
             SummonEffects.Apply(controller, entry);
             Summoned?.Invoke(entry.word);
             return true;
+        }
+
+        WordEntry Find(string word)
+        {
+            if (string.IsNullOrEmpty(word)) return null;
+            word = word.ToUpperInvariant();
+            foreach (var entry in Words)
+                if (entry.word == word) return entry;
+            return null;
+        }
+
+        void Refresh()
+        {
+            string prefix = Spelled;
+            Hints = WordSolver.Spellable(Words, inventory.Letters)
+                .Where(w => w.word.StartsWith(prefix) && w.word != prefix)
+                .Take(maxHints)
+                .ToList();
+        }
+
+        /// <summary>Letters picked up or knocked loose mid-spell: keep the word if its letters are still there.</summary>
+        void OnLettersChanged()
+        {
+            if (!IsSpelling) return;
+            for (int k = 0; k < picked.Count; k++)
+            {
+                int i = picked[k];
+                if (i >= inventory.Count || inventory.Letters[i] != pickedLetters[k])
+                {
+                    picked.Clear();
+                    pickedLetters.Clear();
+                    break;
+                }
+            }
+            if (Cursor >= inventory.Count || Cursor < 0 || picked.Contains(Cursor)) MoveToFree(0, 1);
+            Refresh();
         }
     }
 }

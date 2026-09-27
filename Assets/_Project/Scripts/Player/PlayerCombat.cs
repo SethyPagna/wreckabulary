@@ -17,7 +17,8 @@ namespace Wreckabulary
         [Header("Grab and throw")]
         [SerializeField] float grabReach = 0.8f;
         [SerializeField] float grabRadius = 0.9f;
-        [SerializeField] float maxCarryMass = 6f;
+        [Tooltip("Carrying something this heavy (or heavier) halves your speed. Lighter things slow you less.")]
+        [SerializeField] float heavyMass = 16f;
         [SerializeField] float throwSpeed = 13f;
         [Tooltip("A carried player wriggles free after this long.")]
         [SerializeField] float struggleTime = 1.6f;
@@ -49,9 +50,10 @@ namespace Wreckabulary
         void Update()
         {
             if (held == null && (heldPlayer || weapon)) ClearHeld();
+            controller.CarryScale = held && !weapon ? Mathf.Lerp(1f, 0.5f, Mathf.Clamp01(held.mass / heavyMass)) : 1f;
             if (heldPlayer && Time.time - heldSince > struggleTime) Drop();
 
-            if (!controller.CanAct || (controller.Summoner && controller.Summoner.IsSpelling)) return;
+            if (!controller.CanAct || (controller.Summoner && (controller.Summoner.IsSpelling || controller.Summoner.JustClosed))) return;
             var c = controller.Commands;
             if (c.grab) GrabOrThrow();
             if (c.attack) Attack();
@@ -122,8 +124,6 @@ namespace Wreckabulary
             {
                 var rb = Hits[i].attachedRigidbody;
                 if (!rb || rb == controller.Body || rb.isKinematic || rb.GetComponent<LetterTile>()) continue;
-                bool isPlayer = rb.GetComponent<PlayerController>();
-                if (!isPlayer && rb.mass > maxCarryMass) continue;
                 float d = (rb.worldCenterOfMass - centre).sqrMagnitude;
                 if (d < bestSq) { bestSq = d; best = rb; }
             }
@@ -176,7 +176,7 @@ namespace Wreckabulary
             if (!held) return;
             nextAttack = Time.time + punchCooldown;
             controller.PlayPunch();
-            float speed = throwSpeed * Mathf.Lerp(1f, 0.65f, Mathf.Clamp01(held.mass / maxCarryMass));
+            float speed = throwSpeed * Mathf.Lerp(1f, 0.55f, Mathf.Clamp01(held.mass / heavyMass));
             var velocity = controller.Facing * speed + Vector3.up * 4f + World.Flat(controller.Body.linearVelocity) * 0.5f;
 
             if (heldPlayer)

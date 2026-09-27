@@ -122,28 +122,102 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(p.Summoner.Summon("SWORD"), "can't summon without the letters");
         }
 
+        /// <summary>Presses one spelling control for a frame.</summary>
+        static IEnumerator Press(ScriptedBinding input, string control)
+        {
+            switch (control)
+            {
+                case "spell": input.Next.spellDown = true; break;
+                case "left": input.Next.left = true; break;
+                case "right": input.Next.right = true; break;
+                case "add": input.Next.confirm = true; break;
+                case "undo": input.Next.back = true; break;
+            }
+            yield return null;
+            yield return null;
+        }
+
         [UnityTest]
-        public IEnumerator WordWheelFromInputSummonsSelectedWord()
+        public IEnumerator SpellingLetterByLetterFromInput()
         {
             var p = SpawnPlayer(0, Vector3.zero, out var input);
             yield return Frames(2);
-            p.Inventory.Set("BLADEW");
+            p.Inventory.Set("EDALBW"); // scrambled, so spelling BLADE needs moving the highlight
 
-            input.Next.spellHeld = true;
-            input.Next.spellDown = true;
-            yield return null;
-            yield return null;
+            yield return Press(input, "spell");
             Assert.IsTrue(p.Summoner.IsSpelling);
-            Assert.AreEqual("BLADE", p.Summoner.SelectedWord?.word);
+            Assert.AreEqual(0, p.Summoner.Cursor);
 
-            input.Next.spellHeld = false;
-            input.Next.spellUp = true;
-            yield return null;
-            yield return null;
+            for (int i = 0; i < 4; i++) yield return Press(input, "right");
+            Assert.AreEqual(4, p.Summoner.Cursor, "highlight on the B");
+            yield return Press(input, "add");
+            Assert.AreEqual("B", p.Summoner.Spelled);
+            CollectionAssert.Contains(p.Summoner.Hints.Select(h => h.word).ToList(), "BLADE", "hints show what B can become");
 
+            // Left skips letters already used: L, then A, then D, then E.
+            foreach (char expected in "LADE")
+            {
+                yield return Press(input, "left");
+                Assert.AreEqual(expected, p.Inventory.Letters[p.Summoner.Cursor]);
+                yield return Press(input, "add");
+            }
+            Assert.AreEqual("BLADE", p.Summoner.Spelled);
+            Assert.IsNotNull(p.Summoner.Match);
+
+            yield return Press(input, "spell");
             Assert.IsFalse(p.Summoner.IsSpelling);
             CollectionAssert.AreEqual(new[] { 'W' }, p.Inventory.Letters.ToArray());
             Assert.AreEqual("BLADE", p.Combat.Weapon?.word);
+        }
+
+        [UnityTest]
+        public IEnumerator UndoTakesBackTheLastLetter()
+        {
+            var p = SpawnPlayer(0, Vector3.zero, out var input);
+            yield return Frames(2);
+            p.Inventory.Set("BAT");
+
+            yield return Press(input, "spell");
+            yield return Press(input, "add");
+            yield return Press(input, "add");
+            Assert.AreEqual("BA", p.Summoner.Spelled);
+            yield return Press(input, "undo");
+            Assert.AreEqual("B", p.Summoner.Spelled);
+            Assert.AreEqual(1, p.Summoner.Cursor, "the highlight goes back to the A");
+            yield return Press(input, "undo");
+            yield return Press(input, "undo");
+            Assert.IsFalse(p.Summoner.IsSpelling, "undo on an empty word stops spelling");
+            Assert.AreEqual(3, p.Inventory.Count);
+        }
+
+        [UnityTest]
+        public IEnumerator NonWordsFizzleAndKeepTheLetters()
+        {
+            var p = SpawnPlayer(0, Vector3.zero, out var input);
+            yield return Frames(2);
+            p.Inventory.Set("TAB");
+            string fizzled = null;
+            p.Summoner.Fizzled += w => fizzled = w;
+
+            yield return Press(input, "spell");
+            for (int i = 0; i < 3; i++) yield return Press(input, "add"); // T A B
+            yield return Press(input, "spell");
+
+            Assert.AreEqual("TAB", fizzled);
+            Assert.AreEqual(3, p.Inventory.Count, "nothing spent");
+            Assert.IsNull(p.Combat.Weapon);
+        }
+
+        [UnityTest]
+        public IEnumerator YouStandStillWhileSpelling()
+        {
+            var p = SpawnPlayer(0, Vector3.zero, out var input);
+            yield return Frames(2);
+            p.Inventory.Set("BAT");
+            yield return Press(input, "spell");
+            input.Next.move = Vector2.right;
+            yield return new WaitForSeconds(0.4f);
+            Assert.Less(p.transform.position.x, 0.2f);
         }
 
         [UnityTest]

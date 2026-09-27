@@ -52,17 +52,23 @@ namespace Wreckabulary.Tests
             inputs[0].Next.move = Vector2.zero;
             inputs[1].Next.move = Vector2.zero;
 
-            // P3 summons a SWORD, P2 opens the word wheel.
+            // P3 summons a SWORD, P2 is halfway through spelling BEES.
             p3.Inventory.Set("SWORDE");
             p3.Summoner.Summon("SWORD");
             p2.Inventory.Set("BEESTA");
-            inputs[1].Next.spellHeld = true;
             inputs[1].Next.spellDown = true;
+            yield return null;
+            yield return null;
+            inputs[1].Next.confirm = true; // B
+            yield return null;
+            yield return null;
+            inputs[1].Next.confirm = true; // E
             yield return new WaitForSeconds(0.4f);
             Capture(Path.Combine(dir, "2_action.png"));
 
-            inputs[1].Next.spellHeld = false;
-            inputs[1].Next.spellUp = true;
+            p2.Summoner.Add(); // E
+            p2.Summoner.Add(); // S
+            p2.Summoner.Cast();
             yield return new WaitForSeconds(0.6f);
             Capture(Path.Combine(dir, "3_bees.png"));
 #if UNITY_EDITOR

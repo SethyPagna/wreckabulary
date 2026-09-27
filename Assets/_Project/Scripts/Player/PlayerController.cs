@@ -43,6 +43,8 @@ namespace Wreckabulary
         public bool Frozen { get; set; }
         public bool Grounded { get; private set; }
         public float MoveScale { get; set; } = 1f;
+        /// <summary>Slowdown from carrying something heavy.</summary>
+        public float CarryScale { get; set; } = 1f;
         public bool IsStaggered => Time.time < staggerUntil;
         public bool CanAct => !Frozen && !IsKnockedOut && !IsHeld && !IsStaggered;
         public Vector3 OverheadPosition => transform.position + Vector3.up * 2.1f;
@@ -120,7 +122,7 @@ namespace Wreckabulary
             var input = Time.time < autoWalkUntil ? autoWalk
                       : Frozen ? Vector3.zero
                       : new Vector3(Commands.move.x, 0f, Commands.move.y);
-            float speed = moveSpeed * MoveScale * (Time.time < boostUntil ? boost : 1f);
+            float speed = moveSpeed * MoveScale * CarryScale * (Time.time < boostUntil ? boost : 1f);
             float accel = acceleration
                         * (IsStaggered ? 0.1f : 1f)
                         * (Time.time < slipperyUntil ? 0.1f : 1f)
