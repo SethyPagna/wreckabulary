@@ -14,6 +14,8 @@ namespace Wreckabulary
         [SerializeField] TextMeshProUGUI timer;
         [SerializeField] TextMeshProUGUI scoreboard;
         [SerializeField] TextMeshProUGUI instruction;
+        [SerializeField] TextMeshProUGUI checklist;
+        [SerializeField] GameObject checklistPanel;
 
         readonly StringBuilder sb = new();
 
@@ -28,6 +30,13 @@ namespace Wreckabulary
         {
             if (instruction)
                 instruction.text = string.IsNullOrEmpty(hint) ? main : $"{main}\n<size=65%><color=#FFF4E0CC>{hint}</color></size>";
+        }
+
+        /// <summary>The panel on the left used by Moving Day.</summary>
+        public void SetChecklist(string text)
+        {
+            if (checklist) checklist.text = text;
+            if (checklistPanel) checklistPanel.SetActive(!string.IsNullOrEmpty(text));
         }
 
         public void SetTimer(string text)

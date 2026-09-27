@@ -12,7 +12,7 @@ namespace Wreckabulary
     {
         [SerializeField] string word = "TABLE";
         [SerializeField] float health = 30f;
-        [Tooltip("Collision impulse below this does no damage (walking into things, settling on the floor).")]
+        [Tooltip("Impacts only hurt when something was thrown (by a player, or falling in the collapse). Below this impulse they do nothing.")]
         [SerializeField] float impactThreshold = 6f;
         [SerializeField] float impactDamageScale = 2.5f;
         [Tooltip("Seconds after spawning when impacts do no damage, so dropped boxes survive landing.")]
@@ -21,6 +21,8 @@ namespace Wreckabulary
         public string Word => word;
         public float Health => health;
         public bool IsBroken { get; private set; }
+        /// <summary>Placed Moving Day furniture can't be wrecked.</summary>
+        public bool Invulnerable { get; set; }
         public event Action<Smashable> Broken;
 
         float graceUntil;
@@ -35,7 +37,7 @@ namespace Wreckabulary
 
         public void TakeHit(float damage)
         {
-            if (IsBroken) return;
+            if (IsBroken || Invulnerable) return;
             health -= damage;
             if (health <= 0f) Break();
         }
@@ -44,12 +46,10 @@ namespace Wreckabulary
         {
             if (Time.time < graceUntil) return;
             var other = c.rigidbody;
-            if (other)
-            {
-                if (other.GetComponent<LetterTile>()) return;
-                // Players walking into furniture shouldn't wreck it; thrown players should.
-                if (other.GetComponent<PlayerController>() && !other.GetComponent<ThrowTracker>()) return;
-            }
+            if (other && other.GetComponent<LetterTile>()) return;
+            // Only throws do damage, so furniture doesn't wreck itself by toppling or boxes landing on each other.
+            bool thrown = GetComponent<ThrowTracker>() || (other && other.GetComponent<ThrowTracker>());
+            if (!thrown) return;
             float impulse = c.impulse.magnitude;
             if (impulse > impactThreshold) TakeHit((impulse - impactThreshold) * impactDamageScale);
         }

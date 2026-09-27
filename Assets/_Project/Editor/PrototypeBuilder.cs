@@ -23,6 +23,7 @@ namespace Wreckabulary.EditorTools
         const string HubPath = Root + "/Scenes/Hub.unity";
         const string LivingRoomPath = Root + "/Scenes/LivingRoom.unity";
         const string TutorialPath = Root + "/Scenes/Tutorial.unity";
+        const string MovingDayPath = Root + "/Scenes/MovingDay.unity";
         const string TestEmptyPath = Root + "/Tests/Empty.unity";
         const string AssetsPath = Root + "/Resources/GameAssets.asset";
         const string WordsPath = Root + "/Data/Words.asset";
@@ -32,7 +33,7 @@ namespace Wreckabulary.EditorTools
         static void BuildFromMenu()
         {
             if (!EditorUtility.DisplayDialog("Rebuild prototype",
-                    "This regenerates the prototype materials and prefabs, and overwrites Hub.unity, LivingRoom.unity and Tutorial.unity. Continue?",
+                    "This regenerates the prototype materials and prefabs, and overwrites the Hub, LivingRoom, Tutorial and MovingDay scenes. Continue?",
                     "Rebuild", "Cancel")) return;
             BuildAll();
         }
@@ -66,6 +67,7 @@ namespace Wreckabulary.EditorTools
                 BuildHub(assets);
                 BuildTutorial(assets);
                 BuildLivingRoom(assets);
+                BuildMovingDay(assets);
                 // Blank scene the play mode tests reset to between tests.
                 EditorSceneManager.SaveScene(EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single), TestEmptyPath);
                 EditorBuildSettings.scenes = new[]
@@ -73,6 +75,7 @@ namespace Wreckabulary.EditorTools
                     new EditorBuildSettingsScene(HubPath, true),
                     new EditorBuildSettingsScene(LivingRoomPath, true),
                     new EditorBuildSettingsScene(TutorialPath, true),
+                    new EditorBuildSettingsScene(MovingDayPath, true),
                 };
             }
             finally
@@ -81,7 +84,7 @@ namespace Wreckabulary.EditorTools
             }
             EditorUtility.SetDirty(assets);
             AssetDatabase.SaveAssets();
-            Debug.Log("[Wreckabulary] Prototype rebuilt: Hub, LivingRoom, Tutorial");
+            Debug.Log("[Wreckabulary] Prototype rebuilt: Hub, LivingRoom, Tutorial, MovingDay");
         }
 
         // ---------------------------------------------------------------- setup
@@ -293,6 +296,13 @@ namespace Wreckabulary.EditorTools
 
         // ---------------------------------------------------------------- scenes
 
+        /// <summary>Single file on the porch: the doorway only fits one roommate at a time.</summary>
+        static readonly Vector3[] PorchSpawns =
+        {
+            new(-9.4f, 0f, -2f), new(-10.3f, 0f, -2f), new(-11.2f, 0f, -2f), new(-12.1f, 0f, -2f)
+        };
+        const float WalkInTime = 0.9f;
+
         struct SceneKit
         {
             public UnityEngine.SceneManagement.Scene scene;
@@ -370,14 +380,9 @@ namespace Wreckabulary.EditorTools
         static void BuildHub(GameAssets assets)
         {
             // Roommates arrive on the porch outside the front door and walk in.
-            var porch = new Vector3(-10.2f, 0f, -2f);
-            var kit = NewRoomScene(assets, new[]
-            {
-                porch + new Vector3(0f, 0f, -0.35f), porch + new Vector3(0f, 0f, 0.35f),
-                porch + new Vector3(-0.7f, 0f, -0.35f), porch + new Vector3(-0.7f, 0f, 0.35f)
-            }, frontDoor: true, backToHub: false, sign: "WRECKABULARY");
+            var kit = NewRoomScene(assets, PorchSpawns, frontDoor: true, backToHub: false, sign: "WRECKABULARY");
             Set(kit.joins, "walkIn", Vector3.right);
-            Set(kit.joins, "walkInTime", 0.6f);
+            Set(kit.joins, "walkInTime", WalkInTime);
 
             var decor = new GameObject("Furniture").transform;
             Furniture.Create(decor, "SOFA", new Vector3(-4.6f, 0f, 4.8f), 0f, new Vector3(1.0f, 0.9f, 1.0f), 0, Hex("C8664B"), 16f, 45f);
@@ -449,6 +454,76 @@ namespace Wreckabulary.EditorTools
             EditorSceneManager.SaveScene(kit.scene, TutorialPath);
         }
 
+        static void BuildMovingDay(GameAssets assets)
+        {
+            // Same arrival as the house: roommates walk in from the porch.
+            var kit = NewRoomScene(assets, PorchSpawns, frontDoor: true, backToHub: true, sign: "<i>Moving Day</i>");
+            Set(kit.joins, "walkIn", Vector3.right);
+            Set(kit.joins, "walkInTime", WalkInTime);
+            Set(kit.joins, "starterLetters", 0);
+
+            // A half wall splits the living room (left, by the front door) from the bedroom (right).
+            var room = GameObject.Find("Room").transform;
+            var sage = Lit("Wall_Sage", Hex("A9BF9F"), 0.1f);
+            Block(room, "Half Wall (back)", new Vector3(1f, 0.6f, 3.7f), new Vector3(0.25f, 1.2f, 4.9f), sage);
+            Block(room, "Half Wall (front)", new Vector3(1f, 0.6f, -3.7f), new Vector3(0.25f, 1.2f, 4.9f), sage);
+            Block(room, "Bedroom Carpet", new Vector3(4.8f, 0.006f, 0f), new Vector3(7.3f, 0.01f, 12.1f), Lit("Carpet_Blue", Hex("9DB4CF"), 0.05f), collider: false);
+            var rug = GameObject.Find("Rug");
+            if (rug) Object.DestroyImmediate(rug);
+            FloorText(new Vector3(-3.8f, 0.02f, 5f), "LIVING ROOM");
+            FloorText(new Vector3(4.8f, 0.02f, 5f), "BEDROOM");
+
+            var delivery = new GameObject("Delivery Spot").transform;
+            delivery.position = new Vector3(-6f, 0f, -2.2f);
+
+            var director = kit.game.AddComponent<MovingDayDirector>();
+            Set(director, "joins", kit.joins);
+            Set(director, "hud", kit.hud);
+            Set(director, "deliverySpot", delivery);
+            director.Configure(
+                new[]
+                {
+                    new MovingDayDirector.Room { name = "Living Room", xRange = new Vector2(-8.4f, 0.85f), zRange = new Vector2(-6f, 6f) },
+                    new MovingDayDirector.Room { name = "Bedroom", xRange = new Vector2(1.15f, 8.4f), zRange = new Vector2(-6f, 6f) },
+                },
+                new[]
+                {
+                    new MovingDayDirector.Level
+                    {
+                        name = "Moving In", timeLimit = 150f,
+                        items = new[]
+                        {
+                            new MovingDayDirector.Item { word = "BED", room = "Bedroom" },
+                            new MovingDayDirector.Item { word = "LAMP", room = "Bedroom" },
+                            new MovingDayDirector.Item { word = "SOFA", room = "Living Room" },
+                            new MovingDayDirector.Item { word = "TABLE", room = "Living Room" },
+                        }
+                    },
+                    new MovingDayDirector.Level
+                    {
+                        name = "Housewarming", timeLimit = 180f, spills = true,
+                        items = new[]
+                        {
+                            new MovingDayDirector.Item { word = "DESK", room = "Bedroom" },
+                            new MovingDayDirector.Item { word = "CHAIR", room = "Bedroom" },
+                            new MovingDayDirector.Item { word = "RUG", room = "Bedroom" },
+                            new MovingDayDirector.Item { word = "TV", room = "Living Room" },
+                            new MovingDayDirector.Item { word = "PLANT", room = "Living Room" },
+                            new MovingDayDirector.Item { word = "CLOCK", room = "Living Room" },
+                        }
+                    },
+                });
+
+            EditorSceneManager.SaveScene(kit.scene, MovingDayPath);
+        }
+
+        static void FloorText(Vector3 pos, string text)
+        {
+            var t = WorldText(null, "Floor Label", pos, Quaternion.Euler(90f, 0f, 0f), 9f, new Vector2(8f, 2f), GameAssets.I);
+            t.text = text;
+            t.color = new Color(1f, 1f, 1f, 0.35f);
+        }
+
         static void BuildRoom(bool frontDoor, string sign)
         {
             var room = new GameObject("Room").transform;
@@ -473,10 +548,10 @@ namespace Wreckabulary.EditorTools
                 Block(room, "Wall Left (front)", new Vector3(-8.65f, 1.6f, -4.6f), new Vector3(0.3f, 3.2f, 3.7f), sage);
                 Block(room, "Wall Left (back)", new Vector3(-8.65f, 1.6f, 2.6f), new Vector3(0.3f, 3.2f, 7.7f), sage);
                 Block(room, "Wall Left (over door)", new Vector3(-8.65f, 2.75f, -2f), new Vector3(0.3f, 0.9f, 1.5f), sage);
-                Block(room, "Porch", new Vector3(-10.1f, -0.1f, -2f), new Vector3(3f, 0.2f, 2.6f), floor);
-                Invisible(room, "Porch Fence (end)", new Vector3(-11.7f, 1.5f, -2f), new Vector3(0.3f, 3f, 3f));
-                Invisible(room, "Porch Fence (front)", new Vector3(-10.1f, 1.5f, -3.45f), new Vector3(3.4f, 3f, 0.3f));
-                Invisible(room, "Porch Fence (back)", new Vector3(-10.1f, 1.5f, -0.55f), new Vector3(3.4f, 3f, 0.3f));
+                Block(room, "Porch", new Vector3(-10.7f, -0.1f, -2f), new Vector3(4.2f, 0.2f, 2.6f), floor);
+                Invisible(room, "Porch Fence (end)", new Vector3(-12.95f, 1.5f, -2f), new Vector3(0.3f, 3f, 3f));
+                Invisible(room, "Porch Fence (front)", new Vector3(-10.7f, 1.5f, -3.45f), new Vector3(4.6f, 3f, 0.3f));
+                Invisible(room, "Porch Fence (back)", new Vector3(-10.7f, 1.5f, -0.55f), new Vector3(4.6f, 3f, 0.3f));
             }
             else
             {
@@ -563,6 +638,16 @@ namespace Wreckabulary.EditorTools
             var timer = UiText(canvasGo.transform, "Timer", new Vector2(0.5f, 0.95f), new Vector2(600f, 90f), 60f, assets);
             var instruction = UiText(canvasGo.transform, "Instruction", new Vector2(0.5f, 0.15f), new Vector2(1800f, 150f), 46f, assets);
             var score = UiText(canvasGo.transform, "Scoreboard", new Vector2(0.5f, 0.05f), new Vector2(1800f, 80f), 40f, assets);
+            var panel = new GameObject("Checklist Panel", typeof(RectTransform)).GetComponent<RectTransform>();
+            panel.SetParent(canvasGo.transform, false);
+            panel.anchorMin = panel.anchorMax = new Vector2(0.02f, 0.82f);
+            panel.pivot = new Vector2(0f, 1f);
+            panel.sizeDelta = new Vector2(600f, 430f);
+            panel.gameObject.AddComponent<Image>().color = new Color(0.12f, 0.09f, 0.1f, 0.6f);
+            panel.gameObject.SetActive(false);
+            var checklist = UiText(canvasGo.transform, "Checklist", new Vector2(0.03f, 0.8f), new Vector2(560f, 420f), 38f, assets);
+            checklist.rectTransform.pivot = new Vector2(0f, 1f);
+            checklist.alignment = TextAlignmentOptions.TopLeft;
 
             var hud = canvasGo.AddComponent<GameHud>();
             Set(hud, "title", title);
@@ -570,6 +655,8 @@ namespace Wreckabulary.EditorTools
             Set(hud, "timer", timer);
             Set(hud, "instruction", instruction);
             Set(hud, "scoreboard", score);
+            Set(hud, "checklist", checklist);
+            Set(hud, "checklistPanel", panel.gameObject);
             return hud;
         }
 

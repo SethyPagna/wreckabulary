@@ -152,6 +152,7 @@ namespace Wreckabulary
             Dummy.Respawn(dummySpot.position);
             Dummy.FaceTowards(Vector3.back);
             Dummy.Inventory.Set("DUMMY");
+            Dummy.Inventory.Collects = false;
             Dummy.Health.Hit += (_, attacker) => { if (attacker) dummyHits++; };
             Dummy.Health.KnockedOut += _ => { if (!Finished) Invoke(nameof(EnsureDummy), 1.5f); };
         }

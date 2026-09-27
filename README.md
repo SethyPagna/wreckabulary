@@ -56,9 +56,11 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 
 ## What's playable
 
-**The house (hub):** roommates join by walking in through the front door. Pick a mode at the typewriter: Tutorial or Dibs!. Moving Day and Home Sweet Home are marked "coming soon". Whoever is in the house comes along into the mode, and everyone heads home after a match or on Esc / Select.
+**The house (hub):** roommates join by walking in through the front door. Pick a mode at the typewriter: Tutorial, Dibs! or Moving Day. Home Sweet Home is marked "coming soon". Whoever is in the house comes along into the mode, and everyone heads home after a match or on Esc / Select.
 
 **Tutorial:** 7 steps covering walk, smash the BAT box, pick up the letters, spell BAT, whack the dummy, throw the chair, and knock the dummy out. Any roommate can complete a step.
+
+**Moving Day** (co-op, 1–4 players) in a house split into a living room and a bedroom. Boxes labelled with the checklist arrive at the front door. Smash them for the letters, spell each item (the word wheel only offers checklist words) to build it, and carry it into the right room. Placed furniture locks in with a tick. Stars (1–3) depend on time left. Run out of time and the level restarts. There are 2 levels, and level 2 adds slippery spills. Lost letters are resent in a new box.
 
 **Dibs!** in the living room, first to 3 rounds:
 
@@ -70,7 +72,7 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 - A hit knocks 2 letters loose. A hit with no letters is a knockout.
 - Delivery boxes drop in when the room runs low on letters. After 90 seconds the room collapses and boxes rain down.
 
-Everything is placeholder art built from blocks. Not in yet: audio, character customisation, Co-op (Moving Day) and Creative (Home Sweet Home).
+Everything is placeholder art built from blocks. Not in yet: audio, character customisation and Creative (Home Sweet Home).
 
 ## Controls
 
@@ -98,7 +100,7 @@ Assets/_Project/
     Words/     WordDatabase (reads word_list.csv), WordSolver
     Player/    PlayerController, PlayerHealth, LetterInventory, PlayerCombat, Summoner, PlayerHud
     Summons/   SummonEffects (what each word does), HeldWeapon, Projectile, BeeSwarm, DuckWalker, ...
-    Game/      RoundManager (Dibs!), HubDirector + Typewriter (house), TutorialDirector,
+    Game/      RoundManager (Dibs!), HubDirector + Typewriter (house), TutorialDirector, MovingDayDirector,
                PlayerJoinManager, RoomBuilder, DeliverySpawner, GameHud, CameraRig, BackToHub
   Editor/      PrototypeBuilder: generates the scene, prefabs and materials
   Tests/       Play mode tests for the core loop
@@ -107,9 +109,11 @@ Assets/_Project/
 docs/          design doc, roadmap, workflow, asset log, contribution table
 ```
 
+**Adding a Moving Day item or level:** levels and checklists live on the MovingDayDirector (set in `PrototypeBuilder.BuildMovingDay`). Any word works as a checklist item. To give it a custom look, add it to `FurnitureCatalog.cs`.
+
 **Adding a word:** add a row to `word_list.csv`. It works straight away with a default effect for its category. For a custom effect, add a `case` in `SummonEffects.cs`.
 
-**Regenerating the prototype:** **Wreckabulary → Rebuild Prototype** recreates the materials, prefabs and the `Hub`, `LivingRoom` and `Tutorial` scenes from `PrototypeBuilder.cs`. It overwrites those scenes, so once someone starts editing a scene by hand, change the builder or stop using it.
+**Regenerating the prototype:** **Wreckabulary → Rebuild Prototype** recreates the materials, prefabs and the `Hub`, `LivingRoom`, `Tutorial` and `MovingDay` scenes from `PrototypeBuilder.cs`. It overwrites those scenes, so once someone starts editing a scene by hand, change the builder or stop using it.
 
 **Adding a mode:** add an entry to the typewriter's mode list (`Typewriter.cs`, or in the Inspector on the Typewriter in `Hub.unity`) with its scene name, and add the scene to the build settings.
 

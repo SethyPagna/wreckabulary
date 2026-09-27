@@ -27,7 +27,7 @@ namespace Wreckabulary
         {
             new() { label = "TUTORIAL", blurb = "Learn to smash, spell and summon", scene = Session.TutorialScene },
             new() { label = "DIBS!", blurb = "Versus: last roommate standing", scene = Session.DibsScene, minPlayers = 2 },
-            new() { label = "MOVING DAY", blurb = "Co-op: furnish the house together", comingSoon = true },
+            new() { label = "MOVING DAY", blurb = "Co-op: furnish the house together", scene = Session.MovingDayScene },
             new() { label = "HOME SWEET HOME", blurb = "Creative: build your own room", comingSoon = true },
         };
         [SerializeField] PlayerJoinManager joins;
@@ -120,6 +120,14 @@ namespace Wreckabulary
             return false;
         }
 
+        static string StarsFor(Mode m)
+        {
+            if (m.scene != Session.MovingDayScene || Session.MovingDayStars.Count == 0) return "";
+            int total = 0;
+            foreach (var s in Session.MovingDayStars.Values) total += s;
+            return $"  ({total} stars)";
+        }
+
         string MenuLines()
         {
             sb.Clear();
@@ -138,7 +146,7 @@ namespace Wreckabulary
                 string colour = m.comingSoon ? "#FFFFFF66" : "#FFF4E0";
                 if (i == Selected)
                     sb.Append("<size=125%><color=#FFD24A>> ").Append(m.label).Append(" <</color></size>\n")
-                      .Append("<size=70%><color=#FFF4E0CC>").Append(m.comingSoon ? "coming soon" : m.blurb).Append("</color></size>\n");
+                      .Append("<size=70%><color=#FFF4E0CC>").Append(m.comingSoon ? "coming soon" : m.blurb).Append(StarsFor(m)).Append("</color></size>\n");
                 else
                     sb.Append("<color=").Append(colour).Append('>').Append(m.label).Append("</color>\n");
             }

@@ -62,6 +62,29 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator BoxesLandingOnBoxesDontBreak()
+        {
+            var bottom = DeliverySpawner.CreateBox("SOFA", Vector3.zero);
+            yield return new WaitForSeconds(2f); // past its spawn grace
+            var top = DeliverySpawner.CreateBox("LAMP", Vector3.up * 4f);
+            top.GetComponent<Rigidbody>().linearVelocity = Vector3.down * 10f;
+            yield return new WaitForSeconds(1.5f);
+            Assert.IsTrue(bottom && top, "neither box broke");
+        }
+
+        [UnityTest]
+        public IEnumerator ThrownThingsSmashWhatTheyHit()
+        {
+            var bottom = DeliverySpawner.CreateBox("SOFA", Vector3.zero);
+            yield return new WaitForSeconds(2f);
+            var thrown = DeliverySpawner.CreateBox("LAMP", Vector3.up * 3f);
+            ThrowTracker.Attach(thrown.gameObject, null, 2f);
+            thrown.GetComponent<Rigidbody>().linearVelocity = Vector3.down * 14f;
+            yield return new WaitForSeconds(1f);
+            Assert.IsFalse(bottom && thrown, "the throw smashed something");
+        }
+
+        [UnityTest]
         public IEnumerator PlayerCollectsNearbyTiles()
         {
             var p = SpawnPlayer(0, Vector3.zero, out _);

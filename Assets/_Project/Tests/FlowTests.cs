@@ -34,6 +34,17 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator FourRoommatesArrivingTogetherAllGetThroughTheDoor()
+        {
+            yield return TestScenes.Load(Session.HubScene);
+            var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
+            for (int i = 0; i < 4; i++) joins.Join(new ScriptedBinding());
+            yield return new WaitForSeconds(2f);
+            foreach (var p in joins.Players)
+                Assert.Greater(p.transform.position.x, -8.4f, $"{p.Name} made it inside");
+        }
+
+        [UnityTest]
         public IEnumerator TypewriterStartsDibsWithTheHouseRoommates()
         {
             yield return TestScenes.Load(Session.HubScene);

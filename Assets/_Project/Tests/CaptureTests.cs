@@ -108,6 +108,19 @@ namespace Wreckabulary.Tests
             input.Next.move = Vector2.zero;
             yield return new WaitForSeconds(1.5f);
             Capture(Path.Combine(dir, "6_tutorial.png"));
+
+            // Moving Day: the bed is in, boxes are arriving.
+            Session.Clear();
+            yield return SceneManager.LoadSceneAsync(Session.MovingDayScene);
+            yield return null;
+            joins = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>();
+            joins.Join(new ScriptedBinding());
+            joins.Join(new ScriptedBinding());
+            var director = UnityEngine.Object.FindAnyObjectByType<MovingDayDirector>();
+            yield return new WaitForSeconds(4.5f);
+            FurnitureCatalog.Spawn("BED", director.RoomNamed("Bedroom").Centre + new Vector3(0f, 0.3f, 2f), 0f, World.Transient);
+            yield return new WaitForSeconds(2.5f);
+            Capture(Path.Combine(dir, "7_moving_day.png"));
 #if UNITY_EDITOR
             UnityEditor.EditorSettings.asyncShaderCompilation = true;
 #endif

@@ -4,7 +4,8 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    public enum WordCategory { Weapon, Defence, Movement, Chaos }
+    /// <summary>Furniture words are Moving Day checklist items: spelling one builds the piece of furniture.</summary>
+    public enum WordCategory { Weapon, Defence, Movement, Chaos, Furniture }
 
     [Serializable]
     public class WordEntry
