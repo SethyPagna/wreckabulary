@@ -7,9 +7,10 @@ namespace Wreckabulary.EditorTools
 {
     /// <summary>
     /// One step after the Blender pipeline: saves the import settings for every imported texture
-    /// and model into its .meta file, builds the material library, and binds each model's
-    /// materials to the library by name. The results live in the .meta files and the library
-    /// assets, so teammates get the finished setup from git without running this.
+    /// and model into its .meta file, builds the material library, binds each model's
+    /// materials to the library by name, and lists the models in the model library. The results
+    /// live in the .meta files and the library assets, so teammates get the finished setup from
+    /// git without running this.
     /// Menu: Wreckabulary → Art → Set Up Imported Art.
     /// Batch: Unity -batchmode -quit -projectPath &lt;abs&gt; -executeMethod Wreckabulary.EditorTools.ArtSetup.Run
     /// </summary>
@@ -73,7 +74,8 @@ namespace Wreckabulary.EditorTools
 
             if (missing.Count > 0)
                 throw new InvalidOperationException("Art setup is incomplete. Rerun the Blender pipeline, then this. Missing:\n" + string.Join("\n", missing));
-            Debug.Log($"ART_SETUP_RESULT {{\"textures\": {textures}, \"materials\": {library.Materials.Count}, \"models\": {models}, \"remaps\": {remaps}}}");
+            var modelLibrary = ModelLibraryBuilder.Build(report);
+            Debug.Log($"ART_SETUP_RESULT {{\"textures\": {textures}, \"materials\": {library.Materials.Count}, \"models\": {models}, \"remaps\": {remaps}, \"modelLibrary\": {modelLibrary.Entries.Count}}}");
         }
 
         static void Batch(Action work)

@@ -20,6 +20,7 @@ namespace Wreckabulary.EditorTools
         public const string MaterialsPath = "Assets/_Project/Data/Generated/materials.json";
         public const string LibraryFolder = "Assets/_Project/Materials/Library";
         public const string LibraryAssetPath = "Assets/_Project/Resources/MaterialLibrary.asset";
+        public const string ModelLibraryAssetPath = "Assets/_Project/Resources/ModelLibrary.asset";
 
         /// <summary>Avatar clips that loop; the others play once.</summary>
         public static readonly string[] LoopingClips = { "Idle", "Walk_InPlace", "Run_InPlace", "Hold_OneHand", "Carry_TwoHand" };

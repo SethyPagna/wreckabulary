@@ -82,8 +82,13 @@ LEGACY = {
 
 
 def z_up_to_y_up_point(p):
+    """A point in the pack's Z-up model space, where it ends up in Unity: (-x, z, -y).
+
+    The asset pipeline gives every model a half turn so it faces Unity's +Z, and Unity puts
+    Blender (x, y, z) at (x, z, y) (Tools/AssetPipeline/README.md). Adding 0.0 turns -0.0 into 0.0.
+    """
     x, y, z = p
-    return [round(x, 4), round(z, 4), round(-y, 4) + 0.0]
+    return [round(-x, 4) + 0.0, round(z, 4), round(-y, 4) + 0.0]
 
 
 def z_up_to_y_up_size(d):
@@ -91,16 +96,32 @@ def z_up_to_y_up_size(d):
     return [round(x, 4), round(z, 4), round(y, 4)]
 
 
-def asset_facts(r):
+REPORT = os.path.join(REPO, "Assets", "_Project", "Data", "Generated", "build_report.json")
+
+
+def floor_snaps():
+    """How far the asset pipeline moved each item to stand it on the floor, from build_report.json.
+
+    Some pack models float a few centimetres up. The pipeline drops them onto the floor, and
+    their Grip_R marker moves with them, so the grip in items.json must move too.
+    """
+    with open(REPORT, encoding="utf-8") as f:
+        report = json.load(f)
+    return {e["name"]: e.get("floor_snap_m", 0.0) for e in report["files"] if e["kind"] == "item"}
+
+
+def asset_facts(r, snaps):
+    grip = z_up_to_y_up_point(r["world_grip_xyz_m"])
+    grip[1] = round(grip[1] + snaps.get(r["canonical_word"], 0.0), 4)
     return {
         "heldScale": round(r["held_scale"], 4),
-        "grip": z_up_to_y_up_point(r["world_grip_xyz_m"]),
+        "grip": grip,
         "size": z_up_to_y_up_size(r["world_dimensions_xyz_m"]),
         "skins": list(r["skins"]),
     }
 
 
-def build(recipes):
+def build(recipes, snaps):
     items = []
     for r in recipes["recipes"]:
         word = r["canonical_word"]
@@ -117,7 +138,7 @@ def build(recipes):
             "consumable": bool(r["consumed_on_use"]),
             "model": f"Items/{word}",
         }
-        entry.update(asset_facts(r))
+        entry.update(asset_facts(r, snaps))
         if core:
             d = dict(CORE[word])
             if d.pop("consumable", False) != entry["consumable"]:
@@ -146,6 +167,7 @@ def main():
     args = p.parse_args()
     with open(args.recipes, encoding="utf-8") as f:
         recipes = json.load(f)
+    snaps = floor_snaps()
     if args.check:
         with open(OUT, encoding="utf-8") as f:
             current = {i["id"]: i for i in json.load(f)["items"]}
@@ -156,12 +178,12 @@ def main():
             if have is None:
                 problems.append(f"{word} is missing from items.json")
                 continue
-            for k, v in asset_facts(r).items():
+            for k, v in asset_facts(r, snaps).items():
                 if have.get(k) != v:
                     problems.append(f"{word}.{k}: items.json has {have.get(k)}, the pack says {v}")
         print("CHECK_RESULT " + json.dumps({"items": len(recipes["recipes"]), "problems": problems}))
         sys.exit(1 if problems else 0)
-    data = build(recipes)
+    data = build(recipes, snaps)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         json.dump(data, f, indent=1)
