@@ -15,6 +15,8 @@ namespace Wreckabulary.Rules
         public float Damage;
         public float Knockback;
         public float HitStun;
+        /// <summary>How hard the hit is on furniture: a punch is 1, a BOMB 4. Players ignore it.</summary>
+        public float BreakPower;
         public int AttackerId;
         public int AttackerTeam;
         public string ItemId;
@@ -29,6 +31,7 @@ namespace Wreckabulary.Rules
             Damage = stats.Damage,
             Knockback = stats.Knockback,
             HitStun = stats.HitStun,
+            BreakPower = stats.BreakPower,
             AttackerId = attackerId,
             AttackerTeam = attackerTeam,
             ItemId = itemId,

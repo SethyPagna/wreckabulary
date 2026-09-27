@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -50,8 +51,8 @@ namespace Wreckabulary
                 new() { text = "Throw the CHAIR", hint = "Grab it (Space, . or A), then press grab again to throw", enter = EnsureChair, done = () => thrown },
                 new()
                 {
-                    text = "Knock out the dummy", hint = "Letters are health: knock its letters off, then hit it once more",
-                    enter = () => { EnsureDummy(); Dummy.Inventory.Set("DU"); }, done = () => Dummy && Dummy.IsKnockedOut
+                    text = "Knock out the dummy", hint = "Keep hitting it until its health runs out",
+                    enter = ResetDummy, done = () => Dummy && Dummy.IsKnockedOut
                 },
             };
         }
@@ -82,7 +83,7 @@ namespace Wreckabulary
                 hud.SetTitle("", "");
 
             Resupply();
-            if (Time.time > nextTether && Dummy && !Dummy.IsStaggered && !Dummy.IsHeld)
+            if (Time.time > nextTether && Dummy && !Dummy.IsKnockedOut && !Dummy.IsStaggered && !Dummy.IsHeld)
             {
                 nextTether = Time.time + 2f;
                 EnsureDummy();
@@ -149,6 +150,7 @@ namespace Wreckabulary
             var prefab = GameAssets.I.playerPrefab;
             Dummy = Instantiate(prefab, dummySpot.position, Quaternion.identity, transform);
             Dummy.Setup(9, null, new Color(0.72f, 0.70f, 0.66f), '?', "DUMMY");
+            Dummy.Health.UseRules(DummyRules());
             Dummy.Respawn(dummySpot.position);
             Dummy.FaceTowards(Vector3.back);
             Dummy.Inventory.Set("DUMMY");
@@ -157,16 +159,33 @@ namespace Wreckabulary
             Dummy.Health.KnockedOut += _ => { if (!Finished) Invoke(nameof(EnsureDummy), 1.5f); };
         }
 
+        /// <summary>A lighter target than a roommate, with no spawn protection so the first whack always counts.</summary>
+        static GameRules DummyRules()
+        {
+            var rules = Match.Rules.Clone();
+            rules.MaxHealth = 40f;
+            rules.SpawnProtectionSeconds = 0f;
+            rules.DownedEnabled = false;
+            return rules;
+        }
+
         void EnsureDummy()
         {
             if (!Dummy || Finished) return;
             bool wandered = World.Flat(Dummy.transform.position - dummySpot.position).magnitude > 2.5f;
             if (!Dummy.IsKnockedOut && !wandered) return;
+            ResetDummy();
+        }
+
+        /// <summary>Back on its spot at full health.</summary>
+        void ResetDummy()
+        {
+            if (!Dummy || Finished) return;
             Dummy.Combat.ResetForRound();
             Dummy.Health.ResetForRound();
             Dummy.Respawn(dummySpot.position);
             Dummy.FaceTowards(Vector3.back);
-            Dummy.Inventory.Set(StepIndex == steps.Count - 1 ? "DU" : "DUMMY");
+            Dummy.Inventory.Set("DUMMY");
         }
     }
 }

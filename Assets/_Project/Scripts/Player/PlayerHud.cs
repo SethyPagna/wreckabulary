@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>Letters carried and the word wheel, floating above the player's head.</summary>
+    /// <summary>Name, health, letters carried and the word wheel, floating above the player's head.</summary>
     public class PlayerHud : MonoBehaviour
     {
         [SerializeField] PlayerController player;
@@ -38,7 +38,10 @@ namespace Wreckabulary
             sb.Clear();
             sb.Append("<color=#").Append(ColorUtility.ToHtmlStringRGB(player.Color)).Append('>')
               .Append(player.Name).Append("</color> ");
-            if (player.IsKnockedOut) return sb.Append("<color=#FFFFFF>KO</color>").ToString();
+            if (player.IsEliminated) return sb.Append("<color=#FFFFFF>OUT</color>").ToString();
+            AppendHealth(player.Health);
+            if (player.IsDowned) return sb.ToString();
+            sb.Append("  ");
 
             for (int i = 0; i < inv.Capacity; i++)
             {
@@ -57,6 +60,24 @@ namespace Wreckabulary
                 if (i < inv.Capacity - 1) sb.Append(' ');
             }
             return sb.ToString();
+        }
+
+        /// <summary>A bar of ten pips, green to red, and the number. Downed players show their bleed-out time.</summary>
+        void AppendHealth(PlayerHealth health)
+        {
+            if (health.IsDowned)
+            {
+                sb.Append("<color=#FF6A4D>DOWN ").Append(Mathf.CeilToInt(health.BleedOutLeft)).Append("s</color>");
+                return;
+            }
+            const int pips = 10;
+            float f = health.Fraction;
+            int full = Mathf.CeilToInt(f * pips);
+            string hex = f > 0.6f ? "7BE07B" : f > 0.3f ? "FFD24A" : "FF6A4D";
+            sb.Append("<color=#").Append(hex).Append('>').Append('|', full).Append("</color>")
+              .Append("<color=#FFFFFF33>").Append('|', pips - full).Append("</color> ")
+              .Append(Mathf.CeilToInt(health.Current));
+            if (health.Bubble > 0f) sb.Append(" <color=#9FDBFF>+").Append(Mathf.CeilToInt(health.Bubble)).Append("</color>");
         }
 
         string WheelLines()

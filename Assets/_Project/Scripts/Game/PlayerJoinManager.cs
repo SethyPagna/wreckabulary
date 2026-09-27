@@ -26,6 +26,7 @@ namespace Wreckabulary
 
         [Header("Knockouts")]
         [SerializeField] bool respawnKnockedOut = true;
+        [Tooltip("Used when the mode's rules don't set a respawn time.")]
         [SerializeField] float respawnDelay = 2f;
 
         readonly List<PlayerController> players = new();
@@ -34,7 +35,7 @@ namespace Wreckabulary
 
         public IReadOnlyList<PlayerController> Players => players;
         public bool AllowJoining { get; set; } = true;
-        /// <summary>When true, knocked-out roommates get back up after a short delay (house, tutorial, lobby).</summary>
+        /// <summary>When true, wrecked roommates get back up after a short delay (house, tutorial, lobby).</summary>
         public bool RespawnKnockedOut { get => respawnKnockedOut; set => respawnKnockedOut = value; }
         /// <summary>True if the players were carried over from another scene.</summary>
         public bool RestoredFromSession { get; private set; }
@@ -83,7 +84,7 @@ namespace Wreckabulary
             p.Setup(index, binding);
             players.Add(p);
             Session.Remember(binding);
-            p.Health.KnockedOut += _ => { if (respawnKnockedOut) StartCoroutine(RespawnLater(p)); };
+            p.Health.Eliminated += _ => { if (respawnKnockedOut) StartCoroutine(RespawnLater(p)); };
             Place(p);
             if (arriving) Popup.Show($"{p.Name} joined!", p.OverheadPosition, p.Color, 4f);
             Joined?.Invoke(p);
@@ -107,8 +108,9 @@ namespace Wreckabulary
 
         IEnumerator RespawnLater(PlayerController p)
         {
-            yield return new WaitForSeconds(respawnDelay);
-            if (p && p.IsKnockedOut && respawnKnockedOut) Place(p);
+            float rulesDelay = p.Health.Rules.RespawnSeconds;
+            yield return new WaitForSeconds(rulesDelay > 0f ? rulesDelay : respawnDelay);
+            if (p && p.IsEliminated && respawnKnockedOut) Place(p);
         }
 
         public Vector3 SpawnPoint(int index) =>
@@ -116,7 +118,7 @@ namespace Wreckabulary
 
         public bool AnyStartPressed() => players.Any(p => p.Binding != null && p.Binding.StartPressed());
 
-        /// <summary>One vowel, then common consonants, so the first hit isn't a knockout.</summary>
+        /// <summary>One vowel, then common consonants: a head start on a first word.</summary>
         public void GiveStarterLetters(PlayerController p)
         {
             const string vowels = "AAEEIOU";

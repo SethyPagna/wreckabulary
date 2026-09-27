@@ -114,7 +114,7 @@ namespace Wreckabulary
         void OnJoined(PlayerController p)
         {
             wins[p] = 0;
-            p.Health.KnockedOut += OnKnockedOut;
+            p.Health.Eliminated += OnEliminated;
         }
 
         void EnterLobby()
@@ -168,11 +168,12 @@ namespace Wreckabulary
             CollapseStarted?.Invoke();
         }
 
-        void OnKnockedOut(PlayerHealth victim)
+        void OnEliminated(PlayerHealth victim)
         {
             if (Phase != Phase.Playing) return;
 
-            var alive = Players.Where(p => !p.IsKnockedOut).ToList();
+            // Downed players are still in it until they bleed out.
+            var alive = Players.Where(p => !p.IsEliminated).ToList();
             if (alive.Count > 1) return;
 
             lastWinner = alive.FirstOrDefault();

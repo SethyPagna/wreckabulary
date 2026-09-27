@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -16,6 +17,10 @@ namespace Wreckabulary
         [SerializeField] float acceleration = 50f;
         [SerializeField] float turnSpeed = 900f;
         [SerializeField] float extraGravity = 14f;
+        [Tooltip("Speed while downed, as a share of normal speed.")]
+        [SerializeField] float crawlSpeed = 0.25f;
+        [Tooltip("After a knock, footing stays loose at least this long so the push carries.")]
+        [SerializeField] float minSlide = 0.25f;
 
         [Header("Rig")]
         public Transform visual;
@@ -25,6 +30,8 @@ namespace Wreckabulary
         public TextMeshPro initialLabel;
 
         public int Index { get; private set; }
+        /// <summary>Players on the same team can't hurt each other when friendly fire is off. Each player is their own team unless a mode pairs them.</summary>
+        public int Team { get; set; }
         public Color Color { get; private set; } = Color.white;
         public string Name { get; set; } = "P1";
         public char Initial { get; private set; } = 'W';
@@ -38,7 +45,10 @@ namespace Wreckabulary
         public Summoner Summoner { get; private set; }
 
         public Vector3 Facing { get; private set; } = Vector3.forward;
-        public bool IsKnockedOut { get; private set; }
+        /// <summary>Down or wrecked: can't act, can't be targeted.</summary>
+        public bool IsKnockedOut => Health && !Health.IsAlive;
+        public bool IsDowned => Health && Health.IsDowned;
+        public bool IsEliminated => Health && Health.IsEliminated;
         public bool IsHeld { get; private set; }
         public bool Frozen { get; set; }
         public bool Grounded { get; private set; }
@@ -47,7 +57,8 @@ namespace Wreckabulary
         public bool CanAct => !Frozen && !IsKnockedOut && !IsHeld && !IsStaggered;
         public Vector3 OverheadPosition => transform.position + Vector3.up * 2.1f;
 
-        float staggerUntil, boostUntil, boost = 1f, slipperyUntil, floatyUntil, autoWalkUntil;
+        float staggerUntil, slideUntil, boostUntil, boost = 1f, slipperyUntil, floatyUntil, autoWalkUntil;
+        bool tumbling;
         Vector3 autoWalk;
         Collider[] colliders;
         Transform homeParent;
@@ -80,6 +91,7 @@ namespace Wreckabulary
         public void Setup(int index, InputBinding binding, Color color, char initial, string displayName)
         {
             Index = index;
+            Team = index;
             Binding = binding;
             Name = displayName;
             Initial = initial;
@@ -93,6 +105,7 @@ namespace Wreckabulary
                 initialLabel.text = initial.ToString();
                 initialLabel.color = new Color(0.97f, 0.92f, 0.82f);
             }
+            if (Health) Health.Init();
         }
 
         void Update()
@@ -108,7 +121,7 @@ namespace Wreckabulary
         void FixedUpdate()
         {
             Grounded = Physics.CheckSphere(transform.position + Vector3.up * 0.3f, 0.36f, World.GroundMask, QueryTriggerInteraction.Ignore);
-            if (IsKnockedOut || IsHeld) return;
+            if (IsEliminated || IsHeld) return;
 
             if (!Grounded)
             {
@@ -120,9 +133,9 @@ namespace Wreckabulary
             var input = Time.time < autoWalkUntil ? autoWalk
                       : Frozen ? Vector3.zero
                       : new Vector3(Commands.move.x, 0f, Commands.move.y);
-            float speed = moveSpeed * MoveScale * (Time.time < boostUntil ? boost : 1f);
+            float speed = moveSpeed * MoveScale * (Time.time < boostUntil ? boost : 1f) * (IsDowned ? crawlSpeed : 1f);
             float accel = acceleration
-                        * (IsStaggered ? 0.1f : 1f)
+                        * (IsStaggered || Time.time < slideUntil ? 0.1f : 1f)
                         * (Time.time < slipperyUntil ? 0.1f : 1f)
                         * (Grounded ? 1f : 0.35f);
 
@@ -136,11 +149,15 @@ namespace Wreckabulary
 
         // ---- Things other systems do to the player ----
 
-        /// <summary>Adds a velocity kick and briefly weakens control.</summary>
+        /// <summary>
+        /// Adds a velocity kick. Footing stays loose for a moment so the push carries, and for
+        /// <paramref name="stagger"/> seconds the player can't act (hit-stun).
+        /// </summary>
         public void Knock(Vector3 velocityChange, float stagger)
         {
             Body.linearVelocity += velocityChange;
             staggerUntil = Mathf.Max(staggerUntil, Time.time + stagger);
+            slideUntil = Mathf.Max(slideUntil, Time.time + Mathf.Max(stagger, minSlide));
             squashVel = -7f;
         }
 
@@ -170,23 +187,28 @@ namespace Wreckabulary
             if (dir.sqrMagnitude > 0.001f) Facing = dir.normalized;
         }
 
-        public void SetKnockedOut(bool knockedOut, Vector3 push = default)
+        /// <summary>
+        /// Matches the body to the health state: wrecked players tumble over, downed players stay
+        /// upright and crawl (the rig leans them over), everyone else stands.
+        /// </summary>
+        public void ApplyLifeState(LifeState state, Vector3 push = default)
         {
-            IsKnockedOut = knockedOut;
-            if (knockedOut)
+            if (state == LifeState.Eliminated)
             {
+                if (tumbling) return;
+                tumbling = true;
                 Body.constraints = RigidbodyConstraints.None;
                 var axis = Vector3.Cross(Vector3.up, push.sqrMagnitude > 0.01f ? push.normalized : Random.onUnitSphere);
                 Body.AddTorque(axis * 10f + Random.insideUnitSphere * 3f, ForceMode.VelocityChange);
                 Body.linearVelocity += push * 0.5f + Vector3.up * 3f;
+                return;
             }
-            else
-            {
-                Body.constraints = RigidbodyConstraints.FreezeRotation;
-                Body.angularVelocity = Vector3.zero;
-                transform.rotation = Quaternion.identity;
-                Body.rotation = Quaternion.identity;
-            }
+            tumbling = false;
+            Body.constraints = RigidbodyConstraints.FreezeRotation;
+            if (IsHeld) return;
+            Body.angularVelocity = Vector3.zero;
+            transform.rotation = Quaternion.identity;
+            Body.rotation = Quaternion.identity;
         }
 
         /// <summary>Picked up (or put down) by another player.</summary>
@@ -206,7 +228,7 @@ namespace Wreckabulary
             else
             {
                 transform.SetParent(homeParent, true);
-                if (!IsKnockedOut)
+                if (!IsEliminated)
                 {
                     transform.rotation = Quaternion.identity;
                     Body.rotation = Quaternion.identity;
@@ -218,11 +240,12 @@ namespace Wreckabulary
         public void Respawn(Vector3 position)
         {
             SetHeld(false);
-            SetKnockedOut(false);
+            tumbling = false;
+            ApplyLifeState(Health ? Health.State : LifeState.Alive);
             transform.position = position;
             Body.position = position;
             Body.linearVelocity = Vector3.zero;
-            staggerUntil = boostUntil = slipperyUntil = floatyUntil = autoWalkUntil = 0f;
+            staggerUntil = slideUntil = boostUntil = slipperyUntil = floatyUntil = autoWalkUntil = 0f;
             MoveScale = 1f;
             FaceTowards(-position);
         }
@@ -245,14 +268,16 @@ namespace Wreckabulary
             if (Grounded && !wasGrounded) squashVel = -4f;
             wasGrounded = Grounded;
 
-            if (!IsKnockedOut && !IsHeld)
+            if (!IsEliminated && !IsHeld)
             {
                 var leanTarget = Vector3.ClampMagnitude(hv * 2.4f, 16f);
                 lean = Vector3.SmoothDamp(lean, leanTarget, ref leanVel, 0.12f);
                 var tilt = lean.sqrMagnitude > 0.0001f
                     ? Quaternion.AngleAxis(lean.magnitude, Vector3.Cross(Vector3.up, lean.normalized))
                     : Quaternion.identity;
-                visual.rotation = tilt * Quaternion.LookRotation(Facing);
+                // Downed players lie forward and crawl.
+                var down = IsDowned ? Quaternion.Euler(70f, 0f, 0f) : Quaternion.identity;
+                visual.rotation = tilt * Quaternion.LookRotation(Facing) * down;
             }
 
             squashVel += (-squash * 180f - squashVel * 10f) * dt;

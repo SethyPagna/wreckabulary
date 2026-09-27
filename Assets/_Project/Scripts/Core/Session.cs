@@ -25,6 +25,7 @@ namespace Wreckabulary
         {
             Bindings.Clear();
             MovingDayStars.Clear();
+            Match.Reset();
         }
 
         public static void RecordStars(int level, int stars)

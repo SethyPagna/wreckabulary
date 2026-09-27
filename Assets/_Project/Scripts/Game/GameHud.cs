@@ -53,10 +53,15 @@ namespace Wreckabulary
                 sb.Append("<color=#").Append(ColorUtility.ToHtmlStringRGB(p.Color)).Append("><b>")
                   .Append(p.Initial).Append("</b> ").Append(p.Name).Append("</color>");
                 if (showWins) sb.Append("  ").Append(wins(p)).Append('/').Append(roundsToWin);
-                sb.Append("  <size=80%>").Append(p.IsKnockedOut ? "KO" : $"{p.Inventory.Count} letters").Append("</size>");
+                sb.Append("  <size=80%>").Append(Status(p)).Append("</size>");
                 sb.Append("        ");
             }
             scoreboard.text = sb.ToString();
         }
+
+        static string Status(PlayerController p) =>
+            p.IsEliminated ? "OUT"
+            : p.IsDowned ? "<color=#FF6A4D>DOWN</color>"
+            : $"{Mathf.CeilToInt(p.Health.Current)} HP  {p.Inventory.Count} letters";
     }
 }

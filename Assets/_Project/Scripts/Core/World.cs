@@ -68,6 +68,15 @@ namespace Wreckabulary
             return best;
         }
 
+        /// <summary>The live player with this index, or null (hits carry the attacker's index, not a reference).</summary>
+        public static PlayerController PlayerById(int index)
+        {
+            if (index < 0) return null;
+            foreach (var p in Players)
+                if (p && p.Index == index) return p;
+            return null;
+        }
+
         public static Vector3 Flat(Vector3 v) => new(v.x, 0f, v.z);
     }
 }

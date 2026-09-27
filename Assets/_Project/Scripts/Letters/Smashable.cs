@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -8,8 +9,14 @@ namespace Wreckabulary
     /// When it breaks, it bursts into the tiles that spell its word.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
-    public class Smashable : MonoBehaviour
+    public class Smashable : MonoBehaviour, IDamageable
     {
+        /// <summary>
+        /// Furniture health one point of break power takes off: a punch (1) still does the old
+        /// punch's 12. Stands in until furniture toughness comes from the letter economy.
+        /// </summary>
+        public const float HealthPerBreakPower = 12f;
+
         [SerializeField] string word = "TABLE";
         [SerializeField] float health = 30f;
         [Tooltip("Impacts only hurt when something was thrown (by a player, or falling in the collapse). Below this impulse they do nothing.")]
@@ -33,6 +40,14 @@ namespace Wreckabulary
         {
             word = newWord.ToUpperInvariant();
             if (newHealth > 0f) health = newHealth;
+        }
+
+        /// <summary>A hit from a player, a weapon or a blast. Furniture feels break power, not damage.</summary>
+        public bool ApplyDamage(in HitInfo hit)
+        {
+            if (IsBroken || Invulnerable || hit.BreakPower <= 0f) return false;
+            TakeHit(hit.BreakPower * HealthPerBreakPower);
+            return true;
         }
 
         public void TakeHit(float damage)

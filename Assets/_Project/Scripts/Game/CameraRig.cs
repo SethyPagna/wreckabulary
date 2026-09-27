@@ -29,7 +29,7 @@ namespace Wreckabulary
             int n = 0;
             foreach (var p in World.Players)
             {
-                if (!p || p.IsKnockedOut) continue;
+                if (!p || p.IsEliminated) continue;
                 centre += p.transform.position;
                 n++;
             }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -7,12 +8,7 @@ namespace Wreckabulary
     [RequireComponent(typeof(PlayerController))]
     public class PlayerCombat : MonoBehaviour
     {
-        [Header("Punch")]
-        [SerializeField] float punchCooldown = 0.35f;
-        [SerializeField] float punchReach = 0.85f;
-        [SerializeField] float punchRadius = 0.65f;
-        [SerializeField] float punchKnockback = 7f;
-        [SerializeField] float punchDamage = 12f;
+        // The punch's numbers are the mode's "unarmed" block in rules.json.
 
         [Header("Grab and throw")]
         [SerializeField] float grabReach = 0.8f;
@@ -21,6 +17,8 @@ namespace Wreckabulary
         [SerializeField] float throwSpeed = 13f;
         [Tooltip("A carried player wriggles free after this long.")]
         [SerializeField] float struggleTime = 1.6f;
+        [Tooltip("Damage a thrown player takes on release.")]
+        [SerializeField] float thrownPlayerDamage = 6f;
 
         PlayerController controller;
         float nextAttack;
@@ -29,7 +27,11 @@ namespace Wreckabulary
         HeldWeapon weapon;
         Transform heldHomeParent;
         float heldSince;
-        static readonly Collider[] Hits = new Collider[48];
+        static readonly Collider[] Overlaps = new Collider[48];
+        readonly HashSet<Rigidbody> struck = new();
+
+        /// <summary>Hits closer than this skip the arc check: they're inside the attacker.</summary>
+        const float PointBlank = 0.25f;
 
         /// <summary>Something (or someone) was thrown.</summary>
         public event System.Action<Rigidbody> Thrown;
@@ -42,7 +44,8 @@ namespace Wreckabulary
 
         void Start()
         {
-            controller.Health.Hit += (_, _) => Drop();
+            // A staggering hit knocks a carried thing out of the hands; weapons are gripped tighter.
+            controller.Health.Damaged += (_, _, r) => { if (r.HitStun > 0f && held && !weapon) Drop(); };
             controller.Health.KnockedOut += _ => Drop();
         }
 
@@ -64,43 +67,62 @@ namespace Wreckabulary
             if (Time.time < nextAttack) return;
             if (Weapon)
             {
-                nextAttack = Time.time + Weapon.cooldown;
+                nextAttack = Time.time + Weapon.Cooldown;
                 controller.PlayPunch();
                 Weapon.Use(this);
                 return;
             }
             if (held) { Throw(); return; }
 
-            nextAttack = Time.time + punchCooldown;
+            var fist = controller.Health.Rules.Unarmed;
+            nextAttack = Time.time + fist.Cycle;
             controller.PlayPunch();
-            Strike(punchReach, punchRadius, punchKnockback, punchDamage, -1);
+            Strike(fist, null);
         }
 
-        /// <summary>Hits everything in a sphere in front of the player. Returns how many players were hit.</summary>
-        public int Strike(float reach, float radius, float knockback, float damage, int letters)
+        /// <summary>
+        /// Hits everything within reach of the chest and inside the swing's arc: players take the
+        /// stats' damage, furniture takes its break power. Returns how many players were hit.
+        /// </summary>
+        public int Strike(MeleeStats stats, string itemId)
         {
-            var centre = transform.position + Vector3.up * 0.8f + controller.Facing * reach;
-            int n = Physics.OverlapSphereNonAlloc(centre, radius, Hits, ~0, QueryTriggerInteraction.Ignore);
-            var seen = new HashSet<Rigidbody>();
+            var chest = transform.position + Vector3.up * 0.8f;
+            var facing = controller.Facing;
+            int n = Physics.OverlapSphereNonAlloc(chest, stats.Reach, Overlaps, ~0, QueryTriggerInteraction.Ignore);
+            struck.Clear();
             int playersHit = 0;
 
             for (int i = 0; i < n; i++)
             {
-                var rb = Hits[i].attachedRigidbody;
-                if (!rb || rb == controller.Body || rb == held || !seen.Add(rb)) continue;
+                var col = Overlaps[i];
+                var rb = col.attachedRigidbody;
+                if (!rb || rb == controller.Body || rb == held || struck.Contains(rb)) continue;
 
+                // Aim at the nearest part of the thing, so a sofa counts when its arm is in front.
+                var to = World.Flat(ClosestPoint(col, chest) - chest);
+                if (to.sqrMagnitude > PointBlank * PointBlank && !Geometry.InFrontArc(facing.x, facing.z, to.x, to.z, stats.ArcDegrees))
+                    continue;
+                struck.Add(rb);
+
+                var dir = World.Flat(rb.position - transform.position);
+                var hit = Hits.Melee(controller, dir.sqrMagnitude > 0.01f ? dir : facing, stats, itemId);
                 if (rb.TryGetComponent(out PlayerHealth victim))
                 {
-                    var dir = World.Flat(rb.position - transform.position);
-                    if (victim.TakeHit(dir.sqrMagnitude > 0.01f ? dir : controller.Facing, knockback, letters, controller))
-                        playersHit++;
+                    if (victim.ApplyDamage(hit)) playersHit++;
                     continue;
                 }
-                if (rb.TryGetComponent(out Smashable smash)) smash.TakeHit(damage);
+                if (rb.TryGetComponent(out Smashable smash)) smash.ApplyDamage(hit);
                 if (rb && !rb.isKinematic)
-                    rb.AddForce((controller.Facing + Vector3.up * 0.4f) * knockback * 0.5f, ForceMode.VelocityChange);
+                    rb.AddForce((facing + Vector3.up * 0.4f) * stats.Knockback * Hits.KnockbackSpeed * 0.5f, ForceMode.VelocityChange);
             }
             return playersHit;
+        }
+
+        static Vector3 ClosestPoint(Collider col, Vector3 point)
+        {
+            // ClosestPoint only works on primitives and convex meshes.
+            if (col is MeshCollider { convex: false }) return col.bounds.ClosestPoint(point);
+            return col.ClosestPoint(point);
         }
 
         // ---- Grabbing ----
@@ -114,13 +136,13 @@ namespace Wreckabulary
         public bool TryGrab()
         {
             var centre = transform.position + Vector3.up * 0.6f + controller.Facing * grabReach;
-            int n = Physics.OverlapSphereNonAlloc(centre, grabRadius, Hits, ~0, QueryTriggerInteraction.Ignore);
+            int n = Physics.OverlapSphereNonAlloc(centre, grabRadius, Overlaps, ~0, QueryTriggerInteraction.Ignore);
             Rigidbody best = null;
             float bestSq = float.MaxValue;
 
             for (int i = 0; i < n; i++)
             {
-                var rb = Hits[i].attachedRigidbody;
+                var rb = Overlaps[i].attachedRigidbody;
                 if (!rb || rb == controller.Body || rb.isKinematic || rb.GetComponent<LetterTile>()) continue;
                 bool isPlayer = rb.GetComponent<PlayerController>();
                 if (!isPlayer && rb.mass > maxCarryMass) continue;
@@ -170,11 +192,11 @@ namespace Wreckabulary
             rb.transform.SetParent(point, true);
         }
 
-        /// <summary>Throws what's held. Thrown players lose letters as if hit.</summary>
+        /// <summary>Throws what's held. Thrown players take a knock as they go.</summary>
         public void Throw()
         {
             if (!held) return;
-            nextAttack = Time.time + punchCooldown;
+            nextAttack = Time.time + controller.Health.Rules.Unarmed.Cycle;
             controller.PlayPunch();
             float speed = throwSpeed * Mathf.Lerp(1f, 0.65f, Mathf.Clamp01(held.mass / maxCarryMass));
             var velocity = controller.Facing * speed + Vector3.up * 4f + World.Flat(controller.Body.linearVelocity) * 0.5f;
@@ -183,7 +205,7 @@ namespace Wreckabulary
             {
                 var victim = heldPlayer;
                 Release(velocity);
-                victim.Health.TakeHit(controller.Facing, 0f, -1, controller);
+                victim.Health.ApplyDamage(Hits.Of(controller, controller.Facing, HitSource.Thrown, thrownPlayerDamage, 0f, hitStun: 0.35f));
                 victim.Body.linearVelocity = velocity;
                 ThrowTracker.Attach(victim.gameObject, controller, 1.2f);
                 Thrown?.Invoke(victim.Body);

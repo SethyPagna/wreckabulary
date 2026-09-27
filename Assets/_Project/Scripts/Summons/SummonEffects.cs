@@ -1,4 +1,5 @@
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -28,7 +29,7 @@ namespace Wreckabulary
                 // Weapons
                 case "AXE": Melee(p, e.word, Steel, uses: 6, cooldown: 0.25f, reach: 1.0f, knockback: 7f, damage: 18f); break;
                 case "BAT": Melee(p, e.word, Wood, uses: 5, cooldown: 0.4f, reach: 1.1f, knockback: 15f, damage: 15f); break;
-                case "BLADE": Melee(p, e.word, Steel, uses: 5, cooldown: 0.35f, reach: 1.2f, knockback: 9f, damage: 25f, letters: 3); break;
+                case "BLADE": Melee(p, e.word, Steel, uses: 5, cooldown: 0.35f, reach: 1.2f, knockback: 9f, damage: 25f); break;
                 case "SWORD": Melee(p, e.word, Steel, uses: 6, cooldown: 0.35f, reach: 1.4f, knockback: 9f, damage: 25f); break;
                 case "SPEAR": Melee(p, e.word, Wood, uses: 5, cooldown: 0.45f, reach: 2.0f, knockback: 10f, damage: 20f); break;
                 case "BOW": Ranged(p, e.word, Wood, uses: 4, speed: 20f, knockback: 6f, damage: 15f, blast: 0f); break;
@@ -83,8 +84,9 @@ namespace Wreckabulary
             return w;
         }
 
+        /// <summary>A held weapon. BAT and BLADE swing with their items.json numbers; the rest convert these.</summary>
         static void Melee(PlayerController p, string word, Color color, int uses, float cooldown, float reach,
-                          float knockback, float damage, int letters = 2)
+                          float knockback, float damage)
         {
             var w = MakeWeapon(p, word, color, 1, 0.17f);
             w.uses = uses;
@@ -93,7 +95,6 @@ namespace Wreckabulary
             w.radius = 0.7f + reach * 0.15f;
             w.knockback = knockback;
             w.damage = damage;
-            w.lettersPerHit = letters;
         }
 
         static void Ranged(PlayerController p, string word, Color color, int uses, float speed, float knockback,
@@ -131,6 +132,7 @@ namespace Wreckabulary
             return SummonedThing.Attach(built.gameObject, word, p, duration);
         }
 
+        /// <summary>Blocks hits from the front for a while.</summary>
         static void Shield(PlayerController p, string word, float seconds)
         {
             p.Health.FrontBlockUntil = Time.time + seconds;
@@ -138,11 +140,13 @@ namespace Wreckabulary
             thing.Ended = () => p.Health.FrontBlockUntil = 0f;
         }
 
+        /// <summary>A bubble that soaks the next 35 damage, like FOAM. It lasts 30 s or until used up.</summary>
         static void Armor(PlayerController p, string word)
         {
-            p.Health.ArmorCharges = Mathf.Max(p.Health.ArmorCharges, 1);
-            var thing = Wearable(p, word, new Vector3(0f, 1.45f, 0f), Vector3.one * 0.16f, 0, Steel, 30f);
-            thing.KeepAlive = () => p.Health.ArmorCharges > 0;
+            const float seconds = 30f;
+            p.Health.GiveBubble(35f, seconds);
+            var thing = Wearable(p, word, new Vector3(0f, 1.45f, 0f), Vector3.one * 0.16f, 0, Steel, seconds);
+            thing.KeepAlive = () => p.Health.Bubble > 0f;
             var t = thing.transform;
             thing.Tick = () => t.localRotation = Quaternion.Euler(0f, Time.time * 180f, 0f);
         }
@@ -167,7 +171,7 @@ namespace Wreckabulary
             float start = Time.time;
             thing.KeepAlive = () => Time.time - start < 0.4f || !p.Grounded;
             // Landing slams everyone nearby.
-            thing.Ended = () => { if (!p.IsKnockedOut) HitAround(p, 3f, 9f, 2); };
+            thing.Ended = () => { if (!p.IsKnockedOut) HitAround(p, 3f, 9f, 10f); };
         }
 
         static void Skates(PlayerController p) => Skates(p, "SKATES");
@@ -184,7 +188,7 @@ namespace Wreckabulary
             if (target)
             {
                 var pull = World.Flat(p.transform.position - target.transform.position);
-                target.Knock(pull.normalized * Mathf.Min(16f, pull.magnitude * 2.2f) + Vector3.up * 3f, 0.8f);
+                target.Knock(pull.normalized * Mathf.Min(16f, pull.magnitude * 2.2f) + Vector3.up * 3f, 0.35f);
                 Popup.Show("YOINK", target.OverheadPosition, Color.white, 3f);
             }
             else
@@ -233,8 +237,9 @@ namespace Wreckabulary
         {
             CameraRig.Shake(0.6f);
             foreach (var other in World.Players.ToArray())
-                if (other != p && other.Grounded) other.Health.TakeHit(other.transform.position - p.transform.position, 8f, -1, p);
-            foreach (var s in Object.FindObjectsByType<Smashable>()) s.TakeHit(12f);
+                if (other != p && other.Grounded)
+                    other.Health.ApplyDamage(Hits.Of(p, other.transform.position - p.transform.position, HitSource.Explosion, 10f, 4f, 0.3f));
+            foreach (var s in Object.FindObjectsByType<Smashable>()) s.TakeHit(Smashable.HealthPerBreakPower);
             TilePool.Instance?.Burst("QUAKE", p.OverheadPosition, 4f);
         }
 
@@ -243,9 +248,9 @@ namespace Wreckabulary
             foreach (var other in World.Players.ToArray())
             {
                 if (other == p || Vector3.Distance(other.transform.position, p.transform.position) > 5.5f) continue;
-                other.Health.TakeHit(other.transform.position - p.transform.position, 4f, -1, p);
-                other.Stun(1.5f);
-                Popup.Show("ZAP", other.OverheadPosition, new Color(1f, 0.95f, 0.4f), 3f);
+                // The stun follows the hit-stun rules, so ZAP can't lock anyone down.
+                if (other.Health.ApplyDamage(Hits.Of(p, other.transform.position - p.transform.position, HitSource.Explosion, 8f, 2f, 0.35f)))
+                    Popup.Show("ZAP", other.OverheadPosition, new Color(1f, 0.95f, 0.4f), 3f);
             }
             CameraRig.Shake(0.2f);
             TilePool.Instance?.Burst("ZAP", p.OverheadPosition, 4f);
@@ -253,16 +258,18 @@ namespace Wreckabulary
 
         static void Shockwave(PlayerController p, string word, float radius, float knockback)
         {
-            HitAround(p, radius, knockback, -1);
+            HitAround(p, radius, knockback, 8f);
             TilePool.Instance?.Burst(word, p.OverheadPosition, 4f);
         }
 
-        static void HitAround(PlayerController p, float radius, float knockback, int letters)
+        /// <param name="knockback">Push in m/s, like the other summon numbers.</param>
+        static void HitAround(PlayerController p, float radius, float knockback, float damage)
         {
             CameraRig.Shake(0.25f);
             foreach (var other in World.Players.ToArray())
                 if (other != p && Vector3.Distance(other.transform.position, p.transform.position) < radius)
-                    other.Health.TakeHit(other.transform.position - p.transform.position, knockback, letters, p);
+                    other.Health.ApplyDamage(Hits.Of(p, other.transform.position - p.transform.position, HitSource.Explosion,
+                                                      damage, knockback / Hits.KnockbackSpeed, 0.3f));
         }
     }
 }

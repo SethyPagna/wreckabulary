@@ -4,6 +4,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
@@ -115,11 +116,13 @@ namespace Wreckabulary.Tests
             var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
             var p = joins.Join(new ScriptedBinding());
             yield return null;
-            p.Inventory.Set("");
-            p.Health.TakeHit(Vector3.forward);
-            Assert.IsTrue(p.IsKnockedOut);
+            Assert.IsTrue(p.Health.IsInvulnerable, "spawn protection");
+            yield return TestScenes.WaitUntil(() => !p.Health.IsInvulnerable, 3f, "spawn protection to wear off");
+            p.Health.ApplyDamage(Hits.Of(null, Vector3.forward, HitSource.Melee, 1000f, 1f));
+            Assert.IsTrue(p.IsEliminated);
             yield return new WaitForSeconds(2.3f);
             Assert.IsFalse(p.IsKnockedOut);
+            Assert.AreEqual(p.Health.Max, p.Health.Current);
         }
 
         [UnityTest]
@@ -150,7 +153,8 @@ namespace Wreckabulary.Tests
 
             // 5. Whack the dummy.
             var dummy = director.Dummy;
-            Assert.IsTrue(dummy.Health.TakeHit(Vector3.forward, 1f, -1, p));
+            Assert.AreEqual("BAT", p.Combat.Weapon?.word);
+            Assert.IsTrue(dummy.Health.ApplyDamage(Hits.Melee(p, Vector3.forward, p.Combat.Weapon.Stats, "BAT")));
             yield return TestScenes.WaitUntil(() => director.StepIndex >= 5, 1f, "hit step");
 
             // 6. Throw the chair.
@@ -164,12 +168,12 @@ namespace Wreckabulary.Tests
             p.Combat.Throw();
             yield return TestScenes.WaitUntil(() => director.StepIndex >= 6, 1f, "throw step");
 
-            // 7. Knock out the dummy: two letters, so one hit empties it and the next is a knockout.
+            // 7. Knock out the dummy: it starts this step at full health, 40.
             yield return new WaitForSeconds(0.7f);
-            Assert.AreEqual(2, dummy.Inventory.Count);
-            dummy.Health.TakeHit(Vector3.forward, 1f, -1, p);
-            yield return new WaitForSeconds(0.7f);
-            dummy.Health.TakeHit(Vector3.forward, 1f, -1, p);
+            Assert.AreEqual(40f, dummy.Health.Current);
+            for (int i = 0; i < 20 && dummy.Health.IsAlive; i++)
+                dummy.Health.ApplyDamage(Hits.Melee(p, Vector3.forward, p.Health.Rules.Unarmed, null));
+            Assert.IsTrue(dummy.IsEliminated);
             yield return TestScenes.WaitUntil(() => director.Finished, 1f, "knockout step");
         }
     }
