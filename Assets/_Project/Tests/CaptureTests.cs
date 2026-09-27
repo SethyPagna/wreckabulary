@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -51,6 +52,19 @@ namespace Wreckabulary.Tests
             yield return new WaitForSeconds(0.8f);
             inputs[0].Next.move = Vector2.zero;
             inputs[1].Next.move = Vector2.zero;
+
+            // P1 carries the CHAIR over their head.
+            var p1 = World.Players[0];
+            var chair = UnityEngine.Object.FindObjectsByType<Smashable>().FirstOrDefault(s => s.Word == "CHAIR");
+            if (chair)
+            {
+                var c = chair.GetComponent<Rigidbody>().worldCenterOfMass;
+                p1.Respawn(World.Flat(c) + Vector3.right * 1.1f);
+                p1.FaceTowards(Vector3.left);
+                yield return new WaitForFixedUpdate();
+                p1.Combat.TryGrab();
+                p1.FaceTowards(Vector3.back);
+            }
 
             // P3 summons a SWORD, P2 is halfway through spelling BEES.
             p3.Inventory.Set("SWORDE");

@@ -22,6 +22,8 @@ A 2–4 player couch party game where everything is made of letters. Smash furni
 
 Smash → Scavenge → Spell → Summon. Summoned objects can themselves be smashed, scattering their letters for anyone to steal.
 
+**Spelling** is done by hand. Press spell, pick your letters in order (left/right to choose, add, undo), then press spell again to cast. Real words are summoned. Anything else fizzles, and nothing is spent. You stand still while spelling, which is the risk.
+
 Things break from punches, weapons and blasts, or when something *thrown* hits them. Furniture doesn't wreck itself by toppling over, and boxes don't break when they land on each other.
 
 ## Premise (trailer)
@@ -58,7 +60,7 @@ Later variations: **Furnish First** (race to furnish the room), and more.
 Furnish the house together, 1–4 players. Unpack boxes, spell the checklist items and place them in the right rooms, with obstacles and a time limit. Each level awards 1–3 stars.
 
 - Boxes labelled with each checklist word arrive at the front door. Smashing a box gives its letters.
-- The word wheel offers only checklist words. Spelling one builds that piece of furniture in front of you.
+- Only checklist words can be spelled here. Spelling one builds that piece of furniture in front of you.
 - Furniture that comes to rest in the right room is ticked off and locked in place.
 - Stars: 3 with at least half the time left, 2 with a quarter, otherwise 1. Out of time means a retry.
 - If an item's letters get lost, a new box is sent.
@@ -70,7 +72,7 @@ The typewriter prints endless letters to build and decorate your house. Hit **Pl
 
 ## Words
 
-About 40 curated words in four categories: Weapon, Defence, Movement, Chaos. Longer words and rare letters (Q, Z, X, J) are stronger. Hidden words are not shown in the word wheel until discovered. Full list: `Assets/_Project/Data/word_list.csv`. What each word does is in `SummonEffects.cs`.
+About 40 curated words in four categories: Weapon, Defence, Movement, Chaos. Longer words and rare letters (Q, Z, X, J) are stronger. Hidden words never appear as hints. Full list: `Assets/_Project/Data/word_list.csv`. What each word does is in `SummonEffects.cs`.
 
 Note: UMBRELLA has 8 letters but players carry at most 6, so it can never be spelled. Either raise the carry limit or swap it for a shorter word.
 
@@ -90,7 +92,7 @@ Stretch goal: a mischievous letter **cat** wanders the room, steals loose letter
 
 ## Art direction: Toybox Workshop
 
-Warm wooden letter tiles, cartoonish blobby ragdoll characters, cream and sage walls, terracotta accents. Objects are built from their own letters. Fonts: Lilita One (display), Nunito (UI), Gochi Hand (tagline).
+Objects are built Word World-style: 3D copies of the word's own letters, stretched, stacked and laid down into the object's shape (a B headboard, a flat E mattress and a D footboard make a BED). Warm wooden letter tiles, cartoonish blobby ragdoll characters, cream and sage walls, terracotta accents. Objects are built from their own letters. Fonts: Lilita One (display), Nunito (UI), Gochi Hand (tagline).
 
 ## Technical highlights (for the Technicality grade)
 

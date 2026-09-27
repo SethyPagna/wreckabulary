@@ -18,7 +18,7 @@ Wreckabulary is a 2–4 player couch party game for COMP4122 where everything is
 
 1. **Smash** furniture and it bursts into the letters that spell it.
 2. **Scavenge** letters. You carry up to 6, and getting hit knocks some loose.
-3. **Spell** with the word wheel, which shows what your letters can make.
+3. **Spell** the word yourself, letter by letter, from the letters you carry.
 4. **Summon** the object instantly, like a BLADE, WINGS or BEES.
 
 ## Modes
@@ -60,13 +60,15 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 
 **Tutorial:** 7 steps covering walk, smash the BAT box, pick up the letters, spell BAT, whack the dummy, throw the chair, and knock the dummy out. Any roommate can complete a step.
 
-**Moving Day** (co-op, 1–4 players) in a house split into a living room and a bedroom. Boxes labelled with the checklist arrive at the front door. Smash them for the letters, spell each item (the word wheel only offers checklist words) to build it, and carry it into the right room. Placed furniture locks in with a tick. Stars (1–3) depend on time left. Run out of time and the level restarts. There are 2 levels, and level 2 adds slippery spills. Lost letters are resent in a new box.
+**Moving Day** (co-op, 1–4 players) in a house split into a living room and a bedroom. Boxes labelled with the checklist arrive at the front door. Smash them for the letters, spell each item (only checklist words work here) to build it, and carry it into the right room. Placed furniture locks in with a tick. Stars (1–3) depend on time left. Run out of time and the level restarts. There are 2 levels, and level 2 adds slippery spills. Lost letters are resent in a new box.
 
 **Dibs!** in the living room, first to 3 rounds:
 
 - Smash furniture (SOFA, TABLE, LAMP, CHAIR…) with punches or by throwing things. It bursts into its own letters.
 - Walk over letters to pick them up. You carry up to 6, and you start each round with 3.
-- Hold spell to open the word wheel. It shows the words you can make, plus near misses in grey. Release to summon.
+- Press spell and your letters appear over your head. Move the highlight left/right, add letters one at a time (undo if you slip), and press spell again to cast. Hints show which words you could still finish. Non-words fizzle and you keep your letters. You stand still while spelling.
+- Objects are built Word World-style from 3D copies of their own letters: the SOFA has S and A armrests, an O backrest and an F cushion, and the BED is a B headboard, a flat E mattress and a D footboard. Loose letters are 3D letters too.
+- Grab anything. Light things are carried in front with both hands, and heavy things (and roommates) are lifted overhead. Heavy loads slow you down.
 - All 20 words in `word_list.csv` do something: weapons, WALL, SHIELD, ARMOR, WINGS, SPRING, SKATES, ROPE, BEES, FLOOD, MAGNET, DUCK, QUAKE, ZAP.
 - Summons fall apart back into their letters when they're used up, so they can be grabbed and re-spelled.
 - A hit knocks 2 letters loose. A hit with no letters is a knockout.
@@ -82,9 +84,10 @@ Everything is placeholder art built from blocks. Not in yet: audio, character cu
 | Move | Left stick / d-pad | WASD | Arrow keys |
 | Grab, throw | A or RT | Space | `.` or Numpad 1 |
 | Attack, use weapon | X | J | `/` or Numpad 2 |
-| Spell (hold, release to summon) | Y | K | Right Shift or Numpad 3 |
-| Choose word (while spelling) | Stick or d-pad up/down | W / S | Up / Down |
-| Cancel spelling | A | Space | `.` |
+| Start spelling / cast | Y | K | Right Shift or Numpad 3 |
+| Choose a letter (while spelling) | Stick or d-pad left/right | A / D | Left / Right |
+| Add the letter (while spelling) | A | Space | `.` |
+| Undo a letter, or stop spelling if empty | B | J or Backspace | `/` |
 | Use typewriter | A / RT (grab) | Space | `.` |
 | Start match (Dibs! lobby) | Start | Enter | Numpad Enter |
 | Back to the house | Select / View | Esc | Esc |
@@ -96,13 +99,15 @@ Assets/_Project/
   Scripts/
     Core/      GameAssets (shared art/data), World, Popup, Session
     Input/     InputBinding: keyboard halves, gamepads, scripted input for tests
-    Letters/   LetterTile, TilePool, LetterBlocks, LetterBuilt, Smashable, LetterScores
+    Letters/   LetterTile, TilePool, LetterBuilt + LetterShapes (Word World recipes), FurnitureCatalog,
+               Furniture, LetterBlocks (labelled boxes), Smashable, LetterScores
     Words/     WordDatabase (reads word_list.csv), WordSolver
     Player/    PlayerController, PlayerHealth, LetterInventory, PlayerCombat, Summoner, PlayerHud
     Summons/   SummonEffects (what each word does), HeldWeapon, Projectile, BeeSwarm, DuckWalker, ...
     Game/      RoundManager (Dibs!), HubDirector + Typewriter (house), TutorialDirector, MovingDayDirector,
                PlayerJoinManager, RoomBuilder, DeliverySpawner, GameHud, CameraRig, BackToHub
-  Editor/      PrototypeBuilder: generates the scene, prefabs and materials
+  Editor/      PrototypeBuilder: generates the scenes, prefabs and materials
+               LetterMeshBuilder: generates 3D letters A–Z from the font's distance field
   Tests/       Play mode tests for the core loop
   Data/        word_list.csv
   Prefabs/  Scenes/  Resources/  Materials/  Art/  Audio/
@@ -110,6 +115,8 @@ docs/          design doc, roadmap, workflow, asset log, contribution table
 ```
 
 **Adding a Moving Day item or level:** levels and checklists live on the MovingDayDirector (set in `PrototypeBuilder.BuildMovingDay`). Any word works as a checklist item. To give it a custom look, add it to `FurnitureCatalog.cs`.
+
+**Shaping an object:** add a recipe to `LetterShapes.cs`. Each letter gets a centre, a size, and whether it stands up or lies flat. Words without a recipe stand in a row.
 
 **Adding a word:** add a row to `word_list.csv`. It works straight away with a default effect for its category. For a custom effect, add a `case` in `SummonEffects.cs`.
 

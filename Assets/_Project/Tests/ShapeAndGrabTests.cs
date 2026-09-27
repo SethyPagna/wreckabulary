@@ -124,6 +124,112 @@ namespace Wreckabulary.Tests
             }
         }
 
+        static PlayerController SpawnOnGround(out ScriptedBinding input)
+        {
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ground.transform.position = Vector3.down * 0.5f;
+            ground.transform.localScale = new Vector3(40f, 1f, 40f);
+            TilePool.Ensure();
+            input = new ScriptedBinding();
+            var p = Object.Instantiate(GameAssets.I.playerPrefab);
+            p.Setup(0, input);
+            p.Respawn(Vector3.zero);
+            p.FaceTowards(Vector3.forward);
+            return p;
+        }
+
+        static Bounds BoundsOf(Component c)
+        {
+            var rs = c.GetComponentsInChildren<Renderer>();
+            var b = rs[0].bounds;
+            foreach (var r in rs) b.Encapsulate(r.bounds);
+            return b;
+        }
+
+        [UnityTest]
+        public IEnumerator LightThingsAreCarriedInFrontWithBothHandsOnThem()
+        {
+            var p = SpawnOnGround(out var input);
+            var box = DeliverySpawner.CreateBox("BOX", new Vector3(0f, 0f, 1.1f));
+            yield return new WaitForSeconds(0.3f);
+            input.Next.grab = true;
+            yield return null;
+            yield return null;
+            Assert.AreEqual(box.GetComponent<Rigidbody>(), p.Combat.Held);
+            Assert.IsFalse(p.Combat.IsOverhead);
+
+            // Walk around with it; it should stay put in front, unsquashed, with the hands on it.
+            input.Next.move = new Vector2(1f, 0.5f);
+            yield return new WaitForSeconds(1f);
+            input.Next.move = Vector2.zero;
+            yield return new WaitForSeconds(0.2f);
+
+            var b = BoundsOf(box);
+            var toBox = World.Flat(b.center - p.transform.position);
+            Assert.That(Vector3.Dot(toBox, p.Facing), Is.InRange(0.4f, 1.4f), "in front of the player");
+            Assert.That(b.center.y - p.transform.position.y, Is.InRange(0.7f, 1.4f), "at chest height");
+            Assert.That(box.transform.lossyScale.x, Is.EqualTo(1f).Within(0.001f), "not squashed with the body");
+            Assert.Less(b.SqrDistance(p.handL.position), 0.05f, "left hand on the box");
+            Assert.Less(b.SqrDistance(p.handR.position), 0.05f, "right hand on the box");
+        }
+
+        [UnityTest]
+        public IEnumerator HeavyThingsAreLiftedOverTheHead()
+        {
+            var p = SpawnOnGround(out var input);
+            var sofa = FurnitureCatalog.Spawn("SOFA", new Vector3(0f, 0f, 1.3f), 0f, null);
+            yield return new WaitForSeconds(0.3f);
+            input.Next.grab = true;
+            yield return null;
+            yield return null;
+            Assert.IsTrue(p.Combat.IsOverhead);
+            yield return new WaitForSeconds(0.3f);
+
+            var b = BoundsOf(sofa);
+            Assert.Greater(b.min.y - p.transform.position.y, 1.2f, "clear of the head");
+            Assert.Less(World.Flat(b.center - p.transform.position).magnitude, 0.4f, "centred over the player");
+            Assert.Less(Mathf.Abs(p.handL.position.y - b.min.y), 0.15f, "hands holding it up from underneath");
+        }
+
+        [UnityTest]
+        public IEnumerator RoommatesAreCarriedOverheadAndThrown()
+        {
+            var p = SpawnOnGround(out var input);
+            var friend = Object.Instantiate(GameAssets.I.playerPrefab);
+            friend.Setup(1, new ScriptedBinding());
+            friend.Respawn(new Vector3(0f, 0f, 1f));
+            friend.Inventory.Set("ABC");
+            yield return new WaitForSeconds(0.3f);
+
+            input.Next.grab = true;
+            yield return null;
+            yield return null;
+            Assert.IsTrue(friend.IsHeld);
+            input.Next.move = Vector2.right;
+            yield return new WaitForSeconds(0.5f);
+            var body = BoundsOf(friend.visual);
+            Assert.Greater(body.center.y - p.transform.position.y, 1.4f, "up over the head");
+            Assert.Less(World.Flat(body.center - p.transform.position).magnitude, 0.5f, "came along, centred over the carrier");
+
+            input.Next.grab = true;
+            yield return null;
+            yield return null;
+            Assert.IsFalse(friend.IsHeld);
+            Assert.Less(friend.Inventory.Count, 3, "being thrown knocks letters loose");
+        }
+
+        [UnityTest]
+        public IEnumerator FurnitureStaysStandingWhenLeftAlone()
+        {
+            yield return TestScenes.Load(Session.DibsScene);
+            yield return new WaitForSeconds(3f);
+            var fallen = Object.FindObjectsByType<Smashable>().Where(s => s.GetComponent<LetterBuilt>())
+                               .Where(s => Vector3.Dot(s.transform.up, Vector3.up) < 0.95f)
+                               .Select(s => $"{s.Word} (up·y={Vector3.Dot(s.transform.up, Vector3.up):F2}, com={s.GetComponent<Rigidbody>().centerOfMass})")
+                               .ToList();
+            CollectionAssert.IsEmpty(fallen, "tipped over: " + string.Join(", ", fallen));
+        }
+
         [UnityTest]
         public IEnumerator HeavyThingsSlowYouDown()
         {
