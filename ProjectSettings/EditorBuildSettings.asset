@@ -6,7 +6,16 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/_Project/Scenes/Hub.unity
+    guid: 4829ca58046a07b4db4cd309dd5093a8
+  - enabled: 1
     path: Assets/_Project/Scenes/LivingRoom.unity
     guid: 82b92a76ebd641c49b5e9ed8aa025a1a
+  - enabled: 1
+    path: Assets/_Project/Scenes/Tutorial.unity
+    guid: db2c4e6815ecee14ba4faa77ac3f3945
+  - enabled: 1
+    path: Assets/_Project/Scenes/MovingDay.unity
+    guid: ac5fed3922febf84ca59faadd8da4e64
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

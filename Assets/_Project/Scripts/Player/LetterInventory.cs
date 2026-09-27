@@ -20,13 +20,16 @@ namespace Wreckabulary
         public bool IsEmpty => letters.Count == 0;
         public bool IsFull => letters.Count >= capacity;
 
+        /// <summary>Off for the tutorial dummy, so it doesn't hoover up loose letters.</summary>
+        public bool Collects { get; set; } = true;
+
         public event Action Changed;
 
         void Awake() => controller = GetComponent<PlayerController>();
 
         void FixedUpdate()
         {
-            if (IsFull || (controller && (controller.IsKnockedOut || controller.IsHeld))) return;
+            if (!Collects || IsFull || (controller && (controller.IsKnockedOut || controller.IsHeld))) return;
 
             int n = Physics.OverlapSphereNonAlloc(transform.position + Vector3.up * 0.5f, pickupRadius, Hits,
                                                   World.TileMask, QueryTriggerInteraction.Ignore);

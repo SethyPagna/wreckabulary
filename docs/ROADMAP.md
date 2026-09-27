@@ -11,9 +11,9 @@
 
 ## Scope
 
-**Must have:** Versus "Dibs!" in the living room, tutorial, simple hub with drop-in join and typewriter mode select.
+**Must have:** Versus "Dibs!" in the living room, tutorial, simple hub with drop-in join and typewriter mode select. *(Prototype of all three in place; needs playtesting, art and audio.)*
 
-**Should have:** Co-op "Moving Day" (1–2 levels), bedroom map.
+**Should have:** Co-op "Moving Day" (1–2 levels), bedroom map. *(Prototype: 2 levels in a living room + bedroom house.)*
 
 ## Stretch goals
 

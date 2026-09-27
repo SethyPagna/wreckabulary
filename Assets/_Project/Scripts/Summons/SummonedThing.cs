@@ -12,6 +12,9 @@ namespace Wreckabulary
     {
         static readonly List<SummonedThing> All = new();
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => All.Clear();
+
         public string Word;
         public PlayerController Owner;
         public float Expires = float.MaxValue;

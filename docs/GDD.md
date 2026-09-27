@@ -22,6 +22,8 @@ A 2–4 player couch party game where everything is made of letters. Smash furni
 
 Smash → Scavenge → Spell → Summon. Summoned objects can themselves be smashed, scattering their letters for anyone to steal.
 
+Things break from punches, weapons and blasts, or when something *thrown* hits them. Furniture doesn't wreck itself by toppling over, and boxes don't break when they land on each other.
+
 ## Premise (trailer)
 
 Roommates carry boxes through the door → one box turns out to be made of B-O-X → it pops open and tiles spill out → two roommates grab for the same letters → the fight begins.
@@ -55,6 +57,13 @@ Later variations: **Furnish First** (race to furnish the room), and more.
 
 Furnish the house together, 1–4 players. Unpack boxes, spell the checklist items and place them in the right rooms, with obstacles and a time limit. Each level awards 1–3 stars.
 
+- Boxes labelled with each checklist word arrive at the front door. Smashing a box gives its letters.
+- The word wheel offers only checklist words. Spelling one builds that piece of furniture in front of you.
+- Furniture that comes to rest in the right room is ticked off and locked in place.
+- Stars: 3 with at least half the time left, 2 with a quarter, otherwise 1. Out of time means a retry.
+- If an item's letters get lost, a new box is sent.
+- Prototype levels: *Moving In* (BED, LAMP, SOFA, TABLE; 2:30) and *Housewarming* (DESK, CHAIR, RUG, TV, PLANT, CLOCK; 3:00, with slippery spills).
+
 ### Creative: "Home Sweet Home"
 
 The typewriter prints endless letters to build and decorate your house. Hit **Play** to turn it into a Dibs! arena with custom rules. Rooms can be saved and loaded.
@@ -72,7 +81,7 @@ Cartoonish, blobby ragdoll characters (in the spirit of Fall Guys and PEAK) in k
 ## Maps
 
 1. **Living room** (main, fully polished): sofa, coffee table, lamp, mug, plate, vase.
-2. **Bedroom** (should have)
+2. **Bedroom** (should have; in the prototype as half of the Moving Day house)
 3. **Kitchen** (stretch goal)
 4. **Garden** (stretch goal)
 5. More to come

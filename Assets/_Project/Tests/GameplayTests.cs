@@ -12,9 +12,10 @@ namespace Wreckabulary.Tests
     {
         GameObject ground;
 
-        [SetUp]
-        public void SetUp()
+        [UnitySetUp]
+        public IEnumerator SetUp()
         {
+            yield return TestScenes.Reset();
             ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ground.name = "Test Ground";
             ground.transform.position = Vector3.down * 0.5f;
@@ -22,15 +23,12 @@ namespace Wreckabulary.Tests
             TilePool.Ensure();
         }
 
-        [TearDown]
-        public void TearDown()
+        [UnityTearDown]
+        public IEnumerator TearDown()
         {
-            foreach (var p in World.Players.ToArray()) Object.Destroy(p.gameObject);
             SummonedThing.ClearAll();
             World.ClearTransient();
-            if (TilePool.Instance) Object.Destroy(TilePool.Instance.gameObject);
-            Object.Destroy(ground);
-            Time.timeScale = 1f;
+            yield return TestScenes.Reset();
         }
 
         static PlayerController SpawnPlayer(int index, Vector3 at, out ScriptedBinding input)
@@ -61,6 +59,29 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(sofa == null, "sofa should be destroyed");
             var letters = new string(TilePool.Instance.Active.Select(t => t.Letter).OrderBy(c => c).ToArray());
             Assert.AreEqual("AFOS", letters);
+        }
+
+        [UnityTest]
+        public IEnumerator BoxesLandingOnBoxesDontBreak()
+        {
+            var bottom = DeliverySpawner.CreateBox("SOFA", Vector3.zero);
+            yield return new WaitForSeconds(2f); // past its spawn grace
+            var top = DeliverySpawner.CreateBox("LAMP", Vector3.up * 4f);
+            top.GetComponent<Rigidbody>().linearVelocity = Vector3.down * 10f;
+            yield return new WaitForSeconds(1.5f);
+            Assert.IsTrue(bottom && top, "neither box broke");
+        }
+
+        [UnityTest]
+        public IEnumerator ThrownThingsSmashWhatTheyHit()
+        {
+            var bottom = DeliverySpawner.CreateBox("SOFA", Vector3.zero);
+            yield return new WaitForSeconds(2f);
+            var thrown = DeliverySpawner.CreateBox("LAMP", Vector3.up * 3f);
+            ThrowTracker.Attach(thrown.gameObject, null, 2f);
+            thrown.GetComponent<Rigidbody>().linearVelocity = Vector3.down * 14f;
+            yield return new WaitForSeconds(1f);
+            Assert.IsFalse(bottom && thrown, "the throw smashed something");
         }
 
         [UnityTest]

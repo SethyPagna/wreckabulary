@@ -28,7 +28,10 @@ namespace Wreckabulary
 
         public event Action<string> Summoned;
 
-        WordDatabase Database => database ? database : GameAssets.I.words;
+        /// <summary>Set by a mode to replace the word list, e.g. Moving Day's checklist.</summary>
+        public IReadOnlyList<WordEntry> WordsOverride { get; set; }
+
+        IReadOnlyList<WordEntry> Words => WordsOverride ?? (database ? database : GameAssets.I.words).Words;
 
         void Awake()
         {
@@ -77,8 +80,8 @@ namespace Wreckabulary
         void Refresh()
         {
             var keep = SelectedWord;
-            Ready = WordSolver.Spellable(Database.Words, inventory.Letters);
-            var hints = WordSolver.Hints(Database.Words, inventory.Letters, inventory.Capacity);
+            Ready = WordSolver.Spellable(Words, inventory.Letters);
+            var hints = WordSolver.Hints(Words, inventory.Letters, inventory.Capacity);
             Hints = hints.GetRange(0, Mathf.Min(maxHints, hints.Count));
             Selected = keep != null && Ready.Contains(keep) ? Ready.IndexOf(keep) : 0;
         }
@@ -91,8 +94,10 @@ namespace Wreckabulary
 
         public bool Summon(string word)
         {
-            var entry = Database.Find(word);
-            return entry != null && Summon(entry);
+            word = word.ToUpperInvariant();
+            foreach (var entry in Words)
+                if (entry.word == word) return Summon(entry);
+            return false;
         }
 
         public bool Summon(WordEntry entry)

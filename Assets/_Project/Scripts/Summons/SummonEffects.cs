@@ -17,6 +17,12 @@ namespace Wreckabulary
             Popup.Show(e.word + "!", p.OverheadPosition + Vector3.up * 0.8f, p.Color, 5f);
             CameraRig.Shake(0.06f);
 
+            if (e.category == WordCategory.Furniture)
+            {
+                FurnitureCatalog.Summon(p, e.word);
+                return;
+            }
+
             switch (e.word)
             {
                 // Weapons
