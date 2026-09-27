@@ -38,6 +38,12 @@ Generated files: don't edit them by hand. Change `selection.json` or the scripts
 - FBX settings: metres, `-Z` forward, `Y` up, no leaf bones, no embedded textures. In Unity,
   the importer (`ImportedArtPostprocessor`) turns on *Bake Axis Conversion* and binds
   materials by name to the library materials.
+- Facing: Unity puts Blender (x, y, z) at (x, z, y). This was measured on every model. The
+  packs face glTF +Z, which is Blender -Y, so the build turns each scene a half turn about Z
+  before export. Models then face Unity's +Z, and the report's bounds are in Unity axes.
+- Single-mesh models keep Blender's axis conversion (and the half turn) as a rotation on their root.
+  In Unity, put a model under its own parent and move or rotate the parent, never the model
+  root, or the model ends up lying down.
 - Held items are not separate files. At runtime a held item is the world model scaled by
   the recipe's `held_scale`, moved so `Grip_R` sits in the hand, with the holder's skin.
 - The pack's house floors (7,344 triangles per 2 m tile), ceiling lamp and door panels are

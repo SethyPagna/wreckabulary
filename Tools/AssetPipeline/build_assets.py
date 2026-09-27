@@ -25,7 +25,7 @@ import tempfile
 import time
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -268,8 +268,29 @@ def snap_to_floor():
 
 
 def to_unity_space(v):
-    """Blender (x, y, z) Z-up to the glTF/Unity-style Y-up axes used in reports (x, z, -y)."""
-    return [round(v.x, 5), round(v.z, 5), round(-v.y, 5)]
+    """Where Blender (x, y, z) lands in Unity: (x, z, y).
+
+    Measured, not assumed: Unity reads the "-Z forward" these files declare and turns them to
+    face its own +Z, which puts Blender +Y at Unity +Z. See face_unity_forward.
+    """
+    return [round(v.x, 5), round(v.z, 5), round(v.y, 5)]
+
+
+# A half turn about Blender's Z (up) axis, written out so it's exact.
+HALF_TURN_Z = Matrix(((-1, 0, 0, 0), (0, -1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)))
+
+
+def face_unity_forward():
+    """Turn the scene a half turn about Z, so models face Unity's +Z.
+
+    The packs follow glTF, where a model's front is +Z; in Blender that is -Y. Unity maps
+    Blender +Y to +Z (see to_unity_space), so without this every model faces backwards.
+    Root objects are turned about the origin; children follow.
+    """
+    for obj in bpy.data.objects:
+        if obj.parent is None:
+            obj.matrix_world = HALF_TURN_Z @ obj.matrix_world
+    bpy.context.view_layer.update()
 
 
 def describe(kind, name, source, output):
@@ -284,8 +305,8 @@ def describe(kind, name, source, output):
         "meshes": sorted(o.name for o in meshes),
         "materials": sorted({s.material.name for o in meshes for s in o.material_slots if s.material}),
         "empties": sorted(o.name for o in bpy.data.objects if o.type == "EMPTY"),
-        "bounds_min": to_unity_space(Vector((lo.x, hi.y, lo.z))),
-        "bounds_max": to_unity_space(Vector((hi.x, lo.y, hi.z))),
+        "bounds_min": to_unity_space(lo),
+        "bounds_max": to_unity_space(hi),
         "actions": sorted(a.name for a in bpy.data.actions),
     }
 
@@ -337,6 +358,7 @@ def run_static(kind, name, src, out_path, library, snap, extra_material_glbs=())
     strip_animation()
     restore_rest_transforms(glb)
     dz = snap_to_floor() if snap else 0.0
+    face_unity_forward()
     report = describe(kind, name, src, out_path)
     report["removed_cameras_lights"] = removed
     report["floor_snap_m"] = round(dz, 5)
@@ -450,6 +472,7 @@ def run_avatar(sel, packs, art_dir, art_rel, library):
         raise RuntimeError(f"unexpected non-avatar meshes: {stray}")
 
     out_path = os.path.join(art_dir, "Avatar", sel["avatar"]["output_name"] + ".fbx")
+    face_unity_forward()
     report = describe("avatar", sel["avatar"]["output_name"], base_src, out_path)
     report["bones"] = [b.name for b in rig.data.bones]
     report["action_frames"] = {a.name: [round(a.frame_range[0], 2), round(a.frame_range[1], 2)]

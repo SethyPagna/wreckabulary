@@ -5,6 +5,10 @@ new file get different GUIDs and references break. Files added outside Unity (th
 pipeline, data files, rules code) get deterministic GUIDs here instead: the MD5 of
 "wreckabulary:" plus the asset path. Existing .meta files are never touched.
 
+Only simple importers are written (folders, scripts, asmdefs, text and JSON). Models, textures
+and other media are left for Unity: a .meta that holds only a guid makes Unity upgrade it from
+"importer version 1" with odd defaults (PNGs came through as cubemaps with gamma decoding on).
+
   python Tools/DataTools/make_metas.py [--dry-run]
 """
 import argparse
@@ -40,11 +44,19 @@ TextScriptImporter:
   assetBundleName:
   assetBundleVariant:
 """
-# Unity fills in the importer settings (and ImportedArtPostprocessor adjusts them) on first import.
-MINIMAL = """fileFormatVersion: 2
+SCRIPT = """fileFormatVersion: 2
 guid: {guid}
+MonoImporter:
+  externalObjects: {{}}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {{instanceID: 0}}
+  userData:
+  assetBundleName:
+  assetBundleVariant:
 """
-BY_EXTENSION = {".asmdef": ASMDEF, ".asmref": ASMDEF, ".json": TEXT, ".txt": TEXT, ".csv": TEXT, ".md": TEXT}
+BY_EXTENSION = {".asmdef": ASMDEF, ".asmref": ASMDEF, ".json": TEXT, ".txt": TEXT, ".csv": TEXT, ".md": TEXT, ".cs": SCRIPT}
 
 
 def guid_for(rel):
@@ -55,7 +67,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
-    written = []
+    written, skipped = [], []
     for root, dirs, files in os.walk(ASSETS):
         dirs[:] = sorted(d for d in dirs if not d.startswith(".") and not d.endswith("~"))
         entries = [(d, True) for d in dirs] + [(f, False) for f in sorted(files)]
@@ -67,14 +79,19 @@ def main():
             if os.path.exists(meta):
                 continue
             rel = os.path.relpath(path, REPO).replace(os.sep, "/")
-            template = FOLDER if is_dir else BY_EXTENSION.get(os.path.splitext(name)[1].lower(), MINIMAL)
+            template = FOLDER if is_dir else BY_EXTENSION.get(os.path.splitext(name)[1].lower())
+            if template is None:
+                skipped.append(rel)
+                continue
             if not args.dry_run:
                 with open(meta, "w", encoding="utf-8", newline="\n") as f:
                     f.write(template.format(guid=guid_for(rel)))
             written.append(rel)
     for rel in written:
         print(("would write " if args.dry_run else "wrote ") + rel + ".meta")
-    print(f"METAS_RESULT {len(written)} {'missing' if args.dry_run else 'written'}")
+    for rel in skipped:
+        print("left for Unity to import: " + rel)
+    print(f"METAS_RESULT {len(written)} {'missing' if args.dry_run else 'written'}, {len(skipped)} left for Unity")
 
 
 main()

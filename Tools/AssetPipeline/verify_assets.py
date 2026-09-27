@@ -37,7 +37,8 @@ def unity_bounds(meshes):
             w = mw @ v.co
             lo = Vector(map(min, lo, w))
             hi = Vector(map(max, hi, w))
-    return [lo.x, lo.z, -hi.y], [hi.x, hi.z, -lo.y]
+    # Same mapping as build_assets.to_unity_space: Blender (x, y, z) lands at Unity (x, z, y).
+    return [lo.x, lo.z, lo.y], [hi.x, hi.z, hi.y]
 
 
 def check(entry, repo, library_names):
