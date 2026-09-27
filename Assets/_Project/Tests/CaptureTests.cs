@@ -28,6 +28,7 @@ namespace Wreckabulary.Tests
             UnityEditor.EditorSettings.asyncShaderCompilation = false;
 #endif
 
+            Session.Clear();
             yield return SceneManager.LoadSceneAsync("LivingRoom");
             yield return new WaitForSeconds(0.5f);
             Capture(Path.Combine(dir, "1_lobby.png"));
@@ -69,10 +70,64 @@ namespace Wreckabulary.Tests
 #endif
         }
 
+        [UnityTest]
+        public IEnumerator CaptureHubAndTutorial()
+        {
+            string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
+            if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
+            Directory.CreateDirectory(dir);
+#if UNITY_EDITOR
+            UnityEditor.EditorSettings.asyncShaderCompilation = false;
+#endif
+            Session.Clear();
+
+            // House: two roommates walk in, one sits at the typewriter.
+            yield return SceneManager.LoadSceneAsync(Session.HubScene);
+            yield return null;
+            var joins = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>();
+            var a = joins.Join(new ScriptedBinding());
+            yield return new WaitForSeconds(0.3f);
+            Capture(Path.Combine(dir, "4_hub_arrival.png"));
+            joins.Join(new ScriptedBinding());
+            yield return new WaitForSeconds(1f);
+            var typewriter = UnityEngine.Object.FindAnyObjectByType<Typewriter>();
+            a.Respawn(typewriter.transform.position + Vector3.back * 1.2f + Vector3.down * 0.82f);
+            typewriter.Open(a);
+            yield return new WaitForSeconds(0.3f);
+            Capture(Path.Combine(dir, "5_hub_typewriter.png"));
+
+            // Tutorial, a few steps in.
+            Session.Clear();
+            yield return SceneManager.LoadSceneAsync(Session.TutorialScene);
+            yield return null;
+            joins = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>();
+            var input = new ScriptedBinding();
+            joins.Join(input);
+            input.Next.move = new Vector2(1f, 0.3f);
+            yield return new WaitForSeconds(1.2f);
+            input.Next.move = Vector2.zero;
+            yield return new WaitForSeconds(1.5f);
+            Capture(Path.Combine(dir, "6_tutorial.png"));
+#if UNITY_EDITOR
+            UnityEditor.EditorSettings.asyncShaderCompilation = true;
+#endif
+            Session.Clear();
+        }
+
         static void Capture(string path)
         {
             var cam = Camera.main;
             var rt = new RenderTexture(1600, 900, 24);
+
+            // Overlay canvases aren't drawn by cameras, so render the HUD through the camera for the capture.
+            var canvases = UnityEngine.Object.FindObjectsByType<Canvas>();
+            foreach (var c in canvases)
+            {
+                c.renderMode = RenderMode.ScreenSpaceCamera;
+                c.worldCamera = cam;
+                c.planeDistance = 1f;
+            }
+            Canvas.ForceUpdateCanvases();
             var request = new UniversalRenderPipeline.SingleCameraRequest { destination = rt };
             if (RenderPipeline.SupportsRenderRequest(cam, request))
                 RenderPipeline.SubmitRenderRequest(cam, request);
@@ -83,7 +138,7 @@ namespace Wreckabulary.Tests
                 cam.targetTexture = null;
             }
 
-            // Screen-space UI isn't drawn by the camera, so the HUD won't appear in these captures.
+            foreach (var c in canvases) c.renderMode = RenderMode.ScreenSpaceOverlay;
             var prev = RenderTexture.active;
             RenderTexture.active = rt;
             var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);

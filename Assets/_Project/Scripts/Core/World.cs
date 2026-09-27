@@ -8,6 +8,14 @@ namespace Wreckabulary
     {
         static Transform transient;
 
+        // Static state survives between Play sessions when domain reload is off, so reset it.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            transient = null;
+            Players.Clear();
+        }
+
         /// <summary>Parent for summons, delivery boxes and effects. Cleared between rounds.</summary>
         public static Transform Transient
         {

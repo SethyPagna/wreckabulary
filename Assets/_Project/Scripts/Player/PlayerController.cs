@@ -26,7 +26,8 @@ namespace Wreckabulary
 
         public int Index { get; private set; }
         public Color Color { get; private set; } = Color.white;
-        public string Name => $"P{Index + 1}";
+        public string Name { get; set; } = "P1";
+        public char Initial { get; private set; } = 'W';
         public InputBinding Binding { get; set; }
         public PlayerCommands Commands;
 
@@ -46,7 +47,8 @@ namespace Wreckabulary
         public bool CanAct => !Frozen && !IsKnockedOut && !IsHeld && !IsStaggered;
         public Vector3 OverheadPosition => transform.position + Vector3.up * 2.1f;
 
-        float staggerUntil, boostUntil, boost = 1f, slipperyUntil, floatyUntil;
+        float staggerUntil, boostUntil, boost = 1f, slipperyUntil, floatyUntil, autoWalkUntil;
+        Vector3 autoWalk;
         Collider[] colliders;
         Transform homeParent;
 
@@ -72,18 +74,23 @@ namespace Wreckabulary
         void OnEnable() => World.Players.Add(this);
         void OnDisable() => World.Players.Remove(this);
 
-        public void Setup(int index, InputBinding binding)
+        public void Setup(int index, InputBinding binding) =>
+            Setup(index, binding, GameAssets.I.PlayerColor(index), GameAssets.I.PlayerInitial(index), $"P{index + 1}");
+
+        public void Setup(int index, InputBinding binding, Color color, char initial, string displayName)
         {
             Index = index;
             Binding = binding;
-            name = $"Player {index + 1}";
-            Color = GameAssets.I.PlayerColor(index);
+            Name = displayName;
+            Initial = initial;
+            name = $"Player {displayName}";
+            Color = color;
             var sweater = Color.Lerp(Color, new Color(0.2f, 0.12f, 0.1f), 0.35f);
             foreach (var r in bodyRenderers) r.material.color = Color;
             foreach (var r in sweaterRenderers) r.material.color = sweater;
             if (initialLabel)
             {
-                initialLabel.text = GameAssets.I.PlayerInitial(index).ToString();
+                initialLabel.text = initial.ToString();
                 initialLabel.color = new Color(0.97f, 0.92f, 0.82f);
             }
         }
@@ -110,7 +117,9 @@ namespace Wreckabulary
                 Body.AddForce(Vector3.down * g, ForceMode.Acceleration);
             }
 
-            var input = Frozen ? Vector3.zero : new Vector3(Commands.move.x, 0f, Commands.move.y);
+            var input = Time.time < autoWalkUntil ? autoWalk
+                      : Frozen ? Vector3.zero
+                      : new Vector3(Commands.move.x, 0f, Commands.move.y);
             float speed = moveSpeed * MoveScale * (Time.time < boostUntil ? boost : 1f);
             float accel = acceleration
                         * (IsStaggered ? 0.1f : 1f)
@@ -147,6 +156,13 @@ namespace Wreckabulary
         public void Boost(float multiplier, float seconds) { boost = multiplier; boostUntil = Time.time + seconds; }
         public void MakeSlippery(float seconds) => slipperyUntil = Time.time + seconds;
         public void MakeFloaty(float seconds) => floatyUntil = Time.time + seconds;
+
+        /// <summary>Walks on its own for a moment, e.g. through the front door on arrival.</summary>
+        public void AutoWalk(Vector3 direction, float seconds)
+        {
+            autoWalk = World.Flat(direction).normalized;
+            autoWalkUntil = Time.time + seconds;
+        }
 
         public void FaceTowards(Vector3 dir)
         {
@@ -206,7 +222,7 @@ namespace Wreckabulary
             transform.position = position;
             Body.position = position;
             Body.linearVelocity = Vector3.zero;
-            staggerUntil = boostUntil = slipperyUntil = floatyUntil = 0f;
+            staggerUntil = boostUntil = slipperyUntil = floatyUntil = autoWalkUntil = 0f;
             MoveScale = 1f;
             FaceTowards(-position);
         }

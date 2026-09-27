@@ -33,6 +33,7 @@ MonoBehaviour:
   - {fileID: 2100000, guid: 0267f0ae36b360245b6d0f3d37670cec, type: 2}
   - {fileID: 2100000, guid: 2a38a763e3f24a043a942f53bb55afc0, type: 2}
   - {fileID: 2100000, guid: d5342d6c472b255488233777c5fb5b13, type: 2}
+  - {fileID: 2100000, guid: 2f457c96b15e7564f9d2f3be422169fb, type: 2}
   tilePrefab: {fileID: 279869507977457874, guid: e55dc87e1ec766b438d440947a517934, type: 3}
   playerPrefab: {fileID: 6559939407275357181, guid: 786da980fe0631447b88c6a7c203d101, type: 3}
   words: {fileID: 11400000, guid: 67dce8d9b7f6ac34a8966cc71ccee989, type: 2}

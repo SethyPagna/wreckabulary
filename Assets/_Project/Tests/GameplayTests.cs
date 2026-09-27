@@ -12,9 +12,10 @@ namespace Wreckabulary.Tests
     {
         GameObject ground;
 
-        [SetUp]
-        public void SetUp()
+        [UnitySetUp]
+        public IEnumerator SetUp()
         {
+            yield return TestScenes.Reset();
             ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ground.name = "Test Ground";
             ground.transform.position = Vector3.down * 0.5f;
@@ -22,15 +23,12 @@ namespace Wreckabulary.Tests
             TilePool.Ensure();
         }
 
-        [TearDown]
-        public void TearDown()
+        [UnityTearDown]
+        public IEnumerator TearDown()
         {
-            foreach (var p in World.Players.ToArray()) Object.Destroy(p.gameObject);
             SummonedThing.ClearAll();
             World.ClearTransient();
-            if (TilePool.Instance) Object.Destroy(TilePool.Instance.gameObject);
-            Object.Destroy(ground);
-            Time.timeScale = 1f;
+            yield return TestScenes.Reset();
         }
 
         static PlayerController SpawnPlayer(int index, Vector3 at, out ScriptedBinding input)

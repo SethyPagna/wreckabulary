@@ -31,6 +31,9 @@ namespace Wreckabulary
         float heldSince;
         static readonly Collider[] Hits = new Collider[48];
 
+        /// <summary>Something (or someone) was thrown.</summary>
+        public event System.Action<Rigidbody> Thrown;
+
         public bool IsHolding => held;
         public Rigidbody Held => held;
         public HeldWeapon Weapon => held ? weapon : null;
@@ -183,11 +186,13 @@ namespace Wreckabulary
                 victim.Health.TakeHit(controller.Facing, 0f, -1, controller);
                 victim.Body.linearVelocity = velocity;
                 ThrowTracker.Attach(victim.gameObject, controller, 1.2f);
+                Thrown?.Invoke(victim.Body);
                 return;
             }
             var rb = held;
             Release(velocity);
             ThrowTracker.Attach(rb.gameObject, controller, 1.5f);
+            Thrown?.Invoke(rb);
         }
 
         /// <summary>Lets go of whatever is held without throwing it.</summary>

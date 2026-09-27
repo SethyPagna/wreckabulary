@@ -13,6 +13,7 @@ namespace Wreckabulary
         [SerializeField] TextMeshProUGUI subtitle;
         [SerializeField] TextMeshProUGUI timer;
         [SerializeField] TextMeshProUGUI scoreboard;
+        [SerializeField] TextMeshProUGUI instruction;
 
         readonly StringBuilder sb = new();
 
@@ -20,6 +21,13 @@ namespace Wreckabulary
         {
             if (title) title.text = text;
             if (subtitle) subtitle.text = sub;
+        }
+
+        /// <summary>The line near the top of the screen used by the house and the tutorial.</summary>
+        public void SetInstruction(string main, string hint = "")
+        {
+            if (instruction)
+                instruction.text = string.IsNullOrEmpty(hint) ? main : $"{main}\n<size=65%><color=#FFF4E0CC>{hint}</color></size>";
         }
 
         public void SetTimer(string text)
@@ -34,7 +42,7 @@ namespace Wreckabulary
             foreach (var p in players)
             {
                 sb.Append("<color=#").Append(ColorUtility.ToHtmlStringRGB(p.Color)).Append("><b>")
-                  .Append(GameAssets.I.PlayerInitial(p.Index)).Append("</b> ").Append(p.Name).Append("</color>");
+                  .Append(p.Initial).Append("</b> ").Append(p.Name).Append("</color>");
                 if (showWins) sb.Append("  ").Append(wins(p)).Append('/').Append(roundsToWin);
                 sb.Append("  <size=80%>").Append(p.IsKnockedOut ? "KO" : $"{p.Inventory.Count} letters").Append("</size>");
                 sb.Append("        ");
