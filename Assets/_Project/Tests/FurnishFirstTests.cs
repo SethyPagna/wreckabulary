@@ -33,9 +33,10 @@ namespace Wreckabulary.Tests
         /// <summary>Builds the checklist in a corner, spread out so nothing overlaps.</summary>
         void Furnish(int zone)
         {
+            // Behind the player, who stands in the middle of their corner, so nothing gets shoved out.
             var c = director.Zones[zone].Centre;
             for (int i = 0; i < director.Checklist.Count; i++)
-                FurnitureCatalog.Spawn(director.Checklist[i], c + new Vector3(-1.8f + i * 1.8f, 0.05f, 0f), 0f, World.Transient);
+                FurnitureCatalog.Spawn(director.Checklist[i], c + new Vector3(-1.8f + i * 1.8f, 0.05f, 1.6f), 0f, World.Transient);
         }
 
         [UnityTest]
