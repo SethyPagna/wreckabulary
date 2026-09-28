@@ -41,6 +41,12 @@ namespace Wreckabulary
             if (body) body.sharedMaterial = GameAssets.I.TileMaterial(Rarity);
         }
 
+        void OnCollisionEnter(Collision c)
+        {
+            float speed = c.relativeVelocity.magnitude;
+            if (speed > 2.5f) Sfx.Play(Sound.Clack, transform.position, Mathf.Clamp01(speed / 8f), 0.9f + Random.value * 0.3f);
+        }
+
         /// <summary>Freshly launched tiles can't be grabbed straight away, and never instantly by whoever dropped them.</summary>
         public bool CanBeCollectedBy(LetterInventory who) =>
             Time.time >= readyAt && (who != droppedBy || Time.time >= ownerLockUntil);

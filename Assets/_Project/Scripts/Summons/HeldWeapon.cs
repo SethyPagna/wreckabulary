@@ -34,6 +34,7 @@ namespace Wreckabulary
             if (ranged)
             {
                 var from = transform.position + owner.Facing * 0.4f;
+                Sfx.Play(Sound.Throw, from, 0.7f, 1.3f);
                 Projectile.Fire(word, from, owner.Facing * projectileSpeed, owner, knockback, damage, blastRadius, lettersPerHit);
             }
             else

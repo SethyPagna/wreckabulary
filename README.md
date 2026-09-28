@@ -76,7 +76,9 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 - A hit knocks 2 letters loose. A hit with no letters is a knockout.
 - Delivery boxes drop in when the room runs low on letters. After 90 seconds the room collapses and boxes rain down.
 
-Everything is placeholder art built from blocks. Not in yet: audio, character customisation and Creative (Home Sweet Home).
+**Audio:** every sound and the music are synthesised in code at startup (`Scripts/Audio`), so there are no audio files or licences to track. You get wooden clacks, smashes, punches, typewriter keys while spelling, cast chimes, fizzles, bees, booms, quacks, countdowns and fanfares. Each mode has its own looping track (cozy for the house and tutorial, upbeat for Dibs!, bouncy for Moving Day) that crossfades between scenes. Sounds pan left and right by where they happen. **M** mutes. To use a recorded sound instead, return its clip from `Sfx.ClipFor`.
+
+Not in yet: final art and fonts, character customisation, and Creative (Home Sweet Home).
 
 ## Controls
 
@@ -94,6 +96,7 @@ Everything is placeholder art built from blocks. Not in yet: audio, character cu
 | Use typewriter | A / RT (grab) | Space | `.` |
 | Start match (Dibs! lobby) | Start | Enter | Numpad Enter |
 | Back to the house | Select / View | Esc | Esc |
+| Mute sound | | M | M |
 
 ## Project structure
 

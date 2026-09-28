@@ -17,6 +17,7 @@ namespace Wreckabulary
 
         void Start()
         {
+            Music.Play(Track.Cozy);
             joins.Joined += _ => OpenDoor();
             joins.RespawnKnockedOut = true;
             if (joins.Players.Count > 0) OpenDoor();
@@ -38,6 +39,7 @@ namespace Wreckabulary
             if (!door) return;
             if (swing != null) StopCoroutine(swing);
             swing = StartCoroutine(Swing());
+            Sfx.Play(Sound.Door, door.position, 0.7f);
         }
 
         IEnumerator Swing()

@@ -31,6 +31,7 @@ namespace Wreckabulary
         readonly Dictionary<PlayerController, int> wins = new();
         float phaseStarted, roundStarted;
         PlayerController lastWinner;
+        int lastCount;
 
         public Phase Phase { get; private set; } = Phase.Lobby;
         public int Round { get; private set; }
@@ -45,6 +46,7 @@ namespace Wreckabulary
 
         void Start()
         {
+            Music.Play(Track.Brawl);
             joins.Joined += OnJoined;
             foreach (var p in Players) OnJoined(p);
             EnterLobby();
@@ -82,6 +84,8 @@ namespace Wreckabulary
 
                 case Phase.Countdown:
                     int left = Mathf.CeilToInt(countdownTime - PhaseTime);
+                    if (left != lastCount && left > 0) Sfx.Play(Sound.Countdown);
+                    lastCount = left;
                     hud.SetTitle(left > 0 ? left.ToString() : "DIBS!", $"Round {Round}");
                     if (PhaseTime >= countdownTime) BeginPlay();
                     break;
@@ -152,6 +156,7 @@ namespace Wreckabulary
 
         void BeginPlay()
         {
+            Sfx.Play(Sound.Go);
             SetPhase(Phase.Playing);
             roundStarted = Time.time;
             hud.SetTitle("DIBS!", "");
@@ -165,6 +170,7 @@ namespace Wreckabulary
             deliveries.StartCollapse();
             hud.SetTimer("<color=#FF6A4D>COLLAPSE!</color>");
             CameraRig.Shake(0.4f);
+            Sfx.Play(Sound.Collapse);
             CollapseStarted?.Invoke();
         }
 
@@ -186,6 +192,7 @@ namespace Wreckabulary
             wins[lastWinner] = WinsOf(lastWinner) + 1;
             hud.SetTitle($"{lastWinner.Name} WINS THE ROUND", $"{WinsOf(lastWinner)}/{roundsToWin}");
             StartCoroutine(SlowMo());
+            Sfx.Play(Sound.RoundWin);
             RoundWon?.Invoke(lastWinner);
         }
 

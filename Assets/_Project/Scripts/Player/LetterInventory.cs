@@ -38,7 +38,12 @@ namespace Wreckabulary
                 var rb = Hits[i].attachedRigidbody;
                 if (rb && rb.gameObject.activeSelf && rb.TryGetComponent(out LetterTile tile) &&
                     tile.CanBeCollectedBy(this) && TryAdd(tile.Letter))
+                {
+                    // Rarer letters sound brighter.
+                    float pitch = tile.Rarity switch { LetterRarity.Legendary => 1.35f, LetterRarity.Rare => 1.15f, _ => 1f };
+                    Sfx.Play(Sound.Pickup, transform.position, 0.7f, pitch);
                     tile.Collect();
+                }
             }
         }
 

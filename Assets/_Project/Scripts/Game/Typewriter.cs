@@ -84,6 +84,7 @@ namespace Wreckabulary
             User = p;
             p.Frozen = true;
             p.FaceTowards(transform.position - p.transform.position);
+            Sfx.Play(Sound.SpellOpen, transform.position);
         }
 
         public void Close()
@@ -92,7 +93,11 @@ namespace Wreckabulary
             User = null;
         }
 
-        void Step(int delta) => Selected = (Selected + delta + modes.Length) % modes.Length;
+        void Step(int delta)
+        {
+            Selected = (Selected + delta + modes.Length) % modes.Length;
+            Sfx.Play(Sound.SpellAdd, transform.position);
+        }
 
         /// <summary>Picks a mode by index. Returns true if its scene is loading.</summary>
         public bool Choose(int index)
@@ -109,6 +114,7 @@ namespace Wreckabulary
             if (players < m.minPlayers) return Say($"NEEDS {m.minPlayers} ROOMMATES");
 
             Close();
+            Sfx.Play(Sound.Cast, transform.position);
             Session.Load(m.scene);
             return true;
         }
@@ -117,6 +123,7 @@ namespace Wreckabulary
         {
             message = text;
             messageUntil = Time.time + 1.5f;
+            Sfx.Play(Sound.Fizzle, transform.position, 0.6f);
             return false;
         }
 

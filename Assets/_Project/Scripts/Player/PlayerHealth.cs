@@ -47,6 +47,7 @@ namespace Wreckabulary
             {
                 controller.Knock(direction * knockback * 0.3f, 0.1f);
                 Popup.Show("BLOCKED", controller.OverheadPosition, Color.white, 2.5f);
+                Sfx.Play(Sound.Blocked, transform.position);
                 return false;
             }
 
@@ -57,6 +58,7 @@ namespace Wreckabulary
                 ArmorCharges--;
                 controller.Knock(direction * knockback * 0.5f, 0.2f);
                 Popup.Show("ARMOR!", controller.OverheadPosition, Color.white, 2.5f);
+                Sfx.Play(Sound.Blocked, transform.position);
                 return false;
             }
 
@@ -68,12 +70,14 @@ namespace Wreckabulary
                 IsOut = true;
                 controller.SetKnockedOut(true, direction * knockback);
                 Popup.Show("WRECKED!", controller.OverheadPosition, controller.Color, 5f);
+                Sfx.Play(Sound.Knockout, transform.position);
                 CameraRig.Shake(0.3f);
                 Hit?.Invoke(this, attacker);
                 KnockedOut?.Invoke(this);
                 return true;
             }
 
+            Sfx.Play(Sound.Hit, transform.position);
             inventory.DropRandom(letters < 0 ? lettersPerHit : letters, transform.position, direction);
             Hit?.Invoke(this, attacker);
             return true;

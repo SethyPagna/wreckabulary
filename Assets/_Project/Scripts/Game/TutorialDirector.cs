@@ -58,6 +58,7 @@ namespace Wreckabulary
 
         void Start()
         {
+            Music.Play(Track.Cozy);
             joins.RespawnKnockedOut = true;
             SpawnDummy();
             steps[0].enter?.Invoke();
@@ -94,7 +95,13 @@ namespace Wreckabulary
         {
             Popup.Show("NICE!", joins.Players.Count > 0 ? joins.Players[0].OverheadPosition + Vector3.up : Vector3.up * 2f, Color.white, 5f);
             StepIndex++;
-            if (Finished) { finishedAt = Time.time; return; }
+            Sfx.Play(Sound.Placed);
+            if (Finished)
+            {
+                finishedAt = Time.time;
+                Sfx.Play(Sound.Stars);
+                return;
+            }
             steps[StepIndex].enter?.Invoke();
         }
 

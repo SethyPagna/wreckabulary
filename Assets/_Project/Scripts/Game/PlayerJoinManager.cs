@@ -85,7 +85,11 @@ namespace Wreckabulary
             Session.Remember(binding);
             p.Health.KnockedOut += _ => { if (respawnKnockedOut) StartCoroutine(RespawnLater(p)); };
             Place(p);
-            if (arriving) Popup.Show($"{p.Name} joined!", p.OverheadPosition, p.Color, 4f);
+            if (arriving)
+            {
+                Popup.Show($"{p.Name} joined!", p.OverheadPosition, p.Color, 4f);
+                Sfx.Play(Sound.Join, p.transform.position);
+            }
             Joined?.Invoke(p);
             return p;
         }

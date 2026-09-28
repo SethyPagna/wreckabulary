@@ -232,6 +232,8 @@ namespace Wreckabulary
         static void Quake(PlayerController p)
         {
             CameraRig.Shake(0.6f);
+            Sfx.Play(Sound.Boom, p.transform.position);
+            Sfx.Play(Sound.Collapse, p.transform.position, 0.6f);
             foreach (var other in World.Players.ToArray())
                 if (other != p && other.Grounded) other.Health.TakeHit(other.transform.position - p.transform.position, 8f, -1, p);
             foreach (var s in Object.FindObjectsByType<Smashable>()) s.TakeHit(12f);
@@ -248,6 +250,7 @@ namespace Wreckabulary
                 Popup.Show("ZAP", other.OverheadPosition, new Color(1f, 0.95f, 0.4f), 3f);
             }
             CameraRig.Shake(0.2f);
+            Sfx.Play(Sound.Zap, p.transform.position);
             TilePool.Instance?.Burst("ZAP", p.OverheadPosition, 4f);
         }
 

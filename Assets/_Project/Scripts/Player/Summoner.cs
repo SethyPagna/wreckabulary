@@ -82,6 +82,7 @@ namespace Wreckabulary
             MoveToFree(0, 1);
             Refresh();
             controller.MoveScale = 0f;
+            Sfx.Play(Sound.SpellOpen, transform.position, 0.6f);
         }
 
         public void Close()
@@ -120,6 +121,7 @@ namespace Wreckabulary
             if (Cursor < 0 || picked.Contains(Cursor)) return;
             picked.Add(Cursor);
             pickedLetters.Add(inventory.Letters[Cursor]);
+            Sfx.Play(Sound.SpellAdd, transform.position, 0.8f, 1f + pickedLetters.Count * 0.05f);
             MoveToFree(Cursor, 1);
             Refresh();
         }
@@ -133,6 +135,7 @@ namespace Wreckabulary
             for (int k = 0; k < picked.Count; k++)
                 if (picked[k] > i) picked[k]--;
             inventory.DropAt(i, transform.position, controller.Facing);
+            Sfx.Play(Sound.Drop, transform.position);
             Cursor = -1;
             if (inventory.Count > 0) MoveToFree(Mathf.Min(i, inventory.Count - 1), 1);
             Refresh();
@@ -143,6 +146,7 @@ namespace Wreckabulary
         public void Undo()
         {
             if (picked.Count == 0) { Close(); return; }
+            Sfx.Play(Sound.SpellUndo, transform.position, 0.6f);
             Cursor = picked[^1];
             picked.RemoveAt(picked.Count - 1);
             pickedLetters.RemoveAt(pickedLetters.Count - 1);
@@ -160,6 +164,7 @@ namespace Wreckabulary
 
             Popup.Show($"{word}? not a word", controller.OverheadPosition + Vector3.up * 0.6f, new Color(1f, 1f, 1f, 0.8f), 3.5f);
             Fizzled?.Invoke(word);
+            Sfx.Play(Sound.Fizzle, transform.position);
             return false;
         }
 
@@ -173,6 +178,7 @@ namespace Wreckabulary
         public bool Summon(WordEntry entry)
         {
             if (entry == null || !inventory.TrySpend(entry.word)) return false;
+            Sfx.Play(Sound.Cast, transform.position);
             SummonEffects.Apply(controller, entry);
             Summoned?.Invoke(entry.word);
             return true;
