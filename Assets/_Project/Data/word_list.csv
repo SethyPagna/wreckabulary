@@ -37,3 +37,29 @@ PLATE,Furniture,false,
 PILLOW,Furniture,false,
 RADIO,Furniture,false,
 BOX,Furniture,false,
+PIANO,Furniture,false,living room
+STOOL,Furniture,false,living room
+FAN,Furniture,false,living room
+STOVE,Furniture,false,kitchen
+FRIDGE,Furniture,false,kitchen, very heavy
+SINK,Furniture,false,kitchen
+PAN,Furniture,false,kitchen, throwable
+POT,Furniture,false,kitchen
+KETTLE,Furniture,false,kitchen
+CUP,Furniture,false,kitchen, tiny
+BOWL,Furniture,false,kitchen
+SHELF,Furniture,false,bedroom
+MIRROR,Furniture,false,bedroom
+TEDDY,Furniture,false,bedroom, soft
+CLOSET,Furniture,false,bedroom, heavy cover
+TREE,Furniture,false,garden, heavy
+BUSH,Furniture,false,garden
+FLOWER,Furniture,false,garden
+ROSE,Furniture,false,garden
+BENCH,Furniture,false,garden
+FENCE,Furniture,false,garden, cover
+SWING,Furniture,false,garden
+GNOME,Furniture,false,garden, throwable
+ROCK,Furniture,false,garden, heavy throw
+HOSE,Furniture,false,garden
+POND,Furniture,false,garden

@@ -60,9 +60,9 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 
 **Tutorial:** 7 steps covering walk, smash the BAT box, pick up the letters, spell BAT, whack the dummy, throw the chair, and knock the dummy out. Any roommate can complete a step.
 
-**Moving Day** (co-op, 1–4 players) in a house split into a living room and a bedroom. Boxes labelled with the checklist arrive at the front door. Smash them for the letters, spell each item (only checklist words work here) to build it, and carry it into the right room. Placed furniture locks in with a tick. Stars (1–3) depend on time left. Run out of time and the level restarts. There are 2 levels, and level 2 adds slippery spills. Lost letters are resent in a new box.
+**Moving Day** (co-op, 1–4 players) in a house split into a living room and a bedroom. Boxes labelled with the checklist arrive at the front door. Smash them for the letters, spell each item (only checklist words work here) to build it, and carry it into the right room. Placed furniture locks in with a tick. Stars (1–3) depend on time left. Run out of time and the level restarts. There are 3 levels: *Moving In*, *Housewarming* (with slippery spills) and *Cozy Corner* (SHELF, TEDDY, MIRROR, PIANO, STOOL, FAN). Lost letters are resent in a new box.
 
-**Dibs!** in the living room, first to 3 rounds:
+**Dibs!** in four arenas, chosen at the typewriter with left/right: **Living Room**, **Bedroom**, **Kitchen** and **Garden** (outdoors, with hedges and a garden path). First to 3 rounds:
 
 - Smash furniture (SOFA, TABLE, LAMP, CHAIR…) with punches or by throwing things. It bursts into its own letters.
 - Walk over letters to pick them up. You carry up to 6, and you start each round with 3.
@@ -71,7 +71,12 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 - Grab anything. Light things are carried in front with both hands, and heavy things (and roommates) are lifted overhead. Heavy loads slow you down. Grab again to put it down neatly in front of you (on the floor, or on top of whatever is there), or punch to throw it.
 - Hands full of letters? While spelling, drop the highlighted letter to make room for a better one.
 - Action words do something: weapons (AXE, BAT, BLADE, SWORD, SPEAR, BOW, CANNON), WALL, SHIELD, ARMOR, WINGS, SPRING, SKATES, ROPE, BEES, FLOOD, MAGNET, DUCK, QUAKE, ZAP.
-- Object words build the object in front of you, letter-shaped: BED, SOFA, TABLE, DESK, LAMP, CHAIR, RUG, TV, PLANT, CLOCK, VASE, MUG, BOOKS, PLATE, PILLOW, RADIO, BOX. Smash a TABLE and you can spell it right back, or build a SOFA to hide behind (or throw).
+- 43 object words build the object in front of you, letter-shaped, and every one has its own Word World design:
+  - Living room: BED, SOFA, TABLE, DESK, LAMP, CHAIR, RUG, TV, PLANT, CLOCK, VASE, MUG, BOOKS, PLATE, PILLOW, RADIO, BOX, PIANO, STOOL, FAN.
+  - Kitchen: STOVE, FRIDGE, SINK, PAN, POT, KETTLE, CUP, BOWL.
+  - Bedroom: SHELF, MIRROR, TEDDY, CLOSET.
+  - Garden: TREE, BUSH, FLOWER, ROSE, BENCH, FENCE, SWING, GNOME, ROCK, HOSE, POND.
+  Smash a TABLE and you can spell it right back, or build a SOFA to hide behind (or throw). The weapons have shapes too: the SWORD has an S pommel and a W crossguard, and the AXE an X head.
 - Summons fall apart back into their letters when they're used up, so they can be grabbed and re-spelled.
 - A hit knocks 2 letters loose. A hit with no letters is a knockout.
 - Delivery boxes drop in when the room runs low on letters. After 90 seconds the room collapses and boxes rain down.
@@ -94,6 +99,7 @@ Not in yet: final art and fonts, character customisation, and Creative (Home Swe
 | Undo a letter, or stop spelling if empty | B | J or Backspace | `/` |
 | Drop the highlighted letter (while spelling) | Stick or d-pad down | S | Down |
 | Use typewriter | A / RT (grab) | Space | `.` |
+| Pick the Dibs! arena (at the typewriter) | Left / right | A / D | Left / Right |
 | Start match (Dibs! lobby) | Start | Enter | Numpad Enter |
 | Back to the house | Select / View | Esc | Esc |
 | Mute sound | | M | M |
@@ -122,7 +128,9 @@ docs/          design doc, roadmap, workflow, asset log, contribution table
 
 **Adding a Moving Day item or level:** levels and checklists live on the MovingDayDirector (set in `PrototypeBuilder.BuildMovingDay`). Any word works as a checklist item. To give it a custom look, add it to `FurnitureCatalog.cs`.
 
-**Shaping an object:** add a recipe to `LetterShapes.cs`. Each letter gets a centre, a size, and whether it stands up or lies flat. Words without a recipe stand in a row.
+**Shaping an object:** add a recipe to `LetterShapes.cs`. Each letter gets a centre, a size, whether it stands up or lies flat, and optionally its own colour (a brown trunk under green leaves). Give it a weight and colour in `FurnitureCatalog.cs`, and add the word to `word_list.csv` as `Furniture`. Tests check that every object word has a design that builds at a sensible size and stays standing.
+
+**Adding a Dibs! arena:** add a `Build...` method next to `BuildKitchen` in `PrototypeBuilder.cs` with a room style, a furniture list and themed delivery words. Then add the scene to the build list and to the DIBS! entry's `maps` in `Typewriter.cs`.
 
 **Adding a word:** add a row to `word_list.csv`. It works straight away with a default effect for its category. For a custom effect, add a `case` in `SummonEffects.cs`.
 

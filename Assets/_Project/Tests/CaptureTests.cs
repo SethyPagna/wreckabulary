@@ -147,6 +147,53 @@ namespace Wreckabulary.Tests
             Session.Clear();
         }
 
+        [UnityTest]
+        public IEnumerator CaptureMapsAndDesigns()
+        {
+            string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
+            if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
+            Directory.CreateDirectory(dir);
+#if UNITY_EDITOR
+            UnityEditor.EditorSettings.asyncShaderCompilation = false;
+#endif
+            foreach (var map in new[] { Session.BedroomScene, Session.KitchenScene, Session.GardenScene })
+            {
+                Session.Clear();
+                yield return SceneManager.LoadSceneAsync(map);
+                yield return new WaitForSeconds(1.5f);
+                Capture(Path.Combine(dir, $"map_{map.ToLower()}.png"));
+            }
+
+            // A gallery of every object design, in rows, seen from the game camera's angle.
+            yield return SceneManager.LoadSceneAsync(Session.GardenScene);
+            yield return null;
+            foreach (var f in UnityEngine.Object.FindObjectsByType<Smashable>()) UnityEngine.Object.Destroy(f.gameObject);
+            foreach (var r in UnityEngine.Object.FindObjectsByType<RoundManager>()) r.enabled = false;
+            foreach (var d in UnityEngine.Object.FindObjectsByType<DeliverySpawner>()) d.Running = false;
+            yield return null;
+            var words = GameAssets.I.words.Words.Where(w => w.category == WordCategory.Furniture).Select(w => w.word).ToList();
+            const int perRow = 9;
+            for (int i = 0; i < words.Count; i++)
+            {
+                var at = new Vector3((i % perRow) * 1.85f - 7.4f, 0f, 4.6f - (i / perRow) * 2.3f);
+                var s = FurnitureCatalog.Spawn(words[i], at, 0f, null);
+                s.GetComponent<Rigidbody>().isKinematic = true;
+                var label = new GameObject("Label").AddComponent<TMPro.TextMeshPro>();
+                label.font = GameAssets.I.font;
+                label.text = words[i];
+                label.fontSize = 2.2f;
+                label.alignment = TMPro.TextAlignmentOptions.Center;
+                label.color = Color.black;
+                label.transform.SetPositionAndRotation(at + new Vector3(0f, 0.02f, -0.9f), Quaternion.Euler(90f, 0f, 0f));
+            }
+            yield return new WaitForSeconds(0.3f);
+            Capture(Path.Combine(dir, "designs.png"));
+#if UNITY_EDITOR
+            UnityEditor.EditorSettings.asyncShaderCompilation = true;
+#endif
+            Session.Clear();
+        }
+
         [Test]
         public void ExportSounds()
         {

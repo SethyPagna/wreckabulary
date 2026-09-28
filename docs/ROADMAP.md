@@ -18,8 +18,8 @@
 ## Stretch goals
 
 - Creative "Home Sweet Home" (build, play, save and load rooms)
-- More Moving Day levels
-- Kitchen and garden maps
+- More Moving Day levels (a third, *Cozy Corner*, is in)
+- ~~Kitchen and garden maps~~ (prototype arenas added, along with a Bedroom arena)
 - Furnish First variation
 - Character and house customisation in the hub
 - The letter cat NPC

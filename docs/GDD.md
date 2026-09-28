@@ -82,11 +82,12 @@ Cartoonish, blobby ragdoll characters (in the spirit of Fall Guys and PEAK) in k
 
 ## Maps
 
-1. **Living room** (main, fully polished): sofa, coffee table, lamp, mug, plate, vase.
-2. **Bedroom** (should have; in the prototype as half of the Moving Day house)
-3. **Kitchen** (stretch goal)
-4. **Garden** (stretch goal)
-5. More to come
+1. **Living room** (main): sofa, coffee table, lamp, mug, plate, vase, chair, books, pillow, plant, radio, clock.
+2. **Bedroom:** bed, lamp, shelf, desk, chair, closet, mirror, teddy, rug, pillow, clock, books.
+3. **Kitchen:** fridge, stove with a kettle on it, sink, shelf, table with chairs, bowl, cup, pot, pan, stools, fan.
+4. **Garden** (outdoors, hedges instead of walls): trees, bushes, flower, rose, bench, swing, pond, rock, hose, gnome, fence.
+
+Each arena has its own themed delivery boxes (the kitchen gets SPOONS and DISHES, the garden SEEDS and KITES). Players pick the arena at the typewriter.
 
 Stretch goal: a mischievous letter **cat** wanders the room, steals loose letters and runs off with them.
 
