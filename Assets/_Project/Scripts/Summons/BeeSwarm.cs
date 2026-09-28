@@ -26,6 +26,7 @@ namespace Wreckabulary
                 swarm.bees.Add(b.transform);
                 swarm.offsets.Add(Random.insideUnitSphere * 0.6f);
             }
+            Sfx.Play(Sound.Bees, owner.transform.position);
             var thing = SummonedThing.Attach(go, "BEES", owner, 8f);
             thing.Tick = swarm.Chase;
         }

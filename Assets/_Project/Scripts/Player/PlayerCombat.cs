@@ -76,6 +76,7 @@ namespace Wreckabulary
             {
                 nextAttack = Time.time + Weapon.cooldown;
                 controller.PlayPunch();
+                Sfx.Play(Sound.Punch, transform.position);
                 Weapon.Use(this);
                 return;
             }
@@ -83,6 +84,7 @@ namespace Wreckabulary
 
             nextAttack = Time.time + punchCooldown;
             controller.PlayPunch();
+            Sfx.Play(Sound.Punch, transform.position, 0.8f);
             Strike(punchReach, punchRadius, punchKnockback, punchDamage, -1);
         }
 
@@ -129,6 +131,7 @@ namespace Wreckabulary
         public void PutDown()
         {
             if (!held) return;
+            Sfx.Play(Sound.PutDown, transform.position);
             var facing = controller.Facing;
             var feet = controller.Body.position;
 
@@ -204,6 +207,7 @@ namespace Wreckabulary
 
         void Pick(Rigidbody rb)
         {
+            Sfx.Play(Sound.Grab, transform.position);
             held = rb;
             heldSince = Time.time;
             heldHomeParent = rb.transform.parent;
@@ -312,12 +316,14 @@ namespace Wreckabulary
                 victim.Body.linearVelocity = velocity;
                 ThrowTracker.Attach(victim.gameObject, controller, 1.2f);
                 Thrown?.Invoke(victim.Body);
+                Sfx.Play(Sound.Throw, transform.position);
                 return;
             }
             var rb = held;
             Release(velocity);
             ThrowTracker.Attach(rb.gameObject, controller, 1.5f);
             Thrown?.Invoke(rb);
+            Sfx.Play(Sound.Throw, transform.position);
         }
 
         /// <summary>Lets go of whatever is held without throwing it.</summary>

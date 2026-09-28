@@ -57,6 +57,7 @@ namespace Wreckabulary
         readonly List<Transform> puddles = new();
         List<WordEntry> checklistWords = new();
         float stateStarted, nextCheck, nextResupply, nextSpill;
+        int lastCount;
         readonly StringBuilder sb = new();
         const float DeliveryGap = 1.2f;
 
@@ -79,6 +80,7 @@ namespace Wreckabulary
 
         void Start()
         {
+            Music.Play(Track.Bouncy);
             joins.RespawnKnockedOut = true;
             joins.Joined += GiveChecklist;
             StartLevel(0);
@@ -131,6 +133,8 @@ namespace Wreckabulary
             {
                 case State.Countdown:
                     int left = Mathf.CeilToInt(countdownTime - t);
+                    if (left != lastCount && left > 0) Sfx.Play(Sound.Countdown);
+                    lastCount = left;
                     hud.SetTitle(left > 0 ? left.ToString() : "GO!", $"Level {LevelIndex + 1}: {CurrentLevel.name}");
                     if (t >= countdownTime) BeginPlay();
                     break;
@@ -167,6 +171,7 @@ namespace Wreckabulary
 
         void BeginPlay()
         {
+            Sfx.Play(Sound.Go);
             SetState(State.Playing);
             hud.SetTitle("GO!", "");
             foreach (var p in joins.Players) p.Frozen = false;
@@ -210,6 +215,7 @@ namespace Wreckabulary
                 rb.isKinematic = true;
                 s.Invulnerable = true;
                 Popup.Show($"{s.Word} placed!", rb.worldCenterOfMass + Vector3.up * 1.5f, new Color(0.56f, 0.82f, 0.55f), 4f);
+                Sfx.Play(Sound.Placed, rb.worldCenterOfMass);
             }
         }
 
@@ -276,6 +282,7 @@ namespace Wreckabulary
             SetState(State.Complete);
             hud.SetTitle("MOVED IN!", $"{Stars} / 3 stars  •  {FormatTime(TimeLeft)} to spare");
             CameraRig.Shake(0.2f);
+            Sfx.Play(Sound.Stars);
         }
 
         void OutOfTime()
@@ -283,6 +290,7 @@ namespace Wreckabulary
             Stars = 0;
             SetState(State.OutOfTime);
             hud.SetTitle("OUT OF TIME", "The movers want their truck back. Try again!");
+            Sfx.Play(Sound.Fizzle);
         }
 
         string ChecklistText()

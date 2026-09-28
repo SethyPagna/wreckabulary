@@ -147,6 +147,43 @@ namespace Wreckabulary.Tests
             Session.Clear();
         }
 
+        [Test]
+        public void ExportSounds()
+        {
+            string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
+            if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
+            Directory.CreateDirectory(dir);
+
+            // Every effect in enum order, with a short gap between them.
+            var all = new System.Collections.Generic.List<float>();
+            foreach (Sound s in Enum.GetValues(typeof(Sound)))
+            {
+                all.AddRange(Samples(Sfx.ClipFor(s)));
+                all.AddRange(new float[Synth.Rate / 3]);
+            }
+            WriteWav(Path.Combine(dir, "sound_effects.wav"), all.ToArray());
+            foreach (Track t in Enum.GetValues(typeof(Track)))
+                WriteWav(Path.Combine(dir, $"music_{t.ToString().ToLower()}.wav"), Samples(Music.ClipFor(t)));
+        }
+
+        static float[] Samples(AudioClip clip)
+        {
+            var data = new float[clip.samples];
+            clip.GetData(data, 0);
+            return data;
+        }
+
+        static void WriteWav(string path, float[] samples)
+        {
+            using var w = new BinaryWriter(File.Create(path));
+            int bytes = samples.Length * 2;
+            w.Write("RIFF".ToCharArray()); w.Write(36 + bytes); w.Write("WAVE".ToCharArray());
+            w.Write("fmt ".ToCharArray()); w.Write(16); w.Write((short)1); w.Write((short)1);
+            w.Write(Synth.Rate); w.Write(Synth.Rate * 2); w.Write((short)2); w.Write((short)16);
+            w.Write("data".ToCharArray()); w.Write(bytes);
+            foreach (var s in samples) w.Write((short)Mathf.Clamp(s * 32767f, -32768f, 32767f));
+        }
+
         static void Capture(string path)
         {
             var cam = Camera.main;

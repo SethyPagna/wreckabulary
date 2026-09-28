@@ -63,6 +63,7 @@ namespace Wreckabulary
         void Explode()
         {
             CameraRig.Shake(0.25f);
+            Sfx.Play(Sound.Boom, transform.position);
             Popup.Show("BOOM", transform.position + Vector3.up, Color.white, 4f);
             foreach (var col in Physics.OverlapSphere(transform.position, blastRadius, ~0, QueryTriggerInteraction.Ignore))
             {
