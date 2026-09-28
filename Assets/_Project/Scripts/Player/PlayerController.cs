@@ -83,9 +83,18 @@ namespace Wreckabulary
             Index = index;
             Binding = binding;
             Name = displayName;
-            Initial = initial;
             name = $"Player {displayName}";
+            SetAppearance(color, initial);
+        }
+
+        /// <summary>The look picked at the wardrobe (see <see cref="Looks"/>).</summary>
+        public PlayerLook Look { get; set; }
+
+        /// <summary>Body colour and the letter on the sweater.</summary>
+        public void SetAppearance(Color color, char initial)
+        {
             Color = color;
+            Initial = initial;
             var sweater = Color.Lerp(Color, new Color(0.2f, 0.12f, 0.1f), 0.35f);
             foreach (var r in bodyRenderers) r.material.color = Color;
             foreach (var r in sweaterRenderers) r.material.color = sweater;

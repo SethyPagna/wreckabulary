@@ -82,6 +82,8 @@ namespace Wreckabulary
             var prefab = playerPrefab ? playerPrefab : GameAssets.I.playerPrefab;
             var p = Instantiate(prefab, SpawnPoint(index), Quaternion.identity, playersRoot);
             p.Setup(index, binding);
+            // Everyone arrives dressed the way they left the wardrobe.
+            Wreckabulary.Looks.Apply(p, Session.Looks.TryGetValue(index, out var look) ? look : Wreckabulary.Looks.Default(index));
             players.Add(p);
             Session.Remember(binding);
             p.Health.KnockedOut += _ => { if (respawnKnockedOut) StartCoroutine(RespawnLater(p)); };

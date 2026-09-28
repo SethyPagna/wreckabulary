@@ -448,13 +448,81 @@ namespace Wreckabulary.EditorTools
             Primitive(PrimitiveType.Cube, hinge, "Front Door", new Vector3(0f, 1.15f, -0.75f), new Vector3(0.1f, 2.3f, 1.5f), Lit("Door", Hex("7B4A2E"), 0.3f));
 
 
+            var wardrobe = BuildWardrobe(assets, kit.hud, new Vector3(5.2f, 0f, 5.3f));
+
             var director = kit.game.AddComponent<HubDirector>();
             Set(director, "joins", kit.joins);
             Set(director, "hud", kit.hud);
             Set(director, "typewriter", typewriter);
+            Set(director, "wardrobe", wardrobe);
             Set(director, "door", hinge);
 
             EditorSceneManager.SaveScene(kit.scene, HubPath);
+        }
+
+        /// <summary>A CLOSET to walk up to, a camera that films you for the preview, and the dress-up page on the HUD.</summary>
+        static Wardrobe BuildWardrobe(GameAssets assets, GameHud hud, Vector3 closetAt)
+        {
+            Furniture.Prop(null, "CLOSET", closetAt, 0f, Vector3.one * 0.45f, 0, Hex("9A6FA0"));
+            var station = new GameObject("Wardrobe");
+            station.transform.position = closetAt + new Vector3(0f, 0f, -1.1f);
+
+            var prompt = WorldText(null, "Wardrobe Prompt", closetAt + new Vector3(0f, 2.3f, -0.6f), Quaternion.identity, 3f, new Vector2(6f, 1f), assets);
+            prompt.outlineWidth = 0.25f;
+            prompt.outlineColor = new Color32(40, 26, 18, 255);
+
+            var camGo = new GameObject("Wardrobe Camera");
+            var cam = camGo.AddComponent<Camera>();
+            cam.fieldOfView = 32f;
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = Hex("F3E4CC");
+            cam.nearClipPlane = 0.1f;
+            cam.farClipPlane = 12f;
+            cam.enabled = false;
+
+            // The page: a dim overlay, the mirror on the left, the options on the right.
+            var canvas = hud.transform;
+            var root = UiPanel(canvas, "Wardrobe Page", new Vector2(0.5f, 0.5f), new Vector2(4000f, 4000f), new Color(0.08f, 0.06f, 0.08f, 0.55f));
+            UiPanel(root.transform, "Mirror Frame", new Vector2(0.3f, 0.52f), new Vector2(660f, 660f), Hex("C8A06E"));
+            var previewGo = new GameObject("Mirror", typeof(RectTransform));
+            previewGo.transform.SetParent(root.transform, false);
+            var previewRt = (RectTransform)previewGo.transform;
+            previewRt.anchorMin = previewRt.anchorMax = new Vector2(0.3f, 0.52f);
+            previewRt.sizeDelta = new Vector2(620f, 620f);
+            var preview = previewGo.AddComponent<RawImage>();
+            var options = UiPanel(root.transform, "Options", new Vector2(0.71f, 0.52f), new Vector2(760f, 660f), new Color(0.13f, 0.1f, 0.11f, 0.9f));
+
+            var title = UiText(options.transform, "Title", new Vector2(0.5f, 0.9f), new Vector2(700f, 90f), 58f, assets);
+            var rows = UiText(options.transform, "Rows", new Vector2(0.5f, 0.48f), new Vector2(660f, 420f), 46f, assets);
+            rows.alignment = TextAlignmentOptions.Left;
+            rows.lineSpacing = 18f;
+            var hint = UiText(options.transform, "Hint", new Vector2(0.5f, 0.07f), new Vector2(720f, 60f), 26f, assets);
+            hint.color = new Color(1f, 0.96f, 0.88f, 0.75f);
+            root.SetActive(false);
+
+            var page = root.AddComponent<WardrobePage>();
+            Set(page, "root", root);
+            Set(page, "preview", preview);
+            Set(page, "title", title);
+            Set(page, "rows", rows);
+            Set(page, "hint", hint);
+
+            var wardrobe = station.AddComponent<Wardrobe>();
+            Set(wardrobe, "page", page);
+            Set(wardrobe, "previewCamera", cam);
+            Set(wardrobe, "prompt", prompt);
+            return wardrobe;
+        }
+
+        static GameObject UiPanel(Transform parent, string name, Vector2 anchor, Vector2 size, Color colour)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = anchor;
+            rt.sizeDelta = size;
+            go.AddComponent<Image>().color = colour;
+            return go;
         }
 
         static void BuildTutorial(GameAssets assets)

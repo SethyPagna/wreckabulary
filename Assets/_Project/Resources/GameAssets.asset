@@ -147,6 +147,8 @@ MonoBehaviour:
   - {fileID: 2100000, guid: daf12b4a812da534fb896290ba19a3c5, type: 2}
   - {fileID: 2100000, guid: 05a7df88c7183e14e9bb61fa07461de6, type: 2}
   - {fileID: 2100000, guid: cede6b492799d2c4db160182f33c900f, type: 2}
+  - {fileID: 2100000, guid: 98ad369a27489df43a9d3eff6886af17, type: 2}
+  - {fileID: 2100000, guid: 455b4d141b55b584aa8db692a9dff368, type: 2}
   tilePrefab: {fileID: 279869507977457874, guid: e55dc87e1ec766b438d440947a517934, type: 3}
   playerPrefab: {fileID: 6559939407275357181, guid: 786da980fe0631447b88c6a7c203d101, type: 3}
   words: {fileID: 11400000, guid: 67dce8d9b7f6ac34a8966cc71ccee989, type: 2}

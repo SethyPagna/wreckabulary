@@ -9,6 +9,7 @@ namespace Wreckabulary
         [SerializeField] PlayerJoinManager joins;
         [SerializeField] GameHud hud;
         [SerializeField] Typewriter typewriter;
+        [SerializeField] Wardrobe wardrobe;
         [Tooltip("The door leaf, pivoting on its hinge. Swings open whenever someone walks in.")]
         [SerializeField] Transform door;
         [SerializeField] float doorOpenAngle = -100f;
@@ -29,8 +30,10 @@ namespace Wreckabulary
                 hud.SetInstruction("Press SPACE, . or A to walk in", "Up to 4 roommates: two on one keyboard, plus gamepads");
             else if (typewriter.User)
                 hud.SetInstruction("Choose a mode", "Up/down to choose  •  grab or attack to pick  •  spell to get up");
+            else if (wardrobe && wardrobe.User)
+                hud.SetInstruction("", "");
             else
-                hud.SetInstruction("Walk up to the typewriter and press grab", "More roommates can walk in any time");
+                hud.SetInstruction("Walk up to the typewriter and press grab", "Dress up at the wardrobe  •  more roommates can walk in any time");
             hud.SetScoreboard(joins.Players, _ => 0, 0, false);
         }
 
