@@ -56,11 +56,16 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 
 ## What's playable
 
-**The house (hub):** roommates join by walking in through the front door. Pick a mode at the typewriter: Tutorial, Dibs! or Moving Day. Home Sweet Home is marked "coming soon". Whoever is in the house comes along into the mode, and everyone heads home after a match or on Esc / Select.
+**The house (hub):** roommates join by walking in through the front door. Pick a mode at the typewriter: Tutorial, Dibs!, Moving Day or Home Sweet Home. Whoever is in the house comes along into the mode, and everyone heads home after a match or on Esc / Select.
 
 **Tutorial:** 7 steps covering walk, smash the BAT box, pick up the letters, spell BAT, whack the dummy, throw the chair, and knock the dummy out. Any roommate can complete a step.
 
 **Moving Day** (co-op, 1–4 players) in a house split into a living room and a bedroom. Boxes labelled with the checklist arrive at the front door. Smash them for the letters, spell each item (only checklist words work here) to build it, and carry it into the right room. Placed furniture locks in with a tick. Stars (1–3) depend on time left. Run out of time and the level restarts. There are 3 levels: *Moving In*, *Housewarming* (with slippery spills) and *Cozy Corner* (SHELF, TEDDY, MIRROR, PIANO, STOOL, FAN). Lost letters are resent in a new box.
+
+**Home Sweet Home** (Creative, 1–4 players): build your own room. Press spell and the typewriter gives you endless letters. Pick any letter from A to Z (repeats allowed) and any of the 43 objects is built for free. Grab to arrange things, punch to remove them (the letters tidy themselves away), and nobody gets knocked out. At the room menu desk you can:
+- **Play Dibs! here:** a match in your room with your rules (rounds to win: 1, 2, 3 or 5, and starting letters: 0–6). Afterwards you're back in your room, still built.
+- **Save or load the room** in one of three slots. Rooms are saved as JSON in Unity's `persistentDataPath/rooms`.
+- **Clear the room.**
 
 **Dibs!** in four arenas, chosen at the typewriter with left/right: **Living Room**, **Bedroom**, **Kitchen** and **Garden** (outdoors, with hedges and a garden path). First to 3 rounds:
 
@@ -83,7 +88,7 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 
 **Audio:** every sound and the music are synthesised in code at startup (`Scripts/Audio`), so there are no audio files or licences to track. You get wooden clacks, smashes, punches, typewriter keys while spelling, cast chimes, fizzles, bees, booms, quacks, countdowns and fanfares. Each mode has its own looping track (cozy for the house and tutorial, upbeat for Dibs!, bouncy for Moving Day) that crossfades between scenes. Sounds pan left and right by where they happen. **M** mutes. To use a recorded sound instead, return its clip from `Sfx.ClipFor`.
 
-Not in yet: final art and fonts, character customisation, and Creative (Home Sweet Home).
+Not in yet: final art and fonts, character customisation, and the letter cat.
 
 ## Controls
 
@@ -95,6 +100,7 @@ Not in yet: final art and fonts, character customisation, and Creative (Home Swe
 | Punch, use weapon, throw what you hold | X | J | `/` or Numpad 2 |
 | Start spelling / cast | Y | K | Right Shift or Numpad 3 |
 | Choose a letter (while spelling) | Stick or d-pad left/right | A / D | Left / Right |
+| Jump 5 letters (Creative spelling) | Stick or d-pad up/down | W / S | Up / Down |
 | Add the letter (while spelling) | A | Space | `.` |
 | Undo a letter, or stop spelling if empty | B | J or Backspace | `/` |
 | Drop the highlighted letter (while spelling) | Stick or d-pad down | S | Down |
@@ -117,6 +123,7 @@ Assets/_Project/
     Player/    PlayerController, PlayerHealth, LetterInventory, PlayerCombat, Summoner, PlayerHud
     Summons/   SummonEffects (what each word does), HeldWeapon, Projectile, BeeSwarm, DuckWalker, ...
     Game/      RoundManager (Dibs!), HubDirector + Typewriter (house), TutorialDirector, MovingDayDirector,
+               CreativeDirector + CreativeDesk + RoomLayout (Home Sweet Home),
                PlayerJoinManager, RoomBuilder, DeliverySpawner, GameHud, CameraRig, BackToHub
   Editor/      PrototypeBuilder: generates the scenes, prefabs and materials
                LetterMeshBuilder: generates 3D letters A–Z from the font's distance field

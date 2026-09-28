@@ -37,7 +37,7 @@ namespace Wreckabulary
                 mapNames = new[] { "Living Room", "Bedroom", "Kitchen", "Garden" },
             },
             new() { label = "MOVING DAY", blurb = "Co-op: furnish the house together", scene = Session.MovingDayScene },
-            new() { label = "HOME SWEET HOME", blurb = "Creative: build your own room", comingSoon = true },
+            new() { label = "HOME SWEET HOME", blurb = "Creative: build your own room", scene = Session.CreativeScene },
         };
         [SerializeField] PlayerJoinManager joins;
         [SerializeField] TextMeshPro menuText;
@@ -137,6 +137,7 @@ namespace Wreckabulary
 
             Close();
             Sfx.Play(Sound.Cast, transform.position);
+            Session.ReturnScene = Session.HubScene;
             Session.Load(scene);
             return true;
         }

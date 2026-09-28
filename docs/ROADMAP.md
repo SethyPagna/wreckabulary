@@ -17,7 +17,7 @@
 
 ## Stretch goals
 
-- Creative "Home Sweet Home" (build, play, save and load rooms)
+- ~~Creative "Home Sweet Home" (build, play, save and load rooms)~~ (prototype in)
 - More Moving Day levels (a third, *Cozy Corner*, is in)
 - ~~Kitchen and garden maps~~ (prototype arenas added, along with a Bedroom arena)
 - Furnish First variation

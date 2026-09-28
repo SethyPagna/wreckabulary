@@ -9,12 +9,15 @@ namespace Wreckabulary
     public class RoomBuilder : MonoBehaviour
     {
         [SerializeField] Transform furnitureRoot;
+        [Tooltip("Furnish from the room built in Creative (the custom arena).")]
+        [SerializeField] bool useCustomRoom;
 
         GameObject template;
 
         void Awake()
         {
             if (!furnitureRoot) return;
+            if (useCustomRoom && Session.CustomRoom != null) Session.CustomRoom.Build(furnitureRoot);
             template = Instantiate(furnitureRoot.gameObject, transform);
             template.name = "Furniture (template)";
             template.SetActive(false);

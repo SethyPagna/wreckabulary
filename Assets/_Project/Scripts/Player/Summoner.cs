@@ -42,6 +42,17 @@ namespace Wreckabulary
         /// <summary>Set by a mode to replace the word list, e.g. Moving Day's checklist.</summary>
         public IReadOnlyList<WordEntry> WordsOverride { get; set; }
 
+        /// <summary>
+        /// Creative: spell from the whole alphabet (letters can repeat) and nothing is spent.
+        /// Up/down jump five letters so A–Z is quick to get around.
+        /// </summary>
+        public bool EndlessLetters { get; set; }
+
+        static readonly char[] Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".ToCharArray();
+
+        /// <summary>The letters being spelled from: the ones you carry, or A–Z in Creative.</summary>
+        public IReadOnlyList<char> Source => EndlessLetters ? Alphabet : inventory.Letters;
+
         IReadOnlyList<WordEntry> Words => WordsOverride ?? (database ? database : GameAssets.I.words).Words;
 
         void Awake()
@@ -69,7 +80,12 @@ namespace Wreckabulary
             if (c.right) Move(1);
             if (c.confirm) Add();
             if (c.back) Undo();
-            if (c.down) DropHighlighted();
+            if (EndlessLetters)
+            {
+                if (c.up) Move(-5);
+                if (c.down) Move(5);
+            }
+            else if (c.down) DropHighlighted();
             if (c.spellDown) Cast();
         }
 
@@ -98,19 +114,19 @@ namespace Wreckabulary
         /// <summary>Moves the highlight to the next letter not already in the word.</summary>
         public void Move(int dir)
         {
-            int n = inventory.Count;
+            int n = Source.Count;
             if (n == 0) return;
             int start = Cursor < 0 ? 0 : Cursor + dir;
-            MoveToFree(((start % n) + n) % n, dir);
+            MoveToFree(((start % n) + n) % n, dir > 0 ? 1 : -1);
         }
 
         void MoveToFree(int from, int dir)
         {
-            int n = inventory.Count;
+            int n = Source.Count;
             for (int k = 0; k < n; k++)
             {
                 int i = (((from + k * dir) % n) + n) % n;
-                if (!picked.Contains(i)) { Cursor = i; return; }
+                if (EndlessLetters || !picked.Contains(i)) { Cursor = i; return; }
             }
             Cursor = -1;
         }
@@ -118,11 +134,11 @@ namespace Wreckabulary
         /// <summary>Adds the highlighted letter to the word.</summary>
         public void Add()
         {
-            if (Cursor < 0 || picked.Contains(Cursor)) return;
+            if (Cursor < 0 || (!EndlessLetters && picked.Contains(Cursor))) return;
             picked.Add(Cursor);
-            pickedLetters.Add(inventory.Letters[Cursor]);
+            pickedLetters.Add(Source[Cursor]);
             Sfx.Play(Sound.SpellAdd, transform.position, 0.8f, 1f + pickedLetters.Count * 0.05f);
-            MoveToFree(Cursor, 1);
+            if (!EndlessLetters) MoveToFree(Cursor, 1); // letters can repeat in Creative, so stay put
             Refresh();
         }
 
@@ -130,7 +146,7 @@ namespace Wreckabulary
         public bool DropHighlighted()
         {
             int i = Cursor;
-            if (i < 0 || i >= inventory.Count) return false;
+            if (EndlessLetters || i < 0 || i >= inventory.Count) return false;
             // Letters after the dropped one shift down a slot.
             for (int k = 0; k < picked.Count; k++)
                 if (picked[k] > i) picked[k]--;
@@ -177,7 +193,7 @@ namespace Wreckabulary
 
         public bool Summon(WordEntry entry)
         {
-            if (entry == null || !inventory.TrySpend(entry.word)) return false;
+            if (entry == null || (!EndlessLetters && !inventory.TrySpend(entry.word))) return false;
             Sfx.Play(Sound.Cast, transform.position);
             SummonEffects.Apply(controller, entry);
             Summoned?.Invoke(entry.word);
@@ -196,16 +212,16 @@ namespace Wreckabulary
         void Refresh()
         {
             string prefix = Spelled;
-            Hints = WordSolver.Spellable(Words, inventory.Letters)
-                .Where(w => w.word.StartsWith(prefix) && w.word != prefix)
-                .Take(maxHints)
-                .ToList();
+            var candidates = EndlessLetters ? Words.ToList() : WordSolver.Spellable(Words, inventory.Letters);
+            Hints = candidates.Where(w => w.word.StartsWith(prefix) && w.word != prefix)
+                              .Take(EndlessLetters && prefix.Length == 0 ? 0 : maxHints)
+                              .ToList();
         }
 
         /// <summary>Letters picked up or knocked loose mid-spell: keep the word if its letters are still there.</summary>
         void OnLettersChanged()
         {
-            if (!IsSpelling) return;
+            if (!IsSpelling || EndlessLetters) return;
             for (int k = 0; k < picked.Count; k++)
             {
                 int i = picked[k];

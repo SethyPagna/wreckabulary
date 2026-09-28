@@ -17,6 +17,15 @@ namespace Wreckabulary
         public const string BedroomScene = "Bedroom";
         public const string KitchenScene = "Kitchen";
         public const string GardenScene = "Garden";
+        public const string CreativeScene = "Creative";
+        public const string CustomArenaScene = "CustomArena";
+
+        /// <summary>The room being built in Creative, carried into "Play Dibs! here" and back.</summary>
+        public static RoomLayout CustomRoom;
+        public static int CustomRounds = 3;
+        public static int CustomStarterLetters = 3;
+        /// <summary>Where "back" goes: the house, or Creative after playing in your own room.</summary>
+        public static string ReturnScene = HubScene;
 
         public static readonly List<InputBinding> Bindings = new();
 
@@ -28,6 +37,10 @@ namespace Wreckabulary
         {
             Bindings.Clear();
             MovingDayStars.Clear();
+            CustomRoom = null;
+            CustomRounds = 3;
+            CustomStarterLetters = 3;
+            ReturnScene = HubScene;
         }
 
         public static void RecordStars(int level, int stars)
@@ -48,11 +61,14 @@ namespace Wreckabulary
             SceneManager.LoadScene(scene);
         }
 
-        /// <summary>Back to the house, if the house is in the build.</summary>
+        /// <summary>Back to where this mode was started from: your Creative room, otherwise the house.</summary>
         public static bool GoHome()
         {
-            if (!CanLoad(HubScene) || SceneManager.GetActiveScene().name == HubScene) return false;
-            Load(HubScene);
+            string current = SceneManager.GetActiveScene().name;
+            string target = ReturnScene != current && CanLoad(ReturnScene) ? ReturnScene : HubScene;
+            if (target == current || !CanLoad(target)) return false;
+            if (target == HubScene) ReturnScene = HubScene;
+            Load(target);
             return true;
         }
     }

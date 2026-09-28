@@ -164,6 +164,30 @@ namespace Wreckabulary.Tests
                 Capture(Path.Combine(dir, $"map_{map.ToLower()}.png"));
             }
 
+            // Creative: a cozy room in progress, one roommate spelling, one at the room menu.
+            Session.Clear();
+            yield return SceneManager.LoadSceneAsync(Session.CreativeScene);
+            yield return null;
+            var cJoins = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>();
+            var builder = cJoins.Join(new ScriptedBinding());
+            var planner = cJoins.Join(new ScriptedBinding());
+            foreach (var (word, x, z, yaw) in new[]
+                     {
+                         ("SOFA", -3.5f, 3.6f, 0f), ("TV", -3.5f, 0.6f, 180f), ("RUG", -3.5f, 2.1f, 0f), ("LAMP", -6.6f, 4.4f, 0f),
+                         ("PIANO", 5.6f, 4.6f, 0f), ("STOOL", 5.6f, 3.4f, 0f), ("PLANT", 7.2f, 1.2f, 0f), ("TEDDY", -6.2f, 2.8f, 20f),
+                         ("CLOCK", 2.8f, 4.9f, 0f), ("BOOKS", 7.0f, -2.2f, 0f),
+                     })
+                FurnitureCatalog.Spawn(word, new Vector3(x, 0f, z), yaw, World.Transient);
+            yield return new WaitForSeconds(1f);
+            builder.Respawn(new Vector3(1.5f, 0f, -1.5f));
+            builder.Summoner.Open();
+            foreach (char c in "TRE") { while (builder.Summoner.Source[builder.Summoner.Cursor] != c) builder.Summoner.Move(1); builder.Summoner.Add(); }
+            var creativeDesk = UnityEngine.Object.FindAnyObjectByType<CreativeDesk>();
+            planner.Respawn(creativeDesk.transform.position + Vector3.back * 1.3f + Vector3.down * 0.82f);
+            creativeDesk.Open(planner);
+            yield return new WaitForSeconds(0.4f);
+            Capture(Path.Combine(dir, "creative.png"));
+
             // A gallery of every object design, in rows, seen from the game camera's angle.
             yield return SceneManager.LoadSceneAsync(Session.GardenScene);
             yield return null;

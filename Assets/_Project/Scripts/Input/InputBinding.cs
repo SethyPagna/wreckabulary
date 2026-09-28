@@ -25,6 +25,8 @@ namespace Wreckabulary
         public abstract bool StartPressed();
         /// <summary>Key names for the spelling controls, shown under the word being spelled.</summary>
         public abstract string SpellHelp { get; }
+        /// <summary>The same for Creative, where you spell from A–Z.</summary>
+        public virtual string CreativeHelp => SpellHelp;
     }
 
     /// <summary>
@@ -103,6 +105,10 @@ namespace Wreckabulary
         public override string SpellHelp => side == Side.Left
             ? "A/D choose  •  SPACE add  •  J undo  •  S drop  •  K cast"
             : "LEFT/RIGHT choose  •  . add  •  / undo  •  DOWN drop  •  R-SHIFT cast";
+
+        public override string CreativeHelp => side == Side.Left
+            ? "A/D letter  •  W/S jump 5  •  SPACE add  •  J undo  •  K build"
+            : "LEFT/RIGHT letter  •  UP/DOWN jump 5  •  . add  •  / undo  •  R-SHIFT build";
     }
 
     /// <summary>Left stick move, A or RT grab, X attack, hold Y to spell (stick or d-pad up/down to choose).</summary>
@@ -147,6 +153,7 @@ namespace Wreckabulary
         public override bool StartPressed() => Pad.added && Pad.startButton.wasPressedThisFrame;
 
         public override string SpellHelp => "left/right choose  •  (A) add  •  (B) undo  •  down drop  •  (Y) cast";
+        public override string CreativeHelp => "left/right letter  •  up/down jump 5  •  (A) add  •  (B) undo  •  (Y) build";
     }
 
     /// <summary>Input driven by code, for tests and bots. Edge flags clear after each read.</summary>

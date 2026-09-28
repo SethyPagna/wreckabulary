@@ -70,6 +70,12 @@ Furnish the house together, 1–4 players. Unpack boxes, spell the checklist ite
 
 The typewriter prints endless letters to build and decorate your house. Hit **Play** to turn it into a Dibs! arena with custom rules. Rooms can be saved and loaded.
 
+- Spelling uses A–Z instead of carried letters, so letters can repeat and nothing is spent. Only object words work.
+- Grab, put down and throw to arrange the room. Punching removes things, and their letters vanish after a few seconds.
+- Hits push you around but never knock you out.
+- The room menu desk offers: Play Dibs! here (2+ players, rounds to win 1/2/3/5, starting letters 0–6), save to or load from slots 1–3, and clear the room.
+- After a match in your room you return to Creative with the room intact.
+
 ## Words
 
 Curated words in five categories: Weapon, Defence, Movement, Chaos, and Furniture (object words such as BED, SOFA and TABLE, which build the object). Longer words and rare letters (Q, Z, X, J) are stronger. Hidden words never appear as hints. Full list: `Assets/_Project/Data/word_list.csv`. What each word does is in `SummonEffects.cs`.
