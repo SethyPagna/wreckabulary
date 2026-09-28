@@ -30,6 +30,9 @@ namespace Wreckabulary
 
         public static readonly List<InputBinding> Bindings = new();
 
+        /// <summary>Each player slot's outfit from the wardrobe, worn in every mode.</summary>
+        public static readonly Dictionary<int, PlayerLook> Looks = new();
+
         /// <summary>Best Moving Day stars per level, for this play session.</summary>
         public static readonly Dictionary<int, int> MovingDayStars = new();
 
@@ -37,6 +40,7 @@ namespace Wreckabulary
         public static void Clear()
         {
             Bindings.Clear();
+            Looks.Clear();
             MovingDayStars.Clear();
             CustomRoom = null;
             CustomRounds = 3;

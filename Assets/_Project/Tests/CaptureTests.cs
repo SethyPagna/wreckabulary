@@ -116,6 +116,22 @@ namespace Wreckabulary.Tests
             yield return new WaitForSeconds(0.3f);
             Capture(Path.Combine(dir, "5_hub_typewriter.png"));
 
+            // The wardrobe's dress-up page, mid-outfit.
+            typewriter.Close();
+            var dresser = joins.Players[1];
+            var wardrobe = UnityEngine.Object.FindAnyObjectByType<Wardrobe>();
+            dresser.Respawn(wardrobe.transform.position + Vector3.back * 0.6f);
+            wardrobe.Open(dresser);
+            wardrobe.Select(Wardrobe.Row.Colour);
+            for (int k = 0; k < 4; k++) wardrobe.Change(1); // Grape
+            wardrobe.Select(Wardrobe.Row.Hat);
+            for (int k = 0; k < 4; k++) wardrobe.Change(1); // CROWN
+            wardrobe.Select(Wardrobe.Row.Extra);
+            wardrobe.Change(1);                             // SPECS
+            yield return new WaitForSeconds(0.6f);
+            Capture(Path.Combine(dir, "5b_wardrobe.png"));
+            wardrobe.Close();
+
             // Tutorial, a few steps in.
             Session.Clear();
             yield return SceneManager.LoadSceneAsync(Session.TutorialScene);
@@ -275,6 +291,14 @@ namespace Wreckabulary.Tests
         {
             var cam = Camera.main;
             var rt = new RenderTexture(1600, 900, 24);
+
+            // Cameras that draw into textures (the wardrobe mirror) render first, so the page shows them.
+            foreach (var other in UnityEngine.Object.FindObjectsByType<Camera>())
+            {
+                if (other == cam || !other.enabled || !other.targetTexture) continue;
+                var req = new UniversalRenderPipeline.SingleCameraRequest { destination = other.targetTexture };
+                if (RenderPipeline.SupportsRenderRequest(other, req)) RenderPipeline.SubmitRenderRequest(other, req);
+            }
 
             // Overlay canvases aren't drawn by cameras, so render the HUD through the camera for the capture.
             var canvases = UnityEngine.Object.FindObjectsByType<Canvas>();
