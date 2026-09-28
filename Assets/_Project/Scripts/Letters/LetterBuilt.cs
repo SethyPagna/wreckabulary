@@ -49,7 +49,7 @@ namespace Wreckabulary
                 var go = new GameObject($"Letter_{c}") { layer = gameObject.layer };
                 go.transform.SetParent(transform, false);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
-                go.AddComponent<MeshRenderer>().sharedMaterial = p.index % 2 == 0 ? light : dark;
+                go.AddComponent<MeshRenderer>().sharedMaterial = p.tinted ? assets.Tinted(p.tint) : p.index % 2 == 0 ? light : dark;
                 Place(go.transform, mesh, p);
                 if (colliders)
                 {

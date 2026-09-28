@@ -22,6 +22,7 @@ namespace Wreckabulary
         [SerializeField] DeliverySpawner deliveries;
         [SerializeField] GameHud hud;
 
+        [SerializeField] string mapName = "Living Room";
         [SerializeField] int roundsToWin = 3;
         [SerializeField] float collapseAfter = 90f;
         [SerializeField] float countdownTime = 3f;
@@ -86,7 +87,7 @@ namespace Wreckabulary
                     int left = Mathf.CeilToInt(countdownTime - PhaseTime);
                     if (left != lastCount && left > 0) Sfx.Play(Sound.Countdown);
                     lastCount = left;
-                    hud.SetTitle(left > 0 ? left.ToString() : "DIBS!", $"Round {Round}");
+                    hud.SetTitle(left > 0 ? left.ToString() : "DIBS!", $"Round {Round}  •  {mapName}");
                     if (PhaseTime >= countdownTime) BeginPlay();
                     break;
 

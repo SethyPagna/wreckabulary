@@ -14,6 +14,9 @@ namespace Wreckabulary
         public const string DibsScene = "LivingRoom";
         public const string TutorialScene = "Tutorial";
         public const string MovingDayScene = "MovingDay";
+        public const string BedroomScene = "Bedroom";
+        public const string KitchenScene = "Kitchen";
+        public const string GardenScene = "Garden";
 
         public static readonly List<InputBinding> Bindings = new();
 

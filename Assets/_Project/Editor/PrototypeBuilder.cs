@@ -24,6 +24,9 @@ namespace Wreckabulary.EditorTools
         const string LivingRoomPath = Root + "/Scenes/LivingRoom.unity";
         const string TutorialPath = Root + "/Scenes/Tutorial.unity";
         const string MovingDayPath = Root + "/Scenes/MovingDay.unity";
+        const string BedroomPath = Root + "/Scenes/Bedroom.unity";
+        const string KitchenPath = Root + "/Scenes/Kitchen.unity";
+        const string GardenPath = Root + "/Scenes/Garden.unity";
         const string TestEmptyPath = Root + "/Tests/Empty.unity";
         const string AssetsPath = Root + "/Resources/GameAssets.asset";
         const string WordsPath = Root + "/Data/Words.asset";
@@ -70,6 +73,9 @@ namespace Wreckabulary.EditorTools
                 BuildHub(assets);
                 BuildTutorial(assets);
                 BuildLivingRoom(assets);
+                BuildBedroom(assets);
+                BuildKitchen(assets);
+                BuildGarden(assets);
                 BuildMovingDay(assets);
                 // Blank scene the play mode tests reset to between tests.
                 EditorSceneManager.SaveScene(EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single), TestEmptyPath);
@@ -79,6 +85,9 @@ namespace Wreckabulary.EditorTools
                     new EditorBuildSettingsScene(LivingRoomPath, true),
                     new EditorBuildSettingsScene(TutorialPath, true),
                     new EditorBuildSettingsScene(MovingDayPath, true),
+                    new EditorBuildSettingsScene(BedroomPath, true),
+                    new EditorBuildSettingsScene(KitchenPath, true),
+                    new EditorBuildSettingsScene(GardenPath, true),
                 };
             }
             finally
@@ -315,7 +324,7 @@ namespace Wreckabulary.EditorTools
 
         /// <summary>What every scene shares: lighting, camera, the room shell, HUD, tile pool and join manager.</summary>
         static SceneKit NewRoomScene(GameAssets assets, Vector3[] spawnPositions, bool frontDoor, bool backToHub,
-                                     string sign = "<i>Home Sweet Home</i>")
+                                     string sign = "<i>Home Sweet Home</i>", RoomStyle style = null)
         {
             var kit = new SceneKit { scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single) };
 
@@ -335,13 +344,14 @@ namespace Wreckabulary.EditorTools
             var cam = camGo.AddComponent<Camera>();
             cam.fieldOfView = 40f;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = Hex("2E2A36");
+            style ??= new RoomStyle();
+            cam.backgroundColor = Hex(style.background);
             camGo.transform.position = new Vector3(0f, 13.5f, -12.5f);
             camGo.transform.LookAt(new Vector3(0f, 0f, 0.2f));
             camGo.AddComponent<CameraRig>();
             camGo.AddComponent<AudioListener>();
 
-            BuildRoom(frontDoor, sign);
+            BuildRoom(frontDoor, sign, style);
 
             var spawns = new GameObject("SpawnPoints").transform;
             var spawnPoints = new Transform[spawnPositions.Length];
@@ -514,6 +524,19 @@ namespace Wreckabulary.EditorTools
                             new MovingDayDirector.Item { word = "CLOCK", room = "Living Room" },
                         }
                     },
+                    new MovingDayDirector.Level
+                    {
+                        name = "Cozy Corner", timeLimit = 200f, spills = true,
+                        items = new[]
+                        {
+                            new MovingDayDirector.Item { word = "SHELF", room = "Bedroom" },
+                            new MovingDayDirector.Item { word = "TEDDY", room = "Bedroom" },
+                            new MovingDayDirector.Item { word = "MIRROR", room = "Bedroom" },
+                            new MovingDayDirector.Item { word = "PIANO", room = "Living Room" },
+                            new MovingDayDirector.Item { word = "STOOL", room = "Living Room" },
+                            new MovingDayDirector.Item { word = "FAN", room = "Living Room" },
+                        }
+                    },
                 });
 
             EditorSceneManager.SaveScene(kit.scene, MovingDayPath);
@@ -526,30 +549,60 @@ namespace Wreckabulary.EditorTools
             t.color = new Color(1f, 1f, 1f, 0.35f);
         }
 
-        static void BuildRoom(bool frontDoor, string sign)
+        /// <summary>Colours and dressing for the room shell. The default is the original living room.</summary>
+        class RoomStyle
+        {
+            public string floor = "C9A27E", back = "F1E4CC", side = "A9BF9F", trim = "C4694A", rug = "7FA08A";
+            public Vector3 rugCentre = new(0f, 0.005f, 1f);
+            public Vector2 rugSize = new(7.5f, 4.6f);
+            public bool window = true;
+            /// <summary>Outdoors: low hedges instead of walls, and sky behind.</summary>
+            public bool outdoor;
+            public string background = "2E2A36";
+            public string signColour = "C4694A";
+        }
+
+        static Material RoomMat(string hex, float smoothness = 0.15f) => Lit("Room_" + hex, Hex(hex), smoothness);
+
+        static void BuildRoom(bool frontDoor, string sign, RoomStyle style)
         {
             var room = new GameObject("Room").transform;
-            var floor = Lit("Floor_Wood", Hex("C9A27E"), 0.35f);
-            var cream = Lit("Wall_Cream", Hex("F1E4CC"), 0.1f);
-            var sage = Lit("Wall_Sage", Hex("A9BF9F"), 0.1f);
-            var terracotta = Lit("Trim_Terracotta", Hex("C4694A"), 0.2f);
-            var rug = Lit("Rug_Sage", Hex("7FA08A"), 0.05f);
-            var glass = Lit("Window_Sky", Hex("BFE3F2"), 0.9f);
+            var floor = RoomMat(style.floor, 0.3f);
+            var back = RoomMat(style.back);
+            var side = RoomMat(style.side);
+            var trim = RoomMat(style.trim, 0.2f);
 
             Block(room, "Floor", new Vector3(0f, -0.1f, 0f), new Vector3(17f, 0.2f, 12.3f), floor);
-            Block(room, "Rug", new Vector3(0f, 0.005f, 1f), new Vector3(7.5f, 0.01f, 4.6f), rug, collider: false);
-            Block(room, "Wall Back", new Vector3(0f, 1.6f, 6.3f), new Vector3(17.6f, 3.2f, 0.3f), cream);
-            Block(room, "Wall Right", new Vector3(8.65f, 1.6f, 0f), new Vector3(0.3f, 3.2f, 12.9f), sage);
-            Block(room, "Baseboard Back", new Vector3(0f, 0.12f, 6.12f), new Vector3(17f, 0.24f, 0.06f), terracotta, collider: false);
-            Block(room, "Window", new Vector3(-4f, 1.9f, 6.14f), new Vector3(2.6f, 1.4f, 0.04f), glass, collider: false);
-            Block(room, "Window Frame", new Vector3(-4f, 1.9f, 6.145f), new Vector3(2.8f, 1.6f, 0.02f), terracotta, collider: false);
+            if (!string.IsNullOrEmpty(style.rug))
+                Block(room, "Rug", style.rugCentre, new Vector3(style.rugSize.x, 0.01f, style.rugSize.y), RoomMat(style.rug, 0.05f), collider: false);
+
+            // Walls are 3.2 m tall indoors. Outdoors they are waist-high hedges, but still just as hard to get past.
+            float h = style.outdoor ? 1.0f : 3.2f;
+            float y = h * 0.5f;
+            Block(room, "Wall Back", new Vector3(0f, y, 6.3f), new Vector3(17.6f, h, 0.3f), back);
+            Block(room, "Wall Right", new Vector3(8.65f, y, 0f), new Vector3(0.3f, h, 12.9f), side);
+            if (style.outdoor)
+            {
+                Invisible(room, "Wall Back (invisible)", new Vector3(0f, 2.1f, 6.3f), new Vector3(17.6f, 2.2f, 0.3f));
+                Invisible(room, "Wall Right (invisible)", new Vector3(8.65f, 2.1f, 0f), new Vector3(0.3f, 2.2f, 12.9f));
+                Invisible(room, "Wall Left (invisible)", new Vector3(-8.65f, 2.1f, 0f), new Vector3(0.3f, 2.2f, 12.9f));
+            }
+            else
+            {
+                Block(room, "Baseboard Back", new Vector3(0f, 0.12f, 6.12f), new Vector3(17f, 0.24f, 0.06f), trim, collider: false);
+            }
+            if (style.window && !style.outdoor)
+            {
+                Block(room, "Window", new Vector3(-4f, 1.9f, 6.14f), new Vector3(2.6f, 1.4f, 0.04f), Lit("Window_Sky", Hex("BFE3F2"), 0.9f), collider: false);
+                Block(room, "Window Frame", new Vector3(-4f, 1.9f, 6.145f), new Vector3(2.8f, 1.6f, 0.02f), trim, collider: false);
+            }
 
             if (frontDoor)
             {
                 // Left wall with a doorway at z -2.75..-1.25, and a small fenced porch outside it.
-                Block(room, "Wall Left (front)", new Vector3(-8.65f, 1.6f, -4.6f), new Vector3(0.3f, 3.2f, 3.7f), sage);
-                Block(room, "Wall Left (back)", new Vector3(-8.65f, 1.6f, 2.6f), new Vector3(0.3f, 3.2f, 7.7f), sage);
-                Block(room, "Wall Left (over door)", new Vector3(-8.65f, 2.75f, -2f), new Vector3(0.3f, 0.9f, 1.5f), sage);
+                Block(room, "Wall Left (front)", new Vector3(-8.65f, 1.6f, -4.6f), new Vector3(0.3f, 3.2f, 3.7f), side);
+                Block(room, "Wall Left (back)", new Vector3(-8.65f, 1.6f, 2.6f), new Vector3(0.3f, 3.2f, 7.7f), side);
+                Block(room, "Wall Left (over door)", new Vector3(-8.65f, 2.75f, -2f), new Vector3(0.3f, 0.9f, 1.5f), side);
                 Block(room, "Porch", new Vector3(-10.7f, -0.1f, -2f), new Vector3(4.2f, 0.2f, 2.6f), floor);
                 Invisible(room, "Porch Fence (end)", new Vector3(-12.95f, 1.5f, -2f), new Vector3(0.3f, 3f, 3f));
                 Invisible(room, "Porch Fence (front)", new Vector3(-10.7f, 1.5f, -3.45f), new Vector3(4.6f, 3f, 0.3f));
@@ -557,15 +610,98 @@ namespace Wreckabulary.EditorTools
             }
             else
             {
-                Block(room, "Wall Left", new Vector3(-8.65f, 1.6f, 0f), new Vector3(0.3f, 3.2f, 12.9f), sage);
+                Block(room, "Wall Left", new Vector3(-8.65f, y, 0f), new Vector3(0.3f, h, 12.9f), side);
             }
 
             // The front wall is invisible so the camera can see in.
             Invisible(room, "Wall Front (invisible)", new Vector3(0f, 1.6f, -6.3f), new Vector3(17.6f, 3.2f, 0.3f));
             Invisible(room, "Ceiling (invisible)", new Vector3(0f, 9f, 0f), new Vector3(17.6f, 0.3f, 12.9f));
 
-            WallText(new Vector3(3.5f, 2.2f, 6.13f), sign, 5f, Hex("C4694A"));
+            if (!string.IsNullOrEmpty(sign))
+                WallText(new Vector3(3.5f, style.outdoor ? 1.6f : 2.2f, style.outdoor ? 6.1f : 6.13f), sign, 5f, Hex(style.signColour));
         }
+
+        // ---------------------------------------------------------------- Dibs! maps
+
+        /// <summary>A piece of furniture in a map: word, position (x, z), turn, and an optional height (on a table).</summary>
+        struct Piece
+        {
+            public string word;
+            public float x, z, yaw, y;
+            public Piece(string word, float x, float z, float yaw = 0f, float y = 0f)
+            {
+                this.word = word; this.x = x; this.z = z; this.yaw = yaw; this.y = y;
+            }
+        }
+
+        static readonly Vector3[] DibsSpawns =
+        {
+            new(-4.8f, 0f, -2.8f), new(4.8f, 0f, -2.8f), new(-2.9f, 0f, 3.2f), new(2.9f, 0f, 3.2f)
+        };
+
+        /// <summary>A Dibs! arena: the shared room shell, letter-built furniture from the catalog, and themed deliveries.</summary>
+        static void BuildDibsMap(GameAssets assets, string path, string mapName, string sign, RoomStyle style,
+                                 Piece[] pieces, string[] deliveries)
+        {
+            var kit = NewRoomScene(assets, DibsSpawns, frontDoor: false, backToHub: true, sign, style);
+            var root = new GameObject("Furniture").transform;
+            foreach (var p in pieces)
+                FurnitureCatalog.Spawn(p.word, new Vector3(p.x, p.y, p.z), p.yaw, root);
+
+            var roomBuilder = kit.game.AddComponent<RoomBuilder>();
+            Set(roomBuilder, "furnitureRoot", root);
+            var delivery = kit.game.AddComponent<DeliverySpawner>();
+            Set(delivery, "words", deliveries);
+            var rounds = kit.game.AddComponent<RoundManager>();
+            Set(rounds, "joins", kit.joins);
+            Set(rounds, "room", roomBuilder);
+            Set(rounds, "deliveries", delivery);
+            Set(rounds, "hud", kit.hud);
+            Set(rounds, "mapName", mapName);
+            EditorSceneManager.SaveScene(kit.scene, path);
+        }
+
+        static void BuildBedroom(GameAssets assets) => BuildDibsMap(assets, BedroomPath, "Bedroom", "<i>Sweet Dreams</i>",
+            new RoomStyle { floor = "D8C3A5", back = "ECE3F3", side = "B7C4DD", trim = "8E7BB0", rug = "E6A9B8", rugSize = new(6f, 4f), signColour = "8E7BB0" },
+            new[]
+            {
+                new Piece("BED", -4.4f, 4.7f), new Piece("LAMP", -6.9f, 5.0f), new Piece("SHELF", -1.3f, 5.5f),
+                new Piece("DESK", 3.2f, 5.0f), new Piece("CHAIR", 4.9f, 4.0f, 180f), new Piece("CLOSET", 7.2f, 5.1f),
+                new Piece("MIRROR", 7.7f, 0.8f, -90f), new Piece("TEDDY", -2.2f, -2.6f, 15f), new Piece("PILLOW", -6.9f, -3.4f),
+                new Piece("CLOCK", 0.6f, -3.8f), new Piece("BOOKS", 6.8f, -3.8f), new Piece("BOX", -5.2f, 1.0f, 20f),
+                new Piece("RUG", 0.2f, 1.0f),
+            },
+            new[] { "SOCKS", "TOYS", "QUILT", "BOOKS", "COMICS", "SHOES", "GLOVES", "WIGS", "ZIPPER", "JAM", "PIZZA", "BOX" });
+
+        static void BuildKitchen(GameAssets assets) => BuildDibsMap(assets, KitchenPath, "Kitchen", "<i>Bon Appetit</i>",
+            new RoomStyle { floor = "D6C8AE", back = "F4EBD0", side = "9FCFC4", trim = "5E8C7F", rug = "D9774F", rugSize = new(6.5f, 3f), signColour = "5E8C7F" },
+            new[]
+            {
+                new Piece("FRIDGE", -7.3f, 5.1f), new Piece("STOVE", -5.6f, 5.2f), new Piece("SINK", -3.8f, 5.2f),
+                new Piece("KETTLE", -5.6f, 5.2f, 0f, 0.7f), new Piece("SHELF", 4.4f, 5.6f), new Piece("PLANT", 7.3f, 5.1f),
+                new Piece("TABLE", 0.5f, 1.2f), new Piece("CHAIR", -1.3f, 1.2f, 90f), new Piece("CHAIR", 2.3f, 1.2f, -90f),
+                new Piece("BOWL", 0.2f, 1.2f, 0f, 0.53f), new Piece("CUP", 0.9f, 1.3f, 0f, 0.53f),
+                new Piece("POT", 6.6f, -3.6f), new Piece("PAN", -6.6f, -3.8f), new Piece("STOOL", 2.8f, -3.6f),
+                new Piece("STOOL", -1.6f, -3.4f), new Piece("BOX", -4.6f, 0.9f, 15f), new Piece("FAN", 6.9f, 1.2f, -30f),
+                new Piece("BOWL", 5.4f, 1.0f),
+            },
+            new[] { "SPOONS", "FORKS", "DISHES", "KETTLE", "JUICE", "JAM", "PIZZA", "CANDLE", "TOWELS", "WAX", "BOX", "QUILT" });
+
+        static void BuildGarden(GameAssets assets) => BuildDibsMap(assets, GardenPath, "Garden", "",
+            new RoomStyle
+            {
+                floor = "8CC06A", back = "5E9E4F", side = "5E9E4F", trim = "5E9E4F", rug = "D9C7A0",
+                rugCentre = new(0f, 0.005f, -0.3f), rugSize = new(2.2f, 11.6f), outdoor = true, background = "A7D8F0",
+            },
+            new[]
+            {
+                new Piece("TREE", -6.8f, 4.5f), new Piece("TREE", 6.9f, 4.7f), new Piece("BUSH", -4.0f, 5.3f),
+                new Piece("FLOWER", -2.3f, 5.3f), new Piece("ROSE", 2.2f, 5.3f), new Piece("BUSH", 4.1f, 5.3f),
+                new Piece("BENCH", 0f, 5.1f), new Piece("SWING", -5.8f, 0.8f, 90f), new Piece("POND", 5.4f, 0.4f),
+                new Piece("GNOME", 6.9f, -4.3f, -20f), new Piece("ROCK", -7.0f, -4.3f), new Piece("HOSE", -2.4f, -4.4f),
+                new Piece("FENCE", 7.6f, 1.8f, 90f),
+            },
+            new[] { "SEEDS", "GLOVES", "KITES", "BALLS", "TOYS", "PIZZA", "JUICE", "SHOES", "BOX", "WAX", "QUILT", "JAM" });
 
         static void Invisible(Transform parent, string name, Vector3 pos, Vector3 size)
         {
@@ -745,6 +881,11 @@ namespace Wreckabulary.EditorTools
                 case float f: p.floatValue = f; break;
                 case int n: p.intValue = n; break;
                 case bool b: p.boolValue = b; break;
+                case string str: p.stringValue = str; break;
+                case string[] strs:
+                    p.arraySize = strs.Length;
+                    for (int i = 0; i < strs.Length; i++) p.GetArrayElementAtIndex(i).stringValue = strs[i];
+                    break;
                 default: p.objectReferenceValue = (Object)value; break;
             }
             so.ApplyModifiedPropertiesWithoutUndo();
