@@ -23,6 +23,8 @@ namespace Wreckabulary
         [SerializeField] GameHud hud;
 
         [SerializeField] string mapName = "Living Room";
+        [Tooltip("Use the rounds and starting letters chosen in Creative.")]
+        [SerializeField] bool useCustomRules;
         [SerializeField] int roundsToWin = 3;
         [SerializeField] float collapseAfter = 90f;
         [SerializeField] float countdownTime = 3f;
@@ -47,6 +49,11 @@ namespace Wreckabulary
 
         void Start()
         {
+            if (useCustomRules)
+            {
+                roundsToWin = Mathf.Max(1, Session.CustomRounds);
+                joins.StarterLetters = Session.CustomStarterLetters;
+            }
             Music.Play(Track.Brawl);
             joins.Joined += OnJoined;
             foreach (var p in Players) OnJoined(p);

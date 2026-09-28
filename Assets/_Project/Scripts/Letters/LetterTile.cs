@@ -16,6 +16,7 @@ namespace Wreckabulary
         public char Letter => letter;
         public LetterRarity Rarity => LetterScores.RarityOf(letter);
         public Rigidbody Body { get; private set; }
+        public float LaunchedAt { get; private set; }
 
         float readyAt;
         LetterInventory droppedBy;
@@ -62,6 +63,7 @@ namespace Wreckabulary
             Body.linearVelocity = velocity;
             Body.angularVelocity = Random.insideUnitSphere * 8f;
             readyAt = Time.time + 0.3f;
+            LaunchedAt = Time.time;
             droppedBy = from;
             ownerLockUntil = Time.time + 1.2f;
         }

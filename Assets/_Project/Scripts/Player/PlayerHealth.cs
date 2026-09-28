@@ -25,6 +25,8 @@ namespace Wreckabulary
         /// <summary>SHIELD: hits from the front are blocked until this time.</summary>
         public float FrontBlockUntil { get; set; }
         public int LettersPerHit { get => lettersPerHit; set => lettersPerHit = value; }
+        /// <summary>Creative: hits still push you around, but never cost letters or knock you out.</summary>
+        public bool Harmless { get; set; }
 
         public event Action<PlayerHealth> KnockedOut;
         /// <summary>Victim, attacker (may be null).</summary>
@@ -64,6 +66,11 @@ namespace Wreckabulary
 
             controller.Knock(direction * knockback + Vector3.up * knockback * 0.35f, 0.45f);
             CameraRig.Shake(0.12f);
+            if (Harmless)
+            {
+                Sfx.Play(Sound.Hit, transform.position, 0.5f);
+                return true;
+            }
 
             if (inventory.IsEmpty)
             {

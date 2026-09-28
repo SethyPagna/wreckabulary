@@ -27,6 +27,9 @@ namespace Wreckabulary.EditorTools
         const string BedroomPath = Root + "/Scenes/Bedroom.unity";
         const string KitchenPath = Root + "/Scenes/Kitchen.unity";
         const string GardenPath = Root + "/Scenes/Garden.unity";
+        const string CreativePath = Root + "/Scenes/Creative.unity";
+        const string CustomArenaPath = Root + "/Scenes/CustomArena.unity";
+        const string FurnishFirstPath = Root + "/Scenes/FurnishFirst.unity";
         const string TestEmptyPath = Root + "/Tests/Empty.unity";
         const string AssetsPath = Root + "/Resources/GameAssets.asset";
         const string WordsPath = Root + "/Data/Words.asset";
@@ -76,6 +79,10 @@ namespace Wreckabulary.EditorTools
                 BuildBedroom(assets);
                 BuildKitchen(assets);
                 BuildGarden(assets);
+                BuildCreative(assets);
+                BuildFurnishFirst(assets);
+                BuildDibsMap(assets, CustomArenaPath, "Your Room", "<i>Home Sweet Home</i>", new RoomStyle(), new Piece[0],
+                             new[] { "BOX", "WAX", "PIZZA", "QUILT", "SOCKS", "GAMES", "JAM", "ZIPPER" }, custom: true);
                 BuildMovingDay(assets);
                 // Blank scene the play mode tests reset to between tests.
                 EditorSceneManager.SaveScene(EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single), TestEmptyPath);
@@ -88,6 +95,9 @@ namespace Wreckabulary.EditorTools
                     new EditorBuildSettingsScene(BedroomPath, true),
                     new EditorBuildSettingsScene(KitchenPath, true),
                     new EditorBuildSettingsScene(GardenPath, true),
+                    new EditorBuildSettingsScene(CreativePath, true),
+                    new EditorBuildSettingsScene(CustomArenaPath, true),
+                    new EditorBuildSettingsScene(FurnishFirstPath, true),
                 };
             }
             finally
@@ -641,7 +651,7 @@ namespace Wreckabulary.EditorTools
 
         /// <summary>A Dibs! arena: the shared room shell, letter-built furniture from the catalog, and themed deliveries.</summary>
         static void BuildDibsMap(GameAssets assets, string path, string mapName, string sign, RoomStyle style,
-                                 Piece[] pieces, string[] deliveries)
+                                 Piece[] pieces, string[] deliveries, bool custom = false)
         {
             var kit = NewRoomScene(assets, DibsSpawns, frontDoor: false, backToHub: true, sign, style);
             var root = new GameObject("Furniture").transform;
@@ -658,7 +668,77 @@ namespace Wreckabulary.EditorTools
             Set(rounds, "deliveries", delivery);
             Set(rounds, "hud", kit.hud);
             Set(rounds, "mapName", mapName);
+            if (custom)
+            {
+                // Furnished from the room built in Creative, with the rules chosen there.
+                Set(roomBuilder, "useCustomRoom", true);
+                Set(rounds, "useCustomRules", true);
+            }
             EditorSceneManager.SaveScene(kit.scene, path);
+        }
+
+        static void BuildFurnishFirst(GameAssets assets)
+        {
+            // One corner per roommate: front-left, front-right, back-left, back-right. The middle is where boxes land.
+            var zones = new[]
+            {
+                new FurnishFirstDirector.Zone { xRange = new Vector2(-8.4f, -2.6f), zRange = new Vector2(-6f, -0.8f) },
+                new FurnishFirstDirector.Zone { xRange = new Vector2(2.6f, 8.4f), zRange = new Vector2(-6f, -0.8f) },
+                new FurnishFirstDirector.Zone { xRange = new Vector2(-8.4f, -2.6f), zRange = new Vector2(0.8f, 6f) },
+                new FurnishFirstDirector.Zone { xRange = new Vector2(2.6f, 8.4f), zRange = new Vector2(0.8f, 6f) },
+            };
+            var spawns = new Vector3[zones.Length];
+            for (int i = 0; i < zones.Length; i++) spawns[i] = zones[i].Centre;
+
+            var kit = NewRoomScene(assets, spawns, frontDoor: false, backToHub: true, "<i>Furnish First!</i>",
+                                   new RoomStyle { rug = "D9C7A0", rugCentre = new(0f, 0.005f, 0f), rugSize = new(4.2f, 11.6f) });
+            Set(kit.joins, "starterLetters", 0);
+
+            var floor = new GameObject("Corners").transform;
+            for (int i = 0; i < zones.Length; i++)
+            {
+                var z = zones[i];
+                var tint = Color.Lerp(assets.PlayerColor(i), Color.white, 0.55f);
+                var size = new Vector3(z.xRange.y - z.xRange.x, 0.01f, z.zRange.y - z.zRange.x);
+                Block(floor, $"Corner {i + 1}", z.Centre + Vector3.up * 0.006f, size, SaveTint(tint), collider: false);
+                var label = WorldText(floor, $"Corner {i + 1} Label", z.Centre + new Vector3(0f, 0.02f, 0.8f), Quaternion.Euler(90f, 0f, 0f), 14f, new Vector2(4f, 3f), assets);
+                label.text = $"{assets.PlayerInitial(i)}";
+                label.color = new Color(1f, 1f, 1f, 0.45f);
+            }
+
+            var director = kit.game.AddComponent<FurnishFirstDirector>();
+            Set(director, "joins", kit.joins);
+            Set(director, "hud", kit.hud);
+            director.Configure(zones);
+            EditorSceneManager.SaveScene(kit.scene, FurnishFirstPath);
+        }
+
+        static void BuildCreative(GameAssets assets)
+        {
+            var kit = NewRoomScene(assets, DibsSpawns, frontDoor: false, backToHub: true);
+            Set(kit.joins, "starterLetters", 0);
+
+            // The room menu: a desk with a typewriter at the back, static so it can't be grabbed or smashed.
+            Furniture.Prop(null, "DESK", new Vector3(0f, 0f, 5.3f), 0f, new Vector3(0.9f, 0.8f, 1.0f), 0, Hex("8A5A3B"));
+            var deskGo = new GameObject("Room Menu");
+            deskGo.transform.position = new Vector3(0f, 0.82f, 5.1f);
+            var body = LetterBlocks.Create("ROOM", new Vector3(1.2f, 0.34f, 0.75f), Lit("Typewriter", Hex("3E7F7A"), 0.5f, 0.3f), deskGo.transform, true);
+            body.transform.localPosition = Vector3.up * 0.17f;
+            // Hangs down in front of the desk (the desk is against the back wall, so growing upwards would leave the screen).
+            var menuText = WorldText(null, "Room Menu Text", deskGo.transform.position + new Vector3(0f, 2.2f, -1.3f), Quaternion.identity, 3.6f, new Vector2(9f, 4f), assets);
+            menuText.alignment = TextAlignmentOptions.Top;
+            menuText.rectTransform.pivot = new Vector2(0.5f, 1f);
+            menuText.outlineWidth = 0.25f;
+            menuText.outlineColor = new Color32(40, 26, 18, 255);
+            var desk = deskGo.AddComponent<CreativeDesk>();
+            Set(desk, "joins", kit.joins);
+            Set(desk, "menuText", menuText);
+
+            var director = kit.game.AddComponent<CreativeDirector>();
+            Set(director, "joins", kit.joins);
+            Set(director, "hud", kit.hud);
+            Set(director, "desk", desk);
+            EditorSceneManager.SaveScene(kit.scene, CreativePath);
         }
 
         static void BuildBedroom(GameAssets assets) => BuildDibsMap(assets, BedroomPath, "Bedroom", "<i>Sweet Dreams</i>",

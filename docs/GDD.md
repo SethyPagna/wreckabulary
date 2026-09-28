@@ -55,6 +55,8 @@ Fight your roommates for the best stuff. Letters are your health.
 
 Later variations: **Furnish First** (race to furnish the room), and more.
 
+**Furnish First** (prototype in): each roommate has a corner and every round has a shared checklist of 3 objects. Boxes with those words drop in the middle. Get the whole list, at rest, into your corner first to win the round. First to 2 rounds wins. Anything in your corner counts, so steal from other corners. Knockouts only take you out for 2 seconds.
+
 ### Co-op: "Moving Day"
 
 Furnish the house together, 1–4 players. Unpack boxes, spell the checklist items and place them in the right rooms, with obstacles and a time limit. Each level awards 1–3 stars.
@@ -69,6 +71,12 @@ Furnish the house together, 1–4 players. Unpack boxes, spell the checklist ite
 ### Creative: "Home Sweet Home"
 
 The typewriter prints endless letters to build and decorate your house. Hit **Play** to turn it into a Dibs! arena with custom rules. Rooms can be saved and loaded.
+
+- Spelling uses A–Z instead of carried letters, so letters can repeat and nothing is spent. Only object words work.
+- Grab, put down and throw to arrange the room. Punching removes things, and their letters vanish after a few seconds.
+- Hits push you around but never knock you out.
+- The room menu desk offers: Play Dibs! here (2+ players, rounds to win 1/2/3/5, starting letters 0–6), save to or load from slots 1–3, and clear the room.
+- After a match in your room you return to Creative with the room intact.
 
 ## Words
 

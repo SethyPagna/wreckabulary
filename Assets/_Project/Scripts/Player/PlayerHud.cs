@@ -42,6 +42,21 @@ namespace Wreckabulary
               .Append(player.Name).Append("</color> ");
             if (player.IsKnockedOut) return sb.Append("<color=#FFFFFF>KO</color>").ToString();
 
+            if (spell.EndlessLetters)
+            {
+                if (!spell.IsSpelling) return sb.Append("<color=#FFF4E0AA>A-Z</color>").ToString();
+                // A window of the alphabet around the highlight.
+                for (int d = -3; d <= 3; d++)
+                {
+                    int i = ((spell.Cursor + d) % 26 + 26) % 26;
+                    char c = spell.Source[i];
+                    if (d == 0) sb.Append("<size=135%><color=#FFD24A>[").Append(c).Append("]</color></size>");
+                    else sb.Append("<color=#FFF4E0").Append(Mathf.Abs(d) == 3 ? "55" : "CC").Append('>').Append(c).Append("</color>");
+                    if (d < 3) sb.Append(' ');
+                }
+                return sb.ToString();
+            }
+
             for (int i = 0; i < inv.Capacity; i++)
             {
                 if (i < inv.Count)
@@ -69,8 +84,9 @@ namespace Wreckabulary
         {
             var s = player.Summoner;
             sb.Clear();
-            if (player.Binding != null && player.Binding.SpellHelp.Length > 0)
-                sb.Append("<size=55%><color=#FFFFFFAA>").Append(player.Binding.SpellHelp).Append("</color></size>\n");
+            string help = player.Binding == null ? "" : s.EndlessLetters ? player.Binding.CreativeHelp : player.Binding.SpellHelp;
+            if (help.Length > 0)
+                sb.Append("<size=55%><color=#FFFFFFAA>").Append(help).Append("</color></size>\n");
             if (s.Hints.Count > 0)
             {
                 sb.Append("<size=75%><color=#FFFFFF99>");

@@ -38,6 +38,7 @@ namespace Wreckabulary
         public bool RespawnKnockedOut { get => respawnKnockedOut; set => respawnKnockedOut = value; }
         /// <summary>True if the players were carried over from another scene.</summary>
         public bool RestoredFromSession { get; private set; }
+        public int StarterLetters { get => starterLetters; set => starterLetters = Mathf.Clamp(value, 0, 6); }
         public event Action<PlayerController> Joined;
 
         void Awake()

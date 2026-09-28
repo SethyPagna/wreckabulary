@@ -88,7 +88,8 @@ namespace Wreckabulary.Tests
         public IEnumerator PlayerCollectsNearbyTiles()
         {
             var p = SpawnPlayer(0, Vector3.zero, out _);
-            TilePool.Instance.Get('B').Launch(new Vector3(0.3f, 0.3f, 0.3f), Vector3.zero);
+            // Just beside the player, not inside their body (where physics would shove it away).
+            TilePool.Instance.Get('B').Launch(new Vector3(0.7f, 0.3f, 0f), Vector3.zero);
             yield return new WaitForSeconds(0.5f);
 
             CollectionAssert.AreEqual(new[] { 'B' }, p.Inventory.Letters.ToArray());

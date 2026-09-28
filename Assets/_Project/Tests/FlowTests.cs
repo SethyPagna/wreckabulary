@@ -71,8 +71,7 @@ namespace Wreckabulary.Tests
             var typewriter = Object.FindAnyObjectByType<Typewriter>();
 
             Assert.IsFalse(typewriter.Choose(ModeIndex(typewriter, Session.DibsScene)), "one roommate can't play Dibs!");
-            int soon = typewriter.Modes.Select((m, i) => (m, i)).First(x => x.m.comingSoon).i;
-            Assert.IsFalse(typewriter.Choose(soon));
+            Assert.IsTrue(typewriter.Modes.All(m => !m.comingSoon), "every mode is playable now");
             yield return null;
             Assert.AreEqual(Session.HubScene, SceneManager.GetActiveScene().name);
         }
