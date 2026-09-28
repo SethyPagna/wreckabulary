@@ -188,6 +188,22 @@ namespace Wreckabulary.Tests
             yield return new WaitForSeconds(0.4f);
             Capture(Path.Combine(dir, "creative.png"));
 
+            // Furnish First: mid-race, P1 has two of three, P2 one.
+            Session.Clear();
+            yield return SceneManager.LoadSceneAsync(Session.FurnishFirstScene);
+            yield return null;
+            var ffJoins = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>();
+            for (int k = 0; k < 3; k++) ffJoins.Join(new ScriptedBinding());
+            var ff = UnityEngine.Object.FindAnyObjectByType<FurnishFirstDirector>();
+            ff.CountdownTime = 0.1f;
+            ff.StartMatch();
+            yield return new WaitForSeconds(0.5f);
+            FurnitureCatalog.Spawn(ff.Checklist[0], ff.Zones[0].Centre + new Vector3(-1.5f, 0f, 1f), 0f, World.Transient);
+            FurnitureCatalog.Spawn(ff.Checklist[1], ff.Zones[0].Centre + new Vector3(1.5f, 0f, 1f), 0f, World.Transient);
+            FurnitureCatalog.Spawn(ff.Checklist[2], ff.Zones[1].Centre + new Vector3(0f, 0f, 1f), 0f, World.Transient);
+            yield return new WaitForSeconds(4f);
+            Capture(Path.Combine(dir, "furnish_first.png"));
+
             // A gallery of every object design, in rows, seen from the game camera's angle.
             yield return SceneManager.LoadSceneAsync(Session.GardenScene);
             yield return null;

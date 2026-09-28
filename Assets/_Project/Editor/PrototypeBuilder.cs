@@ -29,6 +29,7 @@ namespace Wreckabulary.EditorTools
         const string GardenPath = Root + "/Scenes/Garden.unity";
         const string CreativePath = Root + "/Scenes/Creative.unity";
         const string CustomArenaPath = Root + "/Scenes/CustomArena.unity";
+        const string FurnishFirstPath = Root + "/Scenes/FurnishFirst.unity";
         const string TestEmptyPath = Root + "/Tests/Empty.unity";
         const string AssetsPath = Root + "/Resources/GameAssets.asset";
         const string WordsPath = Root + "/Data/Words.asset";
@@ -79,6 +80,7 @@ namespace Wreckabulary.EditorTools
                 BuildKitchen(assets);
                 BuildGarden(assets);
                 BuildCreative(assets);
+                BuildFurnishFirst(assets);
                 BuildDibsMap(assets, CustomArenaPath, "Your Room", "<i>Home Sweet Home</i>", new RoomStyle(), new Piece[0],
                              new[] { "BOX", "WAX", "PIZZA", "QUILT", "SOCKS", "GAMES", "JAM", "ZIPPER" }, custom: true);
                 BuildMovingDay(assets);
@@ -95,6 +97,7 @@ namespace Wreckabulary.EditorTools
                     new EditorBuildSettingsScene(GardenPath, true),
                     new EditorBuildSettingsScene(CreativePath, true),
                     new EditorBuildSettingsScene(CustomArenaPath, true),
+                    new EditorBuildSettingsScene(FurnishFirstPath, true),
                 };
             }
             finally
@@ -672,6 +675,42 @@ namespace Wreckabulary.EditorTools
                 Set(rounds, "useCustomRules", true);
             }
             EditorSceneManager.SaveScene(kit.scene, path);
+        }
+
+        static void BuildFurnishFirst(GameAssets assets)
+        {
+            // One corner per roommate: front-left, front-right, back-left, back-right. The middle is where boxes land.
+            var zones = new[]
+            {
+                new FurnishFirstDirector.Zone { xRange = new Vector2(-8.4f, -2.6f), zRange = new Vector2(-6f, -0.8f) },
+                new FurnishFirstDirector.Zone { xRange = new Vector2(2.6f, 8.4f), zRange = new Vector2(-6f, -0.8f) },
+                new FurnishFirstDirector.Zone { xRange = new Vector2(-8.4f, -2.6f), zRange = new Vector2(0.8f, 6f) },
+                new FurnishFirstDirector.Zone { xRange = new Vector2(2.6f, 8.4f), zRange = new Vector2(0.8f, 6f) },
+            };
+            var spawns = new Vector3[zones.Length];
+            for (int i = 0; i < zones.Length; i++) spawns[i] = zones[i].Centre;
+
+            var kit = NewRoomScene(assets, spawns, frontDoor: false, backToHub: true, "<i>Furnish First!</i>",
+                                   new RoomStyle { rug = "D9C7A0", rugCentre = new(0f, 0.005f, 0f), rugSize = new(4.2f, 11.6f) });
+            Set(kit.joins, "starterLetters", 0);
+
+            var floor = new GameObject("Corners").transform;
+            for (int i = 0; i < zones.Length; i++)
+            {
+                var z = zones[i];
+                var tint = Color.Lerp(assets.PlayerColor(i), Color.white, 0.55f);
+                var size = new Vector3(z.xRange.y - z.xRange.x, 0.01f, z.zRange.y - z.zRange.x);
+                Block(floor, $"Corner {i + 1}", z.Centre + Vector3.up * 0.006f, size, SaveTint(tint), collider: false);
+                var label = WorldText(floor, $"Corner {i + 1} Label", z.Centre + new Vector3(0f, 0.02f, 0.8f), Quaternion.Euler(90f, 0f, 0f), 14f, new Vector2(4f, 3f), assets);
+                label.text = $"{assets.PlayerInitial(i)}";
+                label.color = new Color(1f, 1f, 1f, 0.45f);
+            }
+
+            var director = kit.game.AddComponent<FurnishFirstDirector>();
+            Set(director, "joins", kit.joins);
+            Set(director, "hud", kit.hud);
+            director.Configure(zones);
+            EditorSceneManager.SaveScene(kit.scene, FurnishFirstPath);
         }
 
         static void BuildCreative(GameAssets assets)

@@ -56,11 +56,13 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 
 ## What's playable
 
-**The house (hub):** roommates join by walking in through the front door. Pick a mode at the typewriter: Tutorial, Dibs!, Moving Day or Home Sweet Home. Whoever is in the house comes along into the mode, and everyone heads home after a match or on Esc / Select.
+**The house (hub):** roommates join by walking in through the front door. Pick a mode at the typewriter: Tutorial, Dibs!, Furnish First, Moving Day or Home Sweet Home. Whoever is in the house comes along into the mode, and everyone heads home after a match or on Esc / Select.
 
 **Tutorial:** 7 steps covering walk, smash the BAT box, pick up the letters, spell BAT, whack the dummy, throw the chair, and knock the dummy out. Any roommate can complete a step.
 
 **Moving Day** (co-op, 1–4 players) in a house split into a living room and a bedroom. Boxes labelled with the checklist arrive at the front door. Smash them for the letters, spell each item (only checklist words work here) to build it, and carry it into the right room. Placed furniture locks in with a tick. Stars (1–3) depend on time left. Run out of time and the level restarts. There are 3 levels: *Moving In*, *Housewarming* (with slippery spills) and *Cozy Corner* (SHELF, TEDDY, MIRROR, PIANO, STOOL, FAN). Lost letters are resent in a new box.
+
+**Furnish First** (versus, 2–4 players): everyone gets a colour-coded corner and the same checklist of 3 objects. Boxes of those words drop in the middle, so you all fight over the same letters. Spell the items and get them into *your* corner, at rest. The first to have the whole list wins the round, and first to 2 rounds wins. Anything in your corner counts, so stealing, smashing and shoving are all fair. Knocked-out roommates get back up in their corner.
 
 **Home Sweet Home** (Creative, 1–4 players): build your own room. Press spell and the typewriter gives you endless letters. Pick any letter from A to Z (repeats allowed) and any of the 43 objects is built for free. Grab to arrange things, punch to remove them (the letters tidy themselves away), and nobody gets knocked out. At the room menu desk you can:
 - **Play Dibs! here:** a match in your room with your rules (rounds to win: 1, 2, 3 or 5, and starting letters: 0–6). Afterwards you're back in your room, still built.
@@ -122,7 +124,7 @@ Assets/_Project/
     Words/     WordDatabase (reads word_list.csv), WordSolver
     Player/    PlayerController, PlayerHealth, LetterInventory, PlayerCombat, Summoner, PlayerHud
     Summons/   SummonEffects (what each word does), HeldWeapon, Projectile, BeeSwarm, DuckWalker, ...
-    Game/      RoundManager (Dibs!), HubDirector + Typewriter (house), TutorialDirector, MovingDayDirector,
+    Game/      RoundManager (Dibs!), HubDirector + Typewriter (house), TutorialDirector, MovingDayDirector, FurnishFirstDirector,
                CreativeDirector + CreativeDesk + RoomLayout (Home Sweet Home),
                PlayerJoinManager, RoomBuilder, DeliverySpawner, GameHud, CameraRig, BackToHub
   Editor/      PrototypeBuilder: generates the scenes, prefabs and materials

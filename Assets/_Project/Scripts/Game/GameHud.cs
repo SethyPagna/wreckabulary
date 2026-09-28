@@ -39,6 +39,23 @@ namespace Wreckabulary
             if (checklistPanel) checklistPanel.SetActive(!string.IsNullOrEmpty(text));
         }
 
+        /// <summary>Moves the checklist to the top centre, over the back wall (for modes that use every corner).</summary>
+        public void MoveChecklistToTop()
+        {
+            foreach (var rt in new[] { checklist ? checklist.rectTransform : null, checklistPanel ? (RectTransform)checklistPanel.transform : null })
+            {
+                if (!rt) continue;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.985f);
+                rt.pivot = new Vector2(0.5f, 1f);
+            }
+            if (checklistPanel) ((RectTransform)checklistPanel.transform).sizeDelta = new Vector2(640f, 240f);
+            if (checklist)
+            {
+                checklist.rectTransform.anchoredPosition = new Vector2(0f, -12f);
+                checklist.alignment = TMPro.TextAlignmentOptions.Top;
+            }
+        }
+
         public void SetTimer(string text)
         {
             if (timer) timer.text = text;

@@ -19,6 +19,7 @@ namespace Wreckabulary
         public const string GardenScene = "Garden";
         public const string CreativeScene = "Creative";
         public const string CustomArenaScene = "CustomArena";
+        public const string FurnishFirstScene = "FurnishFirst";
 
         /// <summary>The room being built in Creative, carried into "Play Dibs! here" and back.</summary>
         public static RoomLayout CustomRoom;

@@ -20,7 +20,7 @@
 - ~~Creative "Home Sweet Home" (build, play, save and load rooms)~~ (prototype in)
 - More Moving Day levels (a third, *Cozy Corner*, is in)
 - ~~Kitchen and garden maps~~ (prototype arenas added, along with a Bedroom arena)
-- Furnish First variation
+- ~~Furnish First variation~~ (prototype in)
 - Character and house customisation in the hub
 - The letter cat NPC
 - Full active ragdoll (fallback: animated movement with ragdoll on hit)

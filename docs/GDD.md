@@ -55,6 +55,8 @@ Fight your roommates for the best stuff. Letters are your health.
 
 Later variations: **Furnish First** (race to furnish the room), and more.
 
+**Furnish First** (prototype in): each roommate has a corner and every round has a shared checklist of 3 objects. Boxes with those words drop in the middle. Get the whole list, at rest, into your corner first to win the round. First to 2 rounds wins. Anything in your corner counts, so steal from other corners. Knockouts only take you out for 2 seconds.
+
 ### Co-op: "Moving Day"
 
 Furnish the house together, 1–4 players. Unpack boxes, spell the checklist items and place them in the right rooms, with obstacles and a time limit. Each level awards 1–3 stars.
