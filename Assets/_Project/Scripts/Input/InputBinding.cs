@@ -11,6 +11,8 @@ namespace Wreckabulary
         public bool grab, attack;
         public bool spellHeld, spellDown, spellUp;
         public bool up, down;
+        /// <summary>Spelling: move between your letters, add the highlighted one, undo the last one.</summary>
+        public bool left, right, confirm, back;
         public bool start;
     }
 
@@ -21,6 +23,8 @@ namespace Wreckabulary
         public abstract void Read(ref PlayerCommands c);
         public abstract bool JoinPressed();
         public abstract bool StartPressed();
+        /// <summary>Key names for the spelling controls, shown under the word being spelled.</summary>
+        public abstract string SpellHelp { get; }
     }
 
     /// <summary>
@@ -55,6 +59,10 @@ namespace Wreckabulary
                 c.spellUp = kb.kKey.wasReleasedThisFrame;
                 c.up = kb.wKey.wasPressedThisFrame;
                 c.down = kb.sKey.wasPressedThisFrame;
+                c.left = kb.aKey.wasPressedThisFrame;
+                c.right = kb.dKey.wasPressedThisFrame;
+                c.confirm = kb.spaceKey.wasPressedThisFrame;
+                c.back = kb.jKey.wasPressedThisFrame || kb.backspaceKey.wasPressedThisFrame;
                 c.start = kb.enterKey.wasPressedThisFrame;
             }
             else
@@ -67,6 +75,10 @@ namespace Wreckabulary
                 c.spellUp = !c.spellHeld && (kb.rightShiftKey.wasReleasedThisFrame || kb.numpad3Key.wasReleasedThisFrame);
                 c.up = kb.upArrowKey.wasPressedThisFrame;
                 c.down = kb.downArrowKey.wasPressedThisFrame;
+                c.left = kb.leftArrowKey.wasPressedThisFrame;
+                c.right = kb.rightArrowKey.wasPressedThisFrame;
+                c.confirm = c.grab;
+                c.back = c.attack;
                 c.start = kb.numpadEnterKey.wasPressedThisFrame;
             }
             if (c.move.sqrMagnitude > 1f) c.move.Normalize();
@@ -87,13 +99,17 @@ namespace Wreckabulary
             var kb = Keyboard.current;
             return kb != null && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame);
         }
+
+        public override string SpellHelp => side == Side.Left
+            ? "A/D choose  •  SPACE add  •  J undo  •  S drop  •  K cast"
+            : "LEFT/RIGHT choose  •  . add  •  / undo  •  DOWN drop  •  R-SHIFT cast";
     }
 
     /// <summary>Left stick move, A or RT grab, X attack, hold Y to spell (stick or d-pad up/down to choose).</summary>
     public class GamepadBinding : InputBinding
     {
         public readonly Gamepad Pad;
-        float lastStickY;
+        float lastStickX, lastStickY;
 
         public GamepadBinding(Gamepad pad) => Pad = pad;
 
@@ -113,9 +129,14 @@ namespace Wreckabulary
             c.spellUp = Pad.buttonNorth.wasReleasedThisFrame;
 
             // A flick of the stick counts as one step through the word wheel.
-            float y = stick.y;
+            float x = stick.x, y = stick.y;
             c.up = Pad.dpad.up.wasPressedThisFrame || (y > 0.6f && lastStickY <= 0.6f);
             c.down = Pad.dpad.down.wasPressedThisFrame || (y < -0.6f && lastStickY >= -0.6f);
+            c.left = Pad.dpad.left.wasPressedThisFrame || (x < -0.6f && lastStickX >= -0.6f);
+            c.right = Pad.dpad.right.wasPressedThisFrame || (x > 0.6f && lastStickX <= 0.6f);
+            c.confirm = Pad.buttonSouth.wasPressedThisFrame;
+            c.back = Pad.buttonEast.wasPressedThisFrame;
+            lastStickX = x;
             lastStickY = y;
             c.start = Pad.startButton.wasPressedThisFrame;
         }
@@ -124,6 +145,8 @@ namespace Wreckabulary
             Pad.added && (Pad.buttonSouth.wasPressedThisFrame || Pad.buttonWest.wasPressedThisFrame || Pad.startButton.wasPressedThisFrame);
 
         public override bool StartPressed() => Pad.added && Pad.startButton.wasPressedThisFrame;
+
+        public override string SpellHelp => "left/right choose  •  (A) add  •  (B) undo  •  down drop  •  (Y) cast";
     }
 
     /// <summary>Input driven by code, for tests and bots. Edge flags clear after each read.</summary>
@@ -139,9 +162,11 @@ namespace Wreckabulary
         {
             c = Next;
             Next.grab = Next.attack = Next.spellDown = Next.spellUp = Next.up = Next.down = Next.start = false;
+            Next.left = Next.right = Next.confirm = Next.back = false;
         }
 
         public override bool JoinPressed() => false;
         public override bool StartPressed() => false;
+        public override string SpellHelp => "";
     }
 }

@@ -68,6 +68,18 @@ namespace Wreckabulary
             return true;
         }
 
+        /// <summary>Puts one letter down on the floor in front, to make room for a better one.</summary>
+        public bool DropAt(int index, Vector3 from, Vector3 facing)
+        {
+            if (index < 0 || index >= letters.Count) return false;
+            char c = letters[index];
+            letters.RemoveAt(index);
+            var pool = TilePool.Instance;
+            if (pool) pool.Get(c).Launch(from + facing * 0.7f + Vector3.up * 0.6f, facing * 1.5f + Vector3.up * 1.5f, this);
+            Changed?.Invoke();
+            return true;
+        }
+
         /// <summary>Knocks random letters loose into the world.</summary>
         public void DropRandom(int count, Vector3 from, Vector3 hitDirection)
         {

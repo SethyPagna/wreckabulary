@@ -43,6 +43,8 @@ namespace Wreckabulary
         public bool Frozen { get; set; }
         public bool Grounded { get; private set; }
         public float MoveScale { get; set; } = 1f;
+        /// <summary>Slowdown from carrying something heavy.</summary>
+        public float CarryScale { get; set; } = 1f;
         public bool IsStaggered => Time.time < staggerUntil;
         public bool CanAct => !Frozen && !IsKnockedOut && !IsHeld && !IsStaggered;
         public Vector3 OverheadPosition => transform.position + Vector3.up * 2.1f;
@@ -50,7 +52,6 @@ namespace Wreckabulary
         float staggerUntil, boostUntil, boost = 1f, slipperyUntil, floatyUntil, autoWalkUntil;
         Vector3 autoWalk;
         Collider[] colliders;
-        Transform homeParent;
 
         // Visual wobble state
         Vector3 lean, leanVel;
@@ -120,7 +121,7 @@ namespace Wreckabulary
             var input = Time.time < autoWalkUntil ? autoWalk
                       : Frozen ? Vector3.zero
                       : new Vector3(Commands.move.x, 0f, Commands.move.y);
-            float speed = moveSpeed * MoveScale * (Time.time < boostUntil ? boost : 1f);
+            float speed = moveSpeed * MoveScale * CarryScale * (Time.time < boostUntil ? boost : 1f);
             float accel = acceleration
                         * (IsStaggered ? 0.1f : 1f)
                         * (Time.time < slipperyUntil ? 0.1f : 1f)
@@ -189,28 +190,17 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>Picked up (or put down) by another player.</summary>
-        public void SetHeld(bool held, Transform at = null)
+        /// <summary>Picked up (or put down) by another player, who moves this body while carrying it.</summary>
+        public void SetHeld(bool held)
         {
             if (held == IsHeld) return;
             IsHeld = held;
             Body.isKinematic = held;
             foreach (var c in colliders) c.enabled = !held;
-            if (held)
+            if (!held && !IsKnockedOut)
             {
-                homeParent = transform.parent;
-                transform.SetParent(at, false);
-                transform.localPosition = Vector3.down * 0.3f;
-                transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
-            }
-            else
-            {
-                transform.SetParent(homeParent, true);
-                if (!IsKnockedOut)
-                {
-                    transform.rotation = Quaternion.identity;
-                    Body.rotation = Quaternion.identity;
-                }
+                transform.rotation = Quaternion.identity;
+                Body.rotation = Quaternion.identity;
             }
         }
 
@@ -270,6 +260,12 @@ namespace Wreckabulary
             var restL = holding ? new Vector3(-0.28f, 0.95f, 0.45f) : handLRest;
             var restR = holding ? new Vector3(0.28f, 0.95f, 0.45f) : handRRest;
             float swing = Mathf.Sin(walkCycle) * 0.14f * speed01;
+            if (Combat && Combat.TryGetGrips(out var gripL, out var gripR))
+            {
+                handL.position = gripL;
+                handR.position = gripR;
+                return;
+            }
             handL.localPosition = restL + Vector3.forward * (swing + (!punchRight ? jab : 0f)) + (!punchRight ? Vector3.up * jab * 0.4f : Vector3.zero);
             handR.localPosition = restR + Vector3.forward * (-swing + (punchRight ? jab : 0f)) + (punchRight ? Vector3.up * jab * 0.4f : Vector3.zero);
         }

@@ -1,15 +1,17 @@
-using TMPro;
 using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>A physical letter tile that can be picked up, carried and dropped.</summary>
+    /// <summary>A loose 3D letter that can be picked up, carried and dropped. Pooled: the letter changes on reuse.</summary>
     [RequireComponent(typeof(Rigidbody))]
     public class LetterTile : MonoBehaviour
     {
         [SerializeField] char letter = 'A';
-        [SerializeField] TextMeshPro[] labels;
+        [SerializeField] MeshFilter meshFilter;
         [SerializeField] MeshRenderer body;
+        [SerializeField] BoxCollider box;
+        [SerializeField] float height = 0.42f;
+        [SerializeField] float thickness = 0.2f;
 
         public char Letter => letter;
         public LetterRarity Rarity => LetterScores.RarityOf(letter);
@@ -24,7 +26,18 @@ namespace Wreckabulary
         public void SetLetter(char c)
         {
             letter = char.ToUpperInvariant(c);
-            foreach (var label in labels) label.text = letter.ToString();
+            var mesh = GameAssets.I.LetterMesh(letter);
+            if (mesh)
+            {
+                // Uniform scale on the letter face keeps its shape; the mesh sits centred on the tile's origin.
+                var b = mesh.bounds;
+                var scale = new Vector3(height / b.size.y, height / b.size.y, thickness / b.size.z);
+                meshFilter.sharedMesh = mesh;
+                meshFilter.transform.localScale = scale;
+                meshFilter.transform.localPosition = -Vector3.Scale(scale, b.center);
+                box.size = Vector3.Scale(scale, b.size);
+                box.center = Vector3.zero;
+            }
             if (body) body.sharedMaterial = GameAssets.I.TileMaterial(Rarity);
         }
 

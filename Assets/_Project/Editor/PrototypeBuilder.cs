@@ -57,6 +57,9 @@ namespace Wreckabulary.EditorTools
 
             var assets = BuildGameAssets();
             GameAssets.I = assets;
+            Directory.CreateDirectory(Root + "/Art/Letters");
+            assets.letterMeshes = LetterMeshBuilder.BuildAll(assets.font, Root + "/Art/Letters");
+            EditorUtility.SetDirty(assets);
             GameAssets.EditorTintFactory = SaveTint;
             try
             {
@@ -156,25 +159,24 @@ namespace Wreckabulary.EditorTools
         static LetterTile BuildTilePrefab(GameAssets assets)
         {
             var go = new GameObject("LetterTile") { layer = LayerMask.NameToLayer("Tile") };
-            var size = Vector3.one * 0.36f;
             var rb = go.AddComponent<Rigidbody>();
             rb.mass = 0.15f;
             rb.linearDamping = 0.3f;
             rb.angularDamping = 0.5f;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
-            go.AddComponent<BoxCollider>().size = size;
+            var box = go.AddComponent<BoxCollider>();
 
             var mesh = new GameObject("Mesh") { layer = go.layer };
             mesh.transform.SetParent(go.transform, false);
-            mesh.transform.localScale = size;
-            mesh.AddComponent<MeshFilter>().sharedMesh = assets.blockMesh;
+            var filter = mesh.AddComponent<MeshFilter>();
             var renderer = mesh.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = assets.tileCommon;
-            var labels = LetterBlocks.AddLabels(go.transform, "A", size, false);
 
             var tile = go.AddComponent<LetterTile>();
-            Set(tile, "labels", labels);
+            Set(tile, "meshFilter", filter);
             Set(tile, "body", renderer);
+            Set(tile, "box", box);
+            tile.SetLetter('A');
             return Save(go, "LetterTile").GetComponent<LetterTile>();
         }
 
@@ -601,8 +603,8 @@ namespace Wreckabulary.EditorTools
             var root = new GameObject("Furniture").transform;
             Furniture.Create(root, "SOFA", new Vector3(0f, 0f, 4.8f), 0f, new Vector3(1.0f, 0.9f, 1.0f), 0, Hex("C8664B"), 16f, 45f);
             Furniture.Create(root, "TABLE", new Vector3(0f, 0f, 1.4f), 0f, new Vector3(0.62f, 0.45f, 1.0f), 0, Hex("A8744A"), 10f, 30f);
-            Furniture.Create(root, "PLATE", new Vector3(-0.75f, 0.46f, 1.4f), 0f, new Vector3(0.26f, 0.08f, 0.26f), 0, Hex("F3EFE6"), 0.6f, 8f);
-            Furniture.Create(root, "MUG", new Vector3(0.95f, 0.46f, 1.4f), 0f, new Vector3(0.26f, 0.3f, 0.26f), 0, Hex("5E8FC7"), 0.5f, 8f);
+            Furniture.Create(root, "PLATE", new Vector3(-0.5f, 0.53f, 1.4f), 0f, new Vector3(0.26f, 0.08f, 0.26f), 0, Hex("F3EFE6"), 0.6f, 8f);
+            Furniture.Create(root, "MUG", new Vector3(0.55f, 0.53f, 1.4f), 0f, new Vector3(0.26f, 0.3f, 0.26f), 0, Hex("5E8FC7"), 0.5f, 8f);
             Furniture.Create(root, "LAMP", new Vector3(-7.0f, 0f, 5.0f), 0f, Vector3.one * 0.5f, 1, Hex("F2D48A"), 3f, 20f);
             Furniture.Create(root, "VASE", new Vector3(7.0f, 0f, 5.0f), 0f, Vector3.one * 0.45f, 1, Hex("5FA8A0"), 2.5f, 15f);
             Furniture.Create(root, "CHAIR", new Vector3(-4.2f, 0f, 1.3f), 25f, Vector3.one * 0.5f, 3, Hex("B5835A"), 5f, 25f);
