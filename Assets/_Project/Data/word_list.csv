@@ -20,3 +20,20 @@ MAGNET,Chaos,false,pulls loose letters
 DUCK,Chaos,false,decoy
 QUAKE,Chaos,true,legendary: shakes the whole room
 ZAP,Chaos,true,legendary: stuns nearby players
+BED,Furniture,false,headboard B, mattress E, footboard D
+SOFA,Furniture,false,good cover, heavy to throw
+TABLE,Furniture,false,
+DESK,Furniture,false,
+LAMP,Furniture,false,
+CHAIR,Furniture,false,light enough to throw
+RUG,Furniture,false,
+TV,Furniture,false,
+PLANT,Furniture,false,
+CLOCK,Furniture,false,
+VASE,Furniture,false,
+MUG,Furniture,false,tiny throwable
+BOOKS,Furniture,false,
+PLATE,Furniture,false,
+PILLOW,Furniture,false,
+RADIO,Furniture,false,
+BOX,Furniture,false,

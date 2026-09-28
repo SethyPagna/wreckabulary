@@ -158,7 +158,7 @@ namespace Wreckabulary
             if (word.Length == 0) return false;
             if (entry != null) return Summon(entry);
 
-            Popup.Show($"{word}?", controller.OverheadPosition + Vector3.up * 0.6f, new Color(1f, 1f, 1f, 0.8f), 3.5f);
+            Popup.Show($"{word}? not a word", controller.OverheadPosition + Vector3.up * 0.6f, new Color(1f, 1f, 1f, 0.8f), 3.5f);
             Fizzled?.Invoke(word);
             return false;
         }

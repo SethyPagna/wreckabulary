@@ -77,6 +77,12 @@ namespace Wreckabulary
                 for (int i = 0; i < s.Hints.Count; i++) sb.Append(i > 0 ? "   " : "").Append(s.Hints[i].word);
                 sb.Append("</color></size>\n");
             }
+            else if (s.Match == null)
+            {
+                sb.Append("<size=70%><color=#FF9A7A>")
+                  .Append(s.Spelled.Length == 0 ? "no words from these letters yet" : "no word starts like that")
+                  .Append("</color></size>\n");
+            }
 
             string spelled = s.Spelled;
             sb.Append("<size=150%>");

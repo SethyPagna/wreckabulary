@@ -72,7 +72,7 @@ The typewriter prints endless letters to build and decorate your house. Hit **Pl
 
 ## Words
 
-About 40 curated words in four categories: Weapon, Defence, Movement, Chaos. Longer words and rare letters (Q, Z, X, J) are stronger. Hidden words never appear as hints. Full list: `Assets/_Project/Data/word_list.csv`. What each word does is in `SummonEffects.cs`.
+Curated words in five categories: Weapon, Defence, Movement, Chaos, and Furniture (object words such as BED, SOFA and TABLE, which build the object). Longer words and rare letters (Q, Z, X, J) are stronger. Hidden words never appear as hints. Full list: `Assets/_Project/Data/word_list.csv`. What each word does is in `SummonEffects.cs`.
 
 Note: UMBRELLA has 8 letters but players carry at most 6, so it can never be spelled. Either raise the carry limit or swap it for a shorter word.
 

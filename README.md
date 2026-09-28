@@ -70,7 +70,8 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 - Objects are built Word World-style from 3D copies of their own letters: the SOFA has S and A armrests, an O backrest and an F cushion, and the BED is a B headboard, a flat E mattress and a D footboard. Loose letters are 3D letters too.
 - Grab anything. Light things are carried in front with both hands, and heavy things (and roommates) are lifted overhead. Heavy loads slow you down. Grab again to put it down neatly in front of you (on the floor, or on top of whatever is there), or punch to throw it.
 - Hands full of letters? While spelling, drop the highlighted letter to make room for a better one.
-- All 20 words in `word_list.csv` do something: weapons, WALL, SHIELD, ARMOR, WINGS, SPRING, SKATES, ROPE, BEES, FLOOD, MAGNET, DUCK, QUAKE, ZAP.
+- Action words do something: weapons (AXE, BAT, BLADE, SWORD, SPEAR, BOW, CANNON), WALL, SHIELD, ARMOR, WINGS, SPRING, SKATES, ROPE, BEES, FLOOD, MAGNET, DUCK, QUAKE, ZAP.
+- Object words build the object in front of you, letter-shaped: BED, SOFA, TABLE, DESK, LAMP, CHAIR, RUG, TV, PLANT, CLOCK, VASE, MUG, BOOKS, PLATE, PILLOW, RADIO, BOX. Smash a TABLE and you can spell it right back, or build a SOFA to hide behind (or throw).
 - Summons fall apart back into their letters when they're used up, so they can be grabbed and re-spelled.
 - A hit knocks 2 letters loose. A hit with no letters is a knockout.
 - Delivery boxes drop in when the room runs low on letters. After 90 seconds the room collapses and boxes rain down.
