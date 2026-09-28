@@ -63,7 +63,7 @@ namespace Wreckabulary
 
             if (!controller.CanAct || (controller.Summoner && (controller.Summoner.IsSpelling || controller.Summoner.JustClosed))) return;
             var c = controller.Commands;
-            if (c.grab) GrabOrThrow();
+            if (c.grab) GrabOrPutDown();
             if (c.attack) Attack();
         }
 
@@ -115,10 +115,65 @@ namespace Wreckabulary
 
         // ---- Grabbing ----
 
-        void GrabOrThrow()
+        /// <summary>Grab picks things up and puts them down; attack throws them.</summary>
+        void GrabOrPutDown()
         {
-            if (held) Throw();
+            if (held) PutDown();
             else TryGrab();
+        }
+
+        /// <summary>
+        /// Sets the held thing down gently in front: on the floor, or on top of whatever is there.
+        /// It comes closer if a wall is in the way, and keeps facing outwards.
+        /// </summary>
+        public void PutDown()
+        {
+            if (!held) return;
+            var facing = controller.Facing;
+            var feet = controller.Body.position;
+
+            if (heldPlayer)
+            {
+                var friend = heldPlayer;
+                var spot = ClearSpot(feet, facing, 0.9f, 0.45f);
+                Release(Vector3.zero);
+                friend.transform.position = spot;
+                friend.Body.position = spot;
+                friend.Body.linearVelocity = Vector3.zero;
+                return;
+            }
+            if (weapon)
+            {
+                Release(Vector3.zero);
+                return;
+            }
+
+            var rb = held;
+            var rot = CarryRotation;
+            float halfDepth = carrySize.z * 0.5f;
+            var at = ClearSpot(feet, facing, 0.5f + halfDepth, halfDepth);
+            float floor = feet.y;
+            if (Physics.Raycast(at + Vector3.up * 3f, Vector3.down, out var hit, 6f, World.GroundMask, QueryTriggerInteraction.Ignore))
+                floor = hit.point.y;
+            var centre = new Vector3(at.x, floor + carrySize.y * 0.5f + 0.02f, at.z);
+            var pos = centre - rot * pivotToCentre;
+
+            Release(Vector3.zero);
+            rb.transform.SetPositionAndRotation(pos, rot);
+            rb.position = pos;
+            rb.rotation = rot;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        /// <summary>A point <paramref name="distance"/> in front, pulled back if a wall or furniture is closer.</summary>
+        Vector3 ClearSpot(Vector3 feet, Vector3 facing, float distance, float halfDepth)
+        {
+            var origin = feet + Vector3.up * 0.5f;
+            if (Physics.Raycast(origin, facing, out var hit, distance + halfDepth, World.GroundMask, QueryTriggerInteraction.Ignore)
+                && hit.rigidbody == null) // walls only; furniture gets things stacked on top
+                distance = Mathf.Max(0.3f, hit.distance - halfDepth - 0.05f);
+            return feet + facing * distance;
         }
 
         public bool TryGrab()

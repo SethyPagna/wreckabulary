@@ -68,7 +68,8 @@ You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join 
 - Walk over letters to pick them up. You carry up to 6, and you start each round with 3.
 - Press spell and your letters appear over your head. Move the highlight left/right, add letters one at a time (undo if you slip), and press spell again to cast. Hints show which words you could still finish. Non-words fizzle and you keep your letters. You stand still while spelling.
 - Objects are built Word World-style from 3D copies of their own letters: the SOFA has S and A armrests, an O backrest and an F cushion, and the BED is a B headboard, a flat E mattress and a D footboard. Loose letters are 3D letters too.
-- Grab anything. Light things are carried in front with both hands, and heavy things (and roommates) are lifted overhead. Heavy loads slow you down.
+- Grab anything. Light things are carried in front with both hands, and heavy things (and roommates) are lifted overhead. Heavy loads slow you down. Grab again to put it down neatly in front of you (on the floor, or on top of whatever is there), or punch to throw it.
+- Hands full of letters? While spelling, drop the highlighted letter to make room for a better one.
 - All 20 words in `word_list.csv` do something: weapons, WALL, SHIELD, ARMOR, WINGS, SPRING, SKATES, ROPE, BEES, FLOOD, MAGNET, DUCK, QUAKE, ZAP.
 - Summons fall apart back into their letters when they're used up, so they can be grabbed and re-spelled.
 - A hit knocks 2 letters loose. A hit with no letters is a knockout.
@@ -82,12 +83,13 @@ Everything is placeholder art built from blocks. Not in yet: audio, character cu
 |---|---|---|---|
 | Join | A / X / Start | Space or J | `.` or `/` |
 | Move | Left stick / d-pad | WASD | Arrow keys |
-| Grab, throw | A or RT | Space | `.` or Numpad 1 |
-| Attack, use weapon | X | J | `/` or Numpad 2 |
+| Grab / put down | A or RT | Space | `.` or Numpad 1 |
+| Punch, use weapon, throw what you hold | X | J | `/` or Numpad 2 |
 | Start spelling / cast | Y | K | Right Shift or Numpad 3 |
 | Choose a letter (while spelling) | Stick or d-pad left/right | A / D | Left / Right |
 | Add the letter (while spelling) | A | Space | `.` |
 | Undo a letter, or stop spelling if empty | B | J or Backspace | `/` |
+| Drop the highlighted letter (while spelling) | Stick or d-pad down | S | Down |
 | Use typewriter | A / RT (grab) | Space | `.` |
 | Start match (Dibs! lobby) | Start | Enter | Numpad Enter |
 | Back to the house | Select / View | Esc | Esc |

@@ -69,6 +69,7 @@ namespace Wreckabulary
             if (c.right) Move(1);
             if (c.confirm) Add();
             if (c.back) Undo();
+            if (c.down) DropHighlighted();
             if (c.spellDown) Cast();
         }
 
@@ -121,6 +122,21 @@ namespace Wreckabulary
             pickedLetters.Add(inventory.Letters[Cursor]);
             MoveToFree(Cursor, 1);
             Refresh();
+        }
+
+        /// <summary>Drops the highlighted letter on the floor to make room. The word being spelled is kept.</summary>
+        public bool DropHighlighted()
+        {
+            int i = Cursor;
+            if (i < 0 || i >= inventory.Count) return false;
+            // Letters after the dropped one shift down a slot.
+            for (int k = 0; k < picked.Count; k++)
+                if (picked[k] > i) picked[k]--;
+            inventory.DropAt(i, transform.position, controller.Facing);
+            Cursor = -1;
+            if (inventory.Count > 0) MoveToFree(Mathf.Min(i, inventory.Count - 1), 1);
+            Refresh();
+            return true;
         }
 
         /// <summary>Takes back the last letter, or stops spelling if the word is empty.</summary>

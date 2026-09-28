@@ -101,8 +101,8 @@ namespace Wreckabulary
         }
 
         public override string SpellHelp => side == Side.Left
-            ? "A/D choose  •  SPACE add  •  J undo  •  K cast"
-            : "LEFT/RIGHT choose  •  . add  •  / undo  •  R-SHIFT cast";
+            ? "A/D choose  •  SPACE add  •  J undo  •  S drop  •  K cast"
+            : "LEFT/RIGHT choose  •  . add  •  / undo  •  DOWN drop  •  R-SHIFT cast";
     }
 
     /// <summary>Left stick move, A or RT grab, X attack, hold Y to spell (stick or d-pad up/down to choose).</summary>
@@ -146,7 +146,7 @@ namespace Wreckabulary
 
         public override bool StartPressed() => Pad.added && Pad.startButton.wasPressedThisFrame;
 
-        public override string SpellHelp => "stick/d-pad choose  •  (A) add  •  (B) undo  •  (Y) cast";
+        public override string SpellHelp => "left/right choose  •  (A) add  •  (B) undo  •  down drop  •  (Y) cast";
     }
 
     /// <summary>Input driven by code, for tests and bots. Edge flags clear after each read.</summary>

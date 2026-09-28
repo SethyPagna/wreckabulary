@@ -47,7 +47,7 @@ namespace Wreckabulary
                 new() { text = "Pick up the letters", hint = "Walk over B, A and T", done = () => batSummoned || joins.Players.Any(p => Has(p, "BAT")) },
                 new() { text = "Spell BAT", hint = "Press spell (K, R-Shift or Y), add B, A, T one at a time, then press spell again", done = () => batSummoned },
                 new() { text = "Whack the dummy", hint = "Attack with your BAT (J, / or X)", enter = EnsureDummy, done = () => dummyHits > 0 },
-                new() { text = "Throw the CHAIR", hint = "Grab it (Space, . or A), then press grab again to throw", enter = EnsureChair, done = () => thrown },
+                new() { text = "Throw the CHAIR", hint = "Grab it (Space, . or A), then punch (J, / or X) to throw it", enter = EnsureChair, done = () => thrown },
                 new()
                 {
                     text = "Knock out the dummy", hint = "Letters are health: knock its letters off, then hit it once more",
