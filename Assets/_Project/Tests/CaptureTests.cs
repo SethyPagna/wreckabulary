@@ -250,6 +250,66 @@ namespace Wreckabulary.Tests
             Session.Clear();
         }
 
+        [UnityTest]
+        public IEnumerator CaptureOutfits()
+        {
+            string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
+            if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
+            Directory.CreateDirectory(dir);
+#if UNITY_EDITOR
+            UnityEditor.EditorSettings.asyncShaderCompilation = false;
+#endif
+            // One roommate alone in the garden, trying on every hat and every extra.
+            Session.Clear();
+            yield return SceneManager.LoadSceneAsync(Session.GardenScene);
+            yield return null;
+            foreach (var f in UnityEngine.Object.FindObjectsByType<Smashable>()) UnityEngine.Object.Destroy(f.gameObject);
+            foreach (var r in UnityEngine.Object.FindObjectsByType<RoundManager>()) r.enabled = false;
+            foreach (var d in UnityEngine.Object.FindObjectsByType<DeliverySpawner>()) d.Running = false;
+            var p = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>().Join(new ScriptedBinding());
+            yield return new WaitForSeconds(0.5f);
+            p.Respawn(new Vector3(0f, 0f, 1f));
+            p.FaceTowards(Vector3.back);
+            p.Frozen = true;
+            yield return new WaitForSeconds(1.5f);
+
+            var outfits = Looks.Hats.Select((_, h) => (hat: h, extra: 0)).Skip(1)
+                .Concat(Looks.Extras.Select((_, e) => (hat: 0, extra: e)).Skip(1)).ToList();
+            const int tile = 256;
+            var views = new[] { new Vector3(0f, 0.3f, -2.3f), new Vector3(1.5f, 1.1f, -1.5f), new Vector3(-1.4f, 0.7f, 1.7f) };
+            var sheet = new Texture2D(tile * outfits.Count, tile * views.Length, TextureFormat.RGB24, false);
+            var cam = new GameObject("Outfit Camera").AddComponent<Camera>();
+            cam.fieldOfView = 35f;
+            var rt = new RenderTexture(tile, tile, 24);
+
+            for (int i = 0; i < outfits.Count; i++)
+            {
+                Looks.Apply(p, new PlayerLook { colour = i % Looks.Colours.Length, initial = 'W', hat = outfits[i].hat, extra = outfits[i].extra });
+                yield return new WaitForSeconds(0.2f);
+                var target = p.visual.position + Vector3.up * 0.85f;
+                for (int v = 0; v < views.Length; v++)
+                {
+                    cam.transform.position = target + views[v];
+                    cam.transform.LookAt(target);
+                    var req = new UniversalRenderPipeline.SingleCameraRequest { destination = rt };
+                    RenderPipeline.SubmitRenderRequest(cam, req);
+                    var prev = RenderTexture.active;
+                    RenderTexture.active = rt;
+                    sheet.ReadPixels(new Rect(0, 0, tile, tile), i * tile, (views.Length - 1 - v) * tile);
+                    RenderTexture.active = prev;
+                }
+            }
+            sheet.Apply();
+            File.WriteAllBytes(Path.Combine(dir, "outfits.png"), sheet.EncodeToPNG());
+            UnityEngine.Object.Destroy(sheet);
+            UnityEngine.Object.Destroy(cam.gameObject);
+            rt.Release();
+#if UNITY_EDITOR
+            UnityEditor.EditorSettings.asyncShaderCompilation = true;
+#endif
+            Session.Clear();
+        }
+
         [Test]
         public void ExportSounds()
         {
