@@ -2,8 +2,6 @@
 
 **Wreck the room, build the word!**
 
-![Key art](docs/art/key_art.jpg)
-
 Wreckabulary is a 2–4 player couch party game for COMP4122 where everything is made of letters. Smash furniture into letter tiles, grab them, and spell them into new things. Everything you summon can be smashed and re-spelled too.
 
 | | |
