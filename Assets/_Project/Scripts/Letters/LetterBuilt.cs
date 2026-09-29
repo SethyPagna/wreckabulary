@@ -74,6 +74,36 @@ namespace Wreckabulary
             t.localPosition = p.centre - rot * Vector3.Scale(scale, b.center);
         }
 
+        /// <summary>
+        /// Creates an object from letters bent round its parent (see <see cref="LetterBend"/>), such as a scarf
+        /// round a roommate's neck. Neighbouring letters alternate shades like everything else.
+        /// </summary>
+        public static LetterBuilt Wrapped(string word, Color color, Transform parent, IEnumerable<(int index, LetterBend.Wrap wrap)> letters)
+        {
+            var go = new GameObject(word);
+            go.transform.SetParent(parent, false);
+            var built = go.AddComponent<LetterBuilt>();
+            built.word = word;
+            built.color = color;
+            built.colliders = false;
+
+            var light = GameAssets.I.Tinted(color);
+            var dark = GameAssets.I.Tinted(Color.Lerp(color, Color.black, 0.18f));
+            var slots = new Transform[word.Length];
+            foreach (var (i, wrap) in letters)
+            {
+                var mesh = LetterBend.Bent(word[i], wrap);
+                if (!mesh) continue;
+                var letter = new GameObject($"Letter_{word[i]}") { layer = go.layer };
+                letter.transform.SetParent(go.transform, false);
+                letter.AddComponent<MeshFilter>().sharedMesh = mesh;
+                letter.AddComponent<MeshRenderer>().sharedMaterial = i % 2 == 0 ? light : dark;
+                slots[i] = letter.transform;
+            }
+            built.blocks.AddRange(slots);
+            return built;
+        }
+
         /// <summary>Creates and builds a new letter-built object.</summary>
         public static LetterBuilt Spawn(string word, Vector3 blockSize, int perRow, Color color, Transform parent, bool colliders = true)
         {
