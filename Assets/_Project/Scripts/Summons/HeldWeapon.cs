@@ -7,6 +7,7 @@ namespace Wreckabulary
     /// <summary>
     /// A summoned weapon held in the hand. Each attack uses it up a little; when it runs out
     /// it falls apart into its letters. Dropped weapons can be grabbed and used by anyone.
+    /// A shield (PLATE) isn't swung: it's raised with block, and blocked damage wears it down.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public class HeldWeapon : MonoBehaviour
@@ -34,8 +35,39 @@ namespace Wreckabulary
 
         MeleeStats stats;
         bool fromCatalogue;
+        ItemDefinition item;
+        bool lookedUp;
+        float durabilityLeft = -1f;
 
-        public Quaternion HoldRotation => Quaternion.Euler(ranged ? 90f : 65f, 0f, 0f);
+        /// <summary>This word's items.json entry, or null for summon-only words (SWORD, CANNON, …).</summary>
+        ItemDefinition Item
+        {
+            get
+            {
+                if (!lookedUp)
+                {
+                    lookedUp = true;
+                    GameConfig.Current.Items.TryGet(word, out item);
+                }
+                return item;
+            }
+        }
+
+        /// <summary>The block a raised shield gives (items.json), or null for things that can't block.</summary>
+        public ShieldStats Shield => Item?.Shield;
+
+        /// <summary>A shield rides at the side, edge on; weapons point forward and up.</summary>
+        public Quaternion HoldRotation => Shield != null ? Quaternion.Euler(0f, 80f, 0f) : Quaternion.Euler(ranged ? 90f : 65f, 0f, 0f);
+
+        /// <summary>Durability left: items.json's for catalogue items, 1 for summon-only words.</summary>
+        public float DurabilityLeft
+        {
+            get
+            {
+                if (durabilityLeft < 0f) durabilityLeft = Item != null && Item.Durability > 0 ? Item.Durability : 1f;
+                return durabilityLeft;
+            }
+        }
 
         /// <summary>
         /// What a swing does. Catalogue weapons (BAT, BLADE) use items.json; other summoned
@@ -46,10 +78,10 @@ namespace Wreckabulary
             get
             {
                 if (stats != null) return stats;
-                if (GameConfig.Current.Items.TryGet(word, out var item) && item.Melee != null)
+                if (Item != null && Item.Melee != null)
                 {
                     fromCatalogue = true;
-                    return stats = item.Melee;
+                    return stats = Item.Melee;
                 }
                 return stats = new MeleeStats
                 {
@@ -94,7 +126,23 @@ namespace Wreckabulary
             }
 
             if (--uses > 0) return;
-            user.ForgetHeld();
+            Break(user);
+        }
+
+        /// <summary>Blocked damage wears a shield down. Returns true if that wore it through and it fell apart.</summary>
+        public bool Wear(float amount, PlayerCombat user)
+        {
+            durabilityLeft = DurabilityLeft - amount;
+            if (durabilityLeft > 0f) return false;
+            Popup.Show("CRACK!", transform.position + Vector3.up * 0.6f, Color.white, 3f);
+            Break(user);
+            return true;
+        }
+
+        /// <summary>Falls apart into its letters, out of the holder's hand.</summary>
+        public void Break(PlayerCombat user)
+        {
+            if (user) user.ForgetHeld();
             transform.SetParent(World.Transient, true);
             var pool = TilePool.Instance;
             if (pool)
@@ -105,6 +153,10 @@ namespace Wreckabulary
             }
             Destroy(gameObject);
         }
+
+        /// <summary>A raised shield turns flat-on to the front; lowered, it goes back to the side.</summary>
+        public void ShowRaised(bool raised) =>
+            transform.localRotation = raised ? Quaternion.identity : HoldRotation;
 
         IEnumerator Swing()
         {

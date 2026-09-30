@@ -160,7 +160,7 @@ namespace Wreckabulary
 
             hud.SetTimer(Current == State.Playing || Current == State.Countdown ? FormatTime(TimeLeft) : "");
             hud.SetChecklist(ChecklistText());
-            hud.SetInstruction(joins.Players.Count == 0 ? "Press SPACE, . or A to join" : "Smash boxes, spell the checklist, put everything in the right room",
+            hud.SetInstruction(joins.Players.Count == 0 ? ControlHints.Join("join") : "Smash boxes, spell the checklist, put everything in the right room",
                                "Hold spell to build furniture  •  grab to carry  •  Esc: back to the house");
             hud.SetScoreboard(joins.Players, _ => 0, 0, false);
         }

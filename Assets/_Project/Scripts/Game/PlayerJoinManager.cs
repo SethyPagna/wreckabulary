@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 namespace Wreckabulary
 {
     /// <summary>
-    /// Drop-in join: press a button on any keyboard half or gamepad to spawn a roommate.
+    /// Drop-in join: press a button on keyboard and mouse, either keyboard half or any gamepad to spawn a roommate.
     /// Roommates who joined in an earlier scene (see <see cref="Session"/>) are brought back automatically.
     /// </summary>
     public class PlayerJoinManager : MonoBehaviour
@@ -56,7 +56,9 @@ namespace Wreckabulary
         {
             if (!AllowJoining || players.Count >= maxPlayers) return;
 
-            TryJoin(keyboardLeft);
+            // Keyboard and mouse and the left keyboard half both use WASD, so only one of them can play.
+            if (!HasJoined(keyboardLeft.Id)) TryJoin(DesktopBinding.Shared);
+            if (!HasJoined(DesktopBinding.Shared.Id)) TryJoin(keyboardLeft);
             TryJoin(keyboardRight);
             foreach (var pad in Gamepad.all)
                 if (players.All(p => p.Binding is not GamepadBinding g || g.Pad != pad))
@@ -68,10 +70,12 @@ namespace Wreckabulary
 
         void TryJoin(InputBinding binding)
         {
-            // Compare by id: bindings restored from the session are different objects for the same keys.
-            if (players.Any(p => p.Binding.Id == binding.Id)) return;
+            if (HasJoined(binding.Id)) return;
             if (binding.JoinPressed()) Join(binding);
         }
+
+        // Compare by id: bindings restored from the session are different objects for the same keys.
+        bool HasJoined(string bindingId) => players.Any(p => p.Binding.Id == bindingId);
 
         public PlayerController Join(InputBinding binding) => Join(binding, arriving: true);
 

@@ -8,8 +8,9 @@ SPEAR,Weapon,false,anagram of PEARS
 CANNON,Weapon,false,heavy and slow
 WALL,Defence,false,blocks a doorway
 SHIELD,Defence,false,
-ARMOR,Defence,false,absorbs one hit
+ARMOR,Defence,false,soaks the next 35 damage
 UMBRELLA,Defence,true,long and powerful
+PLATE,Defence,false,hold block to stop hits from the front
 WINGS,Movement,false,short glide
 SPRING,Movement,false,big jump
 SKATES,Movement,false,speed boost

@@ -4,7 +4,7 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Punching, grabbing, carrying and throwing, plus using summoned weapons.</summary>
+    /// <summary>Punching, grabbing, carrying and throwing, using summoned weapons, blocking with a PLATE and reviving teammates.</summary>
     [RequireComponent(typeof(PlayerController))]
     public class PlayerCombat : MonoBehaviour
     {
@@ -27,6 +27,9 @@ namespace Wreckabulary
         HeldWeapon weapon;
         Transform heldHomeParent;
         float heldSince;
+        /// <summary>When block went down with a shield in hand; the shield is up once its raise time has passed.</summary>
+        float raiseStartedAt = -1f;
+        PlayerController reviving;
         static readonly Collider[] Overlaps = new Collider[48];
         readonly HashSet<Rigidbody> struck = new();
 
@@ -39,14 +42,28 @@ namespace Wreckabulary
         public bool IsHolding => held;
         public Rigidbody Held => held;
         public HeldWeapon Weapon => held ? weapon : null;
+        /// <summary>A PLATE is up: hits from the front are blocked.</summary>
+        public bool IsBlocking => controller.Health.RaisedShield != null;
+        public bool IsReviving => reviving;
+        /// <summary>The downed teammate being revived, or null.</summary>
+        public PlayerController Reviving => reviving;
 
         void Awake() => controller = GetComponent<PlayerController>();
 
         void Start()
         {
-            // A staggering hit knocks a carried thing out of the hands; weapons are gripped tighter.
-            controller.Health.Damaged += (_, _, r) => { if (r.HitStun > 0f && held && !weapon) Drop(); };
-            controller.Health.KnockedOut += _ => Drop();
+            var health = controller.Health;
+            health.Damaged += (_, _, r) =>
+            {
+                if (r.Blocked) WearShield(r.BlockedDamage);
+                // A staggering hit knocks a carried thing out of the hands; weapons are gripped tighter.
+                if (r.HitStun > 0f && held && !weapon) Drop();
+            };
+            health.KnockedOut += _ =>
+            {
+                StopReviving();
+                Drop();
+            };
         }
 
         void Update()
@@ -54,10 +71,94 @@ namespace Wreckabulary
             if (held == null && (heldPlayer || weapon)) ClearHeld();
             if (heldPlayer && Time.time - heldSince > struggleTime) Drop();
 
-            if (!controller.CanAct || (controller.Summoner && controller.Summoner.IsSpelling)) return;
             var c = controller.Commands;
+            bool free = controller.CanAct && !controller.IsDodging && !(controller.Summoner && controller.Summoner.IsSpelling);
+            UpdateRevive(free && c.grabHeld);
+            UpdateBlock(free && c.blockHeld && !reviving);
+            if (!free || reviving) return;
+
+            if (c.drop) Drop();
             if (c.grab) GrabOrThrow();
-            if (c.attack) Attack();
+            // No swinging from behind a raised (or rising) shield.
+            if (c.attack && raiseStartedAt < 0f) Attack();
+        }
+
+        // ---- Blocking ----
+
+        void UpdateBlock(bool wanted)
+        {
+            var shield = wanted && Weapon ? Weapon.Shield : null;
+            if (shield == null)
+            {
+                if (IsBlocking && Weapon) Weapon.ShowRaised(false);
+                raiseStartedAt = -1f;
+                controller.Health.RaisedShield = null;
+                return;
+            }
+            if (raiseStartedAt < 0f) raiseStartedAt = Time.time;
+            bool up = Time.time - raiseStartedAt >= shield.RaiseSeconds;
+            if (up != IsBlocking) Weapon.ShowRaised(up);
+            controller.Health.RaisedShield = up ? shield : null;
+        }
+
+        /// <summary>Blocked damage wears the PLATE down. Worn through, it falls apart and the block drops with it (see <see cref="ClearHeld"/>).</summary>
+        void WearShield(float blocked)
+        {
+            if (Weapon && Weapon.Shield != null) Weapon.Wear(blocked, this);
+        }
+
+        // ---- Reviving ----
+
+        /// <summary>The nearest downed teammate within the rules' revive range, or null.</summary>
+        public PlayerController DownedTeammateNearby()
+        {
+            float range = controller.Health.Rules.ReviveRange;
+            float bestSq = range * range;
+            PlayerController best = null;
+            foreach (var p in World.Players)
+            {
+                if (p == controller || !p.IsDowned || p.IsHeld || !Teams.AreTeammates(p.Team, controller.Team)) continue;
+                float d = World.Flat(p.transform.position - transform.position).sqrMagnitude;
+                if (d > bestSq) continue;
+                bestSq = d;
+                best = p;
+            }
+            return best;
+        }
+
+        /// <summary>Starts reviving the nearest downed teammate. Grab has to stay held until it finishes.</summary>
+        public bool TryRevive()
+        {
+            var target = DownedTeammateNearby();
+            if (!target || !target.Health.BeginRevive(controller)) return false;
+            reviving = target;
+            controller.FaceTowards(target.transform.position - transform.position);
+            return true;
+        }
+
+        void UpdateRevive(bool keepGoing)
+        {
+            if (!reviving)
+            {
+                reviving = null;
+                return;
+            }
+            // A little slack, so the teammate's crawl doesn't break it off at the edge of reach.
+            float range = controller.Health.Rules.ReviveRange + 0.3f;
+            var to = World.Flat(reviving.transform.position - transform.position);
+            if (!keepGoing || !reviving.IsDowned || reviving.IsHeld || to.sqrMagnitude > range * range)
+            {
+                StopReviving();
+                return;
+            }
+            controller.FaceTowards(to);
+            if (reviving.Health.TryFinishRevive(controller)) reviving = null;
+        }
+
+        void StopReviving()
+        {
+            if (reviving) reviving.Health.CancelRevive(controller);
+            reviving = null;
         }
 
         // ---- Attacking ----
@@ -65,14 +166,15 @@ namespace Wreckabulary
         public void Attack()
         {
             if (Time.time < nextAttack) return;
-            if (Weapon)
+            if (Weapon && Weapon.Shield == null)
             {
                 nextAttack = Time.time + Weapon.Cooldown;
                 controller.PlayPunch();
                 Weapon.Use(this);
                 return;
             }
-            if (held) { Throw(); return; }
+            // Carried things are thrown; with a PLATE in one hand, the other still punches.
+            if (held && !Weapon) { Throw(); return; }
 
             var fist = controller.Health.Rules.Unarmed;
             nextAttack = Time.time + fist.Cycle;
@@ -127,10 +229,11 @@ namespace Wreckabulary
 
         // ---- Grabbing ----
 
+        /// <summary>Throws what's held. Empty-handed, a downed teammate in reach comes first, then the nearest thing to pick up.</summary>
         void GrabOrThrow()
         {
             if (held) Throw();
-            else TryGrab();
+            else if (!TryRevive()) TryGrab();
         }
 
         public bool TryGrab()
@@ -226,6 +329,7 @@ namespace Wreckabulary
         /// <summary>Round reset: summoned weapons vanish, everything else is let go.</summary>
         public void ResetForRound()
         {
+            StopReviving();
             if (held && weapon) Destroy(held.gameObject);
             else Drop();
             ClearHeld();
@@ -261,6 +365,9 @@ namespace Wreckabulary
             held = null;
             heldPlayer = null;
             weapon = null;
+            // Whatever was held, it isn't a raised shield any more.
+            raiseStartedAt = -1f;
+            if (controller && controller.Health) controller.Health.RaisedShield = null;
         }
 
         static void SetCollidersEnabled(Rigidbody rb, bool on)

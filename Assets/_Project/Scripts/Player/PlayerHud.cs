@@ -22,7 +22,17 @@ namespace Wreckabulary
             Popup.Billboard(transform);
 
             SetIfChanged(lettersText, LettersLine(), ref lastLetters);
-            SetIfChanged(wheelText, player.Summoner.IsSpelling ? WheelLines() : "", ref lastWheel);
+            SetIfChanged(wheelText, player.Summoner.IsSpelling ? WheelLines() : ContextLine(), ref lastWheel);
+        }
+
+        /// <summary>What grab does right now, when that isn't obvious: reviving a teammate on the floor.</summary>
+        string ContextLine()
+        {
+            var combat = player.Combat;
+            if (combat.IsReviving) return "<color=#7BE07B>REVIVING...</color>";
+            if (player.CanAct && !combat.IsHolding && combat.DownedTeammateNearby())
+                return "<color=#FFD24A>Hold grab to revive</color>";
+            return "";
         }
 
         static void SetIfChanged(TextMeshPro t, string value, ref string last)
@@ -62,15 +72,25 @@ namespace Wreckabulary
             return sb.ToString();
         }
 
-        /// <summary>A bar of ten pips, green to red, and the number. Downed players show their bleed-out time.</summary>
+        /// <summary>
+        /// A bar of ten pips, green to red, and the number. Downed players show their bleed-out time,
+        /// and a filling bar while a teammate revives them.
+        /// </summary>
         void AppendHealth(PlayerHealth health)
         {
+            const int pips = 10;
             if (health.IsDowned)
             {
                 sb.Append("<color=#FF6A4D>DOWN ").Append(Mathf.CeilToInt(health.BleedOutLeft)).Append("s</color>");
+                float revive = health.ReviveProgress;
+                if (revive > 0f)
+                {
+                    int done = Mathf.FloorToInt(revive * pips);
+                    sb.Append(" <color=#7BE07B>").Append('|', done).Append("</color>")
+                      .Append("<color=#FFFFFF33>").Append('|', pips - done).Append("</color>");
+                }
                 return;
             }
-            const int pips = 10;
             float f = health.Fraction;
             int full = Mathf.CeilToInt(f * pips);
             string hex = f > 0.6f ? "7BE07B" : f > 0.3f ? "FFD24A" : "FF6A4D";

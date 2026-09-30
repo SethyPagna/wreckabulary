@@ -39,6 +39,7 @@ namespace Wreckabulary
                 case "WALL": Wall(p); break;
                 case "SHIELD": Shield(p, e.word, 7f); break;
                 case "UMBRELLA": Shield(p, e.word, 12f); break;
+                case "PLATE": Plate(p, e.word); break;
                 case "ARMOR": Armor(p, e.word); break;
 
                 // Movement
@@ -138,6 +139,16 @@ namespace Wreckabulary
             p.Health.FrontBlockUntil = Time.time + seconds;
             var thing = Wearable(p, word, new Vector3(0f, 0.3f, 0.6f), new Vector3(0.24f, 0.24f, 0.08f), 3, Steel, seconds);
             thing.Ended = () => p.Health.FrontBlockUntil = 0f;
+        }
+
+        /// <summary>
+        /// A PLATE in the hand. Hold block to raise it: it stops hits from the front (items.json's arc)
+        /// and slows you while up, and blocked damage wears it down until it cracks apart.
+        /// </summary>
+        static void Plate(PlayerController p, string word)
+        {
+            var w = MakeWeapon(p, word, Steel, 3, 0.2f);
+            w.uses = int.MaxValue; // attacking with it in hand is a punch, so it only wears by blocking
         }
 
         /// <summary>A bubble that soaks the next 35 damage, like FOAM. It lasts 30 s or until used up.</summary>

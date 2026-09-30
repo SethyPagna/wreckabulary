@@ -73,7 +73,7 @@ namespace Wreckabulary
             {
                 case Phase.Lobby:
                     if (Players.Count < 2)
-                        hud.SetTitle("DIBS!", "Press SPACE (keyboard), . (second keyboard player) or A (gamepad) to join");
+                        hud.SetTitle("DIBS!", ControlHints.Join("join"));
                     else
                         hud.SetTitle("DIBS!", $"{Players.Count} roommates in.  Press ENTER or START to begin");
                     hud.SetTimer("");

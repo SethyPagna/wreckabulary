@@ -185,6 +185,12 @@ namespace Wreckabulary
 
         // ---- Reviving (Duos) ----
 
+        /// <summary>How far a teammate's revive has got, from 0 to 1. Zero when nobody is reviving this player.</summary>
+        public float ReviveProgress =>
+            IsDowned && Model.ReviverId >= 0 && Rules.ReviveSeconds > 0f
+                ? Mathf.Clamp01((float)((Now - Model.ReviveStartedAt) / Rules.ReviveSeconds))
+                : 0f;
+
         public bool BeginRevive(PlayerController reviver) =>
             reviver && reviver.Health.IsAlive && Model.BeginRevive(reviver.Index, reviver.Team, Now);
 

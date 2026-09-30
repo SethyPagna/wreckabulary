@@ -18,6 +18,7 @@
   "dodgeInvulnerable": 0.15,
   "dodgeDistance": 4,
   "dodgeCooldown": 1.5,
+  "jumpHeight": 1.1,
   "unarmed": {"damage": 8, "reach": 1.1, "arc": 90, "windup": 0.12, "active": 0.08, "recovery": 0.25, "knockback": 3, "breakPower": 1, "hitStun": 0.15},
   "teamSize": 1,
   "friendlyFire": true,
