@@ -16,6 +16,7 @@ namespace Wreckabulary
         public const string MovingDayScene = "MovingDay";
 
         public static readonly List<InputBinding> Bindings = new();
+        public static string MapId { get; private set; } = "pinwheel";
 
         /// <summary>Best Moving Day stars per level, for this play session.</summary>
         public static readonly Dictionary<int, int> MovingDayStars = new();
@@ -25,6 +26,8 @@ namespace Wreckabulary
         {
             Bindings.Clear();
             MovingDayStars.Clear();
+            MapId = "pinwheel";
+            Match.Reset();
         }
 
         public static void RecordStars(int level, int stars)
@@ -34,6 +37,8 @@ namespace Wreckabulary
 
         public static void Remember(InputBinding binding)
         {
+            // AI seats are local to a match, never roommates carried back into the hub.
+            if (binding is BotBinding) return;
             if (!Bindings.Exists(b => b.Id == binding.Id)) Bindings.Add(binding);
         }
 
@@ -41,6 +46,32 @@ namespace Wreckabulary
 
         public static void Load(string scene)
         {
+            Match.ModeOverride = null;
+            Time.timeScale = 1f;
+            SceneManager.LoadScene(scene);
+        }
+
+        public static string SceneForMode(string mode) => mode switch
+        {
+            "Dibs" or "Duos" or "MovingOut" => DibsScene,
+            "MovingDay" => MovingDayScene,
+            "Tutorial" => TutorialScene,
+            "Hub" => HubScene,
+            _ => throw new System.ArgumentException($"Unknown mode '{mode}'.", nameof(mode)),
+        };
+
+        public static void SelectMap(string mapId)
+        {
+            // Validate here, rather than failing after a scene has started loading.
+            GameConfig.Current.HouseFor(mapId);
+            MapId = string.IsNullOrEmpty(mapId) ? "pinwheel" : mapId;
+        }
+
+        public static void LoadMode(string mode, string mapId = null)
+        {
+            var scene = SceneForMode(mode);
+            if (mapId != null) SelectMap(mapId);
+            Match.ModeOverride = mode;
             Time.timeScale = 1f;
             SceneManager.LoadScene(scene);
         }
