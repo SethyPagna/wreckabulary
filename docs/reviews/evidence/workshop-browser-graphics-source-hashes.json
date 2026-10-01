@@ -1,0 +1,20 @@
+{
+  "phase": "immutable-full-graphics",
+  "capturedUtc": "2026-10-01T03:25:05.411223+00:00",
+  "base": "http://127.0.0.1:4173",
+  "sources": {
+    "Web/src/main.js": "155dd426b40eed8d8d17eb16479b54fb2bc3a3ddc54e9d4a5c9f81fce2906945",
+    "Web/src/renderer.js": "03634719456ea81a0dfcc387b050d44c8bc5ec014b7717591d8ef9783a6a7f62",
+    "Web/src/engine.js": "4b392328f8ddbac5a833a0cd6096a51137ec4753e2120d6bd08c0179dce919e7",
+    "Web/src/style.css": "5354febc511e5a357a2d4ff8f5f9d2d11cfb7544eed90deab8f6fc3628e0f353",
+    "Web/src/home-design.js": "1e08611cb0bd560a92912553bfc1b1241490595dca8b21d01c44ca48c7f05185",
+    "Web/src/materials.js": "3886ddf22cd3227c7ea291e5f7dba0f9cede402964a62d3c8d34e600d9844e8e",
+    "Web/test/browser.mjs": "a9aab15b53fdd34ccd375749c1242d50045778a2f30f956a220e2e90e4e504bf",
+    "Web/test/workshop-browser.mjs": "98378e710a783159e3f04c4955643c27e156a6f880e43c00fafb97999d3bcf6a",
+    "Web/test/browser-ui.mjs": "e0d709b9fcb050f0d0ce4c311b2f4a12b91c7db50dd48a9de20f6458da5b1b73"
+  },
+  "bundles": {
+    "Web/dist/assets/index-BaISnJ28.css": "7fcc3db96e99fc3c7388be4164c9e35b8534d7a20292fd0a0ede246a6a0eabc3",
+    "Web/dist/assets/index-UXxsiuLs.js": "4af3f8398cb4ee21b048ecfcbcd1923328d2d2b769e378b2dd5acb90399f00db"
+  }
+}

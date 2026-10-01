@@ -22,9 +22,7 @@ namespace Wreckabulary
             var oldRoom = GameObject.Find("Room");
             if (oldRoom) oldRoom.SetActive(false);
             if (furnitureRoot) furnitureRoot.gameObject.SetActive(false);
-            geometry = new GameObject(Layout.Name).transform;
-            geometry.SetParent(transform, false);
-            BuildGeometry();
+            geometry = CreateGeometry(Layout, Session.MapId, transform);
             var joins = GetComponent<PlayerJoinManager>();
             if (joins) joins.ConfigureLayout(Layout);
             var camera = FindAnyObjectByType<CameraRig>();
@@ -61,97 +59,117 @@ namespace Wreckabulary
             }
         }
 
-        void BuildGeometry()
+        /// <summary>Read-only map geometry shared by matches and the creative preview; adds no furniture or director.</summary>
+        public static Transform CreateGeometry(HouseLayout layout, string mapId, Transform parent, bool includeExtras = true)
         {
-            Color[] floors = { new(.76f, .62f, .45f), new(.66f, .73f, .73f), new(.83f, .74f, .59f), new(.64f, .63f, .75f), new(.73f, .55f, .47f) };
-            var edges = new Dictionary<string, Edge>();
-            for (int i = 0; i < Layout.Rooms.Count; i++)
+            var root = new GameObject(layout.Name + " geometry").transform;
+            root.SetParent(parent, false);
+            new GeometryFactory(layout, mapId, root, includeExtras).Build();
+            return root;
+        }
+
+        sealed class GeometryFactory
+        {
+            readonly HouseLayout Layout;
+            readonly string mapId;
+            readonly Transform geometry;
+            readonly bool includeExtras;
+            public GeometryFactory(HouseLayout layout, string id, Transform root, bool extras)
+            { Layout = layout; mapId = id; geometry = root; includeExtras = extras; }
+
+            public void Build()
             {
-                var r = Layout.Rooms[i];
-                bool garden = r.Name == "Garden";
-                Block(r.Name + " floor", new Vector3((r.MinX + r.MaxX) * .5f, r.FloorY - .12f, (r.MinZ + r.MaxZ) * .5f),
-                    new Vector3(r.MaxX - r.MinX, .24f, r.MaxZ - r.MinZ), garden ? new Color(.41f, .56f, .35f) : floors[i % floors.Length]);
-                AddEdge(edges, true, r.MinX, r.MinZ, r.MaxZ);
-                AddEdge(edges, true, r.MaxX, r.MinZ, r.MaxZ);
-                AddEdge(edges, false, r.MinZ, r.MinX, r.MaxX);
-                AddEdge(edges, false, r.MaxZ, r.MinX, r.MaxX);
-                // A single imported rug per indoor room gives material detail without tiling hundreds of meshes.
-                if (!garden) Decor("Environment/Arena_Rug", new Vector3((r.MinX + r.MaxX) * .5f, r.FloorY + .006f, (r.MinZ + r.MaxZ) * .5f), .8f);
+                Color[] floors = { new(.76f, .62f, .45f), new(.66f, .73f, .73f), new(.83f, .74f, .59f), new(.64f, .63f, .75f), new(.73f, .55f, .47f) };
+                var edges = new Dictionary<string, Edge>();
+                for (int i = 0; i < Layout.Rooms.Count; i++)
+                {
+                    var r = Layout.Rooms[i];
+                    bool garden = r.Name == "Garden";
+                    Block(r.Name + " floor", new Vector3((r.MinX + r.MaxX) * .5f, r.FloorY - .12f, (r.MinZ + r.MaxZ) * .5f),
+                        new Vector3(r.MaxX - r.MinX, .24f, r.MaxZ - r.MinZ), garden ? new Color(.41f, .56f, .35f) : floors[i % floors.Length]);
+                    AddEdge(edges, true, r.MinX, r.MinZ, r.MaxZ);
+                    AddEdge(edges, true, r.MaxX, r.MinZ, r.MaxZ);
+                    AddEdge(edges, false, r.MinZ, r.MinX, r.MaxX);
+                    AddEdge(edges, false, r.MaxZ, r.MinX, r.MaxX);
+                    // A single imported rug per indoor room gives material detail without tiling hundreds of meshes.
+                    if (includeExtras && !garden) Decor("Environment/Arena_Rug", new Vector3((r.MinX + r.MaxX) * .5f, r.FloorY + .006f, (r.MinZ + r.MaxZ) * .5f), .8f);
+                }
+                foreach (var edge in edges.Values) BuildEdge(edge);
+                if (!includeExtras) return;
+                // The pinwheel balcony is a reachable elevated route; the courtyard is intentionally open and flat.
+                if (mapId == "pinwheel")
+                {
+                    Block("Playroom balcony", new Vector3(3.25f, 1.55f, 2.5f), new Vector3(1.5f, .3f, 3f), new Color(.7f, .52f, .36f));
+                    var ramp = Block("Balcony ramp", new Vector3(3.25f, .76f, .02f), new Vector3(1.5f, .15f, 2.7f), new Color(.65f, .47f, .33f));
+                    ramp.transform.rotation = Quaternion.Euler(-40f, 0f, 0f);
+                    Decor("Environment/Railing_2m", new Vector3(2.5f, 1.7f, 2.5f), 1f, 90f);
+                }
+                else
+                {
+                    Block("Courtyard path east-west", new Vector3(0f, .008f, 0f), new Vector3(12f, .018f, 2.5f), new Color(.75f, .72f, .59f), false);
+                    Block("Courtyard path north-south", new Vector3(0f, .009f, 0f), new Vector3(2.5f, .018f, 12f), new Color(.75f, .72f, .59f), false);
+                    Decor("Items/PLANT", new Vector3(-4.5f, 0f, 4.5f), 1.4f);
+                    Decor("Items/PLANT", new Vector3(4.5f, 0f, -4.5f), 1.4f);
+                }
             }
-            foreach (var edge in edges.Values) BuildEdge(edge);
-            // The pinwheel balcony is a reachable elevated route; the courtyard is intentionally open and flat.
-            if (Session.MapId == "pinwheel")
+
+            sealed class Edge
             {
-                Block("Playroom balcony", new Vector3(3.25f, 1.55f, 2.5f), new Vector3(1.5f, .3f, 3f), new Color(.7f, .52f, .36f));
-                var ramp = Block("Balcony ramp", new Vector3(3.25f, .76f, .02f), new Vector3(1.5f, .15f, 2.7f), new Color(.65f, .47f, .33f));
-                ramp.transform.rotation = Quaternion.Euler(-40f, 0f, 0f);
-                Decor("Environment/Railing_2m", new Vector3(2.5f, 1.7f, 2.5f), 1f, 90f);
+                public bool Vertical;
+                public float Fixed;
+                public readonly List<Vector2> Intervals = new();
             }
-            else
+
+            static void AddEdge(Dictionary<string, Edge> all, bool vertical, float fixedAt, float min, float max)
             {
-                Block("Courtyard path east-west", new Vector3(0f, .008f, 0f), new Vector3(12f, .018f, 2.5f), new Color(.75f, .72f, .59f), false);
-                Block("Courtyard path north-south", new Vector3(0f, .009f, 0f), new Vector3(2.5f, .018f, 12f), new Color(.75f, .72f, .59f), false);
-                Decor("Items/PLANT", new Vector3(-4.5f, 0f, 4.5f), 1.4f);
-                Decor("Items/PLANT", new Vector3(4.5f, 0f, -4.5f), 1.4f);
+                string key = (vertical ? "x" : "z") + fixedAt.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (!all.TryGetValue(key, out var edge)) all[key] = edge = new Edge { Vertical = vertical, Fixed = fixedAt };
+                edge.Intervals.Add(new Vector2(min, max));
             }
-        }
 
-        sealed class Edge
-        {
-            public bool Vertical;
-            public float Fixed;
-            public readonly List<Vector2> Intervals = new();
-        }
-
-        static void AddEdge(Dictionary<string, Edge> all, bool vertical, float fixedAt, float min, float max)
-        {
-            string key = (vertical ? "x" : "z") + fixedAt.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            if (!all.TryGetValue(key, out var edge)) all[key] = edge = new Edge { Vertical = vertical, Fixed = fixedAt };
-            edge.Intervals.Add(new Vector2(min, max));
-        }
-
-        void BuildEdge(Edge edge)
-        {
-            var cuts = edge.Intervals.SelectMany(i => new[] { i.x, i.y }).ToList();
-            var openings = Layout.Doors.Where(d => Mathf.Abs((edge.Vertical ? d.X : d.Z) - edge.Fixed) < .01f)
-                .Select(d => new Vector2((edge.Vertical ? d.Z : d.X) - d.Width * .5f, (edge.Vertical ? d.Z : d.X) + d.Width * .5f)).ToArray();
-            cuts.AddRange(openings.SelectMany(i => new[] { i.x, i.y }));
-            cuts = cuts.Distinct().OrderBy(v => v).ToList();
-            for (int i = 0; i < cuts.Count - 1; i++)
+            void BuildEdge(Edge edge)
             {
-                float mid = (cuts[i] + cuts[i + 1]) * .5f;
-                if (!edge.Intervals.Any(range => mid >= range.x && mid <= range.y) || openings.Any(range => mid > range.x && mid < range.y)) continue;
-                float length = cuts[i + 1] - cuts[i];
-                var wall = Block("Wall", edge.Vertical ? new Vector3(edge.Fixed, .55f, mid) : new Vector3(mid, .55f, edge.Fixed),
-                    edge.Vertical ? new Vector3(.2f, 1.1f, length) : new Vector3(length, 1.1f, .2f), new Color(.66f, .7f, .65f));
-                // Cutaway rendering keeps players visible; the full-height collider enforces the doorway route.
-                var collider = wall.GetComponent<BoxCollider>();
-                collider.size = new Vector3(1f, 3f, 1f);
-                collider.center = new Vector3(0f, 1f, 0f);
+                var cuts = edge.Intervals.SelectMany(i => new[] { i.x, i.y }).ToList();
+                var openings = Layout.Doors.Where(d => Mathf.Abs((edge.Vertical ? d.X : d.Z) - edge.Fixed) < .01f)
+                    .Select(d => new Vector2((edge.Vertical ? d.Z : d.X) - d.Width * .5f, (edge.Vertical ? d.Z : d.X) + d.Width * .5f)).ToArray();
+                cuts.AddRange(openings.SelectMany(i => new[] { i.x, i.y }));
+                cuts = cuts.Distinct().OrderBy(v => v).ToList();
+                for (int i = 0; i < cuts.Count - 1; i++)
+                {
+                    float mid = (cuts[i] + cuts[i + 1]) * .5f;
+                    if (!edge.Intervals.Any(range => mid >= range.x && mid <= range.y) || openings.Any(range => mid > range.x && mid < range.y)) continue;
+                    float length = cuts[i + 1] - cuts[i];
+                    var wall = Block("Wall", edge.Vertical ? new Vector3(edge.Fixed, .55f, mid) : new Vector3(mid, .55f, edge.Fixed),
+                        edge.Vertical ? new Vector3(.2f, 1.1f, length) : new Vector3(length, 1.1f, .2f), new Color(.66f, .7f, .65f));
+                    // Cutaway rendering keeps players visible; the full-height collider enforces the doorway route.
+                    var collider = wall.GetComponent<BoxCollider>();
+                    collider.size = new Vector3(1f, 3f, 1f);
+                    collider.center = new Vector3(0f, 1f, 0f);
+                }
             }
-        }
 
-        GameObject Block(string name, Vector3 at, Vector3 scale, Color colour, bool solid = true)
-        {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = name;
-            go.transform.SetParent(geometry, false);
-            go.transform.position = at;
-            go.transform.localScale = scale;
-            go.GetComponent<Renderer>().sharedMaterial = GameAssets.I.Tinted(colour);
-            if (!solid) Destroy(go.GetComponent<Collider>());
-            return go;
-        }
+            GameObject Block(string name, Vector3 at, Vector3 scale, Color colour, bool solid = true)
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                go.name = name;
+                go.transform.SetParent(geometry, false);
+                go.transform.position = at;
+                go.transform.localScale = scale;
+                go.GetComponent<Renderer>().sharedMaterial = GameAssets.I.Tinted(colour);
+                if (!solid) Object.Destroy(go.GetComponent<Collider>());
+                return go;
+            }
 
-        void Decor(string key, Vector3 at, float scale, float yaw = 0f)
-        {
-            var library = ModelLibrary.Load();
-            if (!library || !library.Find(key)) return;
-            var root = new GameObject(key).transform;
-            root.SetParent(geometry, false);
-            root.SetPositionAndRotation(at, Quaternion.Euler(0f, yaw, 0f));
-            root.localScale = Vector3.one * scale;
-            library.Spawn(key, root);
+            void Decor(string key, Vector3 at, float scale, float yaw = 0f)
+            {
+                var library = ModelLibrary.Load();
+                if (!library || !library.Find(key)) return;
+                var root = new GameObject(key).transform;
+                root.SetParent(geometry, false);
+                root.SetPositionAndRotation(at, Quaternion.Euler(0f, yaw, 0f));
+                root.localScale = Vector3.one * scale;
+                library.Spawn(key, root);
+            }
         }
     }
 }

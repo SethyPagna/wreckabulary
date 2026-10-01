@@ -1,6 +1,14 @@
 import "./style.css";
 import { Game, MODES, MAPS, canSpell, distance } from "./engine.js";
 import { WorldView } from "./renderer.js";
+import {
+  createLayout,
+  validateLayout,
+  placementCheck,
+  addWords,
+  importLayout,
+  exportLayout,
+} from "./home-design.js";
 const ui = document.querySelector("#ui"),
   announcer = document.querySelector("#announcer");
 const fetchData = async (name) =>
@@ -44,7 +52,7 @@ const esc = (s) =>
       ],
   );
 const iconHtml = (word, cls = "") =>
-  `<img class="item-image ${cls}" data-icon="${word}" alt="${word.toLowerCase()}" src="${view?.icons.get(word) ?? ""}">`;
+  `<img class="item-image ${cls}" data-icon="${word}" alt="${word.toLowerCase()}" src="${view?.icons.get(word) ?? view?.manifest.items[word]?.icon ?? ""}">`;
 const ACTION_CROPS = {
   smash: [34, 19, 391, 376],
   dodge: [453, 100, 369, 286],
@@ -124,6 +132,7 @@ function resetInputs() {
   pointerAim = null;
 }
 function start() {
+  view.setWorkshop?.({ enabled: false, selectedId: null, ghost: null });
   resetInputs();
   craftOpen = false;
   paused = false;
@@ -144,6 +153,7 @@ function start() {
   sound("craft");
 }
 function home() {
+  view.setWorkshop?.({ enabled: false, selectedId: null, ghost: null });
   resetInputs();
   screen = "home";
   craftOpen = false;
@@ -159,7 +169,7 @@ function home() {
     )
     .join(
       "",
-    )}</div><p class="mode-description">${MODES[mode].description}</p><div class="map-row"><label for="map-choice">The playground</label><select id="map-choice">${MAPS.map((m) => `<option value="${m.id}" ${m.id === map ? "selected" : ""}>${m.name}</option>`).join("")}</select></div><button class="primary start" data-action="start">LET’S MAKE A MESS <span>→</span></button><p class="fineprint">Solo with clever little AI housemates · keyboard, mouse or touch</p></section><div class="home-footer"><span>BREAK IT. SPELL IT. BRING IT.</span><button class="link" data-action="how">How to play +</button></div></main>`;
+    )}</div><p class="mode-description">${MODES[mode].description}</p><div class="map-row"><label for="map-choice">The playground</label><select id="map-choice">${MAPS.map((m) => `<option value="${m.id}" ${m.id === map ? "selected" : ""}>${m.name}</option>`).join("")}</select></div><button class="primary start" data-action="start">LET’S MAKE A MESS <span>→</span></button><p class="fineprint">Solo with clever little AI housemates · keyboard, mouse or touch</p></section><div class="home-footer"><span>BREAK IT. SPELL IT. BRING IT.</span><div class="home-links"><button class="link workshop-entry" data-action="workshop">Creative Workshop +</button><button class="link" data-action="how">How to play +</button></div></div></main>`;
   bindUi();
 }
 function renderHud() {
@@ -489,7 +499,534 @@ function closet() {
   game.players[0].yaw = Math.PI;
   view.closet = true;
 }
+// Designs are separate documents. Matches always create fresh canonical houses.
+const workshopSessions = new Map();
+let workshop = null;
+const designData = () => ({ houses: data.houses, items: data.items });
+const designKey = (id) => `wreckabulary.workshop.v1.${id}`;
+const designText = (layout) => JSON.stringify(layout);
+const designError = (errors) =>
+  errors.map((e) => e.replace(/^[a-z]+:\s*/i, "")).join(" ");
+function workshopMessage(message, error = false) {
+  const node = document.querySelector("#workshop-message");
+  if (node) {
+    node.textContent = message;
+    node.classList.toggle("error", error);
+  }
+  announcer.textContent = message;
+}
+function loadWorkshopSession(id) {
+  if (workshopSessions.has(id))
+    return { session: workshopSessions.get(id), error: null };
+  let layout = createLayout(id),
+    saved = false;
+  try {
+    const raw = localStorage.getItem(designKey(id));
+    if (raw) {
+      const result = importLayout(raw, designData());
+      if (!result.ok || result.layout.map !== id)
+        return {
+          session: null,
+          error:
+            "Your saved house could not be opened. " +
+            (result.ok
+              ? "It belongs to another map."
+              : designError(result.errors)),
+        };
+      layout = result.layout;
+      saved = true;
+    }
+  } catch {
+    return {
+      session: null,
+      error:
+        "Your browser could not read saved houses. You can still design and export a copy.",
+    };
+  }
+  return {
+    session: {
+      layout,
+      history: [structuredClone(layout)],
+      at: 0,
+      savedText: saved ? designText(layout) : null,
+      selectedId: null,
+      ghost: null,
+      room: data.houses[id].rooms[0].name,
+    },
+    error: null,
+  };
+}
+function openWorkshop(id = map) {
+  resetInputs();
+  craftOpen = false;
+  paused = false;
+  view.closet = false;
+  const loaded = loadWorkshopSession(id);
+  if (!loaded.session) {
+    const layout = createLayout(id);
+    loaded.session = {
+      layout,
+      history: [structuredClone(layout)],
+      at: 0,
+      savedText: null,
+      selectedId: null,
+      ghost: null,
+      room: data.houses[id].rooms[0].name,
+    };
+  }
+  workshopSessions.set(id, loaded.session);
+  map = id;
+  workshop = loaded.session;
+  screen = "workshop";
+  rebuildWorkshop();
+  renderWorkshop();
+  if (loaded.error) workshopMessage(loaded.error, true);
+}
+function rebuildWorkshop() {
+  game = new Game(data, {
+    mode: "Tour",
+    layout: workshop.layout,
+    preview: true,
+    wardrobe: structuredClone(profile),
+  });
+  view.rebuild(game);
+  refreshWorkshopView();
+}
+function refreshWorkshopView() {
+  if (screen !== "workshop") return;
+  const panel = document
+      .querySelector(".workshop-panel")
+      ?.getBoundingClientRect(),
+    head = document.querySelector(".workshop-head")?.getBoundingClientRect(),
+    portrait = innerWidth <= 760;
+  view.setWorkshop({
+    enabled: true,
+    selectedId: workshop.selectedId,
+    ghost: workshop.ghost
+      ? {
+          ...workshop.ghost,
+          valid:
+            !workshop.invalidInputs &&
+            placementCheck(
+              workshop.layout,
+              workshop.ghost,
+              designData(),
+              workshop.selectedId,
+            ).ok,
+        }
+      : null,
+    insets: {
+      left: 12,
+      right: !portrait && panel ? panel.width + 28 : 12,
+      top: (head?.bottom ?? 78) + 58,
+      bottom: portrait && panel ? panel.height + 80 : 76,
+    },
+  });
+}
+function commitDesign(candidate, message, refresh = true) {
+  const result = validateLayout(candidate, designData());
+  if (!result.ok) {
+    workshopMessage(designError(result.errors), true);
+    return false;
+  }
+  if (designText(result.layout) === designText(workshop.layout)) {
+    if (refresh) renderWorkshop();
+    workshopMessage("This is already your arrangement.");
+    return true;
+  }
+  workshop.layout = result.layout;
+  workshop.history = workshop.history.slice(0, workshop.at + 1);
+  workshop.history.push(structuredClone(result.layout));
+  if (workshop.history.length > 100) workshop.history.shift();
+  workshop.at = workshop.history.length - 1;
+  if (!workshop.layout.props.some((p) => p.id === workshop.selectedId))
+    workshop.selectedId = null;
+  if (refresh) {
+    workshop.invalidInputs = false;
+    workshop.ghost = workshop.selectedId
+      ? structuredClone(
+          workshop.layout.props.find((p) => p.id === workshop.selectedId),
+        )
+      : null;
+    rebuildWorkshop();
+    renderWorkshop();
+  } else {
+    const state = document.querySelector(".design-save-state");
+    if (state)
+      state.textContent = `${designText(workshop.layout) !== workshop.savedText ? "Unsaved changes" : "Saved on this browser"} · ${workshop.layout.props.length} / 64 objects`;
+    const undo = document.querySelector("#design-undo"),
+      redo = document.querySelector("#design-redo");
+    if (undo) undo.disabled = workshop.at === 0;
+    if (redo) redo.disabled = workshop.at >= workshop.history.length - 1;
+  }
+  workshopMessage(message);
+  return true;
+}
+function workshopHistory(direction) {
+  const next = workshop.at + direction;
+  if (next < 0 || next >= workshop.history.length) return;
+  workshop.at = next;
+  workshop.layout = structuredClone(workshop.history[next]);
+  workshop.selectedId = null;
+  workshop.ghost = null;
+  rebuildWorkshop();
+  renderWorkshop();
+  workshopMessage(
+    direction < 0 ? "Undone. Your previous arrangement is back." : "Redone.",
+  );
+}
+function selectDesignProp(id) {
+  const prop = workshop.layout.props.find((p) => p.id === id);
+  workshop.selectedId = prop?.id ?? null;
+  workshop.invalidInputs = false;
+  workshop.ghost = prop ? structuredClone(prop) : null;
+  if (prop) workshop.room = game.roomAt(prop)?.name ?? workshop.room;
+  renderWorkshop();
+  workshopMessage(
+    prop
+      ? `${prop.word.toLowerCase()} selected. Rotate, change its finish or move it.`
+      : "Pick a model or click an object in your house.",
+  );
+}
+function previewDesignWord(word) {
+  const result = addWords(workshop.layout, word, workshop.room, designData());
+  if (!result.ok || !result.added.length) {
+    workshopMessage(
+      result.rejected?.[0]?.reason ?? designError(result.errors),
+      true,
+    );
+    return;
+  }
+  workshop.selectedId = null;
+  workshop.invalidInputs = false;
+  workshop.ghost = structuredClone(result.added[0]);
+  renderWorkshop();
+  view.focusWorkshop(workshop.room);
+  workshopMessage(
+    `Previewing ${word.toLowerCase()}. Click a clear spot in the house, or choose Place here.`,
+  );
+}
+function updateDesignGhost() {
+  if (!workshop.ghost) return;
+  const x = document.querySelector("#prop-x").value,
+    z = document.querySelector("#prop-z").value;
+  if (
+    !x.trim() ||
+    !z.trim() ||
+    !Number.isFinite(Number(x)) ||
+    !Number.isFinite(Number(z))
+  ) {
+    workshop.invalidInputs = true;
+    refreshWorkshopView();
+    workshopMessage("Enter a number for both positions.", true);
+    return false;
+  }
+  workshop.invalidInputs = false;
+  workshop.ghost.x = Number(x);
+  workshop.ghost.z = Number(z);
+  workshop.ghost.skin = document.querySelector("#prop-skin").value;
+  const result = placementCheck(
+    workshop.layout,
+    workshop.ghost,
+    designData(),
+    workshop.selectedId,
+  );
+  refreshWorkshopView();
+  workshopMessage(
+    result.ok
+      ? "This spot is clear. Apply it when you are happy."
+      : designError(result.errors),
+    !result.ok,
+  );
+  return result.ok;
+}
+function applyDesignGhost() {
+  if (!workshop.ghost) return;
+  if (!updateDesignGhost()) return;
+  const candidate = structuredClone(workshop.layout),
+    prop = structuredClone(workshop.ghost);
+  const result = placementCheck(
+    candidate,
+    prop,
+    designData(),
+    workshop.selectedId,
+  );
+  if (!result.ok) {
+    workshopMessage(designError(result.errors), true);
+    return;
+  }
+  const index = candidate.props.findIndex((p) => p.id === workshop.selectedId);
+  if (index >= 0) candidate.props[index] = prop;
+  else candidate.props.push(prop);
+  workshop.selectedId = prop.id;
+  commitDesign(
+    candidate,
+    `${prop.word.toLowerCase()} ${index >= 0 ? "updated" : "placed"}.`,
+  );
+}
+function rotateDesignProp() {
+  if (!workshop.ghost) return;
+  workshop.ghost.yaw = (workshop.ghost.yaw + 90) % 360;
+  if (workshop.selectedId) applyDesignGhost();
+  else {
+    renderWorkshop();
+    workshopMessage(`Turned to ${workshop.ghost.yaw}°. Choose a clear spot.`);
+  }
+}
+function saveDesign() {
+  const nameInput = document.querySelector("#design-name");
+  if (nameInput) {
+    const candidate = structuredClone(workshop.layout);
+    candidate.name = nameInput.value.trim();
+    const checked = validateLayout(candidate, designData());
+    if (!checked.ok) {
+      workshopMessage(designError(checked.errors), true);
+      return false;
+    }
+    if (
+      candidate.name !== workshop.layout.name &&
+      !commitDesign(candidate, "House renamed.", false)
+    )
+      return false;
+  }
+  const result = exportLayout(workshop.layout, designData());
+  if (!result.ok) {
+    workshopMessage(designError(result.errors), true);
+    return false;
+  }
+  try {
+    localStorage.setItem(designKey(workshop.layout.map), result.json);
+  } catch {
+    workshopMessage(
+      "Your browser could not save this house. Export a copy so you can keep it.",
+      true,
+    );
+    return false;
+  }
+  workshop.savedText = designText(workshop.layout);
+  renderWorkshop();
+  workshopMessage(
+    "Saved on this browser. Your house will be here when you return.",
+  );
+  return true;
+}
+function tourWorkshop() {
+  if (!saveDesign()) return;
+  resetInputs();
+  screen = "tour";
+  game = new Game(data, {
+    mode: "Tour",
+    layout: workshop.layout,
+    wardrobe: structuredClone(profile),
+  });
+  view.setWorkshop({ enabled: false, selectedId: null, ghost: null });
+  view.rebuild(game);
+  ui.innerHTML = `<main class="tour-hud"><header class="tour-head"><div><span class="eyebrow">YOUR HOUSE · PEACEFUL TOUR</span><strong>${esc(workshop.layout.name)}</strong></div><button class="primary" data-action="workshop-return">Back to decorating</button></header><p class="tour-note">Take a look around. <span class="desktop-tour-help">WASD or arrows to walk.</span><span class="touch-tour-help">Drag the joystick to walk.</span></p><div class="joystick" id="joystick" aria-label="Touch movement joystick"><div class="joystick-knob"></div></div></main>`;
+  bindUi();
+  bindJoystick();
+}
+function designTransfer(kind) {
+  let json = "";
+  if (kind === "export") {
+    const result = exportLayout(workshop.layout, designData());
+    if (!result.ok) {
+      workshopMessage(designError(result.errors), true);
+      return;
+    }
+    json = result.json;
+    const blob = new Blob([json], { type: "application/json" }),
+      url = URL.createObjectURL(blob),
+      link = document.createElement("a");
+    link.href = url;
+    link.download = `${workshop.layout.map}-cozy-house.json`;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  const overlay = document.createElement("section");
+  overlay.className = "workshop-transfer";
+  overlay.innerHTML = `<div class="workshop-transfer-card" role="dialog" aria-modal="true" aria-labelledby="transfer-title"><button class="close" id="transfer-close" aria-label="Close">×</button><span class="eyebrow">KEEP YOUR CREATION</span><h2 id="transfer-title">${kind === "export" ? "Your house, ready to share." : "Open a house from JSON."}</h2><p>${kind === "export" ? "A JSON copy has downloaded. You can also copy the text below." : "Paste your exported house, or choose a JSON file. Your current arrangement stays safe if the file cannot be opened."}</p>${kind === "import" ? '<label class="file-label">Choose a file<input id="design-file" type="file" accept="application/json,.json"></label>' : ""}<textarea id="design-json" aria-label="House JSON" ${kind === "export" ? "readonly" : ""}>${esc(json)}</textarea><p id="transfer-error" role="alert"></p>${kind === "import" ? '<button class="primary" id="design-import">Open this house</button>' : ""}</div>`;
+  ui.append(overlay);
+  overlay.querySelector("#transfer-close").onclick = () => overlay.remove();
+  overlay
+    .querySelector("#design-file")
+    ?.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 65536) {
+        overlay.querySelector("#transfer-error").textContent =
+          "This file is too large. Choose a house JSON file under 64 KB.";
+        return;
+      }
+      try {
+        overlay.querySelector("#design-json").value = await file.text();
+      } catch {
+        overlay.querySelector("#transfer-error").textContent =
+          "The file could not be read. Try pasting its text instead.";
+      }
+    });
+  overlay.querySelector("#design-import")?.addEventListener("click", () => {
+    const result = importLayout(
+      overlay.querySelector("#design-json").value,
+      designData(),
+    );
+    if (!result.ok) {
+      overlay.querySelector("#transfer-error").textContent = designError(
+        result.errors,
+      );
+      return;
+    }
+    if (result.layout.map !== workshop.layout.map) {
+      const loaded = loadWorkshopSession(result.layout.map);
+      if (!loaded.session) {
+        overlay.querySelector("#transfer-error").textContent = loaded.error;
+        return;
+      }
+      map = result.layout.map;
+      workshopSessions.set(map, loaded.session);
+      workshop = loaded.session;
+    }
+    workshop.selectedId = null;
+    workshop.ghost = null;
+    commitDesign(
+      result.layout,
+      "House opened. Save it when you are ready to keep this arrangement.",
+    );
+  });
+}
+function renderWorkshop() {
+  const w = workshop,
+    prop = w.ghost,
+    dirty = designText(w.layout) !== w.savedText,
+    objects = data.items.items.filter((i) => i.model && Array.isArray(i.size));
+  ui.innerHTML = `<main class="workshop"><header class="workshop-head"><button class="quiet" data-action="home">← House party</button><div><span class="eyebrow">CREATIVE WORKSHOP</span><strong>Your words. Your cozy house.</strong></div><div class="workshop-head-actions"><button class="quiet" id="design-save">Save</button><button class="primary" id="design-tour">Save & explore</button></div></header><aside class="workshop-panel"><div class="workshop-identity"><label>House name<input id="design-name" maxlength="48" value="${esc(w.layout.name)}"></label><label>Map<select id="design-map">${MAPS.map((m) => `<option value="${m.id}" ${m.id === w.layout.map ? "selected" : ""}>${esc(data.houses[m.id].name ?? m.name)}</option>`).join("")}</select></label><span class="design-save-state">${dirty ? "Unsaved changes" : "Saved on this browser"} · ${w.layout.props.length} / 64 objects</span></div><section class="design-tools"><label>Choose a room<select id="design-room">${data.houses[w.layout.map].rooms.map((r) => `<option ${r.name === w.room ? "selected" : ""} value="${r.name}">${r.name.replace(/([a-z])([A-Z])/g, "$1 $2")}</option>`).join("")}</select></label><form id="design-word-form"><label>Furnish from words<input id="design-words" maxlength="2048" placeholder="SOFA TABLE PLANT" autocomplete="off"></label><div class="design-row"><button type="button" class="quiet" id="design-preview">Preview word</button><button class="primary" type="submit">Furnish room</button></div></form><p class="design-tip">Choose a model to preview, then click a clear spot. Furnish room arranges your words for you.</p><div class="design-suggestions" aria-label="Room ideas"><button data-design-idea="reading"><strong>Cozy reading nook</strong><span>Books, soft seats & light</span></button><button data-design-idea="party"><strong>Garden party</strong><span>A table full of treats</span></button><button data-design-idea="study"><strong>Midnight study</strong><span>A quiet place to create</span></button></div><div class="design-catalog" aria-label="Furniture models">${objects.map((i) => `<button data-design-word="${i.id}" class="${prop?.word === i.id ? "selected" : ""}" title="Preview ${i.id.toLowerCase()}">${iconHtml(i.id)}<span>${i.id}</span></button>`).join("")}</div></section><section class="design-inspector"><label>Objects in your house<select id="design-selection"><option value="">Click an object to select it</option>${w.layout.props.map((p) => `<option value="${p.id}" ${p.id === w.selectedId ? "selected" : ""}>${p.word} · ${p.x}, ${p.z}</option>`).join("")}</select></label>${prop ? `<div class="inspector-title"><strong>${prop.word}</strong><span>${w.selectedId ? "Selected object" : "New object preview"}</span></div><div class="design-row coordinates"><label>Across<input type="number" step="0.5" id="prop-x" value="${prop.x}"></label><label>Along<input type="number" step="0.5" id="prop-z" value="${prop.z}"></label><label>Finish<select id="prop-skin">${["Classic", "Candy", "Arcade"].map((s) => `<option ${s === prop.skin ? "selected" : ""}>${s}</option>`).join("")}</select></label></div><div class="design-row"><button class="quiet" id="design-rotate">Rotate 90°</button><button class="primary" id="design-place">${w.selectedId ? "Apply changes" : "Place here"}</button></div><div class="design-row"><button class="quiet" id="design-clear">Deselect</button><button class="quiet" id="design-delete" ${!w.selectedId ? "disabled" : ""}>Remove object</button></div>` : '<p class="design-tip">All 40 supplied models are decor here. Click one to get started.</p>'}</section><div class="design-row history-row"><button class="quiet" id="design-undo" ${w.at === 0 ? "disabled" : ""}>Undo</button><button class="quiet" id="design-redo" ${w.at >= w.history.length - 1 ? "disabled" : ""}>Redo</button><button class="quiet" id="design-export">Export</button><button class="quiet" id="design-import-open">Import</button></div></aside><p id="workshop-message" class="workshop-message" role="status">Make room for something lovely. Doors and walking space stay clear.</p><nav class="workshop-camera" aria-label="House view"><button class="quiet" id="design-view-all">Whole house</button><button class="quiet" id="design-focus-room">Room view</button><button class="quiet" id="design-zoom-in" aria-label="Zoom in">+</button><button class="quiet" id="design-zoom-out" aria-label="Zoom out">−</button></nav></main>`;
+  bindUi();
+  document.querySelector("#design-map").onchange = (e) =>
+    openWorkshop(e.target.value);
+  document.querySelector("#design-room").onchange = (e) => {
+    w.room = e.target.value;
+    view.focusWorkshop(w.room);
+  };
+  document.querySelector("#design-name").onchange = (e) => {
+    const candidate = structuredClone(w.layout);
+    candidate.name = e.target.value.trim();
+    commitDesign(candidate, "House renamed.", false);
+  };
+  document.querySelector("#design-word-form").onsubmit = (e) => {
+    e.preventDefault();
+    const words = document.querySelector("#design-words").value;
+    if (!words.trim()) {
+      workshopMessage(
+        "Type one or more furniture words to furnish this room.",
+        true,
+      );
+      return;
+    }
+    const result = addWords(w.layout, words, w.room, designData());
+    if (!result.ok || !result.added.length) {
+      workshopMessage(
+        result.errors?.length
+          ? designError(result.errors)
+          : result.rejected.map((r) => `${r.word}: ${r.reason}`).join(" "),
+        true,
+      );
+      return;
+    }
+    w.selectedId = result.added.at(-1).id;
+    if (
+      commitDesign(
+        result.layout,
+        `Added ${result.added.length} object${result.added.length === 1 ? "" : "s"}.${result.rejected.length ? " " + result.rejected.map((r) => `${r.word}: ${r.reason}`).join(" ") : ""}`,
+      )
+    )
+      view.focusWorkshop(w.room);
+  };
+  document.querySelector("#design-preview").onclick = () => {
+    const word = document
+      .querySelector("#design-words")
+      .value.trim()
+      .toUpperCase();
+    if (!word || /[\s,;]/.test(word)) {
+      workshopMessage(
+        "Preview one word at a time, or use Furnish room for a list.",
+        true,
+      );
+      return;
+    }
+    previewDesignWord(word);
+  };
+  document.querySelectorAll("[data-design-idea]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const ideas = {
+            reading: ["LivingRoom", "SOFA TABLE LAMP BOOK PLANT"],
+            party: [
+              data.houses[w.layout.map].rooms.some((r) => r.name === "Garden")
+                ? "Garden"
+                : "Kitchen",
+              "TABLE CHAIR CAKE MUG PLANT",
+            ],
+            study: ["Study", "DESK CHAIR BOOK CLOCK LAMP"],
+          },
+          [room, words] = ideas[b.dataset.designIdea];
+        w.room = room;
+        document.querySelector("#design-room").value = room;
+        document.querySelector("#design-words").value = words;
+        view.focusWorkshop(room);
+        workshopMessage(
+          "An idea to start with. Choose Furnish room to add it to your house.",
+        );
+      }),
+  );
+  document
+    .querySelectorAll("[data-design-word]")
+    .forEach(
+      (b) => (b.onclick = () => previewDesignWord(b.dataset.designWord)),
+    );
+  document.querySelector("#design-selection").onchange = (e) =>
+    selectDesignProp(e.target.value);
+  for (const id of ["prop-x", "prop-z", "prop-skin"])
+    document
+      .querySelector(`#${id}`)
+      ?.addEventListener("change", updateDesignGhost);
+  document
+    .querySelector("#design-place")
+    ?.addEventListener("click", applyDesignGhost);
+  document
+    .querySelector("#design-rotate")
+    ?.addEventListener("click", rotateDesignProp);
+  document.querySelector("#design-delete")?.addEventListener("click", () => {
+    const candidate = structuredClone(w.layout);
+    candidate.props = candidate.props.filter((p) => p.id !== w.selectedId);
+    commitDesign(candidate, "Object removed. Undo brings it back.");
+  });
+  document
+    .querySelector("#design-clear")
+    ?.addEventListener("click", () => selectDesignProp(null));
+  document.querySelector("#design-undo").onclick = () => workshopHistory(-1);
+  document.querySelector("#design-redo").onclick = () => workshopHistory(1);
+  document.querySelector("#design-save").onclick = saveDesign;
+  document.querySelector("#design-tour").onclick = tourWorkshop;
+  document.querySelector("#design-export").onclick = () =>
+    designTransfer("export");
+  document.querySelector("#design-import-open").onclick = () =>
+    designTransfer("import");
+  document.querySelector("#design-view-all").onclick = () =>
+    view.focusWorkshop(null);
+  document.querySelector("#design-focus-room").onclick = () =>
+    view.focusWorkshop(w.room);
+  document.querySelector("#design-zoom-in").onclick = () =>
+    view.zoomWorkshop(-150);
+  document.querySelector("#design-zoom-out").onclick = () =>
+    view.zoomWorkshop(150);
+  refreshWorkshopView();
+}
+
 const actions = {
+  workshop: () => openWorkshop(),
+  "workshop-return": () => openWorkshop(workshop.layout.map),
   start,
   home,
   closet,
@@ -591,7 +1128,40 @@ function bindJoystick() {
   };
 }
 window.addEventListener("keydown", (e) => {
-  if (screen !== "game" || e.target.matches("input,select")) return;
+  if (e.target.matches("input,select,textarea")) return;
+  if (screen === "workshop") {
+    if ((e.ctrlKey || e.metaKey) && ["KeyZ", "KeyY"].includes(e.code)) {
+      e.preventDefault();
+      workshopHistory(e.code === "KeyY" || e.shiftKey ? 1 : -1);
+    } else if (e.code === "Delete" && workshop.selectedId)
+      document.querySelector("#design-delete").click();
+    else if (e.code === "Escape") selectDesignProp(null);
+    return;
+  }
+  if (screen === "tour") {
+    if (
+      ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(
+        e.code,
+      )
+    )
+      e.preventDefault();
+    if (e.code === "Escape") openWorkshop(workshop.layout.map);
+    else if (
+      [
+        "KeyW",
+        "KeyA",
+        "KeyS",
+        "KeyD",
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+      ].includes(e.code)
+    )
+      keys.add(e.code);
+    return;
+  }
+  if (screen !== "game") return;
   if (
     ["Tab", " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(
       e.key,
@@ -636,26 +1206,89 @@ window.addEventListener("contextmenu", (e) => e.preventDefault());
 viewCanvasEvents();
 function viewCanvasEvents() {
   const canvas = document.querySelector("#world");
+  let drag = null;
+  const pointGhost = (point) => {
+    if (!workshop.ghost) return;
+    workshop.ghost.x = Math.round(point.x * 2) / 2;
+    workshop.ghost.z = Math.round(point.z * 2) / 2;
+    document.querySelector("#prop-x").value = workshop.ghost.x;
+    document.querySelector("#prop-z").value = workshop.ghost.z;
+    updateDesignGhost();
+  };
   canvas.addEventListener("pointermove", (e) => {
+    if (screen === "workshop") {
+      if (drag?.id === e.pointerId) {
+        if (
+          drag.pan ||
+          Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 5
+        ) {
+          drag.pan = true;
+          view.panWorkshop(e.clientX - drag.x, e.clientY - drag.y);
+          drag.x = e.clientX;
+          drag.y = e.clientY;
+        }
+      } else if (workshop.ghost && !workshop.selectedId) {
+        const picked = view.pickWorkshop(e.clientX, e.clientY);
+        if (picked?.point) pointGhost(picked.point);
+      }
+      return;
+    }
     if (e.pointerType === "mouse") pointerAim = { x: e.clientX, y: e.clientY };
   });
   canvas.addEventListener("pointerdown", (e) => {
     canvas.setPointerCapture(e.pointerId);
+    if (screen === "workshop") {
+      drag = {
+        id: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        x: e.clientX,
+        y: e.clientY,
+        pan: e.button === 2 || e.altKey,
+      };
+      return;
+    }
     if (screen !== "game" || paused || craftOpen) return;
     if (e.button === 2) input.block = true;
     else input.attack = true;
     pointerAim = { x: e.clientX, y: e.clientY };
   });
+  canvas.addEventListener("pointerup", (e) => {
+    if (screen !== "workshop" || !drag || drag.id !== e.pointerId) return;
+    const moved = drag.pan;
+    drag = null;
+    if (moved) return;
+    const picked = view.pickWorkshop(e.clientX, e.clientY);
+    if (picked?.designId) selectDesignProp(picked.designId);
+    else if (workshop.ghost && picked?.point) {
+      pointGhost(picked.point);
+      applyDesignGhost();
+    } else selectDesignProp(null);
+  });
+  canvas.addEventListener("pointercancel", () => {
+    drag = null;
+  });
+  canvas.addEventListener(
+    "wheel",
+    (e) => {
+      if (screen === "workshop") {
+        e.preventDefault();
+        view.zoomWorkshop(e.deltaY);
+      }
+    },
+    { passive: false },
+  );
   window.addEventListener("pointerup", (e) => {
     if (e.button === 2) input.block = false;
     else if (e.target === canvas) input.attack = false;
   });
 }
+
 function animate(now) {
   const dt = Math.min((now - last) / 1000, 0.25);
   last = now;
   if (game && view) {
-    if (screen === "game" && !paused) {
+    if ((screen === "game" || screen === "tour") && !paused) {
       if (!craftOpen) {
         const sx =
             touch.x +
@@ -736,7 +1369,10 @@ async function boot() {
     for (const item of items.items.filter((i) => i.enabled))
       await view.icon(item.id);
     home();
-    window.addEventListener("resize", () => view.resize());
+    window.addEventListener("resize", () => {
+      view.resize();
+      if (screen === "workshop") refreshWorkshopView();
+    });
     window.wreckabulary = {
       get game() {
         return game;
@@ -750,6 +1386,17 @@ async function boot() {
         start();
       },
       view,
+      get workshop() {
+        return workshop
+          ? {
+              layout: structuredClone(workshop.layout),
+              selectedId: workshop.selectedId,
+              ghost: structuredClone(workshop.ghost),
+              at: workshop.at,
+              dirty: designText(workshop.layout) !== workshop.savedText,
+            }
+          : null;
+      },
       get screen() {
         return screen;
       },

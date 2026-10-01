@@ -1,0 +1,23 @@
+{
+  "phase": "final",
+  "scope": "Real main.js, engine.js and home-design.js with external renderer stub; normal UI rename/blur/history/save controls; no graphics claim",
+  "mainSHA256": "acff1577173618fe0acd7f5d911f47e58172ede0558316d51d2de72bb0dddac2",
+  "checks": [
+    "Empty Workshop starts with both history controls disabled.",
+    "First rename on blur immediately enables Undo.",
+    "Undo restores original name in state/input and enables Redo.",
+    "Redo restores the edited name in state and input.",
+    "Rename after Undo creates a new branch, disables Redo and keeps Undo enabled.",
+    "Normal Save click after blur persists the latest name and marks layout saved.",
+    "Reload reopens the latest persisted name.",
+    "Preview BOOK creates a pending model without mutating the layout.",
+    "Name-only blur preserves a pending BOOK ghost and its inspector.",
+    "Place after naming the pending preview actually adds BOOK.",
+    "Blank position marks the BOOK preview invalid.",
+    "Name-only blur preserves the blank position and invalid ghost.",
+    "Place with blank position remains refused after naming, without a new history entry.",
+    "Focused name/history flow has no page errors."
+  ],
+  "errors": [],
+  "mainSHA256After": "acff1577173618fe0acd7f5d911f47e58172ede0558316d51d2de72bb0dddac2"
+}

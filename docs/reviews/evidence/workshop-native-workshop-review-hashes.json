@@ -1,0 +1,39 @@
+{
+  "reviewed_utc": "2026-10-01T02:54:05.735146+00:00",
+  "kind": "independent read-only source review, not Unity execution",
+  "native_execution": "UNRUN",
+  "target_platform_execution": "UNRUN",
+  "fixed_source_findings": [
+    "portrait toolbar target size",
+    "portrait JSON action overlap",
+    "pending Hub knockout respawn cancellation",
+    "portrait scaled title/status slot sizing",
+    "duplicated FrontDoor finish/sound text after orientation switch"
+  ],
+  "owner_source_corrections_rechecked": [
+    "current gamepad tour fallback without joined binding",
+    "tour jump must not also submit Back to workshop"
+  ],
+  "remaining_findings": [],
+  "files": {
+    "Assets/_Project/Scripts/Rules/HomeDesign.cs": "177286be879cabf71fa94fa7085ffd88ed7269e874b02dfabb987ecf48354141",
+    "Assets/_Project/Scripts/Core/HomeStorage.cs": "d9e15615e740f9e6bcbe0ea033b5bec92345fc83fac40b03d775e9475556aede",
+    "Assets/_Project/Scripts/Game/CreativeHomeRuntime.cs": "af42136d9b676769c21556e7e64a1b1571d215b22736b32139cae9617e9cd94e",
+    "Assets/_Project/Scripts/Game/HomeTourDirector.cs": "051a7e29e0b285bba9186c704b6255ba190e49eabf313326562a25052514122e",
+    "Assets/_Project/Scripts/UI/CreativeWorkshop.cs": "1eaf23fe3afadc109cc3ba7e0377745bd3055c80efe27828a0e9858d6d655c50",
+    "Assets/_Project/Scripts/UI/FrontDoorMenu.cs": "0249c50f6dfb904d0cd211bcb5bf27d9af0d371afe0bbbfc45b72335a35554c7",
+    "Assets/_Project/Scripts/Core/Session.cs": "089f3f2b4cae0c2459825faf28e3ee146204f3050f6414c7ce83782b34986b20",
+    "Assets/_Project/Scripts/Game/RoomBuilder.cs": "16b202a78e4805ee848a20ca0262c1a25e58a6181a3aae8e3f8eb2f6b828fce0",
+    "Assets/_Project/Scripts/Game/PlayerJoinManager.cs": "8b1ebef9fb3d0a0cd261281b5484193df1e46f3adf91bc394c587b2ccd323b04",
+    "Assets/_Project/Scripts/Player/PlayerController.cs": "0169cbea2f79a80477c42a148afbbfc4f735174bcef4d9f65db33618446acaef",
+    "Assets/_Project/Scripts/Input/InputBinding.cs": "f7175b8de1a89bd49a8e949bb8b1e48d89548a8ebf898ead1f7ded19f59e9bf7",
+    "Assets/_Project/Tests/Editor/HomeStorageTests.cs": "9cc7c2cf69ba3829b93eed7421429fad4663a125c275764bed9d0de22389e270",
+    "Assets/_Project/Tests/Editor/HomeTourInputTests.cs": "defaddfefa90288b595a7931c284b5c54336d90cc9d693d8e3dd54472f59e8d1",
+    "Assets/_Project/Scenes/Hub.unity": "c2f0d5b53e3d95b1e2129ec51d0079bca843c7acaa3cdfbfec225fc44ba27bfd"
+  },
+  "authored_native_cases": {
+    "HomeStorageTests": 11,
+    "HomeTourInputTests": 3,
+    "execution": "UNRUN"
+  }
+}

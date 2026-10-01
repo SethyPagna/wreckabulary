@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { MaterialPalette } from "./materials.js";
 const ROOM_COLORS = {
   Garden: 0x92b78b,
   Playroom: 0xe1b970,
@@ -10,9 +12,16 @@ const ROOM_COLORS = {
   Study: 0xa8b7c8,
   LivingRoom: 0xd4b397,
 };
-const material = (color, roughness = 0.8) =>
-  new THREE.MeshStandardMaterial({ color, roughness });
+const material = (color, roughness = 0.8) => {
+  const value = new THREE.MeshStandardMaterial({ color, roughness });
+  value.userData.viewOwned = true;
+  return value;
+};
 const mesh = (geometry, mat) => {
+  geometry.userData.viewOwned = true;
+  for (const value of Array.isArray(mat) ? mat : [mat])
+    if (!value.userData.paletteOwned && !value.userData.viewShared)
+      value.userData.viewOwned = true;
   const m = new THREE.Mesh(geometry, mat);
   m.castShadow = true;
   m.receiveShadow = true;
@@ -41,7 +50,23 @@ export class WorldView {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.3;
+    this.renderer.toneMappingExposure = 1.14;
+    this.materials = new MaterialPalette(this.renderer);
+    this.assetGeometries = new Set();
+    this.assetMaterials = new Set();
+    this.assetTextures = new Set();
+    this.visualMaterials = new Set();
+    this.visualTextures = new Set();
+    this.skinMaterials = new Map();
+    this.wardrobeMaterials = new Map();
+    this.floorMaterials = new Map();
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const studio = new RoomEnvironment();
+    this.environmentTarget = pmrem.fromScene(studio, 0.04);
+    this.scene.environment = this.environmentTarget.texture;
+    this.scene.environmentIntensity = 0.35;
+    studio.dispose();
+    pmrem.dispose();
     this.camera = new THREE.PerspectiveCamera(43, 1, 0.1, 120);
     this.camera.position.set(16, 22, 23);
     this.target = new THREE.Vector3();
@@ -56,12 +81,24 @@ export class WorldView {
     this.loader = new GLTFLoader();
     this.world = new THREE.Group();
     this.dynamic = new THREE.Group();
-    this.scene.add(this.world, this.dynamic);
-    this.scene.add(new THREE.HemisphereLight(0xffefd3, 0x465e60, 2));
-    const sun = new THREE.DirectionalLight(0xffe6c3, 3.4);
+    this.workshopOverlay = new THREE.Group();
+    this.scene.add(this.world, this.dynamic, this.workshopOverlay);
+    this.designEntities = new Map();
+    this.workshop = {
+      enabled: false,
+      selectedId: null,
+      ghost: null,
+      insets: {},
+      zoom: 1,
+      center: new THREE.Vector3(),
+      distance: 40,
+    };
+    this.scene.add(new THREE.HemisphereLight(0xfff1dc, 0x465e60, 1.65));
+    const sun = new THREE.DirectionalLight(0xffead1, 2.85);
     sun.position.set(-8, 19, 8);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    const shadowSize = matchMedia("(pointer: coarse)").matches ? 1024 : 2048;
+    sun.shadow.mapSize.set(shadowSize, shadowSize);
     Object.assign(sun.shadow.camera, {
       left: -25,
       right: 25,
@@ -70,10 +107,10 @@ export class WorldView {
       near: 0.1,
       far: 70,
     });
-    sun.shadow.bias = -0.0008;
+    sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.025;
     this.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0xb9e9ff, 1.1);
+    const fill = new THREE.DirectionalLight(0xd7ebf2, 1.05);
     fill.position.set(8, 6, -9);
     this.scene.add(fill);
     this.resize();
@@ -89,18 +126,8 @@ export class WorldView {
     });
     for (const [id, a] of Object.entries(this.manifest.items ?? {}))
       if (a.icon) this.icons.set(id, url(a.icon));
-    const neededItems = new Set([
-      ...this.data.items.items.filter((i) => i.enabled).map((i) => i.id),
-      ...Object.values(
-        this.data.houses ?? { pinwheel: this.data.house },
-      ).flatMap((h) => h.furniture.map((f) => f.word)),
-      "PLANT",
-      "CHEST",
-    ]);
     const entries = [
-      ...Object.entries(this.manifest.items ?? {})
-        .filter(([id]) => neededItems.has(id))
-        .map(([id, a]) => [id, a]),
+      ...Object.entries(this.manifest.items ?? {}).map(([id, a]) => [id, a]),
       ...Object.entries(this.manifest.letters ?? {}).map(([id, a]) => [
         `letter:${id}`,
         a,
@@ -132,6 +159,7 @@ export class WorldView {
       ],
     ];
     let done = 0;
+    const total = entries.length;
     const worker = async () => {
       while (entries.length) {
         const [id, a] = entries.shift();
@@ -141,17 +169,27 @@ export class WorldView {
           if (o.isMesh) {
             o.castShadow = true;
             o.receiveShadow = true;
-            if (o.material) {
-              for (const m of Array.isArray(o.material)
-                ? o.material
-                : [o.material]) {
-                m.roughness = Math.max(0.3, m.roughness);
-              }
+            this.assetGeometries.add(o.geometry);
+            const originals = Array.isArray(o.material)
+              ? o.material
+              : [o.material];
+            for (const source of originals) {
+              this.assetMaterials.add(source);
+              for (const texture of Object.values(source))
+                if (texture?.isTexture) this.assetTextures.add(texture);
+            }
+            // Avatar and letter materials retain every authored channel. Enrichment is
+            // subordinate detail on classified props, never a replacement texture.
+            if (id !== "avatar" && !id.startsWith("letter:")) {
+              const values = originals.map((source) =>
+                this.materials.enrichMaterial(source, id),
+              );
+              o.material = Array.isArray(o.material) ? values : values[0];
             }
           }
         });
         this.models.set(id, gltf);
-        progress(++done, 40);
+        progress(++done, total);
       }
     };
     await Promise.all([worker(), worker(), worker()]);
@@ -179,69 +217,97 @@ export class WorldView {
     ctx.fillStyle = color;
     ctx.fillText(text, 256, 65);
     const texture = new THREE.CanvasTexture(canvas);
+    texture.userData = { viewOwned: true };
     texture.colorSpace = THREE.SRGBColorSpace;
     const sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: texture, depthTest: false }),
     );
+    sprite.material.userData.viewOwned = true;
     sprite.scale.set(2.3, 0.57, 1);
     return sprite;
   }
-  floorTexture(mapId) {
-    const c = document.createElement("canvas");
-    c.width = c.height = 512;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = mapId === "courtyard" ? "#789c76" : "#bd9161";
-    ctx.fillRect(0, 0, 512, 512);
-    for (let y = 0; y < 512; y += 64) {
-      ctx.fillStyle =
-        mapId === "courtyard"
-          ? y % 128
-            ? "#789b76"
-            : "#7da17b"
-          : y % 128
-            ? "#c29563"
-            : "#b98b59";
-      ctx.fillRect(0, y, 512, 62);
-      ctx.strokeStyle = mapId === "courtyard" ? "#82a57c" : "#956c45";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(0, y, 512, 64);
-      for (let x = y % 128 ? 64 : 0; x < 512; x += 128) {
+  floorMaterial(room) {
+    const b = room.bounds,
+      w = b[2] - b[0],
+      d = b[3] - b[1];
+    const key = `${room.name}:${w}:${d}`;
+    if (this.floorMaterials.has(key)) return this.floorMaterials.get(key);
+    let value;
+    if (room.name === "Garden")
+      value = this.materials.surface("lawn", 0x86a17a, {
+        repeatX: w / 4,
+        repeatY: d / 4,
+      });
+    else if (room.name === "Kitchen") {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#f1e7ce";
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = "#bcc9ba";
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillRect(64, 64, 64, 64);
+      ctx.strokeStyle = "#c7c2b1";
+      ctx.lineWidth = 1.5;
+      for (const x of [0, 64, 128]) {
         ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x, y + 64);
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 128);
         ctx.stroke();
       }
-      if (mapId !== "courtyard") {
-        ctx.globalAlpha = 0.13;
-        for (let n = 0; n < 12; n++) {
-          ctx.beginPath();
-          ctx.moveTo(0, y + n * 5);
-          ctx.bezierCurveTo(
-            160,
-            y + n * 5 + 5,
-            320,
-            y + n * 5 - 4,
-            512,
-            y + n * 5,
-          );
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
+      for (const y of [0, 64, 128]) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(128, y);
+        ctx.stroke();
       }
-    }
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(7, 7);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
-    return tex;
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(w / 1.6, d / 1.6);
+      texture.anisotropy = Math.min(
+        8,
+        this.renderer.capabilities.getMaxAnisotropy(),
+      );
+      value = this.materials
+        .surface("ceramic", 0xffffff, { repeatX: w / 1.6, repeatY: d / 1.6 })
+        .clone();
+      value.map = texture;
+      value.userData.viewShared = true;
+      this.visualTextures.add(texture);
+      this.visualMaterials.add(value);
+    } else
+      value = this.materials.surface(
+        "planks",
+        room.name === "Study" ? 0xb68e6b : 0xcba37b,
+        { repeatX: w / 4, repeatY: d / 1.2 },
+      );
+    this.floorMaterials.set(key, value);
+    return value;
   }
   rebuild(game) {
+    const worldKey = `${game.map.id}:${game.house.name}:${game.mode === "MovingOut"}`;
+    const reuse =
+      game.mode === "Tour" &&
+      this.game?.mode === "Tour" &&
+      this.worldKey === worldKey;
     this.game = game;
+    if (reuse) {
+      for (const fx of this.effects) this.removeObject(fx.node);
+      this.effects = [];
+      this.update(game, 0);
+      return;
+    }
+    this.worldKey = worldKey;
+    for (const animation of this.avatarModels.values()) {
+      animation.mixer.stopAllAction();
+      animation.mixer.uncacheRoot(animation.avatar);
+    }
     this.clear(this.world);
     this.clear(this.dynamic);
     this.entities.clear();
     this.avatarModels.clear();
+    this.designEntities.clear();
     this.effects = [];
     const s = game.map.scale;
     const foundation = this.box(
@@ -250,64 +316,34 @@ export class WorldView {
       2 * game.extent + 2,
       0xc4aa86,
     );
-    foundation.position.y = -0.5;
+    foundation.position.y = -0.45;
     this.world.add(foundation);
     const lawn = this.box(80, 0.4, 80, 0x577960);
+    lawn.material.dispose();
+    lawn.material = this.materials.surface("lawn", 0x789775, {
+      repeatX: 18,
+      repeatY: 18,
+    });
     lawn.position.y = -0.85;
     this.world.add(lawn);
-    const floorMat = material(0xffffff);
-    floorMat.map = this.floorTexture("pinwheel");
     for (const room of game.house.rooms) {
       const b = room.bounds,
         w = b[2] - b[0],
         d = b[3] - b[1];
-      const floor = mesh(new THREE.BoxGeometry(w, 0.15, d), floorMat);
-      floor.position.set((b[0] + b[2]) / 2, -0.12, (b[1] + b[3]) / 2);
-      if (room.name === "Garden") {
-        floor.material = material(0xa6bf91);
-        floor.material.map = this.floorTexture("courtyard");
-      } else if (room.name === "Kitchen") {
-        const c = document.createElement("canvas");
-        c.width = c.height = 128;
-        const ctx = c.getContext("2d");
-        for (let y = 0; y < 8; y++)
-          for (let x = 0; x < 8; x++) {
-            ctx.fillStyle = (x + y) % 2 ? "#dce1cf" : "#acc5b6";
-            ctx.fillRect(x * 16, y * 16, 15, 15);
-          }
-        const tile = new THREE.CanvasTexture(c);
-        tile.colorSpace = THREE.SRGBColorSpace;
-        tile.wrapS = tile.wrapT = THREE.RepeatWrapping;
-        tile.repeat.set(3, 3);
-        floor.material = material(0xffffff);
-        floor.material.map = tile;
-      } else {
-        floor.material = floorMat.clone();
-        floor.material.color.setHex(
-          room.name === "Study"
-            ? 0xd1bd9e
-            : room.name === "Bedroom"
-              ? 0xffe8d3
-              : 0xffedcc,
-        );
-      }
+      const floor = mesh(
+        new THREE.BoxGeometry(w, 0.15, d),
+        this.floorMaterial(room),
+      );
+      floor.position.set((b[0] + b[2]) / 2, -0.075, (b[1] + b[3]) / 2);
       this.world.add(floor);
+      const rugW = Math.min(w - 1, w * 0.62),
+        rugD = Math.min(d - 1, d * 0.55);
       const rug = mesh(
-        new THREE.BoxGeometry(
-          Math.min(w - 1, w * 0.62),
-          0.045,
-          Math.min(d - 1, d * 0.55),
-        ),
-        material(ROOM_COLORS[room.name] ?? 0xe4c695),
+        new RoundedBoxGeometry(rugW, 0.008, rugD, 2, 0.003),
+        this.materials.rug(ROOM_COLORS[room.name] ?? 0xe4c695, rugW / rugD),
       );
-      rug.position.set(floor.position.x, 0.006, floor.position.z);
+      rug.position.set(floor.position.x, 0.004, floor.position.z);
       this.world.add(rug);
-      const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(rug.geometry),
-        new THREE.LineBasicMaterial({ color: 0xffead4 }),
-      );
-      edges.position.copy(rug.position).y += 0.025;
-      this.world.add(edges);
       const text = this.label(
         room.name.replace(/([a-z])([A-Z])/g, "$1 $2").toUpperCase(),
         "#37575b",
@@ -334,6 +370,11 @@ export class WorldView {
         height / 2,
         (wall.z1 + wall.z2) / 2,
       );
+      m.material.dispose();
+      m.material = this.materials.surface("plaster", 0xeddfc4, {
+        repeatX: Math.max(1, length / 3),
+        repeatY: 1,
+      });
       this.world.add(m);
       const trim = this.box(
         horizontal ? length : 0.22,
@@ -341,6 +382,11 @@ export class WorldView {
         horizontal ? 0.22 : length,
         0xb58760,
       );
+      trim.material.dispose();
+      trim.material = this.materials.surface("wood", 0xb58760, {
+        repeatX: Math.max(1, length / 2),
+        repeatY: 1,
+      });
       trim.position.set(m.position.x, height + 0.04, m.position.z);
       this.world.add(trim);
     }
@@ -358,7 +404,7 @@ export class WorldView {
       mat.position.set(door.at[0], 0.014, door.at[1]);
       this.world.add(mat);
     }
-    if (game.map.id === "pinwheel") {
+    if (game.map.id === "pinwheel" && game.mode !== "Tour") {
       const balcony = this.box(1.5, 0.15, 3, 0xb18b60);
       balcony.position.set(3.25, 1.625, 2.5);
       this.world.add(balcony);
@@ -378,7 +424,7 @@ export class WorldView {
       this.world.add(top);
     }
     const kitchen = game.house.rooms.find((r) => r.name === "Kitchen");
-    if (kitchen) {
+    if (kitchen && game.mode !== "Tour") {
       const b = kitchen.bounds;
       [
         "Kitchen_Fridge",
@@ -552,18 +598,22 @@ export class WorldView {
       this.entities.set(`p${p.id}`, group);
     }
   }
-  applyWardrobe(avatar, wardrobe) {
+  applyWardrobe(avatar, wardrobe = {}) {
     const selected = new Set(Object.values(wardrobe.pieces ?? {}));
     const config = this.data.wardrobe;
+    const wardrobeKey = JSON.stringify(wardrobe);
     avatar.traverse((o) => {
       if (!o.isMesh) return;
       const piece = config.pieces.find(
         (p) => o.name === p.mesh || o.name.startsWith(`${p.mesh}_`),
       );
       if (piece) o.visible = selected.has(piece.id);
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      o.material = mats.map((m) => {
-        const copy = m.clone();
+      const originals = Array.isArray(o.material) ? o.material : [o.material];
+      const values = originals.map((source) => {
+        const key = `${source.uuid}:${wardrobeKey}`;
+        if (this.wardrobeMaterials.has(key))
+          return this.wardrobeMaterials.get(key);
+        const copy = source.clone();
         for (const [slot, palette] of Object.entries(config.palettes)) {
           const chosen = palette.find((c) => c.id === wardrobe.colours?.[slot]);
           const def = config.pieces.find(
@@ -572,72 +622,144 @@ export class WorldView {
           if (
             chosen &&
             def?.tint &&
-            m.name.toLowerCase().includes(def.tint.toLowerCase())
+            source.name.toLowerCase().includes(def.tint.toLowerCase())
           )
             copy.color.setRGB(...chosen.rgb, THREE.SRGBColorSpace);
         }
+        copy.userData.viewShared = true;
+        this.visualMaterials.add(copy);
+        this.wardrobeMaterials.set(key, copy);
         return copy;
       });
-      if (o.material.length === 1) o.material = o.material[0];
+      o.material = Array.isArray(o.material) ? values : values[0];
     });
   }
+  removeObject(root) {
+    const geometries = new Set(),
+      materials = new Set(),
+      textures = new Set(),
+      skeletons = new Set();
+    root.traverse((o) => {
+      if (
+        o.geometry?.userData.viewOwned &&
+        !this.assetGeometries.has(o.geometry)
+      )
+        geometries.add(o.geometry);
+      for (const value of Array.isArray(o.material)
+        ? o.material
+        : [o.material]) {
+        if (
+          !value ||
+          value.userData.paletteOwned ||
+          value.userData.viewShared ||
+          this.assetMaterials.has(value)
+        )
+          continue;
+        if (value.userData.viewOwned) {
+          materials.add(value);
+          for (const texture of Object.values(value))
+            if (
+              texture?.isTexture &&
+              texture.userData.viewOwned &&
+              !this.assetTextures.has(texture) &&
+              !this.visualTextures.has(texture)
+            )
+              textures.add(texture);
+        }
+      }
+      if (o.isSkinnedMesh && o.skeleton) skeletons.add(o.skeleton);
+    });
+    root.removeFromParent();
+    for (const geometry of geometries) geometry.dispose();
+    for (const value of materials) value.dispose();
+    for (const texture of textures) texture.dispose();
+    for (const skeleton of skeletons) skeleton.dispose();
+  }
   clear(group) {
-    for (const child of [...group.children]) group.remove(child);
+    for (const child of [...group.children]) this.removeObject(child);
   }
   itemModel(item) {
     const model = this.clone(item.delivery ? "BOX" : item.word);
     if (!model) return null;
-    const group = new THREE.Group();
+    const group = new THREE.Group(),
+      sources = new WeakMap();
     group.add(model);
     model.traverse((o) => {
       if (o.isMesh)
-        o.material = Array.isArray(o.material)
-          ? o.material.map((m) => m.clone())
-          : o.material.clone();
+        sources.set(
+          o,
+          Array.isArray(o.material) ? [...o.material] : [o.material],
+        );
     });
-    group.userData = { model, word: item.word };
+    group.userData = {
+      model,
+      word: item.word,
+      designId: item.designId ?? null,
+      sources,
+    };
     this.dynamic.add(group);
     return group;
   }
-  applySkin(node, skin) {
-    if (node.userData.skin === skin) return;
+  skinMaterial(source, skin, flash = false) {
+    const key = `${source.uuid}:${skin}:${flash}`;
+    if (this.skinMaterials.has(key)) return this.skinMaterials.get(key);
+    const name = source.name.replace(/_(Classic|Candy|Arcade)$/, "");
+    const info =
+      this.manifest.materialSkins?.[name]?.[skin] ??
+      this.manifest.materialSkins?.[name]?.Classic;
+    if (!info && !flash) return source;
+    const value = source.clone();
+    if (info) {
+      value.color.setRGB(...info.baseColor.slice(0, 3), THREE.SRGBColorSpace);
+      value.roughness = info.roughness;
+      value.metalness = info.metallic;
+      value.emissive.setRGB(...info.emissive);
+    }
+    if (flash && value.emissive) value.emissive.add(new THREE.Color(0x6a3022));
+    value.userData.viewShared = true;
+    this.visualMaterials.add(value);
+    this.skinMaterials.set(key, value);
+    return value;
+  }
+  applySkin(node, skin, flash = false) {
+    const key = `${skin}:${flash}`;
+    if (node.userData.skinKey === key) return;
     node.userData.skin = skin;
+    node.userData.skinKey = key;
     node.userData.model.traverse((o) => {
       if (!o.isMesh) return;
-      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-        const key = m.name.replace(/_(Classic|Candy|Arcade)$/, "");
-        const info =
-          this.manifest.materialSkins?.[key]?.[skin] ??
-          this.manifest.materialSkins?.[key]?.Classic;
-        if (!info) continue;
-        m.color.setRGB(...info.baseColor.slice(0, 3), THREE.SRGBColorSpace);
-        m.roughness = info.roughness;
-        m.metalness = info.metallic;
-        m.emissive.setRGB(...info.emissive);
-      }
+      const sources = node.userData.sources.get(o);
+      const values = sources.map((source) =>
+        this.skinMaterial(source, skin, flash),
+      );
+      o.material = Array.isArray(o.material) ? values : values[0];
     });
   }
   update(game, dt) {
     if (!this.ready) return;
-    const p = game.players[0],
-      preview = game.status === "preview";
-    const desired = this.closet
-      ? new THREE.Vector3(p.x + 3.5, 2.4, p.z + 4.4)
-      : preview
-        ? new THREE.Vector3(
-            13 * game.map.scale,
-            20 * game.map.scale,
-            20 * game.map.scale,
-          )
-        : new THREE.Vector3(p.x + 10, p.y + 16, p.z + 13);
-    const target = this.closet
-      ? new THREE.Vector3(p.x + 0.6, 0.8, p.z)
-      : preview
-        ? new THREE.Vector3(0, 0, 0)
-        : new THREE.Vector3(p.x, 0, p.z - 0.8);
-    this.camera.position.lerp(desired, 1 - Math.exp(-dt * 3));
-    this.target.lerp(target, 1 - Math.exp(-dt * 5));
-    this.camera.lookAt(this.target);
+    if (this.workshop.enabled) this.updateWorkshopCamera();
+    else {
+      this.camera.clearViewOffset();
+      const p = game.players[0],
+        preview = game.status === "preview";
+      const desired = this.closet
+        ? new THREE.Vector3(p.x + 3.5, 2.4, p.z + 4.4)
+        : preview
+          ? new THREE.Vector3(
+              13 * game.map.scale,
+              20 * game.map.scale,
+              20 * game.map.scale,
+            )
+          : new THREE.Vector3(p.x + 10, p.y + 16, p.z + 13);
+      const target = this.closet
+        ? new THREE.Vector3(p.x + 0.6, 0.8, p.z)
+        : preview
+          ? new THREE.Vector3(0, 0, 0)
+          : new THREE.Vector3(p.x, 0, p.z - 0.8);
+      this.camera.position.lerp(desired, 1 - Math.exp(-dt * 3));
+      this.target.lerp(target, 1 - Math.exp(-dt * 5));
+      this.camera.lookAt(this.target);
+    }
     for (const player of game.players) {
       const group = this.entities.get(`p${player.id}`);
       if (!group) continue;
@@ -682,26 +804,40 @@ export class WorldView {
       group.userData.last = { x: player.x, z: player.z };
     }
     const active = new Set();
+    this.designEntities.clear();
     for (const item of game.items) {
       if (item.state === "gone" || item.state === "packed") continue;
       const key = `i${item.id}`;
       active.add(key);
       let node = this.entities.get(key);
+      if (
+        node &&
+        (node.userData.word !== item.word ||
+          node.userData.designId !== (item.designId ?? null))
+      ) {
+        this.removeObject(node);
+        this.entities.delete(key);
+        node = null;
+      }
       if (!node) {
         node = this.itemModel(item);
         if (!node) continue;
         this.entities.set(key, node);
       }
+      if (item.designId) this.designEntities.set(item.designId, node);
       node.visible = true;
       this.applySkin(
         node,
-        item.state === "held"
-          ? item.owner === 0
-            ? game.skin
-            : "Classic"
-          : item.state === "thrown"
-            ? (item.skin ?? "Classic")
-            : "Classic",
+        item.origin === "decor"
+          ? (item.skin ?? "Classic")
+          : item.state === "held"
+            ? item.owner === 0
+              ? game.skin
+              : "Classic"
+            : item.state === "thrown"
+              ? (item.skin ?? "Classic")
+              : "Classic",
+        item.origin === "map" && item.flashUntil > game.time,
       );
       if (item.state === "held" || item.state === "carried") {
         const owner = game.players[item.owner];
@@ -730,13 +866,6 @@ export class WorldView {
         node.position.set(item.x, item.y ?? 0, item.z);
         node.rotation.set(0, item.rotation ?? 0, 0);
       }
-      if (item.origin === "map") {
-        const flash = Math.max(0, item.flashUntil - game.time);
-        node.userData.model.traverse((m) => {
-          if (m.isMesh && m.material?.emissive)
-            m.material.emissive.setHex(flash > 0 ? 0x6a3022 : 0);
-        });
-      }
     }
     for (const tile of game.tiles) {
       const key = `t${tile.id}`;
@@ -757,7 +886,7 @@ export class WorldView {
     }
     for (const [key, node] of this.entities)
       if (/^[it]\d/.test(key) && !active.has(key)) {
-        this.dynamic.remove(node);
+        this.removeObject(node);
         this.entities.delete(key);
       }
     for (const k of game.keepsakes) {
@@ -807,13 +936,13 @@ export class WorldView {
     );
     for (const [key, node] of this.entities)
       if (key.startsWith("bomb") && !bombs.has(key)) {
-        this.dynamic.remove(node);
+        this.removeObject(node);
         this.entities.delete(key);
       }
     const zones = new Set(game.zones.map((z) => `zone${z.id}`));
     for (const [key, node] of this.entities)
       if (key.startsWith("zone") && !zones.has(key)) {
-        this.dynamic.remove(node);
+        this.removeObject(node);
         this.entities.delete(key);
       }
     for (const zone of game.zones) {
@@ -865,7 +994,7 @@ export class WorldView {
     for (const fx of [...this.effects]) {
       fx.life -= dt;
       if (fx.life <= 0) {
-        this.dynamic.remove(fx.node);
+        this.removeObject(fx.node);
         this.effects.splice(this.effects.indexOf(fx), 1);
         continue;
       }
@@ -881,6 +1010,7 @@ export class WorldView {
         );
       if (objective.label) objective.label.visible = !objective.done;
     }
+    this.updateWorkshopSelection();
     this.renderer.render(this.scene, this.camera);
   }
   handleEvents(events) {
@@ -961,6 +1091,356 @@ export class WorldView {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    if (this.workshop.enabled)
+      this.fitWorkshop(this.workshop.focus ?? null, false);
+  }
+  setWorkshop(options = {}) {
+    const wasEnabled = this.workshop.enabled;
+    const oldInsets = JSON.stringify(this.workshop.insets);
+    for (const key of ["enabled", "selectedId", "ghost", "insets"])
+      if (Object.hasOwn(options, key)) this.workshop[key] = options[key];
+    this.workshop.insets ??= {};
+    if (this.workshop.enabled) {
+      this.camera.far = 320;
+      this.scene.fog.near = 85;
+      this.scene.fog.far = 180;
+      const key = `${this.game?.map.id}:${this.game?.house.name}`;
+      if (!wasEnabled || this.workshop.mapKey !== key) {
+        this.workshop.mapKey = key;
+        this.workshop.zoom = 1;
+        this.fitWorkshop(null, true);
+      } else if (oldInsets !== JSON.stringify(this.workshop.insets))
+        this.fitWorkshop(this.workshop.focus ?? null, false);
+      this.refreshWorkshopGhost();
+      this.updateWorkshopCamera();
+      this.updateWorkshopSelection();
+    } else {
+      this.camera.far = 120;
+      this.scene.fog.near = 48;
+      this.scene.fog.far = 100;
+      this.camera.clearViewOffset();
+      this.camera.updateProjectionMatrix();
+      this.clear(this.workshopOverlay);
+      this.ghostNode = this.selectionNode = null;
+      this.ghostKey = null;
+    }
+  }
+  workshopBounds(roomName = null) {
+    const rooms = roomName
+      ? this.game?.house.rooms.filter((r) => r.name === roomName)
+      : this.game?.house.rooms;
+    if (!rooms?.length) return null;
+    const box = new THREE.Box3();
+    for (const room of rooms) {
+      const b = room.bounds;
+      box.expandByPoint(new THREE.Vector3(b[0] - 0.6, 0, b[1] - 0.6));
+      box.expandByPoint(new THREE.Vector3(b[2] + 0.6, 3, b[3] + 0.6));
+    }
+    return box;
+  }
+  workshopViewport() {
+    const rect = this.canvas.getBoundingClientRect(),
+      insets = this.workshop.insets;
+    const width = Math.max(1, rect.width),
+      height = Math.max(1, rect.height);
+    const left = Math.max(0, Number(insets.left) || 0),
+      right = Math.max(0, Number(insets.right) || 0);
+    const top = Math.max(0, Number(insets.top) || 0),
+      bottom = Math.max(0, Number(insets.bottom) || 0);
+    return {
+      width,
+      height,
+      left,
+      right,
+      top,
+      bottom,
+      availableW: Math.max(80, width - left - right),
+      availableH: Math.max(80, height - top - bottom),
+    };
+  }
+  fitWorkshop(roomName = null, recenter = true) {
+    const bounds = this.workshopBounds(roomName);
+    if (!bounds) return;
+    this.workshop.focus = roomName;
+    if (recenter) bounds.getCenter(this.workshop.center).setY(0.7);
+    const viewport = this.workshopViewport();
+    const effectiveFov = THREE.MathUtils.radToDeg(
+      2 *
+        Math.atan(
+          (Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) *
+            viewport.availableH) /
+            viewport.height,
+        ),
+    );
+    const camera = new THREE.PerspectiveCamera(
+      effectiveFov,
+      viewport.availableW / viewport.availableH,
+      0.1,
+      320,
+    );
+    const direction = new THREE.Vector3(0.62, 1.05, 0.83).normalize();
+    const corners = [];
+    for (const x of [bounds.min.x, bounds.max.x])
+      for (const y of [bounds.min.y, bounds.max.y])
+        for (const z of [bounds.min.z, bounds.max.z])
+          corners.push(new THREE.Vector3(x, y, z));
+    let low = 5,
+      high = 280;
+    const center = bounds.getCenter(new THREE.Vector3()).setY(0.7);
+    for (let n = 0; n < 22; n++) {
+      const distance = (low + high) / 2;
+      camera.position.copy(center).addScaledVector(direction, distance);
+      camera.lookAt(center);
+      camera.updateMatrixWorld();
+      const fits = corners.every((p) => {
+        const q = p.clone().project(camera);
+        return (
+          Math.abs(q.x) <= 0.94 &&
+          Math.abs(q.y) <= 0.94 &&
+          q.z >= -1 &&
+          q.z <= 1
+        );
+      });
+      if (fits) high = distance;
+      else low = distance;
+    }
+    this.workshop.distance = high;
+    this.updateWorkshopCamera();
+  }
+  updateWorkshopCamera() {
+    if (!this.workshop.enabled) return;
+    const v = this.workshopViewport();
+    const distance = this.workshop.distance * this.workshop.zoom;
+    this.camera.far = Math.max(320, distance * 2);
+    this.scene.fog.near = Math.max(85, distance * 1.4);
+    this.scene.fog.far = Math.max(180, distance * 2.8);
+    this.camera.setViewOffset(
+      v.width,
+      v.height,
+      (v.right - v.left) / 2,
+      (v.bottom - v.top) / 2,
+      v.width,
+      v.height,
+    );
+    this.camera.position
+      .copy(this.workshop.center)
+      .addScaledVector(
+        new THREE.Vector3(0.62, 1.05, 0.83).normalize(),
+        this.workshop.distance * this.workshop.zoom,
+      );
+    this.target.copy(this.workshop.center);
+    this.camera.lookAt(this.target);
+    this.camera.updateMatrixWorld();
+  }
+  panWorkshop(dx, dy) {
+    if (!this.workshop.enabled || !Number.isFinite(dx) || !Number.isFinite(dy))
+      return;
+    const v = this.workshopViewport();
+    const metresPerPixel =
+      (2 *
+        this.workshop.distance *
+        this.workshop.zoom *
+        Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) /
+      v.height;
+    const right = new THREE.Vector3().setFromMatrixColumn(
+      this.camera.matrixWorld,
+      0,
+    );
+    const forward = this.camera
+      .getWorldDirection(new THREE.Vector3())
+      .setY(0)
+      .normalize();
+    this.workshop.center
+      .addScaledVector(right, -dx * metresPerPixel)
+      .addScaledVector(forward, dy * metresPerPixel * 1.4);
+    const bounds = this.workshopBounds();
+    if (bounds) {
+      this.workshop.center.x = THREE.MathUtils.clamp(
+        this.workshop.center.x,
+        bounds.min.x,
+        bounds.max.x,
+      );
+      this.workshop.center.z = THREE.MathUtils.clamp(
+        this.workshop.center.z,
+        bounds.min.z,
+        bounds.max.z,
+      );
+    }
+    this.updateWorkshopCamera();
+  }
+  zoomWorkshop(delta) {
+    if (!this.workshop.enabled || !Number.isFinite(delta)) return;
+    this.workshop.zoom = THREE.MathUtils.clamp(
+      this.workshop.zoom * Math.exp(delta * 0.0015),
+      0.35,
+      2.3,
+    );
+    this.updateWorkshopCamera();
+  }
+  focusWorkshop(roomName = null) {
+    if (!this.workshop.enabled) return;
+    this.workshop.zoom = 1;
+    this.fitWorkshop(roomName, true);
+  }
+  refreshWorkshopGhost() {
+    const ghost = this.workshop.ghost;
+    if (
+      !ghost ||
+      !this.models.has(ghost.word) ||
+      !Number.isFinite(ghost.x) ||
+      !Number.isFinite(ghost.z)
+    ) {
+      if (this.ghostNode) this.removeObject(this.ghostNode);
+      this.ghostNode = null;
+      this.ghostKey = null;
+      return;
+    }
+    const key = `${ghost.word}:${ghost.skin}:${Boolean(ghost.valid)}`;
+    if (this.ghostKey !== key) {
+      if (this.ghostNode) this.removeObject(this.ghostNode);
+      const node = this.itemModel({ word: ghost.word });
+      this.applySkin(node, ghost.skin ?? "Classic");
+      const tint = ghost.valid ? 0x83e7bb : 0xf17865;
+      const copies = new Map();
+      node.traverse((o) => {
+        if (!o.isMesh) return;
+        const originals = Array.isArray(o.material) ? o.material : [o.material];
+        const values = originals.map((source) => {
+          if (copies.has(source)) return copies.get(source);
+          const value = source.clone();
+          delete value.userData.paletteOwned;
+          delete value.userData.viewShared;
+          value.userData.viewOwned = true;
+          value.transparent = true;
+          value.opacity = 0.48;
+          value.depthWrite = false;
+          value.color.lerp(new THREE.Color(tint), 0.22);
+          copies.set(source, value);
+          return value;
+        });
+        o.material = Array.isArray(o.material) ? values : values[0];
+        o.castShadow = false;
+      });
+      const item = this.data.items.items.find((i) => i.id === ghost.word);
+      const width = Math.max(0.4, item?.size?.[0] ?? 1),
+        depth = Math.max(0.4, item?.size?.[2] ?? 1);
+      const line = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(-width / 2, 0.025, -depth / 2),
+          new THREE.Vector3(width / 2, 0.025, -depth / 2),
+          new THREE.Vector3(width / 2, 0.025, depth / 2),
+          new THREE.Vector3(-width / 2, 0.025, depth / 2),
+        ]),
+        new THREE.LineBasicMaterial({
+          color: tint,
+          depthTest: false,
+          transparent: true,
+          opacity: 0.95,
+        }),
+      );
+      line.geometry.userData.viewOwned = true;
+      line.material.userData.viewOwned = true;
+      line.renderOrder = 5;
+      node.add(line);
+      this.workshopOverlay.add(node);
+      this.ghostNode = node;
+      this.ghostKey = key;
+    }
+    this.ghostNode.position.set(
+      ghost.x,
+      this.game?.floorAt(ghost.x, ghost.z) ?? 0,
+      ghost.z,
+    );
+    this.ghostNode.rotation.set(0, THREE.MathUtils.degToRad(ghost.yaw ?? 0), 0);
+    this.ghostNode.updateMatrixWorld(true);
+  }
+  updateWorkshopSelection() {
+    const selected =
+      this.workshop.enabled &&
+      this.designEntities.get(this.workshop.selectedId);
+    if (!selected) {
+      if (this.selectionNode) this.removeObject(this.selectionNode);
+      this.selectionNode = null;
+      return;
+    }
+    selected.updateMatrixWorld(true);
+    if (!this.selectionNode) {
+      this.selectionNode = new THREE.Box3Helper(new THREE.Box3(), 0xffdb89);
+      this.selectionNode.geometry.userData.viewOwned = true;
+      this.selectionNode.material.userData.viewOwned = true;
+      this.selectionNode.material.depthTest = false;
+      this.selectionNode.renderOrder = 6;
+      this.workshopOverlay.add(this.selectionNode);
+    }
+    this.selectionNode.box.setFromObject(selected).expandByScalar(0.04);
+    this.selectionNode.updateMatrixWorld(true);
+  }
+  pickWorkshop(clientX, clientY) {
+    if (!this.workshop.enabled) return { point: null, designId: null };
+    this.camera.updateMatrixWorld();
+    const point = this.aim(clientX, clientY);
+    this.dynamic.updateMatrixWorld(true);
+    const hits = this.raycaster
+      .intersectObjects([...this.designEntities.values()], true)
+      .filter((hit) => hit.object.visible && hit.object.isMesh);
+    let designId = null;
+    if (hits.length) {
+      let node = hits[0].object;
+      while (node && !node.userData.designId) node = node.parent;
+      designId = node?.userData.designId ?? null;
+    }
+    return { point, designId };
+  }
+  diagnostics() {
+    return {
+      calls: this.renderer.info.render.calls,
+      triangles: this.renderer.info.render.triangles,
+      geometries: this.renderer.info.memory.geometries,
+      textures: this.renderer.info.memory.textures,
+      programs: this.renderer.info.programs?.length ?? 0,
+      entities: this.entities.size,
+      loadedModels: this.models.size,
+      skinVariants: this.skinMaterials.size,
+      wardrobeVariants: this.wardrobeMaterials.size,
+      materials: this.materials.info(),
+    };
+  }
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const animation of this.avatarModels.values()) {
+      animation.mixer.stopAllAction();
+      animation.mixer.uncacheRoot(animation.avatar);
+    }
+    this.clear(this.world);
+    this.clear(this.dynamic);
+    this.clear(this.workshopOverlay);
+    for (const value of this.visualMaterials) value.dispose();
+    for (const texture of this.visualTextures) texture.dispose();
+    this.materials.dispose();
+    for (const geometry of this.assetGeometries) geometry.dispose();
+    for (const value of this.assetMaterials) value.dispose();
+    for (const texture of this.assetTextures) texture.dispose();
+    this.scene.traverse((node) => {
+      if (node.isLight && node.shadow) node.shadow.dispose();
+    });
+    this.scene.environment = null;
+    this.environmentTarget.dispose();
+    this.renderer.dispose();
+    this.assetGeometries.clear();
+    this.assetMaterials.clear();
+    this.assetTextures.clear();
+    this.effects = [];
+    this.icons.clear();
+    this.models.clear();
+    this.entities.clear();
+    this.designEntities.clear();
+    this.avatarModels.clear();
+    this.skinMaterials.clear();
+    this.wardrobeMaterials.clear();
+    this.floorMaterials.clear();
+    this.visualMaterials.clear();
+    this.visualTextures.clear();
   }
   async icon(word) {
     if (this.icons.has(word)) return this.icons.get(word);
@@ -998,6 +1478,7 @@ export class WorldView {
       );
     ctx.putImageData(image, 0, 0);
     target.dispose();
+    this.removeObject(model);
     const result = c.toDataURL();
     this.icons.set(word, result);
     return result;

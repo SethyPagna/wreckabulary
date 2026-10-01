@@ -35,6 +35,11 @@ Actual 3D models come from the supplied mesh pipeline.
 6. Validation: engine-free rules, regression tests, actual browser interaction,
    Unity compilation/EditMode/PlayMode, representative captures and platform
    builds. Device performance requires real-device testing before a release claim.
+7. Creative Workshop: unlimited decor from all 40 supplied models inside the two
+   authored house shells. Shared validated portable layouts, text furnishing,
+   whole-footprint placement, rotation/finishes, undo/redo, per-map saves and
+   peaceful tours. Matches retain their canonical furniture/economy. See
+   [the Workshop contract](design/CREATIVE_WORKSHOP.md).
 
 ## Acceptance and evidence
 
@@ -49,6 +54,7 @@ Actual 3D models come from the supplied mesh pipeline.
 | Controls | Keyboard/mouse, gamepad and simultaneous touch movement/aim/action supported |
 | HTML | Local bundled dependencies; same JSON sources; functional browser checks and no console errors |
 | Unity | Exact 6000.6.3f1 editor; real tests and builds recorded separately from source inspection |
+| Workshop | Invalid placement/import preserves the draft; undo/redo and per-map reload roundtrip exact decor; tour preserves the layout without combat/economy |
 | Authorship | Production branch authored as SethyPagna with no coauthor trailers |
 
 `docs/progress/WRECKABULARY.md` contains the current evidence and the next action.

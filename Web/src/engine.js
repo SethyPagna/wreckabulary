@@ -88,7 +88,12 @@ export class Game {
     this.data = data;
     this.catalogue = new Map(data.items.items.map((i) => [i.id, i]));
     this.mode = options.mode ?? "Dibs";
-    this.map = MAPS.find((m) => m.id === options.map) ?? MAPS[0];
+    this.peaceful = this.mode === "Tour";
+    this.layout = this.peaceful
+      ? structuredClone(options.layout ?? { props: [] })
+      : null;
+    this.map =
+      MAPS.find((m) => m.id === (this.layout?.map ?? options.map)) ?? MAPS[0];
     this.rules = rulesFor(data, this.mode);
     this.wardrobe = options.wardrobe ?? structuredClone(data.wardrobe.default);
     this.skin = options.skin ?? "Classic";
@@ -133,7 +138,7 @@ export class Game {
     this.tutorial = 0;
     this.stats = { broken: 0, crafted: 0, damage: 0, collected: 0 };
     this.roundStart = this.time;
-    if (this.mode !== "MovingDay")
+    if (!this.peaceful && this.mode !== "MovingDay")
       this.house.furniture.forEach((f) => {
         const item = this.addItem(
           f.word,
@@ -144,7 +149,16 @@ export class Game {
         );
         item.y = f.y ?? 0;
       });
-    const count = this.mode === "Tutorial" ? 2 : 4;
+    if (this.peaceful)
+      for (const prop of this.layout.props) {
+        const item = this.addItem(prop.word, prop.x, prop.z, "decor", prop.yaw);
+        item.designId = prop.id;
+        item.skin = prop.skin;
+        item.y = this.floorAt(prop.x, prop.z);
+        item.invulnerable = true;
+        item.spent = true;
+      }
+    const count = this.peaceful ? 1 : this.mode === "Tutorial" ? 2 : 4;
     this.players = Array.from({ length: count }, (_, id) => {
       const spawn = this.house.spawns[id];
       return {
@@ -167,7 +181,7 @@ export class Game {
         hp: this.rules.maxHealth,
         maxHp: this.rules.maxHealth,
         state: "alive",
-        bag: this.rules.starterLetters,
+        bag: this.peaceful ? "" : this.rules.starterLetters,
         carried: null,
         action: null,
         slots: Array(this.rules.maxCarried).fill(null),
@@ -355,6 +369,7 @@ export class Game {
   }
   canAct(p) {
     return (
+      !this.peaceful &&
       this.status === "playing" &&
       p.state === "alive" &&
       this.time >= p.stunUntil &&
@@ -389,6 +404,7 @@ export class Game {
   }
   collect(p, tile) {
     if (
+      this.peaceful ||
       p.state !== "alive" ||
       p.bag.length + (p.craft?.word.length ?? 0) >= this.rules.maxLetters
     )
@@ -459,6 +475,7 @@ export class Game {
     return true;
   }
   drop(p) {
+    if (this.peaceful) return false;
     const item = this.held(p);
     if (!item) return false;
     p.action = null;
@@ -491,6 +508,7 @@ export class Game {
     return true;
   }
   tossLetter(p, char) {
+    if (this.peaceful) return false;
     const i = p.bag.indexOf(char);
     if (i < 0) return false;
     p.bag = p.bag.slice(0, i) + p.bag.slice(i + 1);
@@ -550,6 +568,7 @@ export class Game {
     return true;
   }
   hit(p, hit) {
+    if (this.peaceful) return false;
     if (p.state !== "alive" || this.time < p.invulnerableUntil)
       return { ignored: true };
     if (
@@ -1013,6 +1032,7 @@ export class Game {
     return false;
   }
   floorAt(x, z) {
+    if (this.peaceful) return 0;
     if (this.map.id !== "pinwheel" || x < 2.5 || x > 4) return 0;
     if (z >= 1 && z <= 4) return 1.7;
     if (z >= -1 && z < 1) return (z + 1) * 0.85;
@@ -1044,16 +1064,21 @@ export class Game {
     for (const i of this.items) {
       if (
         !["world", "deployed"].includes(i.state) ||
-        i.definition?.deploy?.effect === "JumpPad" ||
-        i.definition?.deploy?.effect === "SpeedStrip" ||
-        i.definition?.category === "Consumables"
+        (!this.peaceful &&
+          (i.definition?.deploy?.effect === "JumpPad" ||
+            i.definition?.deploy?.effect === "SpeedStrip" ||
+            i.definition?.category === "Consumables"))
       )
         continue;
       const size = i.delivery
           ? [0.65, 0.55, 0.55]
           : (i.definition?.size ?? [0.5, 0.5, 0.5]),
-        rx = Math.min(size[0] / 2, 0.9),
-        rz = Math.min(size[2] / 2, 0.9),
+        rx = this.peaceful
+          ? Math.max(0.4, size[0]) / 2
+          : Math.min(size[0] / 2, 0.9),
+        rz = this.peaceful
+          ? Math.max(0.4, size[2]) / 2
+          : Math.min(size[2] / 2, 0.9),
         c = Math.cos(i.rotation),
         s = Math.sin(i.rotation),
         localX = (x - i.x) * c - (z - i.z) * s,
@@ -1459,6 +1484,25 @@ export class Game {
     dt = Math.min(dt, 0.05);
     this.time += dt;
     if (this.status === "preview") return;
+    if (this.peaceful) {
+      const player = this.players[0],
+        x = input.x ?? 0,
+        z = input.z ?? 0;
+      player.motion = { x, z };
+      if (x || z) {
+        player.facing = normalize(x, z);
+        player.yaw = Math.atan2(player.facing.x, player.facing.z);
+      }
+      const direction = normalize(x, z),
+        amount = Math.min(1, Math.hypot(x, z));
+      this.move(
+        player,
+        direction.x * 4.5 * dt * amount,
+        direction.z * 4.5 * dt * amount,
+      );
+      player.y = this.floorAt(player.x, player.z);
+      return;
+    }
     const p = this.players[0];
     p.motion = { x: input.x ?? 0, z: input.z ?? 0 };
     if (p.state === "alive") {

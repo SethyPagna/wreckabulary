@@ -1,0 +1,14 @@
+{
+  "kind": "Focused real Chromium check of final extracted ZIP; nested HTTP path",
+  "base": "http://127.0.0.1:4191/Wreckabulary-HTML/",
+  "checks": [
+    "Extracted ZIP loads actual local models and renders from an HTTP subdirectory.",
+    "Final bundled rename immediately enables Undo; Undo restores the name and enables Redo.",
+    "Renaming preserves the actual placement preview, and Place commits the supplied plant.",
+    "Final extracted bundle furnishes, saves, tours and restores the same three supplied objects.",
+    "No page/resource errors or external runtime requests."
+  ],
+  "errors": [],
+  "external": [],
+  "passed": 5
+}

@@ -2,7 +2,8 @@
 
 A standalone Three.js game for one human with AI housemates. It uses the Unity project's JSON rules, item catalogue, two maps and cosmetic wardrobe, and genuine supplied models exported to GLB. This is a separately implemented HTML game; it is not a Unity WebGL build.
 
-Requires Node 22.12+ or 24 and the repository's hydrated Git LFS assets. From this directory:
+Requires Node 22.12+ or 24. The HTML models and images are ordinary Git files;
+the native Unity source art separately requires Git LFS hydration. From this directory:
 
 ```sh
 npm ci
@@ -19,6 +20,14 @@ For desktop: WASD/arrows move, mouse aims, left click/J attacks, right click/K b
 
 Dibs is first to three rounds; Duos adds an AI buddy and revives. Moving Day delivers recipe parcels, checks the shared room checklist and replenishes shortages. Moving Out requires physically carrying marked original keepsakes, dropping them at the van, and gathering all surviving teammates there alive. Play & Learn has a training dummy and no time limit. Browser play is solo; online multiplayer and a second local human are not implemented in this edition.
 
+Creative Workshop is a separate activity with unlimited decor. Type supplied
+object words, choose a room, arrange a preview on the half-metre grid and apply a
+finish. Select existing props to move, rotate or remove them; undo and redo keep
+editing recoverable. Save each house locally, export/import a portable layout,
+and choose Tour to walk through the design peacefully. Doors, spawns, room edges
+and overlapping footprints are reserved by the shared layout rules. Other game
+modes retain their authored maps and crafting limits.
+
 Run functional browser checks against a running dev or preview server:
 
 ```sh
@@ -28,3 +37,12 @@ CHROMIUM_PATH=/path/to/chromium WRECKABULARY_URL=http://localhost:4173 npm run t
 ```
 
 The test uses actual Chromium keyboard, pointer and touchscreen input, and saves screenshots/report to ignored `playwright-results/`. Mechanics tests cover letter conservation, duplicate letters, channel cancellation, health/shields, hazards, item ownership, physical objectives, replenishment and cooperative AI completion. Test results do not establish real device frame rates or verify the Unity build.
+
+After `npm run build`, package the complete static edition with:
+
+```sh
+python3 ../Tools/Delivery/package-html.py --output /path/to/a-new-delivery.zip
+```
+
+The packager checks required build files and the ZIP CRC and writes a SHA256
+sidecar. It preserves existing delivery files.

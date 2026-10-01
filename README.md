@@ -12,6 +12,9 @@ The project contains a Unity edition and a standalone HTML/Three.js edition. Uni
 - **12 enabled recipes:** BALL, BAT, BED, BLADE, BOMB, FOAM, LAMP, MAT, PLATE, SOAP, SOFA and TABLE. Other supplied models can furnish rooms without becoming enabled recipes.
 - **Two connected maps:** Pinwheel House and Garden Courtyard. Four game modes plus a tutorial are selectable.
 - Supplied furniture, letter meshes, an animated modular avatar, cosmetic wardrobe and Classic/Candy/Arcade item skins are integrated in source. Touch controls, keyboard/mouse controls, and Unity couch/gamepad bindings share the gameplay commands.
+- **Creative Workshop:** furnish either house from the 40 supplied object words,
+  arrange/rotate/finish decor, undo edits, save per-map homes, export/import layouts,
+  and take a peaceful tour. This activity is separate from match crafting limits.
 
 | Mode | Objective |
 | --- | --- |
@@ -21,7 +24,10 @@ The project contains a Unity edition and a standalone HTML/Three.js edition. Uni
 | Moving Out | Carry marked keepsakes to the van, then gather every surviving roommate there alive before the house clears out. |
 | Tutorial | Guided Unity exercises and a browser practice space for smashing, collecting, crafting and handling gear. |
 
-The creative room editor, custom room saves and online multiplayer are future work. The hub currently provides exploration, mode/map selection and cosmetic choices.
+The Workshop changes furniture inside the two authored house shells; arbitrary
+floor-plan construction and online multiplayer are future work. The hub also
+provides exploration, mode/map selection and cosmetic choices. Native Workshop
+execution remains subject to the Unity verification gate below.
 
 ## Run the browser edition
 
@@ -62,6 +68,11 @@ Add this checkout to Unity Hub and activate Unity Personal on the machine runnin
 ```sh
 dotnet run --project Tools/RulesHarness
 ```
+
+The filesystem/history checks can also execute without Unity:
+`python3 Tools/CloudSetup/verify-home-storage.py`. This uses actual storage source
+with canonical configuration and an explicitly injected temporary directory;
+it does not emulate Unity initialization or UI.
 
 With an activated editor:
 

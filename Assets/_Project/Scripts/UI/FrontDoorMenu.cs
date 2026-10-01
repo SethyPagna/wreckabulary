@@ -20,11 +20,21 @@ namespace Wreckabulary
         Canvas canvas;
         RectTransform safe;
         TextMeshProUGUI mapLabel, lookLabel;
+        TextMeshProUGUI portraitMapLabel, portraitLookLabel;
         string[] mapIds;
         int mapIndex, preset, colourIndex, skinIndex;
         Outfit outfit;
         bool tucked;
         GameObject sheet;
+        GameObject portraitSheet;
+        RectTransform portraitContent;
+        Button menuToggle, portraitFirst;
+        Button classicFinish, portraitFinish, classicSound, portraitSound;
+        ScrollRect portraitScroll;
+        GameObject lastMenuSelection;
+        bool portrait;
+        readonly System.Collections.Generic.List<(TextMeshProUGUI label,float size)> portraitText = new();
+        readonly System.Collections.Generic.List<(RectTransform rect,float height)> portraitRows = new();
         static readonly string[] SkinNames = { "Classic", "Candy", "Arcade" };
         static readonly string[] LookNames = { "Neighbour", "Garden explorer", "Cozy scholar" };
 
@@ -86,17 +96,20 @@ namespace Wreckabulary
             lookLabel = Text(sheet.transform, "", new Vector2(445, 100), new Vector2(590, 60), 30, Teal);
             Button(sheet.transform, "Change outfit", new Vector2(445, 20), new Vector2(520, 64), () => { preset = (preset + 1) % 3; SetLook(); });
             Button(sheet.transform, "Change colour", new Vector2(445, -62), new Vector2(520, 64), () => { colourIndex++; SetLook(); });
-            Button(sheet.transform, "Item finish: " + SkinNames[skinIndex], new Vector2(445, -144), new Vector2(520, 64), () =>
+            classicFinish = Button(sheet.transform, "Item finish: " + SkinNames[skinIndex], new Vector2(445, -144), new Vector2(520, 64), () =>
             {
                 skinIndex = (skinIndex + 1) % SkinNames.Length;
                 foreach (var item in GameConfig.Current.Items.Enabled) outfit.ItemSkins[item.Id] = SkinNames[skinIndex];
-                SaveLook();
-                var selected = EventSystem.current?.currentSelectedGameObject;
-                if (selected) selected.GetComponentInChildren<TextMeshProUGUI>().text = "Item finish: " + SkinNames[skinIndex];
+                SaveLook(); RefreshLabels();
             });
             Button(sheet.transform, "Play & learn  /  No pressure, just wordplay", new Vector2(-380, -216), new Vector2(720, 56), () =>
             {
                 EnsureRoommate(); SaveLook(); Session.LoadMode("Tutorial");
+            });
+            Button(sheet.transform, "Creative Workshop  /  Build your cozy home", new Vector2(445, -216), new Vector2(520, 56), () =>
+            {
+                SaveLook();
+                if (!Session.OpenWorkshop(mapIds[mapIndex], out var error)) lookLabel.text = error;
             });
             mapLabel = Text(sheet.transform, "", new Vector2(-370, -282), new Vector2(720, 68), 32, Ink);
             Button(sheet.transform, "Change house", new Vector2(260, -282), new Vector2(330, 65), () =>
@@ -106,21 +119,26 @@ namespace Wreckabulary
             });
             Button(sheet.transform, "Explore the house", new Vector2(600, -282), new Vector2(310, 65), () =>
             {
-                EnsureRoommate(); tucked = true; sheet.SetActive(false);
+                EnsureRoommate(); tucked = true; ShowSheets();
             });
             var toggle = Button(safe, "Play & wardrobe", Vector2.zero, new Vector2(330, 64), () =>
-            { tucked = !tucked; sheet.SetActive(!tucked); });
+            { tucked = !tucked; ShowSheets(); });
+            menuToggle = toggle;
             var toggleRect = (RectTransform)toggle.transform;
             toggleRect.anchorMin = toggleRect.anchorMax = toggleRect.pivot = new Vector2(0, 1);
             toggleRect.anchoredPosition = new Vector2(18, -18);
-            Button soundButton = null;
-            soundButton = Button(sheet.transform, GameFeedback.Muted ? "Sound off" : "Sound on", new Vector2(645, 355), new Vector2(230, 52), () =>
+            classicSound = Button(sheet.transform, GameFeedback.Muted ? "Sound off" : "Sound on", new Vector2(645, 355), new Vector2(230, 52), () =>
             {
                 GameFeedback.Muted = !GameFeedback.Muted;
-                soundButton.GetComponentInChildren<TextMeshProUGUI>().text = GameFeedback.Muted ? "Sound off" : "Sound on";
+                RefreshLabels();
             });
             Text(sheet.transform, "Smash furniture • collect letters • spell gear • use it!", new Vector2(0, -390), new Vector2(1560, 54), 25, Ink);
+            BuildPortrait();
             RefreshLabels();
+            // A newly created overlay has no selected control until the pointer clicks it.
+            // Select the first mode explicitly so controller navigation starts immediately.
+            var first = sheet.GetComponentInChildren<Button>();
+            if (EventSystem.current && first) EventSystem.current.SetSelectedGameObject(first.gameObject);
         }
 
         void Update()
@@ -130,12 +148,111 @@ namespace Wreckabulary
             safe.anchorMin = new Vector2(area.xMin / Screen.width, area.yMin / Screen.height);
             safe.anchorMax = new Vector2(area.xMax / Screen.width, area.yMax / Screen.height);
             // Fit the postcard inside both axes, including portrait phones and short ultrawide windows.
-            if (sheet)
+            bool nextPortrait = safe.rect.width < safe.rect.height;
+            bool changed = portrait != nextPortrait; portrait = nextPortrait;
+            if (sheet && !portrait)
             {
                 float fit = Mathf.Min(1f, Mathf.Max(0.1f, (safe.rect.width - 32f) / 1700f),
                     Mathf.Max(0.1f, (safe.rect.height - 32f) / 920f));
                 sheet.transform.localScale = Vector3.one * fit;
             }
+            if (portraitSheet)
+            {
+                float unit = Mathf.Max(1f,Screen.dpi/160f)/Mathf.Max(.1f,canvas.scaleFactor);
+                foreach (var row in portraitRows) row.rect.GetComponent<LayoutElement>().preferredHeight = row.height*unit;
+                foreach (var text in portraitText) text.label.fontSize = text.size*unit;
+                var layout = portraitContent.GetComponent<VerticalLayoutGroup>();
+                layout.spacing = 12*unit; layout.padding = new RectOffset(16,16,16,16);
+                var rect = (RectTransform)portraitSheet.transform; rect.offsetMin = Vector2.zero; rect.offsetMax = new Vector2(0,-(48*unit+32));
+                if (portrait)
+                {
+                    var toggleRect = (RectTransform)menuToggle.transform; toggleRect.sizeDelta = new Vector2(Mathf.Min(safe.rect.width-36,240*unit),48*unit);
+                    StretchLabel(menuToggle);
+                }
+                else ((RectTransform)menuToggle.transform).sizeDelta = new Vector2(330,64);
+            }
+            ShowSheets();
+            if (changed && !tucked && EventSystem.current)
+                EventSystem.current.SetSelectedGameObject(portrait ? portraitFirst.gameObject : sheet.GetComponentInChildren<Button>().gameObject);
+            var selected=EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+            if (selected != lastMenuSelection)
+            {
+                lastMenuSelection=selected;
+                if (portrait && selected && selected.transform.IsChildOf(portraitContent))
+                {
+                    var bounds=RectTransformUtility.CalculateRelativeRectTransformBounds(portraitScroll.viewport,selected.transform);
+                    var position=portraitContent.anchoredPosition;
+                    if (bounds.min.y<portraitScroll.viewport.rect.yMin) position.y+=portraitScroll.viewport.rect.yMin-bounds.min.y;
+                    else if (bounds.max.y>portraitScroll.viewport.rect.yMax) position.y-=bounds.max.y-portraitScroll.viewport.rect.yMax;
+                    position.y=Mathf.Clamp(position.y,0,Mathf.Max(0,portraitContent.rect.height-portraitScroll.viewport.rect.height));
+                    portraitContent.anchoredPosition=position;
+                }
+            }
+        }
+
+        void ShowSheets()
+        { if (sheet) sheet.SetActive(!tucked && !portrait); if (portraitSheet) portraitSheet.SetActive(!tucked && portrait); }
+
+        void BuildPortrait()
+        {
+            var panel = Rect(safe,"Portrait welcome",Vector2.zero,Vector2.zero); panel.anchorMin = Vector2.zero; panel.anchorMax = Vector2.one; panel.offsetMin = panel.offsetMax = Vector2.zero;
+            portraitSheet = panel.gameObject; panel.gameObject.AddComponent<Image>().color = Cream;
+            var scroll = panel.gameObject.AddComponent<ScrollRect>(); scroll.horizontal = false; scroll.movementType = ScrollRect.MovementType.Clamped;
+            portraitScroll=scroll;
+            var viewport = Rect(panel,"Viewport",Vector2.zero,Vector2.zero); viewport.anchorMin = Vector2.zero; viewport.anchorMax = Vector2.one; viewport.offsetMin = viewport.offsetMax = Vector2.zero;
+            viewport.gameObject.AddComponent<Image>().color = Cream; viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+            portraitContent = Rect(viewport,"Welcome choices",Vector2.zero,Vector2.zero); portraitContent.anchorMin = new Vector2(0,1); portraitContent.anchorMax = Vector2.one; portraitContent.pivot = new Vector2(.5f,1);
+            var layout = portraitContent.gameObject.AddComponent<VerticalLayoutGroup>(); layout.childControlWidth = layout.childControlHeight = true; layout.childForceExpandWidth = true; layout.childForceExpandHeight = false;
+            portraitContent.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            scroll.viewport = viewport; scroll.content = portraitContent;
+            PortraitLabel("WRECKABULARY",32,48);
+            PortraitLabel("Make words. Make a mess. Make yourself at home.",17,48);
+            portraitFirst = PortraitMode("Dibs", "Last roommate standing wins.", "Dibs");
+            PortraitMode("Duos", "Two teams. Revive your buddy.", "Duos");
+            PortraitMode("Moving Day", "Put spelled furniture in its room.", "MovingDay");
+            PortraitMode("Moving Out", "Rescue keepsakes before clear-out.", "MovingOut");
+            PortraitButton("Play & learn",() => { EnsureRoommate(); SaveLook(); Session.LoadMode("Tutorial"); });
+            PortraitButton("Creative Workshop",() => { SaveLook(); if (!Session.OpenWorkshop(mapIds[mapIndex],out var error)) portraitLookLabel.text = error; });
+            portraitMapLabel = PortraitLabel("",20,58);
+            PortraitButton("Change house",() => { mapIndex=(mapIndex+1)%mapIds.Length; Session.SelectMap(mapIds[mapIndex]); RefreshLabels(); });
+            portraitLookLabel = PortraitLabel("",20,58);
+            PortraitButton("Change outfit",() => { preset=(preset+1)%3; SetLook(); });
+            PortraitButton("Change colour",() => { colourIndex++; SetLook(); });
+            portraitFinish = PortraitButton("Item finish: "+SkinNames[skinIndex],() =>
+            {
+                skinIndex=(skinIndex+1)%SkinNames.Length;
+                foreach (var item in GameConfig.Current.Items.Enabled) outfit.ItemSkins[item.Id]=SkinNames[skinIndex];
+                SaveLook(); RefreshLabels();
+            });
+            PortraitButton("Explore the house",() => { EnsureRoommate(); tucked=true; ShowSheets(); });
+            portraitSound = PortraitButton(GameFeedback.Muted ? "Sound off" : "Sound on",() =>
+            { GameFeedback.Muted=!GameFeedback.Muted; RefreshLabels(); });
+            PortraitLabel("Smash furniture · collect letters · spell gear · use it!",17,58);
+            portraitSheet.SetActive(false);
+        }
+        TextMeshProUGUI PortraitLabel(string text,float font,float height)
+        {
+            var label = Text(portraitContent,text,Vector2.zero,new Vector2(800,height),font,Ink);
+            label.textWrappingMode = TextWrappingModes.Normal;
+            label.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
+            portraitRows.Add((label.rectTransform,height)); portraitText.Add((label,font)); return label;
+        }
+        Button PortraitButton(string title,Action action,float height=48)
+        {
+            var button = Button(portraitContent,title,Vector2.zero,new Vector2(800,height),action);
+            button.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
+            portraitRows.Add(((RectTransform)button.transform,height));
+            portraitText.Add((button.GetComponentInChildren<TextMeshProUGUI>(),20)); StretchLabel(button); return button;
+        }
+        Button PortraitMode(string title,string description,string mode)
+        {
+            var button = PortraitButton(title+"\n<size=65%>"+description+"</size>",() => { EnsureRoommate(); SaveLook(); Session.LoadMode(mode,mapIds[mapIndex]); },80);
+            button.GetComponent<Image>().color=Teal; button.GetComponentInChildren<TextMeshProUGUI>().color=Cream; return button;
+        }
+        static void StretchLabel(Button button)
+        {
+            var rect = button.GetComponentInChildren<TextMeshProUGUI>().rectTransform; rect.anchorMin=Vector2.zero; rect.anchorMax=Vector2.one;
+            rect.offsetMin=new Vector2(12,6); rect.offsetMax=new Vector2(-12,-6);
         }
 
         void Mode(string title, string description, string id, float x, float y)
@@ -189,6 +306,10 @@ namespace Wreckabulary
             if (mapLabel) mapLabel.text = "HOUSE  /  " + GameConfig.Current.HouseFor(mapIds[mapIndex]).Name;
             if (lookLabel) lookLabel.text = LookNames[preset] + "  ·  " +
                 (GameConfig.Current.Wardrobe.Colour("Top", outfit.ColourOf("Top"))?.Name ?? "Pool Teal");
+            if (portraitMapLabel) portraitMapLabel.text = mapLabel.text;
+            if (portraitLookLabel) portraitLookLabel.text = lookLabel.text;
+            foreach (var button in new[] {classicFinish,portraitFinish}) if (button) button.GetComponentInChildren<TextMeshProUGUI>().text="Item finish: "+SkinNames[skinIndex];
+            foreach (var button in new[] {classicSound,portraitSound}) if (button) button.GetComponentInChildren<TextMeshProUGUI>().text=GameFeedback.Muted ? "Sound off" : "Sound on";
         }
 
         static RectTransform Rect(Transform parent, string name, Vector2 at, Vector2 size)

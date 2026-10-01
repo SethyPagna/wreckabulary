@@ -76,6 +76,14 @@ namespace Wreckabulary
             SceneManager.LoadScene(scene);
         }
 
+        /// <summary>Open an isolated creative stage over the Hub without rebuilding scenes or rebinding players.</summary>
+        public static bool OpenWorkshop(string mapId, out string error)
+        {
+            if (CreativeWorkshop.Instance) { error = "A workshop is already open."; return false; }
+            var workshop = new GameObject("Creative Workshop").AddComponent<CreativeWorkshop>();
+            return workshop.Open(mapId ?? MapId, out error);
+        }
+
         /// <summary>Back to the house, if the house is in the build.</summary>
         public static bool GoHome()
         {

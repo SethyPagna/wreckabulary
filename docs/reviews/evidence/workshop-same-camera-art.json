@@ -1,0 +1,1892 @@
+{
+  "kind": "Same-camera genuine model/material scene comparisons",
+  "baseline": "Saved pre-Workshop/tactile renderer with current supplied assets, layout and engine in both variants; this isolates rendering changes, not an earlier whole-game build.",
+  "limits": "Headless desktop Chromium with SwiftShader. Draw calls/triangles are scene observations, not device FPS. Temporary DOM overlay hiding and simulation freeze apply equally to before and after. Original GLBs, original supplied textures, game layout and camera parameters are retained.",
+  "beforeSourceSHA256": "fcb124cea36b6a8fc5a6fc3532d472d78e4b3474150355cf2deccd606400eaa6",
+  "afterSourceSHA256": "03634719456ea81a0dfcc387b050d44c8bc5ec014b7717591d8ef9783a6a7f62",
+  "shots": [
+    {
+      "variant": "before",
+      "name": "house",
+      "file": "art-before-house.png",
+      "render": {
+        "frame": 5,
+        "calls": 323,
+        "triangles": 343866,
+        "points": 0,
+        "lines": 60
+      },
+      "memory": {
+        "geometries": 176,
+        "textures": 88
+      },
+      "camera": {
+        "position": [
+          13,
+          20,
+          20
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fov": 43,
+        "aspect": 1.6,
+        "near": 0.1,
+        "far": 120
+      },
+      "loadedModels": 62,
+      "sceneItems": [
+        {
+          "word": "BED",
+          "x": -4.5,
+          "y": 0,
+          "z": 8.6,
+          "rotation": 0
+        },
+        {
+          "word": "SOFA",
+          "x": 1.5,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "TABLE",
+          "x": -1.5,
+          "y": 0,
+          "z": 6.8,
+          "rotation": 0
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 0
+        },
+        {
+          "word": "SHELF",
+          "x": 2.8,
+          "y": 0,
+          "z": 9.4,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CHEST",
+          "x": -6.5,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CLOCK",
+          "x": -9.3,
+          "y": 0,
+          "z": 5.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "BOX",
+          "x": 8.6,
+          "y": 0,
+          "z": 4.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "FAN",
+          "x": 9.2,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "TABLE",
+          "x": 6.8,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CABINET",
+          "x": 9.4,
+          "y": 0,
+          "z": -2.8,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "STOOL",
+          "x": 9.3,
+          "y": 0,
+          "z": 6.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "SODA",
+          "x": 5.2,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "PAN",
+          "x": 9.4,
+          "y": 0,
+          "z": 3,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "DESK",
+          "x": 4.5,
+          "y": 0,
+          "z": -8.6,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "SHELF",
+          "x": -1.5,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 0
+        },
+        {
+          "word": "TABLE",
+          "x": 1.5,
+          "y": 0,
+          "z": -6.8,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CABINET",
+          "x": -2.8,
+          "y": 0,
+          "z": -9.4,
+          "rotation": 0
+        },
+        {
+          "word": "CHAIR",
+          "x": 6.5,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "BOOK",
+          "x": 9.3,
+          "y": 0,
+          "z": -5.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BED",
+          "x": -8.6,
+          "y": 0,
+          "z": -4.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "SOFA",
+          "x": -9.2,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "TABLE",
+          "x": -6.8,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "PLANT",
+          "x": -9.4,
+          "y": 0,
+          "z": 2.8,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CHAIR",
+          "x": -9.3,
+          "y": 0,
+          "z": -6.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "CRATE",
+          "x": -5.2,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CRATE",
+          "x": -2.6,
+          "y": 0,
+          "z": 2.6,
+          "rotation": 0.2617993877991494
+        },
+        {
+          "word": "BARREL",
+          "x": -2.6,
+          "y": 0,
+          "z": -2.6,
+          "rotation": 0
+        },
+        {
+          "word": "BOX",
+          "x": 1.8,
+          "y": 0,
+          "z": -2.2,
+          "rotation": 0.5235987755982988
+        },
+        {
+          "word": "FAN",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 3.3,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BOOK",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 1.8,
+          "rotation": 4.71238898038469
+        }
+      ]
+    },
+    {
+      "variant": "before",
+      "name": "bedroom",
+      "file": "art-before-bedroom.png",
+      "render": {
+        "frame": 15,
+        "calls": 209,
+        "triangles": 192770,
+        "points": 0,
+        "lines": 60
+      },
+      "memory": {
+        "geometries": 176,
+        "textures": 88
+      },
+      "camera": {
+        "position": [
+          1,
+          7.5,
+          16
+        ],
+        "target": [
+          -3,
+          0.4,
+          7
+        ],
+        "fov": 43,
+        "aspect": 1.6,
+        "near": 0.1,
+        "far": 120
+      },
+      "loadedModels": 62,
+      "sceneItems": [
+        {
+          "word": "BED",
+          "x": -4.5,
+          "y": 0,
+          "z": 8.6,
+          "rotation": 0
+        },
+        {
+          "word": "SOFA",
+          "x": 1.5,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "TABLE",
+          "x": -1.5,
+          "y": 0,
+          "z": 6.8,
+          "rotation": 0
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 0
+        },
+        {
+          "word": "SHELF",
+          "x": 2.8,
+          "y": 0,
+          "z": 9.4,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CHEST",
+          "x": -6.5,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CLOCK",
+          "x": -9.3,
+          "y": 0,
+          "z": 5.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "BOX",
+          "x": 8.6,
+          "y": 0,
+          "z": 4.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "FAN",
+          "x": 9.2,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "TABLE",
+          "x": 6.8,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CABINET",
+          "x": 9.4,
+          "y": 0,
+          "z": -2.8,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "STOOL",
+          "x": 9.3,
+          "y": 0,
+          "z": 6.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "SODA",
+          "x": 5.2,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "PAN",
+          "x": 9.4,
+          "y": 0,
+          "z": 3,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "DESK",
+          "x": 4.5,
+          "y": 0,
+          "z": -8.6,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "SHELF",
+          "x": -1.5,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 0
+        },
+        {
+          "word": "TABLE",
+          "x": 1.5,
+          "y": 0,
+          "z": -6.8,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CABINET",
+          "x": -2.8,
+          "y": 0,
+          "z": -9.4,
+          "rotation": 0
+        },
+        {
+          "word": "CHAIR",
+          "x": 6.5,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "BOOK",
+          "x": 9.3,
+          "y": 0,
+          "z": -5.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BED",
+          "x": -8.6,
+          "y": 0,
+          "z": -4.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "SOFA",
+          "x": -9.2,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "TABLE",
+          "x": -6.8,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "PLANT",
+          "x": -9.4,
+          "y": 0,
+          "z": 2.8,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CHAIR",
+          "x": -9.3,
+          "y": 0,
+          "z": -6.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "CRATE",
+          "x": -5.2,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CRATE",
+          "x": -2.6,
+          "y": 0,
+          "z": 2.6,
+          "rotation": 0.2617993877991494
+        },
+        {
+          "word": "BARREL",
+          "x": -2.6,
+          "y": 0,
+          "z": -2.6,
+          "rotation": 0
+        },
+        {
+          "word": "BOX",
+          "x": 1.8,
+          "y": 0,
+          "z": -2.2,
+          "rotation": 0.5235987755982988
+        },
+        {
+          "word": "FAN",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 3.3,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BOOK",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 1.8,
+          "rotation": 4.71238898038469
+        }
+      ]
+    },
+    {
+      "variant": "before",
+      "name": "avatar",
+      "file": "art-before-avatar.png",
+      "render": {
+        "frame": 24,
+        "calls": 90,
+        "triangles": 107814,
+        "points": 0,
+        "lines": 24
+      },
+      "memory": {
+        "geometries": 176,
+        "textures": 88
+      },
+      "camera": {
+        "position": [
+          -4.4,
+          2.5,
+          4.5
+        ],
+        "target": [
+          -7.5,
+          0.8,
+          0.5
+        ],
+        "fov": 43,
+        "aspect": 1.6,
+        "near": 0.1,
+        "far": 120
+      },
+      "loadedModels": 62,
+      "sceneItems": [
+        {
+          "word": "BED",
+          "x": -4.5,
+          "y": 0,
+          "z": 8.6,
+          "rotation": 0
+        },
+        {
+          "word": "SOFA",
+          "x": 1.5,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "TABLE",
+          "x": -1.5,
+          "y": 0,
+          "z": 6.8,
+          "rotation": 0
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 0
+        },
+        {
+          "word": "SHELF",
+          "x": 2.8,
+          "y": 0,
+          "z": 9.4,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CHEST",
+          "x": -6.5,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CLOCK",
+          "x": -9.3,
+          "y": 0,
+          "z": 5.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "BOX",
+          "x": 8.6,
+          "y": 0,
+          "z": 4.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "FAN",
+          "x": 9.2,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "TABLE",
+          "x": 6.8,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CABINET",
+          "x": 9.4,
+          "y": 0,
+          "z": -2.8,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "STOOL",
+          "x": 9.3,
+          "y": 0,
+          "z": 6.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "SODA",
+          "x": 5.2,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "PAN",
+          "x": 9.4,
+          "y": 0,
+          "z": 3,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "DESK",
+          "x": 4.5,
+          "y": 0,
+          "z": -8.6,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "SHELF",
+          "x": -1.5,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 0
+        },
+        {
+          "word": "TABLE",
+          "x": 1.5,
+          "y": 0,
+          "z": -6.8,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CABINET",
+          "x": -2.8,
+          "y": 0,
+          "z": -9.4,
+          "rotation": 0
+        },
+        {
+          "word": "CHAIR",
+          "x": 6.5,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "BOOK",
+          "x": 9.3,
+          "y": 0,
+          "z": -5.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BED",
+          "x": -8.6,
+          "y": 0,
+          "z": -4.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "SOFA",
+          "x": -9.2,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "TABLE",
+          "x": -6.8,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "PLANT",
+          "x": -9.4,
+          "y": 0,
+          "z": 2.8,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CHAIR",
+          "x": -9.3,
+          "y": 0,
+          "z": -6.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "CRATE",
+          "x": -5.2,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CRATE",
+          "x": -2.6,
+          "y": 0,
+          "z": 2.6,
+          "rotation": 0.2617993877991494
+        },
+        {
+          "word": "BARREL",
+          "x": -2.6,
+          "y": 0,
+          "z": -2.6,
+          "rotation": 0
+        },
+        {
+          "word": "BOX",
+          "x": 1.8,
+          "y": 0,
+          "z": -2.2,
+          "rotation": 0.5235987755982988
+        },
+        {
+          "word": "FAN",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 3.3,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BOOK",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 1.8,
+          "rotation": 4.71238898038469
+        }
+      ]
+    },
+    {
+      "variant": "after",
+      "name": "house",
+      "file": "art-after-house.png",
+      "render": {
+        "frame": 39,
+        "calls": 318,
+        "triangles": 345306,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 171,
+        "textures": 148
+      },
+      "camera": {
+        "position": [
+          13,
+          20,
+          20
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fov": 43,
+        "aspect": 1.6,
+        "near": 0.1,
+        "far": 120
+      },
+      "loadedModels": 75,
+      "sceneItems": [
+        {
+          "word": "BED",
+          "x": -4.5,
+          "y": 0,
+          "z": 8.6,
+          "rotation": 0
+        },
+        {
+          "word": "SOFA",
+          "x": 1.5,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "TABLE",
+          "x": -1.5,
+          "y": 0,
+          "z": 6.8,
+          "rotation": 0
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 0
+        },
+        {
+          "word": "SHELF",
+          "x": 2.8,
+          "y": 0,
+          "z": 9.4,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CHEST",
+          "x": -6.5,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CLOCK",
+          "x": -9.3,
+          "y": 0,
+          "z": 5.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "BOX",
+          "x": 8.6,
+          "y": 0,
+          "z": 4.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "FAN",
+          "x": 9.2,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "TABLE",
+          "x": 6.8,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CABINET",
+          "x": 9.4,
+          "y": 0,
+          "z": -2.8,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "STOOL",
+          "x": 9.3,
+          "y": 0,
+          "z": 6.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "SODA",
+          "x": 5.2,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "PAN",
+          "x": 9.4,
+          "y": 0,
+          "z": 3,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "DESK",
+          "x": 4.5,
+          "y": 0,
+          "z": -8.6,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "SHELF",
+          "x": -1.5,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 0
+        },
+        {
+          "word": "TABLE",
+          "x": 1.5,
+          "y": 0,
+          "z": -6.8,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CABINET",
+          "x": -2.8,
+          "y": 0,
+          "z": -9.4,
+          "rotation": 0
+        },
+        {
+          "word": "CHAIR",
+          "x": 6.5,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "BOOK",
+          "x": 9.3,
+          "y": 0,
+          "z": -5.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BED",
+          "x": -8.6,
+          "y": 0,
+          "z": -4.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "SOFA",
+          "x": -9.2,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "TABLE",
+          "x": -6.8,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "PLANT",
+          "x": -9.4,
+          "y": 0,
+          "z": 2.8,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CHAIR",
+          "x": -9.3,
+          "y": 0,
+          "z": -6.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "CRATE",
+          "x": -5.2,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CRATE",
+          "x": -2.6,
+          "y": 0,
+          "z": 2.6,
+          "rotation": 0.2617993877991494
+        },
+        {
+          "word": "BARREL",
+          "x": -2.6,
+          "y": 0,
+          "z": -2.6,
+          "rotation": 0
+        },
+        {
+          "word": "BOX",
+          "x": 1.8,
+          "y": 0,
+          "z": -2.2,
+          "rotation": 0.5235987755982988
+        },
+        {
+          "word": "FAN",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 3.3,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BOOK",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 1.8,
+          "rotation": 4.71238898038469
+        }
+      ]
+    },
+    {
+      "variant": "after",
+      "name": "bedroom",
+      "file": "art-after-bedroom.png",
+      "render": {
+        "frame": 49,
+        "calls": 204,
+        "triangles": 194210,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 171,
+        "textures": 148
+      },
+      "camera": {
+        "position": [
+          1,
+          7.5,
+          16
+        ],
+        "target": [
+          -3,
+          0.4,
+          7
+        ],
+        "fov": 43,
+        "aspect": 1.6,
+        "near": 0.1,
+        "far": 120
+      },
+      "loadedModels": 75,
+      "sceneItems": [
+        {
+          "word": "BED",
+          "x": -4.5,
+          "y": 0,
+          "z": 8.6,
+          "rotation": 0
+        },
+        {
+          "word": "SOFA",
+          "x": 1.5,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "TABLE",
+          "x": -1.5,
+          "y": 0,
+          "z": 6.8,
+          "rotation": 0
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 0
+        },
+        {
+          "word": "SHELF",
+          "x": 2.8,
+          "y": 0,
+          "z": 9.4,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CHEST",
+          "x": -6.5,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CLOCK",
+          "x": -9.3,
+          "y": 0,
+          "z": 5.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "BOX",
+          "x": 8.6,
+          "y": 0,
+          "z": 4.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "FAN",
+          "x": 9.2,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "TABLE",
+          "x": 6.8,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CABINET",
+          "x": 9.4,
+          "y": 0,
+          "z": -2.8,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "STOOL",
+          "x": 9.3,
+          "y": 0,
+          "z": 6.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "SODA",
+          "x": 5.2,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "PAN",
+          "x": 9.4,
+          "y": 0,
+          "z": 3,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "DESK",
+          "x": 4.5,
+          "y": 0,
+          "z": -8.6,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "SHELF",
+          "x": -1.5,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 0
+        },
+        {
+          "word": "TABLE",
+          "x": 1.5,
+          "y": 0,
+          "z": -6.8,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CABINET",
+          "x": -2.8,
+          "y": 0,
+          "z": -9.4,
+          "rotation": 0
+        },
+        {
+          "word": "CHAIR",
+          "x": 6.5,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "BOOK",
+          "x": 9.3,
+          "y": 0,
+          "z": -5.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BED",
+          "x": -8.6,
+          "y": 0,
+          "z": -4.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "SOFA",
+          "x": -9.2,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "TABLE",
+          "x": -6.8,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "PLANT",
+          "x": -9.4,
+          "y": 0,
+          "z": 2.8,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CHAIR",
+          "x": -9.3,
+          "y": 0,
+          "z": -6.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "CRATE",
+          "x": -5.2,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CRATE",
+          "x": -2.6,
+          "y": 0,
+          "z": 2.6,
+          "rotation": 0.2617993877991494
+        },
+        {
+          "word": "BARREL",
+          "x": -2.6,
+          "y": 0,
+          "z": -2.6,
+          "rotation": 0
+        },
+        {
+          "word": "BOX",
+          "x": 1.8,
+          "y": 0,
+          "z": -2.2,
+          "rotation": 0.5235987755982988
+        },
+        {
+          "word": "FAN",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 3.3,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BOOK",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 1.8,
+          "rotation": 4.71238898038469
+        }
+      ]
+    },
+    {
+      "variant": "after",
+      "name": "avatar",
+      "file": "art-after-avatar.png",
+      "render": {
+        "frame": 58,
+        "calls": 88,
+        "triangles": 108390,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 171,
+        "textures": 148
+      },
+      "camera": {
+        "position": [
+          -4.4,
+          2.5,
+          4.5
+        ],
+        "target": [
+          -7.5,
+          0.8,
+          0.5
+        ],
+        "fov": 43,
+        "aspect": 1.6,
+        "near": 0.1,
+        "far": 120
+      },
+      "loadedModels": 75,
+      "sceneItems": [
+        {
+          "word": "BED",
+          "x": -4.5,
+          "y": 0,
+          "z": 8.6,
+          "rotation": 0
+        },
+        {
+          "word": "SOFA",
+          "x": 1.5,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "TABLE",
+          "x": -1.5,
+          "y": 0,
+          "z": 6.8,
+          "rotation": 0
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 0
+        },
+        {
+          "word": "SHELF",
+          "x": 2.8,
+          "y": 0,
+          "z": 9.4,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CHEST",
+          "x": -6.5,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CLOCK",
+          "x": -9.3,
+          "y": 0,
+          "z": 5.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "BOX",
+          "x": 8.6,
+          "y": 0,
+          "z": 4.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "FAN",
+          "x": 9.2,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "TABLE",
+          "x": 6.8,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": 9.2,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CABINET",
+          "x": 9.4,
+          "y": 0,
+          "z": -2.8,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "STOOL",
+          "x": 9.3,
+          "y": 0,
+          "z": 6.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "SODA",
+          "x": 5.2,
+          "y": 0,
+          "z": 9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "PAN",
+          "x": 9.4,
+          "y": 0,
+          "z": 3,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "DESK",
+          "x": 4.5,
+          "y": 0,
+          "z": -8.6,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "SHELF",
+          "x": -1.5,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 0
+        },
+        {
+          "word": "TABLE",
+          "x": 1.5,
+          "y": 0,
+          "z": -6.8,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "LAMP",
+          "x": 9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "CABINET",
+          "x": -2.8,
+          "y": 0,
+          "z": -9.4,
+          "rotation": 0
+        },
+        {
+          "word": "CHAIR",
+          "x": 6.5,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 3.141592653589793
+        },
+        {
+          "word": "BOOK",
+          "x": 9.3,
+          "y": 0,
+          "z": -5.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BED",
+          "x": -8.6,
+          "y": 0,
+          "z": -4.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "SOFA",
+          "x": -9.2,
+          "y": 0,
+          "z": 1.5,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "TABLE",
+          "x": -6.8,
+          "y": 0,
+          "z": -1.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "LAMP",
+          "x": -9.2,
+          "y": 0,
+          "z": -9.2,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "PLANT",
+          "x": -9.4,
+          "y": 0,
+          "z": 2.8,
+          "rotation": 1.5707963267948966
+        },
+        {
+          "word": "CHAIR",
+          "x": -9.3,
+          "y": 0,
+          "z": -6.5,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "CRATE",
+          "x": -5.2,
+          "y": 0,
+          "z": -9.3,
+          "rotation": 0
+        },
+        {
+          "word": "CRATE",
+          "x": -2.6,
+          "y": 0,
+          "z": 2.6,
+          "rotation": 0.2617993877991494
+        },
+        {
+          "word": "BARREL",
+          "x": -2.6,
+          "y": 0,
+          "z": -2.6,
+          "rotation": 0
+        },
+        {
+          "word": "BOX",
+          "x": 1.8,
+          "y": 0,
+          "z": -2.2,
+          "rotation": 0.5235987755982988
+        },
+        {
+          "word": "FAN",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 3.3,
+          "rotation": 4.71238898038469
+        },
+        {
+          "word": "BOOK",
+          "x": 3.3,
+          "y": 1.7,
+          "z": 1.8,
+          "rotation": 4.71238898038469
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "flatShellCheck": {
+    "normalArchitecture": {
+      "applianceMeshes": 17,
+      "balconies": 1,
+      "floorAtBalcony": 1.7
+    },
+    "flatArchitecture": {
+      "applianceMeshes": 0,
+      "balconies": 0,
+      "floorAtBalcony": 0,
+      "savedProps": 0
+    }
+  },
+  "tourRoom": {
+    "file": "art-after-tour-room.png",
+    "note": "Actual UI import and Save & explore with a validated portable layout. Manual close inspection camera and frozen simulation; supplied models/materials unchanged.",
+    "layout": {
+      "schema": 1,
+      "map": "pinwheel",
+      "name": "Sunday Reading Bedroom",
+      "props": [
+        {
+          "id": "bed",
+          "word": "BED",
+          "x": -4.5,
+          "z": 8.5,
+          "yaw": 0,
+          "skin": "Classic"
+        },
+        {
+          "id": "light",
+          "word": "LAMP",
+          "x": -5.5,
+          "z": 8.5,
+          "yaw": 0,
+          "skin": "Classic"
+        },
+        {
+          "id": "leaves",
+          "word": "PLANT",
+          "x": -3.5,
+          "z": 8.5,
+          "yaw": 0,
+          "skin": "Classic"
+        },
+        {
+          "id": "soft",
+          "word": "SOFA",
+          "x": -6.5,
+          "z": 6.5,
+          "yaw": 90,
+          "skin": "Classic"
+        },
+        {
+          "id": "table",
+          "word": "TABLE",
+          "x": -4.5,
+          "z": 6.5,
+          "yaw": 0,
+          "skin": "Classic"
+        },
+        {
+          "id": "seat",
+          "word": "CHAIR",
+          "x": -3,
+          "z": 6.5,
+          "yaw": 270,
+          "skin": "Classic"
+        },
+        {
+          "id": "bookshelf",
+          "word": "SHELF",
+          "x": -1.5,
+          "z": 9.5,
+          "yaw": 180,
+          "skin": "Classic"
+        },
+        {
+          "id": "mat",
+          "word": "MAT",
+          "x": -5,
+          "z": 5,
+          "yaw": 0,
+          "skin": "Classic"
+        },
+        {
+          "id": "book",
+          "word": "BOOK",
+          "x": -3.5,
+          "z": 5.5,
+          "yaw": 0,
+          "skin": "Classic"
+        },
+        {
+          "id": "clock",
+          "word": "CLOCK",
+          "x": -2.5,
+          "z": 9.5,
+          "yaw": 180,
+          "skin": "Classic"
+        }
+      ]
+    },
+    "items": [
+      {
+        "id": "bed",
+        "word": "BED",
+        "x": -4.5,
+        "y": 0,
+        "z": 8.5,
+        "rotation": 0,
+        "skin": "Classic"
+      },
+      {
+        "id": "light",
+        "word": "LAMP",
+        "x": -5.5,
+        "y": 0,
+        "z": 8.5,
+        "rotation": 0,
+        "skin": "Classic"
+      },
+      {
+        "id": "leaves",
+        "word": "PLANT",
+        "x": -3.5,
+        "y": 0,
+        "z": 8.5,
+        "rotation": 0,
+        "skin": "Classic"
+      },
+      {
+        "id": "soft",
+        "word": "SOFA",
+        "x": -6.5,
+        "y": 0,
+        "z": 6.5,
+        "rotation": 1.5707963267948966,
+        "skin": "Classic"
+      },
+      {
+        "id": "table",
+        "word": "TABLE",
+        "x": -4.5,
+        "y": 0,
+        "z": 6.5,
+        "rotation": 0,
+        "skin": "Classic"
+      },
+      {
+        "id": "seat",
+        "word": "CHAIR",
+        "x": -3,
+        "y": 0,
+        "z": 6.5,
+        "rotation": 4.71238898038469,
+        "skin": "Classic"
+      },
+      {
+        "id": "bookshelf",
+        "word": "SHELF",
+        "x": -1.5,
+        "y": 0,
+        "z": 9.5,
+        "rotation": 3.141592653589793,
+        "skin": "Classic"
+      },
+      {
+        "id": "mat",
+        "word": "MAT",
+        "x": -5,
+        "y": 0,
+        "z": 5,
+        "rotation": 0,
+        "skin": "Classic"
+      },
+      {
+        "id": "book",
+        "word": "BOOK",
+        "x": -3.5,
+        "y": 0,
+        "z": 5.5,
+        "rotation": 0,
+        "skin": "Classic"
+      },
+      {
+        "id": "clock",
+        "word": "CLOCK",
+        "x": -2.5,
+        "y": 0,
+        "z": 9.5,
+        "rotation": 3.141592653589793,
+        "skin": "Classic"
+      }
+    ],
+    "render": {
+      "frame": 126,
+      "calls": 98,
+      "triangles": 82062,
+      "points": 0,
+      "lines": 0
+    },
+    "memory": {
+      "geometries": 155,
+      "textures": 119
+    },
+    "camera": {
+      "position": [
+        -0.5,
+        5.5,
+        12
+      ],
+      "target": [
+        -4.5,
+        0.5,
+        7.5
+      ],
+      "fov": 43,
+      "aspect": 1.6,
+      "near": 0.1,
+      "far": 120
+    },
+    "diagnostics": {
+      "calls": 98,
+      "triangles": 82062,
+      "geometries": 155,
+      "textures": 119,
+      "programs": 17,
+      "entities": 11,
+      "loadedModels": 75,
+      "skinVariants": 72,
+      "wardrobeVariants": 56,
+      "materials": {
+        "materials": 189,
+        "generatedTextures": 63,
+        "textureVariants": 21,
+        "patternCanvases": 27,
+        "surfaceMaterials": 22,
+        "enrichedMaterials": 167,
+        "disposed": false
+      }
+    }
+  },
+  "cameraAndSceneEquality": true
+}

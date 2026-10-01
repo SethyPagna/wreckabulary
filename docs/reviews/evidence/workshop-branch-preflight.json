@@ -1,0 +1,17 @@
+{
+  "kind": "Historical Git/LFS preflight; target overwrite handled separately by the user",
+  "production_base": "30f92f49b44bcb006a80618300b6369050bb584a",
+  "james_v1_before": "4d5c162a2f6cc703bf70b0a5009993746a3cc9dd",
+  "linked_pr": "https://github.com/cchayadap/wreckabulary/pull/12",
+  "linked_pr_head_observed": "e79ed4cc989fb4b38d4b408f66d87240f8e3f16c",
+  "linked_pr_tree": "identical to previous production base",
+  "original_lfs_pointer_paths": 119,
+  "production_unique_lfs_objects": 117,
+  "verified_union_objects_downloaded_from_target": 119,
+  "union_bytes": 17140564,
+  "largest_object_bytes": 5127692,
+  "all_download_hashes_and_sizes_valid": true,
+  "target_initial_write_probe": "HTTP403 Permission to cchayadap/wreckabulary.git denied to SethyPagna",
+  "user_followup": "User reported target overwrite completed and directed focus to game readiness. Do not repeat the overwrite or require another grant.",
+  "current_delivery_scope": "Reviewed Creative Workshop continuation on SethyPagna/wreckabulary feature/wreckabulary-production; no new target branch replacement."
+}

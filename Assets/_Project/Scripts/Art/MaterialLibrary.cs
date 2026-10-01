@@ -79,6 +79,7 @@ namespace Wreckabulary.Art
                 }
                 if (changed) r.sharedMaterials = shared;
             }
+            TactileMaterials.Refresh(root);
         }
 
         /// <summary>"wood_light_Candy" → "wood_light"; null for a material that has no skins.</summary>

@@ -164,3 +164,10 @@ python Tools/AssetPipeline/promote_mobile_avatar.py --repo .
 The supplied FBXs, original material/texture files and their existing pipeline
 reports are preserved. These dedicated scripts regenerate web derivatives, actual
 model renders and technical checks without manually editing generated art.
+
+## Workshop material continuation
+
+See [the matched-camera visual review](WORKSHOP_VISUAL_REVIEW.md) for actual
+before/after floor, rug and material changes and a saved ten-prop bedroom tour.
+The original asset ratings above remain unchanged; native rendering and physical
+device performance have not been inferred from those browser pictures.

@@ -1,0 +1,83 @@
+{
+  "kind": "source compilation only",
+  "results": [
+    {
+      "assembly": "Wreckabulary.Rules",
+      "exitCode": 0,
+      "summary": [
+        "Build succeeded.",
+        "    0 Warning(s)",
+        "    0 Error(s)",
+        "",
+        "Time Elapsed 00:00:02.90"
+      ]
+    },
+    {
+      "assembly": "Wreckabulary",
+      "exitCode": 0,
+      "summary": [
+        "/workspace/wreckabulary/Assets/_Project/Scripts/Game/PlayerJoinManager.cs(25,30): warning CS0414: The field 'PlayerJoinManager.starterLetters' is assigned but its value is never used [/workspace/game-review/workshop/final-source-check/csharp-1oz_ljwu/Wreckabulary/Wreckabulary.csproj]",
+        "    34 Warning(s)",
+        "    0 Error(s)",
+        "",
+        "Time Elapsed 00:00:03.49"
+      ]
+    },
+    {
+      "assembly": "Wreckabulary.Editor",
+      "exitCode": 0,
+      "summary": [
+        "Build succeeded.",
+        "    0 Warning(s)",
+        "    0 Error(s)",
+        "",
+        "Time Elapsed 00:00:03.70"
+      ]
+    },
+    {
+      "assembly": "Wreckabulary.Rules.Tests",
+      "exitCode": 0,
+      "summary": [
+        "Build succeeded.",
+        "    0 Warning(s)",
+        "    0 Error(s)",
+        "",
+        "Time Elapsed 00:00:02.93"
+      ]
+    },
+    {
+      "assembly": "Wreckabulary.Tests",
+      "exitCode": 0,
+      "summary": [
+        "Build succeeded.",
+        "    0 Warning(s)",
+        "    0 Error(s)",
+        "",
+        "Time Elapsed 00:00:03.25"
+      ]
+    },
+    {
+      "assembly": "Wreckabulary.Editor.Tests",
+      "exitCode": 0,
+      "summary": [
+        "Build succeeded.",
+        "    0 Warning(s)",
+        "    0 Error(s)",
+        "",
+        "Time Elapsed 00:00:04.32"
+      ]
+    }
+  ],
+  "packageAssemblies": {
+    "Unity.InputSystem": "/workspace/.cloud-setup/Unity6000.6.3f1/Editor/Data/Resources/PackageManager/ProjectTemplates/libcache/com.unity.template.2d-cross-platform-2d-7.0.0/ScriptAssemblies/Unity.InputSystem.dll",
+    "Unity.TextMeshPro": "/workspace/.cloud-setup/Unity6000.6.3f1/Editor/Data/Resources/PackageManager/ProjectTemplates/libcache/com.unity.template.2d-cross-platform-2d-7.0.0/ScriptAssemblies/Unity.TextMeshPro.dll",
+    "UnityEngine.UI": "/workspace/.cloud-setup/Unity6000.6.3f1/Editor/Data/Resources/PackageManager/ProjectTemplates/libcache/com.unity.template.2d-cross-platform-2d-7.0.0/ScriptAssemblies/UnityEngine.UI.dll",
+    "Unity.RenderPipelines.Universal.Runtime": "/workspace/.cloud-setup/Unity6000.6.3f1/Editor/Data/Resources/PackageManager/ProjectTemplates/libcache/com.unity.template.2d-cross-platform-2d-7.0.0/ScriptAssemblies/Unity.RenderPipelines.Universal.Runtime.dll",
+    "Unity.RenderPipelines.Core.Runtime": "/workspace/.cloud-setup/Unity6000.6.3f1/Editor/Data/Resources/PackageManager/ProjectTemplates/libcache/com.unity.template.2d-cross-platform-2d-7.0.0/ScriptAssemblies/Unity.RenderPipelines.Core.Runtime.dll",
+    "Unity.RenderPipelines.Universal.Editor": "/workspace/.cloud-setup/Unity6000.6.3f1/Editor/Data/Resources/PackageManager/ProjectTemplates/libcache/com.unity.template.2d-cross-platform-2d-7.0.0/ScriptAssemblies/Unity.RenderPipelines.Universal.Editor.dll",
+    "UnityEngine.TestRunner": "/workspace/.cloud-setup/Unity6000.6.3f1/Editor/Data/Resources/PackageManager/ProjectTemplates/libcache/com.unity.template.2d-cross-platform-2d-7.0.0/ScriptAssemblies/UnityEngine.TestRunner.dll",
+    "UnityEditor.TestRunner": "/workspace/.cloud-setup/Unity6000.6.3f1/Editor/Data/Resources/PackageManager/ProjectTemplates/libcache/com.unity.template.2d-cross-platform-2d-7.0.0/ScriptAssemblies/UnityEditor.TestRunner.dll"
+  },
+  "unityExecution": "NOT RUN",
+  "snapshot": "Final Workshop native source, 2026-10-01; see workshop-native-workshop-review-hashes.json"
+}

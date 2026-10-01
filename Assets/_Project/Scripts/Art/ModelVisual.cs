@@ -14,6 +14,9 @@ namespace Wreckabulary.Art
                 collider.enabled = false;
             var materials = MaterialLibrary.Load();
             if (materials) materials.ApplySkin(copy, skin);
+            if (key.StartsWith("Items/", System.StringComparison.Ordinal) ||
+                key.StartsWith("Environment/", System.StringComparison.Ordinal))
+                TactileMaterials.Apply(copy);
             return copy;
         }
 

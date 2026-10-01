@@ -1,0 +1,61 @@
+{
+  "kind": "source arithmetic with full safe area assumed, not native layout measurement",
+  "cases": [
+    {
+      "viewport": [
+        320,
+        568
+      ],
+      "reported_dpi": 160,
+      "canvas_scale_derived": 0.44409708648247426,
+      "unit": 2.2517598751224046,
+      "title_font": 58.545756753182516,
+      "old_title_rect_height": 44,
+      "new_title_rect_height": 99.07743450538581,
+      "portrait_name_row_top": 126.09855300685466,
+      "portrait_action_target_height": 108.08447400587542
+    },
+    {
+      "viewport": [
+        391,
+        844
+      ],
+      "reported_dpi": 160,
+      "canvas_scale_derived": 0.598395568954554,
+      "unit": 1.6711353691122441,
+      "title_font": 43.44951959691835,
+      "old_title_rect_height": 44,
+      "new_title_rect_height": 73.52995624093874,
+      "portrait_name_row_top": 93.58358067028567,
+      "portrait_action_target_height": 80.21449771738772
+    },
+    {
+      "viewport": [
+        720,
+        1600
+      ],
+      "reported_dpi": 320,
+      "canvas_scale_derived": 1.118033988749895,
+      "unit": 1.7888543819998317,
+      "title_font": 46.51021393199562,
+      "old_title_rect_height": 44,
+      "new_title_rect_height": 78.70959280799259,
+      "portrait_name_row_top": 100.17584539199058,
+      "portrait_action_target_height": 85.86501033599193
+    },
+    {
+      "viewport": [
+        1080,
+        2400
+      ],
+      "reported_dpi": 480,
+      "canvas_scale_derived": 1.6770509831248424,
+      "unit": 1.7888543819998317,
+      "title_font": 46.51021393199562,
+      "old_title_rect_height": 44,
+      "new_title_rect_height": 78.70959280799259,
+      "portrait_name_row_top": 100.17584539199058,
+      "portrait_action_target_height": 85.86501033599193
+    }
+  ]
+}

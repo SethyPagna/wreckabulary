@@ -1,5 +1,7 @@
 // Real Chromium interactions exercise the bundled game, not a mocked DOM.
 import { chromium } from "playwright";
+import { workshopDesktop, workshopMobile } from "./workshop-browser.mjs";
+import { click, screenshot } from "./browser-ui.mjs";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 const base = process.env.WRECKABULARY_URL ?? "http://127.0.0.1:4173";
@@ -28,28 +30,7 @@ async function boot(context) {
   });
   return page;
 }
-async function click(page, selector) {
-  const target = page.locator(selector).first();
-  await target.scrollIntoViewIfNeeded();
-  const accessible = await target.evaluate((button) => {
-    const r = button.getBoundingClientRect(),
-      hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-    return (
-      r.width > 0 &&
-      r.height > 0 &&
-      r.left >= 0 &&
-      r.top >= 0 &&
-      r.right <= innerWidth + 1 &&
-      r.bottom <= innerHeight + 1 &&
-      (hit === button || button.contains(hit))
-    );
-  });
-  assert.equal(accessible, true, `unreachable UI: ${selector}`);
-  await target.click({ timeout: 30000 });
-}
-async function screenshot(page, name) {
-  await page.screenshot({ path: `playwright-results/${name}.png` });
-}
+
 try {
   const desktop = await browser.newContext({
       viewport: { width: 1440, height: 900 },
@@ -69,6 +50,7 @@ try {
   });
   await screenshot(page, "home-desktop");
   record("Real supplied GLBs load and render the home scene.");
+  await workshopDesktop(page, { click, screenshot, record });
   await page.selectOption("#map-choice", "courtyard");
   assert.equal(
     await page.evaluate(() => window.wreckabulary.game.house.name),
@@ -578,6 +560,7 @@ try {
   record(
     "Landscape touch controls, full 18-letter bag and health remain visible, reachable and separate.",
   );
+  await workshopMobile(phone, { click, screenshot, record });
   await mobile.close();
   assert.deepEqual(errors, []);
   await writeFile(

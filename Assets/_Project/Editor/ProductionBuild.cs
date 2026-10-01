@@ -14,7 +14,11 @@ namespace Wreckabulary.EditorTools
         public static void Linux() => Build(BuildTarget.StandaloneLinux64, "Builds/Linux/Wreckabulary.x86_64");
 
         [MenuItem("Wreckabulary/Build/Windows PC")]
-        public static void Windows() => Build(BuildTarget.StandaloneWindows64, "Builds/Windows/Wreckabulary.exe");
+        public static void Windows()
+        {
+            PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+            Build(BuildTarget.StandaloneWindows64, "Builds/Windows/Wreckabulary.exe");
+        }
 
         [MenuItem("Wreckabulary/Build/Unity Web")]
         public static void Web()
@@ -38,7 +42,7 @@ namespace Wreckabulary.EditorTools
 
         static void Build(BuildTarget target, string destination)
         {
-            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Unknown, target))
+            if (!BuildPipeline.IsBuildTargetSupported(BuildPipeline.GetBuildTargetGroup(target), target))
                 throw new InvalidOperationException($"Install the {target} build-support module for Unity 6000.6.3f1.");
             ProjectSetup.Run();
             var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();

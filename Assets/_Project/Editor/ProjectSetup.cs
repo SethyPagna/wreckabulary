@@ -16,6 +16,7 @@ namespace Wreckabulary.EditorTools
         {
             ArtSetup.Run();
             GameDataSetup.Run();
+            TactileMaterialBuildSupport.Generate();
         }
     }
 }

@@ -1,0 +1,80 @@
+{
+  "checks": [
+    "Identical surface requests reuse the owned material.",
+    "Aliases reuse the canonical surface cache.",
+    "Different tints share the neutral original texture maps.",
+    "Repeat variants do not mutate another surface UV repetition.",
+    "Sewn rugs are cached by tint and physical aspect.",
+    "Rug borders occupy a continuous top UV region.",
+    "All generated textures meet the 512 pixel and anisotropy 8 budgets.",
+    "Base colour is sRGB and detail channels remain linear.",
+    "Source/key enrichment reuses a single clone.",
+    "Authored maps, colour and scalar material values are preserved by reference/value.",
+    "The imported source material remains unchanged.",
+    "Only missing normal and roughness channels are added to a classified surface.",
+    "Metal, eyes, generic colour and emissive materials are guarded.",
+    "Cream is classified as cloth only when its actual map is named fabric.",
+    "Unmapped cream remains authored rather than assumed cloth.",
+    "BED material wood_Classic retains its original appearance data.",
+    "BED material wood_light_Classic retains its original appearance data.",
+    "BED material gold_Classic retains its original appearance data.",
+    "BED material cream_Classic retains its original appearance data.",
+    "BED material blue_Classic retains its original appearance data.",
+    "BED material ivory_Classic retains its original appearance data.",
+    "BED material ceramic_Classic retains its original appearance data.",
+    "Actual BED GLB resolves distinct cloth, wood and ceramic from authored evidence.",
+    "Independent palettes generate byte-identical locally seeded patterns.",
+    "Final disposal releases each owned material and generated texture exactly once.",
+    "Imported textures are never disposed by the palette.",
+    "Disposed palettes release their caches.",
+    "Use after final teardown fails explicitly."
+  ],
+  "actualBED": [
+    {
+      "name": "wood_Classic",
+      "map": "wood_subtle_pattern",
+      "kind": "wood"
+    },
+    {
+      "name": "wood_light_Classic",
+      "map": "wood_subtle_pattern",
+      "kind": "wood"
+    },
+    {
+      "name": "gold_Classic",
+      "map": null,
+      "kind": "authored"
+    },
+    {
+      "name": "cream_Classic",
+      "map": "fabric_subtle_pattern",
+      "kind": "cloth"
+    },
+    {
+      "name": "blue_Classic",
+      "map": "fabric_subtle_pattern",
+      "kind": "authored"
+    },
+    {
+      "name": "ivory_Classic",
+      "map": null,
+      "kind": "authored"
+    },
+    {
+      "name": "ceramic_Classic",
+      "map": null,
+      "kind": "ceramic"
+    }
+  ],
+  "beforeDisposal": {
+    "materials": 28,
+    "generatedTextures": 36,
+    "textureVariants": 12,
+    "patternCanvases": 33,
+    "surfaceMaterials": 13,
+    "enrichedMaterials": 15,
+    "disposed": false
+  },
+  "elapsedMilliseconds": 742,
+  "woodPatternHash": 1387867369
+}

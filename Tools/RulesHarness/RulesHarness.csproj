@@ -18,6 +18,7 @@
   <ItemGroup>
     <Compile Include="NUnitShim.cs" />
     <Compile Include="Runner.cs" />
+    <Compile Include="HomeDesignCases.cs" />
     <Compile Include="../../Assets/_Project/Tests/Rules/**/*.cs" />
   </ItemGroup>
   <ItemGroup>

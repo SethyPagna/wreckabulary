@@ -1,0 +1,382 @@
+{
+  "powershell": "7.4.19",
+  "boundary": "Synthetic processes/XML; actual Unity/native Windows execution NOT RUN",
+  "cases": [
+    {
+      "case": "pass",
+      "exit": 0,
+      "expected_exit": 0,
+      "native_processes": 3,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "build-pass",
+      "exit": 0,
+      "expected_exit": 0,
+      "native_processes": 5,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode",
+        "Windows",
+        "Web"
+      ],
+      "passed": true
+    },
+    {
+      "case": "passed-and-skipped",
+      "exit": 0,
+      "expected_exit": 0,
+      "native_processes": 3,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "setup198",
+      "exit": 198,
+      "expected_exit": 198,
+      "native_processes": 1,
+      "entrypoints": [
+        "Run"
+      ],
+      "passed": true
+    },
+    {
+      "case": "setup-no-log",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 1,
+      "entrypoints": [
+        "Run"
+      ],
+      "passed": true
+    },
+    {
+      "case": "test42",
+      "exit": 42,
+      "expected_exit": 42,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "test-no-log",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "missing-xml",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "malformed-xml",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "zero-tests",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "all-skipped",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "failed-tests",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "failed-case-lie",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "no-cases",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "wrong-count",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "missing-count",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "negative-count",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "invalid-count",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "wrong-root",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "failed-summary",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "dtd-report",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 2,
+      "entrypoints": [
+        "Run",
+        "EditMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "playmode-failed",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 3,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "windows43",
+      "exit": 43,
+      "expected_exit": 43,
+      "native_processes": 4,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode",
+        "Windows"
+      ],
+      "passed": true
+    },
+    {
+      "case": "no-build-marker",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 4,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode",
+        "Windows"
+      ],
+      "passed": true
+    },
+    {
+      "case": "empty-build",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 4,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode",
+        "Windows"
+      ],
+      "passed": true
+    },
+    {
+      "case": "failed-build-summary",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 4,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode",
+        "Windows"
+      ],
+      "passed": true
+    },
+    {
+      "case": "missing-build-artifact",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 4,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode",
+        "Windows"
+      ],
+      "passed": true
+    },
+    {
+      "case": "empty-build-artifact",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 4,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode",
+        "Windows"
+      ],
+      "passed": true
+    },
+    {
+      "case": "wrong-editor-version",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 0,
+      "entrypoints": [],
+      "passed": true
+    },
+    {
+      "case": "wrong-project-version",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 0,
+      "entrypoints": [],
+      "passed": true
+    },
+    {
+      "case": "missing-editor",
+      "exit": 1,
+      "expected_exit": 1,
+      "native_processes": 0,
+      "entrypoints": [],
+      "passed": true
+    },
+    {
+      "case": "default-hub-editor-path",
+      "exit": 0,
+      "expected_exit": 0,
+      "native_processes": 3,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode"
+      ],
+      "passed": true
+    },
+    {
+      "case": "environment-path-and-results",
+      "exit": 0,
+      "expected_exit": 0,
+      "native_processes": 3,
+      "entrypoints": [
+        "Run",
+        "EditMode",
+        "PlayMode"
+      ],
+      "passed": true
+    }
+  ],
+  "source_sha256": "e036b42cb896a118266129864f76d54fdc3141d4de6657cccac1ddbd02328899",
+  "real_unity_import_tests_builds": "NOT RUN: Personal activation missing on this cloud editor machine",
+  "actual_windows_powershell_5_1": "NOT RUN",
+  "independent_source_review": "No release-blocking findings; PowerShell 5.1-compatible syntax, argument quoting, Unity NUnit XML gates and ProductionBuild entrypoints checked. Actual Windows process/version metadata unverified."
+}

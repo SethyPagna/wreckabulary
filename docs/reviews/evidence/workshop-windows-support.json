@@ -1,0 +1,13 @@
+{
+  "regularFiles": 403,
+  "extractedBytes": 1010546067,
+  "version": "6000.6.3f1",
+  "revision": "45d8eee7de74",
+  "source": "https://download.unity3d.com/download_unity/45d8eee7de74/MacEditorTargetInstaller/UnitySetup-Windows-Mono-Support-for-Editor-6000.6.3f1.pkg",
+  "verifiedBytes": 377502634,
+  "verifiedIntegrity": "md5-I7f3L1Cj+4/XVSiD/MEImw==",
+  "destination": "/workspace/.cloud-setup/Unity6000.6.3f1/Editor/Data/PlaybackEngines/WindowsStandaloneSupport",
+  "unityBuild": "NOT RUN",
+  "repeatInstallation": "passed",
+  "win64PlayerAndExtensionHeaders": "valid PE"
+}
