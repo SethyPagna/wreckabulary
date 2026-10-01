@@ -2,141 +2,117 @@
 
 **Wreck the room, build the word!**
 
-![Key art](docs/art/key_art.jpg)
+Wreckabulary is a local house brawler and word-crafting game. Smash household objects into their exact letters, collect a useful word, and build gear to fight or help your roommates. The production goal is a complete, playful home game with readable controls, objectives, results and replay.
 
-Wreckabulary is a 2–4 player couch party game for COMP4122 where everything is made of letters. Smash furniture into letter tiles, grab them, and spell them into new things. Everything you summon can be smashed and re-spelled too.
+The project contains a Unity edition and a standalone HTML/Three.js edition. Unity supports local roommates and solo matches with AI seats; the browser edition currently runs one human with AI housemates. Both use the same checked-in rule, recipe, wardrobe and map JSON. Their runtime implementations are separate.
 
-| | |
-|---|---|
-| Genre | Party, brawler, word game |
-| Theme | Moving day in a cozy world where everything is made of words |
-| Art style | Toybox Workshop: warm wooden letter tiles, blobby ragdoll characters, objects built from their own letters |
+## Current game
 
-## Core loop
+- **100 HP**, an **18-letter bag**, **two carried gear slots**, and **two deployed items per player**. Letters are loot; taking damage does not normally remove them. Elimination spills the bag.
+- **12 enabled recipes:** BALL, BAT, BED, BLADE, BOMB, FOAM, LAMP, MAT, PLATE, SOAP, SOFA and TABLE. Other supplied models can furnish rooms without becoming enabled recipes.
+- **Two connected maps:** Pinwheel House and Garden Courtyard. Four game modes plus a tutorial are selectable.
+- Supplied furniture, letter meshes, an animated modular avatar, cosmetic wardrobe and Classic/Candy/Arcade item skins are integrated in source. Touch controls, keyboard/mouse controls, and Unity couch/gamepad bindings share the gameplay commands.
 
-**Smash → Scavenge → Spell → Summon**
+| Mode | Objective |
+| --- | --- |
+| Dibs | Last roommate standing wins the round; first to three round wins takes the match. Solo starts add AI opponents. |
+| Duos | Two teams compete; hold interact beside a downed teammate to revive them. AI fills local seats. |
+| Moving Day | Place the map's checklist furniture before time runs out; all twelve recipes also remain available for creative tool use. |
+| Moving Out | Carry marked keepsakes to the van, then gather every surviving roommate there alive before the house clears out. |
+| Tutorial | Guided Unity exercises and a browser practice space for smashing, collecting, crafting and handling gear. |
 
-1. **Smash** furniture and it bursts into the letters that spell it.
-2. **Scavenge** letters. You carry up to 6, and getting hit knocks some loose.
-3. **Spell** with the word wheel, which shows what your letters can make.
-4. **Summon** the object instantly, like a BLADE, WINGS or BEES.
+The creative room editor, custom room saves and online multiplayer are future work. The hub currently provides exploration, mode/map selection and cosmetic choices.
 
-## Modes
+## Run the browser edition
 
-Everything starts in the **hub**, your own customisable house. Friends join by picking up a controller and walking in the door, and you choose a mode at the typewriter.
+Install Node.js 22.12 or newer and run from the checkout:
 
-| Mode | Players | Summary |
-|---|---|---|
-| Tutorial | 1–4 | Learn to smash, grab and spell. |
-| **Versus: "Dibs!"** | 2–4 | Fight your roommates for the best stuff. Letters are your health. Last roommate standing wins the round, first to 3 wins. |
-| **Co-op: "Moving Day"** | 1–4 | Furnish the house together: unpack boxes, spell the checklist items and place them in the right rooms against the clock. 1–3 stars per level. |
-| **Creative: "Home Sweet Home"** | 1–4 | The typewriter prints endless letters to build and decorate. Hit Play to turn your room into a Dibs! arena with custom rules. Save and load rooms. |
+```sh
+cd Web
+npm ci
+npm test
+npm run build
+npm run preview -- --port 4173
+```
 
-Maps: living room, bedroom, kitchen, garden, and more.
+Open `http://localhost:4173`. For development, use `npm run dev` instead of preview. Build and dev synchronize the five canonical JSON files from `Assets/_Project/Data/Config` into `Web/public/data`; edit the canonical files rather than the copies. `Web/dist` is the production web output and must be served over HTTP. Dependencies and game art are bundled locally.
 
-## Tech
+With that server still running, open another terminal in `Web`:
 
-| | |
-|---|---|
-| Engine | Unity 6 (6000.6.3f1) |
-| Render pipeline | URP |
-| Input | Unity Input System: up to 4 gamepads, or 2 players sharing a keyboard |
-| Physics | Rigidbody roommates with a wobbly visual rig, pooled rigidbody letter tiles |
-| Platform | Windows PC, local multiplayer |
+```sh
+npm run test:browser
+```
 
-## Getting started
+This runs real Chromium interactions and writes screenshots/report data to ignored `Web/playwright-results`. Set `CHROMIUM_PATH` if Chromium is not `/usr/bin/chromium`, or `WRECKABULARY_URL` for another server address. Mechanics tests, browser interactions and real-device performance are different checks.
 
-1. Install **Git LFS** once: `git lfs install`
-2. Clone the repo: `git clone <repo-url>`
-3. Open the folder with **Unity Hub → Add project from disk**, using the Unity version above.
-4. Open `Assets/_Project/Scenes/Hub.unity` and press Play.
-5. Press a button to walk in through the front door (Space, `.`, or A on a gamepad). Walk up to the typewriter, press grab, and pick a mode.
+## Open the Unity edition
 
-You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join there by pressing a button.
+Use **Unity 6000.6.3f1**, exactly as pinned in [ProjectVersion.txt](ProjectSettings/ProjectVersion.txt), with the URP project and matching platform modules.
 
-## What's playable
+```sh
+git lfs install
+git lfs pull
+git lfs fsck
+```
 
-**The house (hub):** roommates join by walking in through the front door. Pick a mode at the typewriter: Tutorial, Dibs! or Moving Day. Home Sweet Home is marked "coming soon". Whoever is in the house comes along into the mode, and everyone heads home after a match or on Esc / Select.
+Add this checkout to Unity Hub and activate Unity Personal on the machine running the editor. After import, choose **Wreckabulary → Set Up Art and Data** to refresh generated material/model libraries, animation references and map data. Open `Assets/_Project/Scenes/Hub.unity`, press Play, join through the front-door UI or a join button, choose a map and mode, then start. The typewriter offers the same mode choices. Scene names such as `LivingRoom` select a runtime map; they are not separate content maps.
 
-**Tutorial:** 7 steps covering walk, smash the BAT box, pick up the letters, spell BAT, whack the dummy, throw the chair, and knock the dummy out. Any roommate can complete a step.
+[Cloud setup instructions](Tools/CloudSetup/README.md) provide the pinned .NET installer and Unity verification script. With .NET 9 installed, the rules suite runs without Unity:
 
-**Moving Day** (co-op, 1–4 players) in a house split into a living room and a bedroom. Boxes labelled with the checklist arrive at the front door. Smash them for the letters, spell each item (the word wheel only offers checklist words) to build it, and carry it into the right room. Placed furniture locks in with a tick. Stars (1–3) depend on time left. Run out of time and the level restarts. There are 2 levels, and level 2 adds slippery spills. Lost letters are resent in a new box.
+```sh
+dotnet run --project Tools/RulesHarness
+```
 
-**Dibs!** in the living room, first to 3 rounds:
+With an activated editor:
 
-- Smash furniture (SOFA, TABLE, LAMP, CHAIR…) with punches or by throwing things. It bursts into its own letters.
-- Walk over letters to pick them up. You carry up to 6, and you start each round with 3.
-- Hold spell to open the word wheel. It shows the words you can make, plus near misses in grey. Release to summon.
-- All 20 words in `word_list.csv` do something: weapons, WALL, SHIELD, ARMOR, WINGS, SPRING, SKATES, ROPE, BEES, FLOOD, MAGNET, DUCK, QUAKE, ZAP.
-- Summons fall apart back into their letters when they're used up, so they can be grabbed and re-spelled.
-- A hit knocks 2 letters loose. A hit with no letters is a knockout.
-- Delivery boxes drop in when the room runs low on letters. After 90 seconds the room collapses and boxes rain down.
+```sh
+export UNITY_EDITOR_PATH=/path/to/6000.6.3f1/Editor/Unity
+bash Tools/CloudSetup/verify-unity.sh
+bash Tools/CloudSetup/verify-unity.sh --build
+```
 
-Everything is placeholder art built from blocks. Not in yet: audio, character customisation and Creative (Home Sweet Home).
+The verification script prepares data/art libraries and runs EditMode and PlayMode tests; `--build` also attempts Linux PC and Unity Web builds. Other build menu entries cover Windows and Android when their modules are installed. Run generation/build steps sequentially. **Wreckabulary → Rebuild Prototype** overwrites generated scenes and prefabs; preserve manual scene edits before using it.
 
 ## Controls
 
-| Action | Gamepad | Keyboard (left) | Keyboard (right) |
-|---|---|---|---|
-| Join | A / X / Start | Space or J | `.` or `/` |
-| Move | Left stick / d-pad | WASD | Arrow keys |
-| Grab, throw | A or RT | Space | `.` or Numpad 1 |
-| Attack, use weapon | X | J | `/` or Numpad 2 |
-| Spell (hold, release to summon) | Y | K | Right Shift or Numpad 3 |
-| Choose word (while spelling) | Stick or d-pad up/down | W / S | Up / Down |
-| Cancel spelling | A | Space | `.` |
-| Use typewriter | A / RT (grab) | Space | `.` |
-| Start match (Dibs! lobby) | Start | Enter | Numpad Enter |
-| Back to the house | Select / View | Esc | Esc |
+| Action | Unity desktop | Browser desktop |
+| --- | --- | --- |
+| Move / aim | WASD / mouse | WASD or arrows / mouse; movement follows the camera |
+| Attack / use held gear | Left mouse button | Left mouse button or J |
+| Block with PLATE | Hold right mouse button | Hold right mouse button or K |
+| Interact / revive | E; hold beside a downed teammate | E; hold beside a downed teammate |
+| Spell | Hold Q, choose with W/S or wheel, release to start crafting | Q or C opens recipes; select a card to start crafting |
+| Swap gear | Tab | Tab, or 1/2 for a specific slot |
+| Place a tool | F | F |
+| Drop | Hold R briefly | R |
+| Throw what's held | E; BALL/BOMB also throw when used | G |
+| Jump / dodge | Space / Left Shift | Space / Shift |
+| Start / return | Enter / Esc or HOME | On-screen start / Esc pauses; HOME returns |
 
-## Project structure
+Unity also supports gamepads and two keyboard halves; [ControlHints.cs](Assets/_Project/Scripts/Input/ControlHints.cs) and the on-screen hints show their bindings. On touch, use the movement/aim controls and labelled action buttons. Browser touch attacks use nearby-target auto-aim. Phone layout checks do not establish a tested Android or iOS build.
 
-```
-Assets/_Project/
-  Scripts/
-    Core/      GameAssets (shared art/data), World, Popup, Session
-    Input/     InputBinding: keyboard halves, gamepads, scripted input for tests
-    Letters/   LetterTile, TilePool, LetterBlocks, LetterBuilt, Smashable, LetterScores
-    Words/     WordDatabase (reads word_list.csv), WordSolver
-    Player/    PlayerController, PlayerHealth, LetterInventory, PlayerCombat, Summoner, PlayerHud
-    Summons/   SummonEffects (what each word does), HeldWeapon, Projectile, BeeSwarm, DuckWalker, ...
-    Game/      RoundManager (Dibs!), HubDirector + Typewriter (house), TutorialDirector, MovingDayDirector,
-               PlayerJoinManager, RoomBuilder, DeliverySpawner, GameHud, CameraRig, BackToHub
-  Editor/      PrototypeBuilder: generates the scene, prefabs and materials
-  Tests/       Play mode tests for the core loop
-  Data/        word_list.csv
-  Prefabs/  Scenes/  Resources/  Materials/  Art/  Audio/
-docs/          design doc, roadmap, workflow, asset log, contribution table
-```
+## Art and verification limits
 
-**Adding a Moving Day item or level:** levels and checklists live on the MovingDayDirector (set in `PrototypeBuilder.BuildMovingDay`). Any word works as a checklist item. To give it a custom look, add it to `FurnitureCatalog.cs`.
+The source pack includes **40 items, 26 letter tiles, 21 house modules, 10 VFX meshes and one modular avatar**. See the [critical supplied-asset audit](docs/art/SUPPLIED_ASSET_AUDIT.md), [contact sheet](docs/art/SUPPLIED_ITEMS_CONTACT_SHEET.png), and [asset pipeline](Tools/AssetPipeline/README.md).
 
-**Adding a word:** add a row to `word_list.csv`. It works straight away with a default effect for its category. For a custom effect, add a `case` in `SummonEffects.cs`.
+The avatar contains 63,110 triangles across all wardrobe modules; its default outfit uses 31,696 triangles. The accepted reduced browser export uses 17,660 default-outfit triangles and passes interchange/animation checks. Unity deformation checks and device profiling remain open; those counts are not FPS results. Model import rotations, grip points, exact-letter destruction and simple gameplay colliders must survive visual changes. Generated concept images and UI raster art are separate from the supplied 3D meshes.
 
-**Regenerating the prototype:** **Wreckabulary → Rebuild Prototype** recreates the materials, prefabs and the `Hub`, `LivingRoom`, `Tutorial` and `MovingDay` scenes from `PrototypeBuilder.cs`. It overwrites those scenes, so once someone starts editing a scene by hand, change the builder or stop using it.
+The cloud editor currently exits with **code 198 because Unity Personal is not activated there**. Source compilation against official Unity assemblies and engine-free rules tests do not establish Unity import, PlayMode behavior, captures or successful platform builds. Check [the progress record](docs/progress/WRECKABULARY.md) for the latest actual test counts, browser evidence and outstanding checks.
 
-**Adding a mode:** add an entry to the typewriter's mode list (`Typewriter.cs`, or in the Inspector on the Typewriter in `Hub.unity`) with its scene name, and add the scene to the build settings.
+## Project and documents
 
-## Tests
+| Location | Purpose |
+| --- | --- |
+| `Assets/_Project/Data/Config` | Canonical rules, enabled recipes, maps and wardrobe |
+| `Assets/_Project/Scripts/Rules` | Engine-free health, inventory/economy, room and match contracts |
+| `Assets/_Project/Scripts` | Unity movement, combat, modes, imported visuals, controls and UI |
+| `Assets/_Project/Art/Imported` | Supplied art converted to Unity FBX/textures |
+| `Assets/_Project/Tests` | Rules and Unity regression suites |
+| `Web` | Standalone HTML edition, mechanics tests and Chromium checks |
+| `Tools/AssetPipeline`, `Tools/CloudSetup` | Repeatable art conversion and environment verification |
 
-**Window → General → Test Runner → PlayMode → Run All.** Or, from the command line:
+- [Production plan](docs/PLAN.md) and [progress](docs/progress/WRECKABULARY.md)
+- [Game design](docs/GDD.md) and [roadmap](docs/ROADMAP.md)
+- [Team workflow](docs/CONTRIBUTING.md), [asset provenance](docs/ASSETS.md), and [contributions](docs/CONTRIBUTIONS.md)
 
-```
-Unity.exe -batchmode -projectPath . -runTests -testPlatform PlayMode -testResults results.xml
-```
-
-`CaptureTests` is explicit, so it only runs when selected. It saves screenshots of the living room to `Temp/Captures`.
-
-## Documents
-
-- [Game design document](docs/GDD.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Team workflow](docs/CONTRIBUTING.md)
-- [Third-party assets](docs/ASSETS.md) (required in the final report)
-- [Contribution table](docs/CONTRIBUTIONS.md) (required in the final report)
-
-## Team
-
-| Name | Student ID | Role |
-|---|---|---|
-| | | |
+Live recipes come from enabled entries in `items.json`; adding a CSV row does not enable a recipe. The legacy CSV parser remains available for explicit fixtures. Keep JSON data, rules tests and both runtime implementations consistent when changing the game.
