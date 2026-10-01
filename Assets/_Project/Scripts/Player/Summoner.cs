@@ -4,66 +4,76 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// The word wheel. Hold spell to open it, step through the words you can make,
-    /// and release to summon the selected one. Moving is slowed while spelling.
-    /// </summary>
+    /// <summary>Choose an allowed recipe, reserve its letters, then channel the mode's craft time.</summary>
     [RequireComponent(typeof(LetterInventory))]
     public class Summoner : MonoBehaviour
     {
         [SerializeField] WordDatabase database;
         [SerializeField] float moveScaleWhileSpelling = 0.35f;
         [SerializeField] int maxHints = 3;
-
         LetterInventory inventory;
         PlayerController controller;
-
+        WordEntry crafting;
+        float craftStarted, craftReady;
         public bool IsSpelling { get; private set; }
-        /// <summary>Words that can be summoned right now, best first.</summary>
+        public bool IsCrafting => crafting != null;
+        public string CraftWord => crafting?.word;
+        public float CraftProgress => IsCrafting ? Mathf.Clamp01((Time.time - craftStarted) / Mathf.Max(0.001f, craftReady - craftStarted)) : 0f;
         public List<WordEntry> Ready { get; private set; } = new();
-        /// <summary>Near misses shown greyed out, with the letters still needed.</summary>
         public List<(WordEntry entry, string missing)> Hints { get; private set; } = new();
         public int Selected { get; private set; }
-        public WordEntry SelectedWord => Selected < Ready.Count ? Ready[Selected] : null;
-
+        public WordEntry SelectedWord => Selected >= 0 && Selected < Ready.Count ? Ready[Selected] : null;
         public event Action<string> Summoned;
-
-        /// <summary>Set by a mode to replace the word list, e.g. Moving Day's checklist.</summary>
         public IReadOnlyList<WordEntry> WordsOverride { get; set; }
-
+        /// <summary>Explicit objective IDs placed as furniture. Null keeps legacy Furniture-only override fixtures.</summary>
+        public IReadOnlyCollection<string> ChecklistPlacementWords { get; set; }
         IReadOnlyList<WordEntry> Words => WordsOverride ?? (database ? database : GameAssets.I.words).Words;
 
         void Awake()
         {
             inventory = GetComponent<LetterInventory>();
             controller = GetComponent<PlayerController>();
-            inventory.Changed += () => { if (IsSpelling) Refresh(); };
+            inventory.Changed += InventoryChanged;
         }
+
+        void Start()
+        {
+            controller.Health.Damaged += (_, _, result) => { if (result.HitStun > 0f || result.BecameDowned || result.BecameEliminated) CancelCraft(); };
+            controller.Health.KnockedOut += _ => CancelCraft();
+        }
+
+        void InventoryChanged() { if (IsSpelling) Refresh(); }
+        void OnDisable() { CancelCraft(); Close(); }
 
         void Update()
         {
-            if (!controller.CanAct)
+            if (!controller.CanAct || controller.IsDodging) { CancelCraft(); Close(); return; }
+            var command = controller.Commands;
+            if (IsCrafting)
             {
-                Close();
+                if (command.grab || command.spellDown) { CancelCraft(); return; }
+                if (Time.time >= craftReady)
+                {
+                    var entry = crafting;
+                    crafting = null;
+                    inventory.ReservedCount = 0;
+                    controller.MoveScale = 1f;
+                    if (SummonEffects.Apply(controller, entry)) Summoned?.Invoke(entry.word);
+                    else Refund(entry.word);
+                }
                 return;
             }
-            var c = controller.Commands;
-            if (c.spellDown) Open();
+            if (command.spellDown) Open();
             if (!IsSpelling) return;
-
-            if (c.up) Step(-1);
-            if (c.down) Step(1);
-            if (c.grab) { Close(); return; }
-            if (c.spellUp || !c.spellHeld)
-            {
-                var word = SelectedWord;
-                Close();
-                if (word != null) Summon(word);
-            }
+            if (command.up) Step(-1);
+            if (command.down) Step(1);
+            if (command.grab) { Close(); return; }
+            if (command.spellUp || !command.spellHeld) CraftSelected();
         }
 
         public void Open()
         {
+            if (IsCrafting || !controller.CanAct || controller.IsDodging || controller.Combat.IsChanneling) return;
             IsSpelling = true;
             Selected = 0;
             Refresh();
@@ -74,7 +84,7 @@ namespace Wreckabulary
         {
             if (!IsSpelling) return;
             IsSpelling = false;
-            controller.MoveScale = 1f;
+            if (!IsCrafting) controller.MoveScale = 1f;
         }
 
         void Refresh()
@@ -86,24 +96,63 @@ namespace Wreckabulary
             Selected = keep != null && Ready.Contains(keep) ? Ready.IndexOf(keep) : 0;
         }
 
-        void Step(int delta)
+        public void Step(int delta)
         {
             if (Ready.Count == 0) return;
-            Selected = (Selected + delta + Ready.Count) % Ready.Count;
+            Selected = ((Selected + delta) % Ready.Count + Ready.Count) % Ready.Count;
         }
+        public void Select(int index) { if (index >= 0 && index < Ready.Count) Selected = index; }
+        public bool CraftSelected()
+        {
+            var entry = SelectedWord;
+            Close();
+            return BeginCraft(entry);
+        }
+
+        internal WordEntry ResolveRecipe(WordEntry entry)
+        {
+            if (entry == null || string.IsNullOrEmpty(entry.word)) return null;
+            string id = entry.word.ToUpperInvariant();
+            foreach (var word in Words) if (word.word == id) return word;
+            return null;
+        }
+
+        public bool BeginCraft(WordEntry entry)
+        {
+            entry = ResolveRecipe(entry);
+            if (IsCrafting || entry == null || !SummonEffects.CanApply(controller, entry) || !inventory.TrySpend(entry.word)) return false;
+            Close();
+            crafting = entry;
+            inventory.ReservedCount = entry.word.Length;
+            craftStarted = Time.time;
+            var rules = controller.Health.Rules;
+            craftReady = craftStarted + rules.CraftBaseSeconds + rules.CraftPerLetterSeconds * entry.word.Length;
+            controller.MoveScale = rules.CraftMoveSpeed;
+            return true;
+        }
+
+        public void CancelCraft()
+        {
+            if (!IsCrafting) return;
+            var word = crafting.word;
+            crafting = null;
+            inventory.ReservedCount = 0;
+            controller.MoveScale = 1f;
+            Refund(word);
+        }
+        void Refund(string word) { foreach (char letter in word) inventory.TryAdd(letter); }
 
         public bool Summon(string word)
         {
-            word = word.ToUpperInvariant();
-            foreach (var entry in Words)
-                if (entry.word == word) return Summon(entry);
+            if (string.IsNullOrEmpty(word)) return false;
+            foreach (var entry in Words) if (entry.word == word.ToUpperInvariant()) return Summon(entry);
             return false;
         }
-
         public bool Summon(WordEntry entry)
         {
-            if (entry == null || !inventory.TrySpend(entry.word)) return false;
-            SummonEffects.Apply(controller, entry);
+            entry = ResolveRecipe(entry);
+            if (IsCrafting || entry == null || !SummonEffects.CanApply(controller, entry) || !inventory.TrySpend(entry.word)) return false;
+            if (!SummonEffects.Apply(controller, entry)) { Refund(entry.word); return false; }
             Summoned?.Invoke(entry.word);
             return true;
         }

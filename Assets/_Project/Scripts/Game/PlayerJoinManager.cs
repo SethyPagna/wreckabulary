@@ -40,6 +40,35 @@ namespace Wreckabulary
         /// <summary>True if the players were carried over from another scene.</summary>
         public bool RestoredFromSession { get; private set; }
         public event Action<PlayerController> Joined;
+        Vector3[] layoutSpawns;
+
+        public int HumanCount => players.Count(p => p.Binding is not BotBinding);
+
+        public void ConfigureLayout(Rules.HouseLayout layout)
+        {
+            layoutSpawns = layout.Spawns.Select(s => new Vector3(s.X, layout.Room(s.Room).FloorY, s.Z)).ToArray();
+            walkIn = Vector3.zero;
+        }
+
+        public void AssignTeams()
+        {
+            var teams = Rules.Teams.Assign(players.Count, Match.Rules.TeamSize);
+            for (int i = 0; i < players.Count; i++) players[i].Team = teams[i];
+        }
+
+        public void EnsureOpponents()
+        {
+            if (HumanCount == 0) return;
+            int target = 4;
+            while (players.Count < target && players.Count < maxPlayers)
+            {
+                var binding = new BotBinding();
+                var p = Join(binding, arriving: false);
+                p.Name = $"AI {p.Index + 1}";
+                p.gameObject.AddComponent<BotController>().Configure(p, binding);
+            }
+            AssignTeams();
+        }
 
         void Awake()
         {
@@ -99,6 +128,7 @@ namespace Wreckabulary
         public void Place(PlayerController p)
         {
             p.Combat.ResetForRound();
+            p.Summoner.CancelCraft();
             p.Summoner.Close();
             p.Health.ResetForRound();
             p.Respawn(SpawnPoint(p.Index));
@@ -117,20 +147,16 @@ namespace Wreckabulary
             if (p && p.IsEliminated && respawnKnockedOut) Place(p);
         }
 
-        public Vector3 SpawnPoint(int index) =>
-            spawnPoints != null && spawnPoints.Length > 0 ? spawnPoints[index % spawnPoints.Length].position : new Vector3(index * 2f - 3f, 0f, -2f);
+        public Vector3 SpawnPoint(int index) => layoutSpawns != null && layoutSpawns.Length > 0
+            ? layoutSpawns[index % layoutSpawns.Length]
+            : spawnPoints != null && spawnPoints.Length > 0 ? spawnPoints[index % spawnPoints.Length].position : new Vector3(index * 2f - 3f, 0f, -2f);
 
-        public bool AnyStartPressed() => players.Any(p => p.Binding != null && p.Binding.StartPressed());
+        public bool AnyStartPressed() => players.Any(p => p.Commands.start || (p.Binding != null && p.Binding.StartPressed()));
 
-        /// <summary>One vowel, then common consonants: a head start on a first word.</summary>
+        /// <summary>The mode's configured starter letters; the normal arena starts empty.</summary>
         public void GiveStarterLetters(PlayerController p)
         {
-            const string vowels = "AAEEIOU";
-            const string common = "RSTLNDBMPW";
-            var s = new char[starterLetters];
-            for (int i = 0; i < s.Length; i++)
-                s[i] = i == 0 ? vowels[UnityEngine.Random.Range(0, vowels.Length)] : common[UnityEngine.Random.Range(0, common.Length)];
-            p.Inventory.Set(new string(s));
+            p.Inventory.Set(Match.Rules.StarterLetters ?? "");
         }
     }
 }

@@ -130,7 +130,7 @@ namespace Wreckabulary.Tests
             CollectionAssert.AreEqual(new[] { 'X' }, p.Inventory.Letters.ToArray());
             Assert.IsNotNull(p.Combat.Weapon);
             Assert.AreEqual("BLADE", p.Combat.Weapon.word);
-            Assert.That(p.Combat.Weapon.transform.lossyScale.x, Is.EqualTo(1f).Within(0.15f), "held weapons keep their size (give or take squash and stretch)");
+            Assert.That(p.Combat.Weapon.transform.lossyScale.x, Is.EqualTo(p.Combat.Weapon.Definition.HeldScale).Within(0.15f), "held gear uses its catalogue miniature scale");
             Assert.IsFalse(p.Summoner.Summon("SWORD"), "can't summon without the letters");
         }
 
@@ -150,8 +150,7 @@ namespace Wreckabulary.Tests
 
             input.Next.spellHeld = false;
             input.Next.spellUp = true;
-            yield return null;
-            yield return null;
+            yield return TestScenes.WaitUntil(() => !p.Summoner.IsCrafting && p.Combat.Weapon, 3f, "BLADE craft channel");
 
             Assert.IsFalse(p.Summoner.IsSpelling);
             CollectionAssert.AreEqual(new[] { 'W' }, p.Inventory.Letters.ToArray());
@@ -277,9 +276,7 @@ namespace Wreckabulary.Tests
             victim.Inventory.Set("ABC");
 
             input.Next.attack = true;
-            yield return null;
-            yield return null;
-
+            yield return TestScenes.WaitUntil(() => victim.Health.Current < 100f, 1f, "unarmed damage window");
             Assert.AreEqual(92f, victim.Health.Current);
             Assert.AreEqual(3, victim.Inventory.Count);
         }
@@ -293,19 +290,20 @@ namespace Wreckabulary.Tests
             attacker.FaceTowards(Vector3.forward);
 
             input.Next.attack = true;
-            yield return null;
-            yield return null;
+            yield return new WaitForSeconds(attacker.Health.Rules.Unarmed.Cycle + 0.1f);
 
             Assert.AreEqual(100f, victim.Health.Current);
         }
 
         [UnityTest]
-        public IEnumerator ArmorBubbleSoaksDamage()
+        public IEnumerator FoamBubbleSoaksDamage()
         {
             var p = SpawnPlayer(0, Vector3.zero, out _);
             yield return Frames(2);
-            p.Inventory.Set("ARMORS");
-            Assert.IsTrue(p.Summoner.Summon("ARMOR"));
+            p.Inventory.Set("FOAMS");
+            Assert.IsTrue(p.Summoner.Summon("FOAM"));
+            p.Combat.Attack();
+            yield return new WaitForSeconds(GameConfig.Current.Items.Get("FOAM").Use.ChannelSeconds + 0.1f);
             Assert.AreEqual(35f, p.Health.Bubble);
 
             p.Health.ApplyDamage(Punch(null, Vector3.forward));
@@ -353,11 +351,13 @@ namespace Wreckabulary.Tests
             rounds.StartMatch();
             yield return new WaitForSeconds(0.3f);
             Assert.AreEqual(Phase.Playing, rounds.Phase);
-            Assert.AreEqual(3, a.Inventory.Count, "starter letters");
+            Assert.AreEqual(Match.Rules.StarterLetters.Length, a.Inventory.Count, "configured starter letters");
 
             yield return TestScenes.WaitUntil(() => !b.Health.IsInvulnerable, 3f, "spawn protection to wear off");
             Assert.AreEqual(Phase.Playing, rounds.Phase);
+            foreach (var opponent in joins.Players.Where(p => p != a && p != b)) opponent.Health.Eliminate();
             b.Health.ApplyDamage(Lethal(a));
+            yield return null; // evaluate the shared win check after the whole damage tick
             Assert.AreEqual(Phase.RoundOver, rounds.Phase);
             Assert.AreEqual(1, rounds.WinsOf(a));
             Assert.AreEqual(0, rounds.WinsOf(b));

@@ -16,6 +16,10 @@ namespace Wreckabulary
         public bool blockHeld;
         /// <summary>Lets go of what's held. Bindings fire it only after a short hold, so a tap can't lose an item.</summary>
         public bool drop;
+        /// <summary>Places deployed furniture or activates a utility at the aimed location.</summary>
+        public bool deploy;
+        /// <summary>Switches the two carried gear slots.</summary>
+        public bool swap;
         public bool spellHeld, spellDown, spellUp;
         public bool up, down;
         public bool start;
@@ -98,6 +102,8 @@ namespace Wreckabulary
                 c.dodge = kb.leftShiftKey.wasPressedThisFrame;
                 c.blockHeld = kb.lKey.isPressed;
                 c.drop = dropHold.Update(kb.rKey.isPressed, Time.unscaledTime);
+                c.deploy = kb.iKey.wasPressedThisFrame;
+                c.swap = kb.tabKey.wasPressedThisFrame;
                 c.spellHeld = kb.kKey.isPressed;
                 c.spellDown = kb.kKey.wasPressedThisFrame;
                 c.spellUp = kb.kKey.wasReleasedThisFrame;
@@ -115,6 +121,8 @@ namespace Wreckabulary
                 c.dodge = kb.rightCtrlKey.wasPressedThisFrame || kb.numpad5Key.wasPressedThisFrame;
                 c.blockHeld = kb.semicolonKey.isPressed || kb.numpad4Key.isPressed;
                 c.drop = dropHold.Update(kb.quoteKey.isPressed || kb.numpad6Key.isPressed, Time.unscaledTime);
+                c.deploy = kb.numpad7Key.wasPressedThisFrame;
+                c.swap = kb.numpad8Key.wasPressedThisFrame;
                 c.spellHeld = kb.rightShiftKey.isPressed || kb.numpad3Key.isPressed;
                 c.spellDown = kb.rightShiftKey.wasPressedThisFrame || kb.numpad3Key.wasPressedThisFrame;
                 c.spellUp = !c.spellHeld && (kb.rightShiftKey.wasReleasedThisFrame || kb.numpad3Key.wasReleasedThisFrame);
@@ -139,7 +147,8 @@ namespace Wreckabulary
         public override bool StartPressed()
         {
             var kb = Keyboard.current;
-            return kb != null && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame);
+            return (kb != null && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame)) ||
+                (TouchBinding.Shared.IsOverlayFor(Id) && TouchBinding.Shared.StartPressed());
         }
     }
 
@@ -174,6 +183,8 @@ namespace Wreckabulary
             c.dodge = Pad.buttonEast.wasPressedThisFrame;
             c.blockHeld = Pad.leftTrigger.isPressed;
             c.drop = dropHold.Update(Pad.leftShoulder.isPressed, Time.unscaledTime);
+            c.deploy = Pad.rightShoulder.wasPressedThisFrame;
+            c.swap = Pad.rightStickButton.wasPressedThisFrame;
             c.spellHeld = Pad.buttonNorth.isPressed;
             c.spellDown = Pad.buttonNorth.wasPressedThisFrame;
             c.spellUp = Pad.buttonNorth.wasReleasedThisFrame;
@@ -189,7 +200,8 @@ namespace Wreckabulary
         public override bool JoinPressed() =>
             Pad.added && (Pad.buttonSouth.wasPressedThisFrame || Pad.buttonWest.wasPressedThisFrame || Pad.startButton.wasPressedThisFrame);
 
-        public override bool StartPressed() => Pad.added && Pad.startButton.wasPressedThisFrame;
+        public override bool StartPressed() => (Pad.added && Pad.startButton.wasPressedThisFrame) ||
+            (TouchBinding.Shared.IsOverlayFor(Id) && TouchBinding.Shared.StartPressed());
     }
 
     /// <summary>Input driven by code, for tests and bots. Edge flags clear after each read; held ones and aim stay.</summary>
@@ -205,6 +217,7 @@ namespace Wreckabulary
         {
             c = Next;
             Next.grab = Next.attack = Next.jump = Next.dodge = Next.drop = false;
+            Next.deploy = Next.swap = false;
             Next.spellDown = Next.spellUp = Next.up = Next.down = Next.start = false;
         }
 

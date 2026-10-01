@@ -179,6 +179,11 @@ namespace Wreckabulary.Rules
         public float X, Z, Yaw;
     }
 
+    public sealed class HouseObjective
+    {
+        public string Word, Room;
+    }
+
     /// <summary>A house map from Data/Config/house_*.json: rooms, doorways, spawns, furniture and clear-out orders.</summary>
     public sealed class HouseLayout
     {
@@ -190,6 +195,9 @@ namespace Wreckabulary.Rules
         public readonly List<string> NeverClose = new List<string>();
         public readonly Dictionary<string, List<string>> ClearOutOrders = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         public string ExtractionRoom;
+        public float ExtractionX, ExtractionZ;
+        public readonly List<HouseObjective> MovingDay = new List<HouseObjective>();
+        public readonly List<SpawnPoint> Keepsakes = new List<SpawnPoint>();
 
         /// <summary>Floor furniture must stand at least this far from a doorway's centre, so no room starts blocked.</summary>
         public const float DoorClearance = 1.5f;
@@ -259,6 +267,17 @@ namespace Wreckabulary.Rules
                 foreach (string p in g.CheckClosureOrder(kv.Value, NeverClose))
                     problems.Add($"clear-out order '{kv.Key}': {p}");
             if (ExtractionRoom != null && !all.Contains(ExtractionRoom)) problems.Add($"extraction room {ExtractionRoom} doesn't exist");
+            else if (ExtractionRoom != null && !Room(ExtractionRoom).Contains(ExtractionX, ExtractionZ))
+                problems.Add($"extraction point ({ExtractionX}, {ExtractionZ}) is outside {ExtractionRoom}");
+            foreach (var objective in MovingDay)
+            {
+                if (!all.Contains(objective.Room)) problems.Add($"Moving Day objective {objective.Word} uses unknown room {objective.Room}");
+                if (!catalogue.TryGet(objective.Word, out var item) || !item.Enabled)
+                    problems.Add($"Moving Day objective {objective.Word} must be an enabled recipe");
+            }
+            foreach (var keepsake in Keepsakes)
+                if (!all.Contains(keepsake.Room) || !Room(keepsake.Room).Contains(keepsake.X, keepsake.Z))
+                    problems.Add($"keepsake ({keepsake.X}, {keepsake.Z}) is outside {keepsake.Room}");
             return problems;
         }
 
@@ -292,6 +311,26 @@ namespace Wreckabulary.Rules
                 });
             }
             h.NeverClose.AddRange(root["neverClose"].Strings());
+            if (root.Has("extractionAt"))
+            {
+                var at = root["extractionAt"].Floats(2);
+                h.ExtractionX = at[0]; h.ExtractionZ = at[1];
+            }
+            else if (h.ExtractionRoom != null && h.Room(h.ExtractionRoom) != null)
+            {
+                var room = h.Room(h.ExtractionRoom);
+                h.ExtractionX = (room.MinX + room.MaxX) * 0.5f;
+                h.ExtractionZ = (room.MinZ + room.MaxZ) * 0.5f;
+            }
+            if (root.Has("movingDay"))
+                foreach (var objective in root["movingDay"].Items)
+                    h.MovingDay.Add(new HouseObjective { Word = objective["word"].String(), Room = objective["room"].String() });
+            if (root.Has("keepsakes"))
+                foreach (var keepsake in root["keepsakes"].Items)
+                {
+                    var at = keepsake["at"].Floats(2);
+                    h.Keepsakes.Add(new SpawnPoint { Room = keepsake["room"].String(), X = at[0], Z = at[1] });
+                }
             if (root.Has("clearOutOrders"))
                 foreach (string mode in root["clearOutOrders"].Keys)
                     h.ClearOutOrders[mode] = root["clearOutOrders"][mode].Strings();

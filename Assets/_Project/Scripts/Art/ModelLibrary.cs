@@ -20,6 +20,7 @@ namespace Wreckabulary.Art
         {
             public string key;
             public GameObject model;
+            public AnimationClip[] clips;
         }
 
         [SerializeField] List<Entry> models = new List<Entry>();
@@ -53,6 +54,24 @@ namespace Wreckabulary.Art
                     if (e.model != null) byKey[e.key] = e.model;
             }
             return byKey.TryGetValue(key, out var found) ? found : null;
+        }
+
+        /// <summary>Returns a canonical skeletal clip bundled with the imported model.</summary>
+        public AnimationClip FindClip(string key, string name)
+        {
+            foreach (var entry in models)
+            {
+                if (entry.key != key || entry.clips == null) continue;
+                foreach (var clip in entry.clips)
+                {
+                    if (!clip) continue;
+                    string canonical = clip.name;
+                    int bar = canonical.LastIndexOf('|');
+                    if (bar >= 0) canonical = canonical.Substring(bar + 1);
+                    if (canonical == name) return clip;
+                }
+            }
+            return null;
         }
 
         /// <summary>

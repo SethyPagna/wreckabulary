@@ -1,162 +1,197 @@
 using System.Collections;
 using UnityEngine;
 using Wreckabulary.Rules;
+using Wreckabulary.Art;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// A summoned weapon held in the hand. Each attack uses it up a little; when it runs out
-    /// it falls apart into its letters. Dropped weapons can be grabbed and used by anyone.
-    /// A shield (PLATE) isn't swung: it's raised with block, and blocked damage wears it down.
-    /// </summary>
+    /// <summary>Crafted gear keeps its recipe and durability through pickup, use, throw and deployment.</summary>
     [RequireComponent(typeof(Rigidbody))]
-    public class HeldWeapon : MonoBehaviour
+    public class HeldWeapon : MonoBehaviour, IDamageable
     {
-        /// <summary>
-        /// Converts a summon's furniture damage to player damage. It puts the old words in line
-        /// with the catalogue: SWORD 22 next to BLADE 24, CANNON 45 next to BOMB 45.
-        /// </summary>
         public const float HealthPerDamage = 0.9f;
-
         public string word;
         public int uses = 5;
-        public float cooldown = 0.35f;
-
-        [Header("Melee (the summon's own numbers: furniture damage, push in m/s)")]
-        public float reach = 1.2f;
-        public float radius = 0.8f;
-        public float knockback = 9f;
-        public float damage = 25f;
-
-        [Header("Ranged (BOW, CANNON)")]
+        public float cooldown = 0.35f, reach = 1.2f, radius = 0.8f, knockback = 9f, damage = 25f;
         public bool ranged;
-        public float projectileSpeed = 18f;
-        public float blastRadius;
+        public float projectileSpeed = 18f, blastRadius;
 
-        MeleeStats stats;
-        bool fromCatalogue;
-        ItemDefinition item;
-        bool lookedUp;
+        ItemDefinition definition;
+        MeleeStats legacyStats;
         float durabilityLeft = -1f;
-
-        /// <summary>This word's items.json entry, or null for summon-only words (SWORD, CANNON, …).</summary>
-        ItemDefinition Item
+        bool broken, spent, usingItem, inFlight;
+        float thrownAt;
+        PlayerCombat holder;
+        public ItemDefinition Definition => definition;
+        public bool IsSpent => spent;
+        public bool IsUsing => usingItem;
+        public ShieldStats Shield => definition?.Shield;
+        public float DurabilityLeft => durabilityLeft < 0f ? (definition != null ? Mathf.Max(1, definition.Durability) : 1f) : durabilityLeft;
+        public MeleeStats Stats => definition?.Melee ?? (legacyStats ??= new MeleeStats
         {
-            get
+            Damage = Mathf.Round(damage * HealthPerDamage), Reach = reach + radius - 0.4f,
+            ArcDegrees = 100f, Recovery = cooldown, Knockback = knockback / Hits.KnockbackSpeed,
+            BreakPower = damage / Smashable.HealthPerBreakPower, HitStun = 0.25f,
+        });
+        public float Cooldown => definition?.Melee?.Cycle ?? definition?.Use?.ChannelSeconds ?? cooldown;
+        public Quaternion HoldRotation => definition != null ? Quaternion.identity : Quaternion.Euler(ranged ? 90f : 65f, 0f, 0f);
+
+        public void Configure(ItemDefinition item)
+        {
+            definition = item;
+            word = item.Id;
+            durabilityLeft = Mathf.Max(1, item.Durability);
+        }
+
+        void OnDisable() { StopAllCoroutines(); usingItem = false; }
+
+        public void CancelUse()
+        {
+            StopAllCoroutines();
+            usingItem = false;
+            transform.localRotation = HoldRotation;
+        }
+
+        void Update()
+        {
+            // The throwing player's miniature and skin travel with the same item until it rests.
+            if (inFlight && Time.time - thrownAt > 0.3f && GetComponent<Rigidbody>().linearVelocity.sqrMagnitude < 0.1f)
+                OnReleased();
+        }
+
+        public void OnHeld(PlayerCombat user)
+        {
+            CancelUse();
+            inFlight = false;
+            holder = user;
+            if (TryGetComponent(out DeployedGear deployed)) deployed.Deactivate();
+            if (TryGetComponent(out ThrownGear thrown)) thrown.StopTracking();
+            if (definition != null)
             {
-                if (!lookedUp)
-                {
-                    lookedUp = true;
-                    GameConfig.Current.Items.TryGet(word, out item);
-                }
-                return item;
+                transform.localScale = Vector3.one * definition.HeldScale;
+                var library = MaterialLibrary.Load();
+                if (library) library.ApplySkin(gameObject, user.GetComponent<PlayerAppearance>()?.SkinFor(word) ?? Skin.Standard);
             }
         }
 
-        /// <summary>The block a raised shield gives (items.json), or null for things that can't block.</summary>
-        public ShieldStats Shield => Item?.Shield;
-
-        /// <summary>A shield rides at the side, edge on; weapons point forward and up.</summary>
-        public Quaternion HoldRotation => Shield != null ? Quaternion.Euler(0f, 80f, 0f) : Quaternion.Euler(ranged ? 90f : 65f, 0f, 0f);
-
-        /// <summary>Durability left: items.json's for catalogue items, 1 for summon-only words.</summary>
-        public float DurabilityLeft
+        public void OnReleased()
         {
-            get
-            {
-                if (durabilityLeft < 0f) durabilityLeft = Item != null && Item.Durability > 0 ? Item.Durability : 1f;
-                return durabilityLeft;
-            }
+            CancelUse();
+            inFlight = false;
+            holder = null;
+            if (definition != null) transform.localScale = Vector3.one;
+            var library = MaterialLibrary.Load();
+            if (library) library.ApplySkin(gameObject, Skin.Standard);
         }
 
-        /// <summary>
-        /// What a swing does. Catalogue weapons (BAT, BLADE) use items.json; other summoned
-        /// words convert their own numbers.
-        /// </summary>
-        public MeleeStats Stats
+        public void OnThrown(PlayerController thrower)
         {
-            get
-            {
-                if (stats != null) return stats;
-                if (Item != null && Item.Melee != null)
-                {
-                    fromCatalogue = true;
-                    return stats = Item.Melee;
-                }
-                return stats = new MeleeStats
-                {
-                    Damage = PlayerDamage,
-                    // The old swing hit a sphere of this radius, this far ahead; reach is measured to the target's surface.
-                    Reach = reach + radius - 0.4f,
-                    ArcDegrees = 100f,
-                    Recovery = cooldown,
-                    Knockback = Knockback,
-                    BreakPower = BreakPower,
-                    HitStun = 0.25f,
-                };
-            }
+            CancelUse();
+            holder = null;
+            inFlight = true;
+            thrownAt = Time.time;
+            if (definition != null) transform.localScale = Vector3.one * definition.HeldScale;
+            var library = MaterialLibrary.Load();
+            if (library) library.ApplySkin(gameObject, thrower.GetComponent<PlayerAppearance>()?.SkinFor(word) ?? Skin.Standard);
         }
-
-        /// <summary>Seconds between attacks: the catalogue's swing timing, or the summon's cooldown.</summary>
-        public float Cooldown
-        {
-            get
-            {
-                var s = Stats;
-                return fromCatalogue ? s.Cycle : cooldown;
-            }
-        }
-
-        float PlayerDamage => Mathf.Round(damage * HealthPerDamage);
-        float Knockback => knockback / Hits.KnockbackSpeed;
-        float BreakPower => damage / Smashable.HealthPerBreakPower;
 
         public void Use(PlayerCombat user)
         {
+            if (broken || usingItem || !user) return;
             var owner = user.GetComponent<PlayerController>();
+            if (definition != null)
+            {
+                if (definition.Use != null) { StartCoroutine(ConsumeAfterChannel(user, owner)); return; }
+                if (definition.Thrown != null) { user.Throw(); return; }
+                if (definition.Melee != null) { StartCoroutine(MeleeAfterWindup(user, owner)); return; }
+                if (definition.Deploy != null) { user.DeployHeld(); return; }
+                return;
+            }
             if (ranged)
-            {
-                var from = transform.position + owner.Facing * 0.4f;
-                Projectile.Fire(word, from, owner.Facing * projectileSpeed, owner, PlayerDamage, Knockback, BreakPower, blastRadius);
-            }
-            else
-            {
-                user.Strike(Stats, word);
-                StartCoroutine(Swing());
-            }
-
-            if (--uses > 0) return;
-            Break(user);
+                Projectile.Fire(word, transform.position + owner.Facing * 0.4f, owner.Facing * projectileSpeed, owner,
+                    Mathf.Round(damage * HealthPerDamage), knockback / Hits.KnockbackSpeed,
+                    damage / Smashable.HealthPerBreakPower, blastRadius);
+            else { user.Strike(Stats, word); StartCoroutine(Swing()); }
+            if (--uses <= 0) Break(user);
         }
 
-        /// <summary>Blocked damage wears a shield down. Returns true if that wore it through and it fell apart.</summary>
+        IEnumerator MeleeAfterWindup(PlayerCombat user, PlayerController owner)
+        {
+            usingItem = true;
+            owner.GetComponent<PlayerAppearance>()?.Play(definition.Family == HandlingFamily.MeleeThrust ? "Thrust_OneHand" : "Swing_OneHand", Stats.Cycle);
+            yield return new WaitForSeconds(Stats.Windup);
+            if (owner && owner.CanAct && !owner.IsDodging && user.Weapon == this && !user.IsBlocking)
+            {
+                StartCoroutine(Swing());
+                float ends = Time.time + Stats.Active;
+                bool firstFrame = true;
+                do
+                {
+                    if (!owner.CanAct || owner.IsDodging || user.Weapon != this) break;
+                    user.Strike(Stats, word, firstFrame);
+                    if (firstFrame)
+                    {
+                        firstFrame = false;
+                        Wear(1f, user);
+                        if (broken) yield break;
+                    }
+                    yield return null;
+                } while (Time.time < ends);
+                yield return new WaitForSeconds(Stats.Recovery);
+            }
+            usingItem = false;
+        }
+
+        IEnumerator ConsumeAfterChannel(PlayerCombat user, PlayerController owner)
+        {
+            usingItem = true;
+            owner.GetComponent<PlayerAppearance>()?.Play("Drink_Consumable", definition.Use.ChannelSeconds);
+            float ready = Time.time + definition.Use.ChannelSeconds;
+            while (Time.time < ready)
+            {
+                if (!owner || !owner.CanAct || owner.IsDodging || user.Weapon != this) { usingItem = false; yield break; }
+                yield return null;
+            }
+            if (owner && owner.CanAct && user.Weapon == this)
+            {
+                user.ForgetHeld();
+                MarkSpent();
+                CatalogGear.ApplyUse(owner, definition);
+                Destroy(gameObject);
+            }
+            usingItem = false;
+        }
+
+        public bool ApplyDamage(in HitInfo hit)
+        {
+            if (broken || hit.BreakPower <= 0f || spent) return false;
+            Wear(hit.BreakPower, holder);
+            return true;
+        }
+
         public bool Wear(float amount, PlayerCombat user)
         {
+            if (broken || amount <= 0f) return false;
             durabilityLeft = DurabilityLeft - amount;
             if (durabilityLeft > 0f) return false;
-            Popup.Show("CRACK!", transform.position + Vector3.up * 0.6f, Color.white, 3f);
             Break(user);
             return true;
         }
 
-        /// <summary>Falls apart into its letters, out of the holder's hand.</summary>
-        public void Break(PlayerCombat user)
+        public void MarkSpent() => spent = true;
+
+        public void Break(PlayerCombat user = null)
         {
-            if (user) user.ForgetHeld();
+            if (broken) return;
+            broken = true;
+            CancelUse();
+            if (user && user.Weapon == this) user.ForgetHeld();
             transform.SetParent(World.Transient, true);
-            var pool = TilePool.Instance;
-            if (pool)
-            {
-                var built = GetComponent<LetterBuilt>();
-                if (built) pool.BurstFrom(built.Blocks, word, transform.position, 3f);
-                else pool.Burst(word, transform.position, 3f);
-            }
+            if (!spent && TilePool.Instance) TilePool.Instance.Burst(word, transform.position + Vector3.up * 0.4f, 3f);
             Destroy(gameObject);
         }
 
-        /// <summary>A raised shield turns flat-on to the front; lowered, it goes back to the side.</summary>
-        public void ShowRaised(bool raised) =>
-            transform.localRotation = raised ? Quaternion.identity : HoldRotation;
+        public void ShowRaised(bool raised) => transform.localRotation = raised ? Quaternion.Euler(90f, 0f, 0f) : HoldRotation;
 
         IEnumerator Swing()
         {

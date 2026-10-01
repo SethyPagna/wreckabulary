@@ -51,3 +51,7 @@ sysinfo.txt
 
 # Unity Test Runner leftovers
 /[Aa]ssets/InitTestScene*
+
+# Python asset/setup tools
+__pycache__/
+*.pyc

@@ -190,8 +190,7 @@ namespace Wreckabulary.Tests
             EquipPlate(p);
 
             input.Next.attack = true;
-            yield return null;
-            yield return null;
+            yield return TestScenes.WaitUntil(() => opponent.Health.Current < 100f, 1f, "free hand punch damage window");
             Assert.AreEqual(92f, opponent.Health.Current, "the free hand punches");
             Assert.AreEqual("PLATE", p.Combat.Weapon.word, "and the plate stays in hand");
         }

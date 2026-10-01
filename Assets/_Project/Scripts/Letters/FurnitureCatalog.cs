@@ -35,8 +35,12 @@ namespace Wreckabulary
 
         public static Smashable Spawn(string word, Vector3 position, float yaw, Transform parent)
         {
+            word = word.ToUpperInvariant();
             var spec = Specs.TryGetValue(word, out var s) ? s : Default;
-            return Furniture.Create(parent, word, position, yaw, spec.block, spec.perRow, spec.color, spec.mass, 25f);
+            var rules = Match.Rules;
+            float health = (rules.FurnitureToughnessBase + rules.FurnitureToughnessPerLetter * word.Length)
+                * Smashable.HealthPerBreakPower;
+            return Furniture.Create(parent, word, position, yaw, spec.block, spec.perRow, spec.color, spec.mass, health);
         }
 
         /// <summary>Spells a piece of furniture into existence just in front of the player.</summary>

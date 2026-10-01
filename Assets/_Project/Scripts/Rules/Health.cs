@@ -135,6 +135,7 @@ namespace Wreckabulary.Rules
 
         public HitResult ApplyHit(in HitInfo hit, double now)
         {
+            if (now >= BubbleUntil) ClearBubble();
             var r = new HitResult();
             if (State == LifeState.Eliminated) { r.Ignored = HitIgnored.Eliminated; return r; }
             if (State == LifeState.Downed) { r.Ignored = HitIgnored.Downed; return r; }
@@ -162,6 +163,7 @@ namespace Wreckabulary.Rules
                 r.Absorbed = Math.Min(Bubble, damage);
                 Bubble -= r.Absorbed;
                 damage -= r.Absorbed;
+                if (Bubble <= 0f) ClearBubble();
             }
             r.Damage = Math.Min(damage, Current);
             r.Knockback = knockback;
@@ -196,7 +198,7 @@ namespace Wreckabulary.Rules
         /// <summary>Call every tick. Returns true when a downed player bleeds out.</summary>
         public bool Tick(double now)
         {
-            if (now >= BubbleUntil) Bubble = 0f;
+            if (now >= BubbleUntil) ClearBubble();
             if (State == LifeState.Downed && now >= BleedOutAt)
             {
                 State = LifeState.Eliminated;
@@ -220,7 +222,7 @@ namespace Wreckabulary.Rules
         public bool BeginRevive(int reviverId, int reviverTeam, double now)
         {
             if (State != LifeState.Downed || reviverId == PlayerId || !Teams.AreTeammates(reviverTeam, Team)) return false;
-            if (ReviverId >= 0 && ReviverId != reviverId) return false;
+            if (ReviverId >= 0) return ReviverId == reviverId;
             ReviverId = reviverId;
             ReviveStartedAt = now;
             return true;
@@ -258,6 +260,13 @@ namespace Wreckabulary.Rules
             BubbleUntil = until;
         }
 
+        /// <summary>Ends bubble protection, including its expiry deadline.</summary>
+        public void ClearBubble()
+        {
+            Bubble = 0f;
+            BubbleUntil = 0;
+        }
+
         public bool CanDodge(double now) => IsAlive && now - LastDodgeAt >= rules.DodgeCooldown;
 
         public bool Dodge(double now)
@@ -272,10 +281,13 @@ namespace Wreckabulary.Rules
         {
             State = LifeState.Alive;
             Current = rules.MaxHealth;
-            Bubble = 0f;
-            BubbleUntil = 0;
+            ClearBubble();
             blocking = false;
+            shield = null;
             ReviverId = -1;
+            ReviveStartedAt = 0;
+            BleedOutAt = 0;
+            LastDodgeAt = double.NegativeInfinity;
             StaggerImmuneUntil = 0;
             InvulnerableUntil = now + rules.SpawnProtectionSeconds;
         }

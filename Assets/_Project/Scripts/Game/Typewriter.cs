@@ -19,6 +19,7 @@ namespace Wreckabulary
             public string label;
             public string blurb;
             public string scene;
+            public string id;
             public int minPlayers = 1;
             public bool comingSoon;
         }
@@ -26,9 +27,10 @@ namespace Wreckabulary
         [SerializeField] Mode[] modes =
         {
             new() { label = "TUTORIAL", blurb = "Learn to smash, spell and summon", scene = Session.TutorialScene },
-            new() { label = "DIBS!", blurb = "Versus: last roommate standing", scene = Session.DibsScene, minPlayers = 2 },
+            new() { label = "DIBS!", id = "Dibs", blurb = "Last roommate standing • solo AI", scene = Session.DibsScene },
+            new() { label = "DUOS", id = "Duos", blurb = "Two teams • revive your teammate • solo AI", scene = Session.DibsScene },
             new() { label = "MOVING DAY", blurb = "Co-op: furnish the house together", scene = Session.MovingDayScene },
-            new() { label = "HOME SWEET HOME", blurb = "Creative: build your own room", comingSoon = true },
+            new() { label = "MOVING OUT", id = "MovingOut", blurb = "Rescue keepsakes and reach the van", scene = Session.DibsScene },
         };
         [SerializeField] PlayerJoinManager joins;
         [SerializeField] TextMeshPro menuText;
@@ -42,6 +44,19 @@ namespace Wreckabulary
         public IReadOnlyList<Mode> Modes => modes;
         public PlayerController User { get; private set; }
         public int Selected { get; private set; } = 1;
+
+        void Awake()
+        {
+            // Older authored scenes serialized the prototype's four-entry menu. Upgrade its mode contract.
+            modes = new[]
+            {
+                new Mode { label = "TUTORIAL", id = "Tutorial", blurb = "Learn to smash, spell and summon", scene = Session.TutorialScene },
+                new Mode { label = "DIBS!", id = "Dibs", blurb = "Last roommate standing • solo AI", scene = Session.DibsScene },
+                new Mode { label = "DUOS", id = "Duos", blurb = "Two teams • hold grab to revive • solo AI", scene = Session.DibsScene },
+                new Mode { label = "MOVING DAY", id = "MovingDay", blurb = "Furnish the house before time runs out", scene = Session.MovingDayScene },
+                new Mode { label = "MOVING OUT", id = "MovingOut", blurb = "Rescue keepsakes and get everyone to the van", scene = Session.DibsScene },
+            };
+        }
 
         void Update()
         {
@@ -109,7 +124,7 @@ namespace Wreckabulary
             if (players < m.minPlayers) return Say($"NEEDS {m.minPlayers} ROOMMATES");
 
             Close();
-            Session.Load(m.scene);
+            Session.LoadMode(m.id);
             return true;
         }
 

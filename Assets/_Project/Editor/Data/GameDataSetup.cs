@@ -36,6 +36,10 @@ namespace Wreckabulary.EditorTools
             data.items = Text(ItemsFile);
             data.house = Text(HouseFile);
             data.wardrobe = Text(WardrobeFile);
+            data.maps = Directory.GetFiles(ConfigFolder, "house_*.json")
+                .OrderBy(path => path, System.StringComparer.Ordinal)
+                .Where(path => Path.GetFileName(path) != HouseFile)
+                .Select(path => Text(Path.GetFileName(path))).ToArray();
             EditorUtility.SetDirty(data);
             AssetDatabase.SaveAssets();
 

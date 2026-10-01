@@ -33,8 +33,9 @@ namespace Wreckabulary
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.linearVelocity = velocity;
 
-            foreach (var mine in owner.GetComponents<Collider>())
-                Physics.IgnoreCollision(go.GetComponentInChildren<Collider>(), mine);
+            if (owner)
+                foreach (var mine in owner.GetComponents<Collider>())
+                    Physics.IgnoreCollision(go.GetComponentInChildren<Collider>(), mine);
 
             var p = go.AddComponent<Projectile>();
             p.owner = owner;
@@ -67,22 +68,32 @@ namespace Wreckabulary
 
         void Explode()
         {
+            ExplodeAt(transform.position, owner, word, damage, damage, blastRadius, knockback, breakPower, false);
+        }
+
+        public static float BlastDamage(float centreDamage, float edgeDamage, float distance, float radius) =>
+            Mathf.Lerp(centreDamage, edgeDamage, radius > 0f ? Mathf.Clamp01(distance / radius) : 0f);
+
+        public static void ExplodeAt(Vector3 position, PlayerController owner, string word, float damage, float edgeDamage,
+            float blastRadius, float knockback, float breakPower, bool hurtOwner)
+        {
             CameraRig.Shake(0.25f);
-            Popup.Show("BOOM", transform.position + Vector3.up, Color.white, 4f);
+            Popup.Show("BOOM", position + Vector3.up, Color.white, 4f);
             var seen = new HashSet<Rigidbody>();
-            foreach (var col in Physics.OverlapSphere(transform.position, blastRadius, ~0, QueryTriggerInteraction.Ignore))
+            foreach (var col in Physics.OverlapSphere(position, blastRadius, ~0, QueryTriggerInteraction.Ignore))
             {
                 var rb = col.attachedRigidbody;
                 if (!rb || !seen.Add(rb)) continue;
-                var hit = Hits.Of(owner, rb.position - transform.position, HitSource.Explosion, damage, knockback, 0.3f, breakPower, word);
+                float distance = World.Flat(rb.position - position).magnitude;
+                var hit = Hits.Of(owner, rb.position - position, HitSource.Explosion, BlastDamage(damage, edgeDamage, distance, blastRadius), knockback, 0.3f, breakPower, word);
                 if (rb.TryGetComponent(out PlayerHealth victim))
                 {
-                    if (!owner || victim.gameObject != owner.gameObject) victim.ApplyDamage(hit);
+                    if (hurtOwner || !owner || victim.gameObject != owner.gameObject) victim.ApplyDamage(hit);
                 }
                 else
                 {
-                    if (rb.TryGetComponent(out Smashable smash)) smash.ApplyDamage(hit);
-                    if (rb && !rb.isKinematic) rb.AddExplosionForce(8f, transform.position, blastRadius, 0.5f, ForceMode.VelocityChange);
+                    if (rb.TryGetComponent(out IDamageable target)) target.ApplyDamage(hit);
+                    if (rb && !rb.isKinematic) rb.AddExplosionForce(knockback * Hits.KnockbackSpeed, position, blastRadius, 0.5f, ForceMode.VelocityChange);
                 }
             }
         }

@@ -22,7 +22,12 @@ namespace Wreckabulary.EditorTools
             {
                 var model = AssetDatabase.LoadAssetAtPath<GameObject>(file.Output);
                 if (model == null) missing.Add(file.Output);
-                else entries.Add(new ModelLibrary.Entry { key = KeyOf(file.Output), model = model });
+                else entries.Add(new ModelLibrary.Entry
+                {
+                    key = KeyOf(file.Output), model = model,
+                    clips = AssetDatabase.LoadAllAssetsAtPath(file.Output).OfType<AnimationClip>()
+                        .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal)).ToArray()
+                });
             }
             if (missing.Count > 0)
                 throw new InvalidOperationException("These models didn't import:\n" + string.Join("\n", missing));

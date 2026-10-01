@@ -121,6 +121,11 @@ namespace Wreckabulary
                 initialLabel.color = new Color(0.97f, 0.92f, 0.82f);
             }
             if (Health) Health.Init();
+            // Existing prefabs gain the supplied avatar and saved wardrobe at runtime as well.
+            var appearance = GetComponent<PlayerAppearance>() ?? gameObject.AddComponent<PlayerAppearance>();
+            appearance.Initialize(this);
+            var feedback = GetComponent<PlayerFeedback>() ?? gameObject.AddComponent<PlayerFeedback>();
+            feedback.Initialize(this);
         }
 
         void Update()
@@ -129,6 +134,8 @@ namespace Wreckabulary
             {
                 Commands = default;
                 Binding.Read(ref Commands);
+                if (Binding is not TouchBinding && TouchBinding.Shared.IsOverlayFor(Binding.Id))
+                    TouchBinding.Shared.Merge(ref Commands);
             }
             // Physics steps on its own clock, so hold on to a press until a step can act on it.
             if (Commands.jump) jumpWantedUntil = Time.time + pressBuffer;
@@ -347,6 +354,7 @@ namespace Wreckabulary
 
         public void PlayPunch()
         {
+            GameFeedback.Play(GameCue.Swing);
             punchT = 1f;
             punchRight = !punchRight;
         }

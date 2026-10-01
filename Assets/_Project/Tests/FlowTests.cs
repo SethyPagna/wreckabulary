@@ -58,24 +58,24 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitForActive(Session.DibsScene);
 
             var dibsJoins = Object.FindAnyObjectByType<PlayerJoinManager>();
-            Assert.AreEqual(2, dibsJoins.Players.Count, "both roommates came along");
-            Assert.AreEqual(new[] { "P1", "P2" }, dibsJoins.Players.Select(p => p.Name).ToArray());
+            Assert.AreEqual(2, dibsJoins.HumanCount, "both roommates came along");
+            Assert.AreEqual(4, dibsJoins.Players.Count, "remaining seats have AI opponents");
+            Assert.AreEqual(new[] { "P1", "P2" }, dibsJoins.Players.Where(p => p.Binding is not BotBinding).Select(p => p.Name).ToArray());
             Assert.AreEqual(Phase.Countdown, RoundManager.Instance.Phase, "coming from the house skips the lobby");
         }
 
         [UnityTest]
-        public IEnumerator DibsNeedsTwoRoommatesAndComingSoonModesStayPut()
+        public IEnumerator TypewriterStartsSoloDibsWithAnAiOpponent()
         {
             yield return TestScenes.Load(Session.HubScene);
-            var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
-            joins.Join(new ScriptedBinding());
+            Object.FindAnyObjectByType<PlayerJoinManager>().Join(new ScriptedBinding());
             var typewriter = Object.FindAnyObjectByType<Typewriter>();
-
-            Assert.IsFalse(typewriter.Choose(ModeIndex(typewriter, Session.DibsScene)), "one roommate can't play Dibs!");
-            int soon = typewriter.Modes.Select((m, i) => (m, i)).First(x => x.m.comingSoon).i;
-            Assert.IsFalse(typewriter.Choose(soon));
-            yield return null;
-            Assert.AreEqual(Session.HubScene, SceneManager.GetActiveScene().name);
+            Assert.IsTrue(typewriter.Choose(ModeIndex(typewriter, Session.DibsScene)));
+            yield return TestScenes.WaitForActive(Session.DibsScene);
+            var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
+            Assert.AreEqual(1, joins.HumanCount);
+            Assert.AreEqual(4, joins.Players.Count);
+            Assert.AreEqual(1, Session.Bindings.Count, "AI is not carried home");
         }
 
         [UnityTest]
@@ -174,9 +174,9 @@ namespace Wreckabulary.Tests
             p.Combat.Throw();
             yield return TestScenes.WaitUntil(() => director.StepIndex >= 7, 1f, "throw step");
 
-            // 8. Knock out the dummy: it starts this step at full health, 40.
+            // 8. Knock out the dummy: it starts this step at the canonical full health.
             yield return new WaitForSeconds(0.7f);
-            Assert.AreEqual(40f, dummy.Health.Current);
+            Assert.AreEqual(Match.Rules.MaxHealth, dummy.Health.Current);
             for (int i = 0; i < 20 && dummy.Health.IsAlive; i++)
                 dummy.Health.ApplyDamage(Hits.Melee(p, Vector3.forward, p.Health.Rules.Unarmed, null));
             Assert.IsTrue(dummy.IsEliminated);

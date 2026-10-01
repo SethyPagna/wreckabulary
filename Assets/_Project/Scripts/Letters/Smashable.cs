@@ -84,7 +84,8 @@ namespace Wreckabulary
                     pool.Burst(word, centre + Vector3.up * 0.3f);
             }
             CameraRig.Shake(0.08f);
-            // TODO: letter-burst VFX + wooden clack SFX
+            GameFeedback.Play(GameCue.Break);
+            GameFeedback.Burst("Wood_Splinter", transform.position + Vector3.up * 0.4f, 0.65f);
             Broken?.Invoke(this);
             Destroy(gameObject);
         }

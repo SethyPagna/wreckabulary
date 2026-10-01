@@ -124,7 +124,8 @@ namespace Wreckabulary
         /// <summary>If the BAT letters got lost (dropped, spent on something else), send another box.</summary>
         void Resupply()
         {
-            if (StepIndex < 1 || StepIndex > 3 || batSummoned || box || Time.time < nextResupply) return;
+            if (StepIndex < 2 || StepIndex > 4 || batSummoned || box || Time.time < nextResupply) return;
+            if (joins.Players.Any(p => p.Summoner.IsCrafting && p.Summoner.CraftWord == "BAT")) return;
             nextResupply = Time.time + 1f;
             var letters = new List<char>();
             if (TilePool.Instance) letters.AddRange(TilePool.Instance.Active.Select(t => t.Letter));
@@ -162,11 +163,10 @@ namespace Wreckabulary
             Dummy.Health.KnockedOut += _ => { if (!Finished) Invoke(nameof(EnsureDummy), 1.5f); };
         }
 
-        /// <summary>A lighter target than a roommate, with no spawn protection so the first whack always counts.</summary>
+        /// <summary>A full-health target with no spawn protection so the first whack always counts.</summary>
         static GameRules DummyRules()
         {
             var rules = Match.Rules.Clone();
-            rules.MaxHealth = 40f;
             rules.SpawnProtectionSeconds = 0f;
             rules.DownedEnabled = false;
             return rules;
