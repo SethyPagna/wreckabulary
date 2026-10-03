@@ -2,6 +2,26 @@
 
 ## Resume here
 
+**3 October 2026 laptop delivery:** the latest Workshop continuation has been
+reconciled with published main history and the later sealed Pickup native fixes.
+Browser mechanics pass 88/88 and actual Chrome desktop/mobile flows pass 25/25,
+with zero captured page/resource errors. Hosting is being moved to Cloudflare
+Pages, using the James account only. GitHub branches retain their history.
+
+The native corrections are 22 selectively transferred files whose source and
+destination each passed two SHA-256 reads against the sealed native source
+manifest. They repair animation binding, Pickup contact, BAT attachment and
+squash stability. An independent source review found no integration defect.
+The combined Workshop/native source has **not yet passed fresh Unity engine
+tests**. The separately retained 2 October Windows player compiled successfully;
+its full gameplay acceptance remains unverified. Preserve its source and evidence.
+The original generated solution-file edit remains unstaged.
+
+Next: finish Pages deployment and hosted checks, update the portfolio through its
+active owner, then remove only verified redundant laptop copies. The cloud-machine
+license notes below describe the earlier environment; the laptop has the pinned
+editor and an existing Personal license, but its serial verification is queued.
+
 Work on `feature/wreckabulary-production`, based on the latest laptop commit
 `6030d6b` from `codex/latest-wreckabulary-2026-10-01`. Read [the production plan](../PLAN.md)
 and [the current README](../../README.md). The laptop progress file was absent from

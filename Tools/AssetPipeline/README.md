@@ -23,6 +23,27 @@ BLENDER="C:/Program Files/Blender Foundation/Blender 5.2/blender.exe"
 
 Tested with Blender 5.2.2 LTS. Add `--only items,letters` to rebuild part of the set.
 
+Avatar conversion also requires Node.js on `PATH`. After FBX export,
+`build_assets.py` runs `correct_pickup_contact.mjs`. This offline authoring pass
+changes only Pickup's six leg X-rotation tracks. It preserves the authored pelvis
+crouch, upper-body motion, all other clips, and the controller's action timing.
+It solves the two leg links against their rest ankle positions and preserves the
+sole orientation; it adds no runtime IK or actor-height offset.
+
+The same pass can be reproduced on an existing exported FBX. Omit `--output` to
+audit the proposed correction without writing the asset:
+
+```sh
+node Tools/AssetPipeline/correct_pickup_contact.mjs --input Assets/_Project/Art/Imported/Avatar/Avatar.fbx --report pickup-contact-audit.json
+node Tools/AssetPipeline/correct_pickup_contact.mjs --input Assets/_Project/Art/Imported/Avatar/Avatar.fbx --output Assets/_Project/Art/Imported/Avatar/Avatar.fbx --report pickup-contact-correction.json
+```
+
+The pass checks both boots across the full authored clip, including between
+keys, and rejects unsupported rig or curve assumptions. Its CPU checks do not
+certify Unity's imported interpolation, compression, floor contact, or rendered
+appearance. Run the full-clip Pickup PlayMode contact test and the normal
+Pickup-to-Hold graphics transition before accepting a rebuilt avatar.
+
 ## Outputs
 
 - `Assets/_Project/Art/Imported/{Items,Letters,Environment,VFX,Avatar}/*.fbx`

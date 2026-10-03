@@ -154,6 +154,7 @@ namespace Wreckabulary.Tests
             // 4 + 5. Collect the letters and spell BAT.
             p.Inventory.Set("BAT");
             yield return TestScenes.WaitUntil(() => director.StepIndex >= 4, 1f, "collect step");
+            yield return TestScenes.WaitUntil(() => !p.IsDodging, 2f, "dodge to finish before spelling BAT");
             Assert.IsTrue(p.Summoner.Summon("BAT"));
             yield return TestScenes.WaitUntil(() => director.StepIndex >= 5, 1f, "spell step");
 
@@ -181,6 +182,66 @@ namespace Wreckabulary.Tests
                 dummy.Health.ApplyDamage(Hits.Melee(p, Vector3.forward, p.Health.Rules.Unarmed, null));
             Assert.IsTrue(dummy.IsEliminated);
             yield return TestScenes.WaitUntil(() => director.Finished, 1f, "knockout step");
+        }
+
+        [UnityTest]
+        public IEnumerator BatSummonWaitsForDodgeCompletionWithoutSpendingLetters()
+        {
+            yield return TestScenes.Load(Session.TutorialScene);
+            var input = new ScriptedBinding();
+            var p = Object.FindAnyObjectByType<PlayerJoinManager>().Join(input);
+            yield return null;
+            p.Inventory.Set("BAT");
+            var recipe = GameAssets.I.words.Find("BAT");
+            Assert.IsNotNull(recipe);
+            Assert.IsTrue(SummonEffects.CanApply(p, recipe), "BAT is admitted before the dodge");
+
+            bool observed = false, dodging = false, canAct = false, canApply = true;
+            bool summonedDuringDodge = true, holdingAfterAttempt = true;
+            char[] lettersAfterAttempt = null;
+            int reservedAfterAttempt = -1, summons = 0;
+            void OnSummoned(string word) { if (word == "BAT") summons++; }
+            void OnDodged(PlayerController player)
+            {
+                observed = true;
+                dodging = player.IsDodging;
+                canAct = player.CanAct;
+                canApply = SummonEffects.CanApply(player, recipe);
+                // Sample synchronously at dodge start, before a frame can finish the dash.
+                summonedDuringDodge = player.Summoner.Summon("BAT");
+                lettersAfterAttempt = player.Inventory.Letters.ToArray();
+                reservedAfterAttempt = player.Inventory.ReservedCount;
+                holdingAfterAttempt = player.Combat.IsHolding;
+            }
+
+            p.Dodged += OnDodged;
+            p.Summoner.Summoned += OnSummoned;
+            try
+            {
+                input.Next.dodge = true;
+                yield return TestScenes.WaitUntil(() => observed, 2f, "dodge start");
+                Assert.IsTrue(dodging);
+                Assert.IsTrue(canAct, "the dodge guard is the admission blocker");
+                Assert.IsFalse(canApply);
+                Assert.IsFalse(summonedDuringDodge);
+                CollectionAssert.AreEqual("BAT".ToCharArray(), lettersAfterAttempt);
+                Assert.AreEqual(0, reservedAfterAttempt);
+                Assert.IsFalse(holdingAfterAttempt);
+                Assert.AreEqual(0, summons);
+
+                yield return TestScenes.WaitUntil(() => !p.IsDodging, 2f, "natural dodge completion");
+                CollectionAssert.AreEqual("BAT".ToCharArray(), p.Inventory.Letters);
+                Assert.IsTrue(SummonEffects.CanApply(p, recipe));
+                Assert.IsTrue(p.Summoner.Summon("BAT"));
+                Assert.AreEqual("BAT", p.Combat.Weapon?.word);
+                Assert.AreEqual(0, p.Inventory.Count);
+                Assert.AreEqual(1, summons);
+            }
+            finally
+            {
+                p.Dodged -= OnDodged;
+                p.Summoner.Summoned -= OnSummoned;
+            }
         }
     }
 }

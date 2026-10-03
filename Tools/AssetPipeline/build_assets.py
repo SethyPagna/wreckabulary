@@ -19,7 +19,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import struct
+import subprocess
 import sys
 import tempfile
 import time
@@ -407,6 +409,10 @@ def remove_bone_display_shapes():
 
 
 def run_avatar(sel, packs, art_dir, art_rel, library):
+    # The authored Pickup correction is an offline FBX pass, never runtime IK.
+    node = shutil.which("node")
+    if not node:
+        raise RuntimeError("avatar conversion requires Node.js for correct_pickup_contact.mjs")
     reset_scene()
     # The source clips are authored at 30 fps; import at 30 so keyframes land on whole frames.
     bpy.context.scene.render.fps = sel["avatar"].get("fps", 30)
@@ -480,6 +486,13 @@ def run_avatar(sel, packs, art_dir, art_rel, library):
     report["zero_shape_keys_removed"] = removed_keys
     report["notes"] = notes
     report["bytes"] = export_fbx(out_path, animated=True)
+    correction = subprocess.run(
+        [node, os.path.join(HERE, "correct_pickup_contact.mjs"),
+         "--input", out_path, "--output", out_path],
+        check=True, capture_output=True, text=True,
+    )
+    report["pickup_contact_correction"] = json.loads(correction.stdout)
+    report["bytes"] = os.path.getsize(out_path)
     return report
 
 

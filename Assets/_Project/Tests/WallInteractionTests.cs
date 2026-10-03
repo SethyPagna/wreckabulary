@@ -53,6 +53,13 @@ namespace Wreckabulary.Tests
             return prop;
         }
 
+        static void Place(Smashable prop, Vector3 at)
+        {
+            // Immediate queries also use Collider.ClosestPoint, which needs the Transform pose.
+            prop.transform.position = at;
+            prop.GetComponent<Rigidbody>().position = at;
+        }
+
         [UnityTest]
         public IEnumerator MeleeCannotHitTheNextRoomThroughAWallButWorksThroughItsDoor()
         {
@@ -80,7 +87,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(100f, prop.Health);
 
             Place(attacker, new Vector3(0f, 0f, 3.5f));
-            prop.GetComponent<Rigidbody>().position = new Vector3(0f, .5f, 4.5f);
+            Place(prop, new Vector3(0f, .5f, 4.5f));
             Physics.SyncTransforms();
             attacker.Combat.Strike(attacker.Health.Rules.Unarmed, null);
             Assert.AreEqual(100f - attacker.Health.Rules.Unarmed.BreakPower * Smashable.HealthPerBreakPower, prop.Health);
@@ -97,10 +104,28 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(player.Combat.IsHolding);
 
             Place(player, new Vector3(0f, 0f, 3.5f));
-            prop.GetComponent<Rigidbody>().position = new Vector3(0f, .5f, 4.5f);
+            Place(prop, new Vector3(0f, .5f, 4.5f));
             Physics.SyncTransforms();
             Assert.IsTrue(player.Combat.TryGrab());
             Assert.AreSame(prop.GetComponent<Rigidbody>(), player.Combat.Held);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator PropTeleportUpdatesClosestPointAtTheDoorInTheSameFrame()
+        {
+            var player = Player(0, new Vector3(0f, 0f, 3.5f));
+            var prop = Prop(new Vector3(2f, .5f, 4.5f));
+            var collider = prop.GetComponent<Collider>();
+            var chest = player.transform.position + Vector3.up * .8f;
+            Physics.SyncTransforms();
+            Assert.That(Vector3.Distance(collider.ClosestPoint(chest), new Vector3(1.7f, .8f, 4.2f)), Is.LessThan(.001f));
+
+            int frame = Time.frameCount;
+            Place(prop, new Vector3(0f, .5f, 4.5f));
+            Physics.SyncTransforms();
+            Assert.AreEqual(frame, Time.frameCount, "the door interaction cannot rely on a later physics frame");
+            Assert.That(Vector3.Distance(collider.ClosestPoint(chest), new Vector3(0f, .8f, 4.2f)), Is.LessThan(.001f));
             yield return null;
         }
 

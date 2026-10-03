@@ -17,17 +17,78 @@ namespace Wreckabulary.Tests
     [Explicit, Category("Capture")]
     public class CaptureTests
     {
+        ShaderCompilationScope shaderCompilationScope;
+
         [UnityTest]
-        public IEnumerator CaptureLivingRoom()
+        public IEnumerator CaptureLivingRoom() => RunWithSynchronousShaders(CaptureLivingRoomSequence());
+
+        [UnityTest]
+        public IEnumerator CaptureHubAndTutorial() => RunWithSynchronousShaders(CaptureHubAndTutorialSequence());
+
+        // UTF can stop an iterator on an unexpected log without disposing it.
+        [TearDown]
+        public void RestoreShaderCompilation()
+        {
+            shaderCompilationScope?.Dispose();
+            shaderCompilationScope = null;
+        }
+
+        internal IEnumerator RunWithSynchronousShaders(IEnumerator sequence)
+        {
+            if (shaderCompilationScope != null)
+                throw new InvalidOperationException("A capture is already running on this fixture.");
+
+            var scope = new ShaderCompilationScope();
+            shaderCompilationScope = scope;
+            try
+            {
+                while (sequence.MoveNext()) yield return sequence.Current;
+            }
+            finally
+            {
+                try
+                {
+                    (sequence as IDisposable)?.Dispose();
+                }
+                finally
+                {
+                    scope.Dispose();
+                    if (ReferenceEquals(shaderCompilationScope, scope)) shaderCompilationScope = null;
+                }
+            }
+        }
+
+        sealed class ShaderCompilationScope : IDisposable
+        {
+#if UNITY_EDITOR
+            readonly bool previousValue;
+#endif
+            bool disposed;
+
+            public ShaderCompilationScope()
+            {
+#if UNITY_EDITOR
+                previousValue = UnityEditor.EditorSettings.asyncShaderCompilation;
+                // Otherwise lit objects are skipped while their shaders compile in the background.
+                UnityEditor.EditorSettings.asyncShaderCompilation = false;
+#endif
+            }
+
+            public void Dispose()
+            {
+                if (disposed) return;
+#if UNITY_EDITOR
+                UnityEditor.EditorSettings.asyncShaderCompilation = previousValue;
+#endif
+                disposed = true;
+            }
+        }
+
+        IEnumerator CaptureLivingRoomSequence()
         {
             string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
             if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
             Directory.CreateDirectory(dir);
-#if UNITY_EDITOR
-            // Otherwise lit objects are skipped while their shaders compile in the background.
-            UnityEditor.EditorSettings.asyncShaderCompilation = false;
-#endif
-
             Session.Clear();
             yield return SceneManager.LoadSceneAsync("LivingRoom");
             yield return new WaitForSeconds(0.5f);
@@ -65,20 +126,13 @@ namespace Wreckabulary.Tests
             inputs[1].Next.spellUp = true;
             yield return new WaitForSeconds(0.6f);
             Capture(Path.Combine(dir, "3_bees.png"));
-#if UNITY_EDITOR
-            UnityEditor.EditorSettings.asyncShaderCompilation = true;
-#endif
         }
 
-        [UnityTest]
-        public IEnumerator CaptureHubAndTutorial()
+        IEnumerator CaptureHubAndTutorialSequence()
         {
             string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
             if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
             Directory.CreateDirectory(dir);
-#if UNITY_EDITOR
-            UnityEditor.EditorSettings.asyncShaderCompilation = false;
-#endif
             Session.Clear();
 
             // House: two roommates walk in, one sits at the typewriter.
@@ -121,9 +175,6 @@ namespace Wreckabulary.Tests
             FurnitureCatalog.Spawn("BED", director.RoomNamed("Bedroom").Centre + new Vector3(0f, 0.3f, 2f), 0f, World.Transient);
             yield return new WaitForSeconds(2.5f);
             Capture(Path.Combine(dir, "7_moving_day.png"));
-#if UNITY_EDITOR
-            UnityEditor.EditorSettings.asyncShaderCompilation = true;
-#endif
             Session.Clear();
         }
 

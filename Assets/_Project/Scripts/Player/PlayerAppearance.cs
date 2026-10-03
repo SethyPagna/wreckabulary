@@ -31,44 +31,49 @@ namespace Wreckabulary
         public Outfit CurrentOutfit => outfit?.Clone();
         public GameObject AvatarModel => model;
         public Transform RightGrip => gripR;
+        public bool IsAnimationReady => initialized && graph.IsValid() && graph.IsPlaying() && currentPlayable.IsValid();
+        public AnimationClip CurrentAnimationClip => currentPlayable.IsValid() ? currentPlayable.GetAnimationClip() : null;
 
         /// <summary>Called by PlayerController.Setup, including existing serialized prefabs.</summary>
         public bool Initialize(PlayerController player)
         {
             controller = player;
-            if (initialized) return true;
+            if (initialized) return IsAnimationReady;
             var library = ModelLibrary.Load();
             if (!controller || !controller.visual || !library || !library.Find(AvatarKey)) return false;
+            if (!LoadRequiredClips(library)) return false;
+            oldRenderers.Clear();
             foreach (var renderer in controller.visual.GetComponentsInChildren<Renderer>(true))
                 oldRenderers.Add(renderer);
             var root = new GameObject("ImportedAvatar");
             root.transform.SetParent(controller.visual, false);
             model = ModelVisual.Spawn(AvatarKey, root.transform);
-            if (!model) { Destroy(root); return false; }
+            if (!model) { clips.Clear(); Destroy(root); return false; }
             meshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             gripL = ModelVisual.FindNamed(model, "grip_L");
             gripR = ModelVisual.FindNamed(model, "grip_R");
-            foreach (var renderer in oldRenderers) if (renderer) renderer.enabled = false;
-
-            foreach (string name in new[] { "Idle", "Walk_InPlace", "Run_InPlace", "Jump_Preview",
-                "Hold_OneHand", "Carry_TwoHand", "Block_Plate", "Swing_OneHand", "Thrust_OneHand",
-                "Throw_OneHand", "Hit_Reaction", "Celebrate", "Drink_Consumable", "Pickup", "Place" })
-            {
-                var clip = library.FindClip(AvatarKey, name);
-                if (clip) clips[name] = clip;
-            }
             var animator = model.GetComponentInChildren<Animator>(true);
-            if (animator && clips.Count > 0)
+            if (!animator)
             {
-                animator.applyRootMotion = false;
-                animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
-                graph = PlayableGraph.Create("Wreckabulary Avatar " + controller.Index);
-                graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
-                mixer = AnimationMixerPlayable.Create(graph, 1);
-                var output = AnimationPlayableOutput.Create(graph, "Avatar", animator);
-                output.SetSourcePlayable(mixer);
-                graph.Play();
+                root.SetActive(false);
+                Destroy(root);
+                model = null;
+                meshes = null;
+                gripL = gripR = null;
+                clips.Clear();
+                return false;
             }
+            animator.applyRootMotion = false;
+            animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
+            graph = PlayableGraph.Create("Wreckabulary Avatar " + controller.Index);
+            graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+            mixer = AnimationMixerPlayable.Create(graph, 1);
+            var output = AnimationPlayableOutput.Create(graph, "Avatar", animator);
+            output.SetSourcePlayable(mixer);
+            SetClip("Idle");
+            graph.Play();
+            graph.Evaluate(0f);
+            foreach (var renderer in oldRenderers) if (renderer) renderer.enabled = false;
             initialized = true;
             var catalogue = GameConfig.Current.Wardrobe;
             string saved = PlayerPrefs.GetString("wv.outfit." + controller.Index, "");
@@ -88,7 +93,20 @@ namespace Wreckabulary
             ApplyOutfit(catalogue.Sanitize(initial), false);
             controller.Jumped += OnJumped;
             controller.Dodged += OnDodged;
-            SetClip("Idle");
+            return true;
+        }
+
+        bool LoadRequiredClips(ModelLibrary library)
+        {
+            clips.Clear();
+            foreach (string name in new[] { "Idle", "Walk_InPlace", "Run_InPlace", "Jump_Preview",
+                "Hold_OneHand", "Carry_TwoHand", "Block_Plate", "Swing_OneHand", "Thrust_OneHand",
+                "Throw_OneHand", "Hit_Reaction", "Celebrate", "Drink_Consumable", "Pickup", "Place" })
+            {
+                var clip = library.FindClip(AvatarKey, name);
+                if (!clip) { clips.Clear(); return false; }
+                clips.Add(name, clip);
+            }
             return true;
         }
 
@@ -153,7 +171,7 @@ namespace Wreckabulary
         void OnJumped(PlayerController _) => Play("Jump_Preview", .45f);
         void OnDodged(PlayerController _) => Play("Run_InPlace", .2f);
 
-        void LateUpdate()
+        void Update()
         {
             if (!initialized || !controller) return;
             bool holding = controller.Combat && controller.Combat.IsHolding;
@@ -175,6 +193,11 @@ namespace Wreckabulary
             }
             if (currentPlayable.IsValid() && (currentClip == "Walk_InPlace" || currentClip == "Run_InPlace"))
                 currentPlayable.SetSpeed(Mathf.Clamp(speed / (currentClip == "Run_InPlace" ? 5f : 2f), .4f, 1.6f));
+        }
+
+        void LateUpdate()
+        {
+            if (!initialized || !controller) return;
             // Combat keeps its original proxy/socket contracts. Place those proxies
             // at the animated mittens after legacy wobble, without changing physics.
             if (gripL && controller.handL) controller.handL.position = gripL.position;

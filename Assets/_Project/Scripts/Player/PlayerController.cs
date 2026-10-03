@@ -384,8 +384,7 @@ namespace Wreckabulary
                 visual.rotation = dash * tilt * Quaternion.LookRotation(Facing) * down;
             }
 
-            squashVel += (-squash * 180f - squashVel * 10f) * dt;
-            squash += squashVel * dt;
+            AdvanceSquash(dt);
             visual.localScale = new Vector3(1f - squash * 0.5f, 1f + squash, 1f - squash * 0.5f);
 
             float speed01 = Mathf.Clamp01(hv.magnitude / moveSpeed);
@@ -410,6 +409,18 @@ namespace Wreckabulary
             float swing = Mathf.Sin(walkCycle) * 0.14f * speed01;
             handL.localPosition = restL + Vector3.forward * (swing + (!punchRight ? jab : 0f)) + (!punchRight ? Vector3.up * jab * 0.4f : Vector3.zero);
             handR.localPosition = restR + Vector3.forward * (-swing + (punchRight ? jab : 0f)) + (punchRight ? Vector3.up * jab * 0.4f : Vector3.zero);
+        }
+
+        void AdvanceSquash(float dt)
+        {
+            // Keep the authored spring stable through a long render frame.
+            int steps = Mathf.Max(1, Mathf.CeilToInt(dt * 60f));
+            float step = dt / steps;
+            for (int i = 0; i < steps; i++)
+            {
+                squashVel += (-squash * 180f - squashVel * 10f) * step;
+                squash += squashVel * step;
+            }
         }
     }
 }

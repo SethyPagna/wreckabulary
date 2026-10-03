@@ -22,6 +22,8 @@ namespace Wreckabulary
         bool broken, spent, usingItem, inFlight;
         float thrownAt;
         PlayerCombat holder;
+        RigidbodyInterpolation releasedInterpolation;
+        bool interpolationSuspended;
         public ItemDefinition Definition => definition;
         public bool IsSpent => spent;
         public bool IsUsing => usingItem;
@@ -61,6 +63,15 @@ namespace Wreckabulary
 
         public void OnHeld(PlayerCombat user)
         {
+            // Held gear follows the animated hand hierarchy. Physics interpolation
+            // otherwise overwrites its local grip pose as that hierarchy moves.
+            var body = GetComponent<Rigidbody>();
+            if (!interpolationSuspended)
+            {
+                releasedInterpolation = body.interpolation;
+                interpolationSuspended = true;
+            }
+            body.interpolation = RigidbodyInterpolation.None;
             CancelUse();
             inFlight = false;
             holder = user;
@@ -82,6 +93,7 @@ namespace Wreckabulary
             if (definition != null) transform.localScale = Vector3.one;
             var library = MaterialLibrary.Load();
             if (library) library.ApplySkin(gameObject, Skin.Standard);
+            RestoreInterpolation();
         }
 
         public void OnThrown(PlayerController thrower)
@@ -93,6 +105,14 @@ namespace Wreckabulary
             if (definition != null) transform.localScale = Vector3.one * definition.HeldScale;
             var library = MaterialLibrary.Load();
             if (library) library.ApplySkin(gameObject, thrower.GetComponent<PlayerAppearance>()?.SkinFor(word) ?? Skin.Standard);
+            RestoreInterpolation();
+        }
+
+        void RestoreInterpolation()
+        {
+            if (!interpolationSuspended) return;
+            GetComponent<Rigidbody>().interpolation = releasedInterpolation;
+            interpolationSuspended = false;
         }
 
         public void Use(PlayerCombat user)
