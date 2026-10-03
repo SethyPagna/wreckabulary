@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { configureSoftwareRendering } from "./browser-ui.mjs";
 const layout = (page) =>
   page.evaluate(() => window.wreckabulary.workshop.layout);
 async function coords(page, x, z) {
@@ -280,6 +281,7 @@ export async function workshopDesktop(page, { click, screenshot, record }) {
   );
   await page.reload();
   await page.waitForFunction(() => window.wreckabulary?.screen === "home");
+  await configureSoftwareRendering(page);
   await click(page, "[data-action=workshop]");
   assert.deepEqual(await layout(page), copy);
   await page.selectOption("#design-map", "courtyard");
@@ -291,6 +293,7 @@ export async function workshopDesktop(page, { click, screenshot, record }) {
   assert.ok(garden.props.length > 0);
   await page.reload();
   await page.waitForFunction(() => window.wreckabulary?.screen === "home");
+  await configureSoftwareRendering(page);
   await click(page, "[data-action=workshop]");
   assert.equal((await layout(page)).map, "pinwheel");
   await click(page, "#design-import-open");

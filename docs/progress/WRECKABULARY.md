@@ -5,8 +5,14 @@
 **3 October 2026 laptop delivery:** the latest Workshop continuation has been
 reconciled with published main history and the later sealed Pickup native fixes.
 Browser mechanics pass 88/88 and actual Chrome desktop/mobile flows pass 25/25,
-with zero captured page/resource errors. Hosting is being moved to Cloudflare
-Pages, using the James account only. GitHub branches retain their history.
+with zero captured page/resource errors. The browser release is live on
+[Cloudflare Workers](https://wreckabulary.pagna.workers.dev), using the James
+account only. All 161 hosted files match an independent fresh GitHub build on
+two download passes. Ten hosted home/Workshop flows passed before a software
+renderer stalled during a wardrobe interaction. The cloud-only test profile now
+uses smaller framebuffer/shadow sizes and correct Playwright timeout arguments;
+its full hosted rerun is pending. Runtime game files are unchanged.
+GitHub branches retain their history; current development starts from `main`.
 
 The native corrections are 22 selectively transferred files whose source and
 destination each passed two SHA-256 reads against the sealed native source
@@ -17,10 +23,13 @@ tests**. The separately retained 2 October Windows player compiled successfully;
 its full gameplay acceptance remains unverified. Preserve its source and evidence.
 The original generated solution-file edit remains unstaged.
 
-Next: finish Pages deployment and hosted checks, update the portfolio through its
-active owner, then remove only verified redundant laptop copies. The cloud-machine
-license notes below describe the earlier environment; the laptop has the pinned
-editor and an existing Personal license, but its serial verification is queued.
+Next: finish the bounded hosted rerun, update the portfolio through its active
+owner, then remove only verified redundant laptop copies. Combined native engine
+acceptance remains a separate development gate. The cloud-machine license notes
+below describe the earlier environment; the laptop has the pinned editor and an
+existing Personal license.
+
+## Historical cloud engine environment
 
 Work on `feature/wreckabulary-production`, based on the latest laptop commit
 `6030d6b` from `codex/latest-wreckabulary-2026-10-01`. Read [the production plan](../PLAN.md)

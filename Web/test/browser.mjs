@@ -1,7 +1,7 @@
 // Real Chromium interactions exercise the bundled game, not a mocked DOM.
 import { chromium } from "playwright";
 import { workshopDesktop, workshopMobile } from "./workshop-browser.mjs";
-import { click, screenshot } from "./browser-ui.mjs";
+import { click, screenshot, softwareGpu, deviceScaleFactor, configureSoftwareRendering } from "./browser-ui.mjs";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 const base = process.env.WRECKABULARY_URL ?? "http://127.0.0.1:4173";
@@ -20,20 +20,25 @@ function record(message) {
 }
 async function boot(context) {
   const page = await context.newPage();
+  if (softwareGpu) page.setDefaultTimeout(120000);
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("response", (r) => {
     if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`);
   });
   await page.goto(base);
-  await page.waitForFunction(() => window.wreckabulary?.screen === "home", {
+  await page.waitForFunction(() => window.wreckabulary?.screen === "home", undefined, {
     timeout: 90000,
+    polling: 100,
   });
+  const profile = await configureSoftwareRendering(page);
+  if (profile) (metrics.softwareRendering ??= []).push(profile);
   return page;
 }
 
 try {
   const desktop = await browser.newContext({
       viewport: { width: 1440, height: 900 },
+      deviceScaleFactor,
       reducedMotion: "reduce",
     }),
     page = await boot(desktop);
@@ -60,11 +65,26 @@ try {
   await page.selectOption("#outfit-top", "Hoodie");
   await click(page, "[data-color=tomato]");
   await page.locator("[data-piece=Glasses]").check();
+  assert.equal(await page.locator("[data-piece=Glasses]").isChecked(), true);
   await click(page, "[data-action=home]");
   assert.equal(
     await page.evaluate(() => window.wreckabulary.game.wardrobe.pieces.Top),
     "Hoodie",
   );
+  const glasses = await page.evaluate(() => {
+    const player = window.wreckabulary.game.players[0];
+    const avatar = window.wreckabulary.view.entities.get("p0").userData.avatar;
+    const visible = [];
+    avatar.traverse((node) => {
+      if (node.isMesh && node.name.includes("Glasses")) visible.push(node.visible);
+    });
+    return { selected: player.wardrobe.pieces.Face,
+      saved: JSON.parse(localStorage.getItem("wreckabulary.profile.v1")).wardrobe.pieces.Face,
+      visible };
+  });
+  assert.equal(glasses.selected, "Glasses");
+  assert.equal(glasses.saved, "Glasses");
+  assert.ok(glasses.visible.length > 0 && glasses.visible.every(Boolean));
   record(
     "Wardrobe controls change real modular meshes and persist the selection.",
   );
@@ -122,7 +142,8 @@ try {
   await page.keyboard.down("KeyJ");
   await page.waitForFunction(
     () => window.wreckabulary.game.item(window.testFurniture) === undefined,
-    { timeout: 25000 },
+    undefined,
+    { timeout: 25000, polling: 100 },
   );
   await page.keyboard.up("KeyJ");
   for (let n = 0; n < 4; n++) {
@@ -146,7 +167,8 @@ try {
     () =>
       window.wreckabulary.game.held(window.wreckabulary.game.players[0])
         ?.word === "LAMP",
-    { timeout: 15000 },
+    undefined,
+    { timeout: 15000, polling: 100 },
   );
   await page.waitForFunction(() =>
     document.querySelector("#slot0").textContent.includes("LAMP"),
@@ -169,7 +191,8 @@ try {
     () =>
       window.wreckabulary.game.held(window.wreckabulary.game.players[0])
         ?.word === "LAMP",
-    { timeout: 10000 },
+    undefined,
+    { timeout: 10000, polling: 100 },
   );
   await page.keyboard.up("KeyE");
   record("Dropping and picking up gear preserves the physical item.");
@@ -234,7 +257,8 @@ try {
   await page.keyboard.down("KeyE");
   await page.waitForFunction(
     () => window.wreckabulary.game.players[1].state === "alive",
-    { timeout: 15000 },
+    undefined,
+    { timeout: 15000, polling: 100 },
   );
   await page.keyboard.up("KeyE");
   assert.equal(
@@ -265,7 +289,8 @@ try {
     () =>
       window.wreckabulary.game.held(window.wreckabulary.game.players[0])
         ?.word === "LAMP",
-    { timeout: 15000 },
+    undefined,
+    { timeout: 15000, polling: 100 },
   );
   await page.keyboard.press("KeyF");
   await page.waitForSelector(".result-card");
@@ -307,7 +332,8 @@ try {
   await page.keyboard.down("KeyE");
   await page.waitForFunction(
     () => window.wreckabulary.game.players[0].carried !== null,
-    { timeout: 10000 },
+    undefined,
+    { timeout: 10000, polling: 100 },
   );
   await page.keyboard.up("KeyE");
   assert.equal(
@@ -340,7 +366,8 @@ try {
   await page.keyboard.down("KeyE");
   await page.waitForFunction(
     () => window.wreckabulary.game.players[1].state === "alive",
-    { timeout: 15000 },
+    undefined,
+    { timeout: 15000, polling: 100 },
   );
   await page.keyboard.up("KeyE");
   await page.evaluate(() => {
@@ -367,7 +394,7 @@ try {
       viewport: { width: 390, height: 844 },
       isMobile: true,
       hasTouch: true,
-      deviceScaleFactor: 1,
+      deviceScaleFactor,
       reducedMotion: "reduce",
     }),
     phone = await boot(mobile);
@@ -581,38 +608,6 @@ try {
   console.log(`BROWSER_SMOKE passed=${checks.length} errors=0`);
   checks.forEach((c) => console.log(`✓ ${c}`));
 } catch (error) {
-  const pages = browser.contexts().flatMap((context) => context.pages());
-  const lastPage = pages.at(-1);
-  if (lastPage) {
-    await screenshot(lastPage, "failure");
-    console.log(
-      await lastPage.evaluate(() => {
-        const g = window.wreckabulary?.game;
-        return g
-          ? {
-              mode: g.mode,
-              status: g.status,
-              time: g.time,
-              players: g.players.map((p) => ({
-                name: p.name,
-                x: p.x,
-                z: p.z,
-                hp: p.hp,
-                state: p.state,
-                carried: p.carried,
-                bag: p.bag,
-              })),
-              keepsakes: g.keepsakes.map((k) => ({
-                word: k.word,
-                collected: k.collected,
-                x: k.x,
-                z: k.z,
-              })),
-            }
-          : null;
-      }),
-    );
-  }
   await writeFile(
     "playwright-results/browser-report.json",
     JSON.stringify(
@@ -627,6 +622,11 @@ try {
       2,
     ),
   );
+  const pages = browser.contexts().flatMap((context) => context.pages());
+  const lastPage = pages.at(-1);
+  if (lastPage) {
+    await lastPage.screenshot({ path: "playwright-results/failure.png", timeout: 15000 }).catch(() => {});
+  }
   throw error;
 } finally {
   await browser.close();
