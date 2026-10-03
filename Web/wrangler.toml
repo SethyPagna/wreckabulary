@@ -1,0 +1,4 @@
+name = "wreckabulary"
+account_id = "d105a82bc26b6913575355352c2d1bb1"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-10-03"

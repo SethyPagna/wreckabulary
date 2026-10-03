@@ -1,5 +1,12 @@
 # Wreckabulary browser edition
 
+Production hosting is Cloudflare Pages at <https://wreckabulary.pages.dev>.
+The deployment's `/BUILD-INFO.json` identifies its exact GitHub source commit.
+The Pages project uses the James account, with repository `main`, root `Web`,
+output `dist`, and build command `npm ci --ignore-scripts && npm run build`.
+Pin Node 24.15.0 and skip the automatic dependency install; the explicit build
+command installs the lockfile. Preview-branch deployments are disabled.
+
 A standalone Three.js game for one human with AI housemates. It uses the Unity project's JSON rules, item catalogue, two maps and cosmetic wardrobe, and genuine supplied models exported to GLB. This is a separately implemented HTML game; it is not a Unity WebGL build.
 
 Requires Node 22.12+ or 24. The HTML models and images are ordinary Git files;
