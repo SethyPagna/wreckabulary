@@ -1,11 +1,11 @@
 # Wreckabulary browser edition
 
-Production hosting is Cloudflare Pages at <https://wreckabulary.pages.dev>.
+Production hosting is a Cloudflare Worker at <https://wreckabulary.pagna.workers.dev>.
 The deployment's `/BUILD-INFO.json` identifies its exact GitHub source commit.
-The Pages project uses the James account, with repository `main`, root `Web`,
-output `dist`, and build command `npm ci --ignore-scripts && npm run build`.
-Pin Node 24.15.0 and skip the automatic dependency install; the explicit build
-command installs the lockfile. Preview-branch deployments are disabled.
+The Worker uses static assets from `dist` and the James account pinned in
+`wrangler.toml`. Build from repository `main`, directory `Web`, with
+`npm ci --ignore-scripts && npm test && npm run build`, then deploy with
+`npx wrangler deploy` using credentials for the James account. Pin Node 24.15.0.
 
 A standalone Three.js game for one human with AI housemates. It uses the Unity project's JSON rules, item catalogue, two maps and cosmetic wardrobe, and genuine supplied models exported to GLB. This is a separately implemented HTML game; it is not a Unity WebGL build.
 

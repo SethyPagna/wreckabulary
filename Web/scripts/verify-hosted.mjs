@@ -3,13 +3,14 @@ import { createHash } from "node:crypto";
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
-const base = "https://wreckabulary.pages.dev";
+const base = "https://wreckabulary.pagna.workers.dev";
 const expected = JSON.parse(await readFile("dist/BUILD-INFO.json", "utf8"));
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let ready = false;
 for (let attempt = 0; attempt < 60; attempt++) {
   const response = await fetch(`${base}/BUILD-INFO.json?check=${Date.now()}`, {
     headers: { "User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache" },
+    signal: AbortSignal.timeout(45000),
   });
   if (response.ok && (await response.json()).sourceCommit === expected.sourceCommit) {
     ready = true;
@@ -17,7 +18,7 @@ for (let attempt = 0; attempt < 60; attempt++) {
   }
   await delay(5000);
 }
-if (!ready) throw new Error("Pages did not publish the expected source commit.");
+if (!ready) throw new Error("Worker did not publish the expected source commit.");
 
 async function* files(dir, prefix = "") {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -36,6 +37,7 @@ for await (const path of files("dist")) {
   for (let read = 0; read < 2; read++) {
     const response = await fetch(`${base}/${path}?check=${Date.now()}-${read}`, {
       headers: { "User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache" },
+      signal: AbortSignal.timeout(45000),
     });
     if (!response.ok) throw new Error(`${response.status} ${path}`);
     const downloaded = Buffer.from(await response.arrayBuffer());

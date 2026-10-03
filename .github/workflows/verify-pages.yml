@@ -1,4 +1,4 @@
-name: Verify Cloudflare browser release
+name: Verify Cloudflare Worker browser release
 on:
   workflow_dispatch:
 permissions:
@@ -9,7 +9,7 @@ concurrency:
 jobs:
   hosted-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     env:
       NODE_OPTIONS: --max-old-space-size=4096
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
