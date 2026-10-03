@@ -148,6 +148,9 @@ try {
         ?.word === "LAMP",
     { timeout: 15000 },
   );
+  await page.waitForFunction(() =>
+    document.querySelector("#slot0").textContent.includes("LAMP"),
+  );
   assert.match(await page.locator("#slot0").textContent(), /LAMP/);
   record(
     "Smash input releases exact tiles; live pickup, recipe UI, craft channel and equipment all connect.",
@@ -176,6 +179,10 @@ try {
       () => window.wreckabulary.game.players[0].lastDodge >= 0,
     ),
   );
+  await page.waitForFunction(() => {
+    const game = window.wreckabulary.game;
+    return game.canAct(game.players[0]);
+  });
   await page.keyboard.press("Space");
   assert.ok(
     await page.evaluate(
