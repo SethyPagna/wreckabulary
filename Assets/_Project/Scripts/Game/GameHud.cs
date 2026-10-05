@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -10,7 +13,11 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Match cards, a physical letter bag, a craft drawer and independent touch controls.</summary>
+    /// <summary>
+    /// The match HUD, laid out like the browser edition: brand and match label top left; minimap with timer,
+    /// room and objective in one column top right; vitals with both hands bottom left; a 5 x 2 letter tray
+    /// bottom centre; a desktop key bar; touch buttons only on touch; a hold-Tab bag and map panel; an Esc pause card.
+    /// </summary>
     public class GameHud : MonoBehaviour
     {
         [SerializeField] TextMeshProUGUI title, subtitle, timer, scoreboard, instruction, checklist;
@@ -18,10 +25,21 @@ namespace Wreckabulary
         public Canvas UiCanvas { get; private set; }
         public bool TouchControlsShown => touchRoot && touchRoot.activeSelf;
         public PlayerController LocalPlayer { get; private set; }
+        /// <summary>The Tab bag and map panel is showing.</summary>
+        public bool BagOpen => bagPanel && bagPanel.activeSelf;
+        public bool Paused => pauseRoot && pauseRoot.activeSelf;
 
-        static readonly Color Ink = new(0.12f, 0.18f, 0.19f), Cream = new(0.98f, 0.95f, 0.86f);
-        static readonly Color Mint = new(0.44f, 0.85f, 0.73f), Coral = new(0.96f, 0.47f, 0.38f);
-        static readonly Color Dark = new(0.10f, 0.16f, 0.19f, 0.94f);
+        // The browser edition's palette (Web/src/style.css).
+        static readonly Color Ink = Hex(0x173b3c), Cream = Hex(0xfff0d9), Paper = Hex(0xfff0dc, .92f);
+        static readonly Color Teal = Hex(0x193f3d, .93f), Tile = Hex(0xf4dca7), TileEdge = Hex(0xbba06b);
+        static readonly Color Slot = Hex(0xf7e5c8), SlotActive = Hex(0xdeedcf), Track = Hex(0x153c3c, .13f);
+        static readonly Color Health = Hex(0x419681), Low = Hex(0xd16849), Faded = Hex(0x62736a);
+        static readonly Color EmptyCell = Hex(0xead9b7, .35f), Reserved = Hex(0xc8e6d8), ReservedInk = Hex(0x2f6b5c);
+        static readonly Color MapBg = Hex(0x193c3b, .92f), MapEdge = Hex(0xf1dfbd), RoomFill = Hex(0xaaad82, .38f);
+        static readonly Color RoomHere = Hex(0x9ff8d3, .35f), RoomWarn = Hex(0xe79553), RoomClosed = Hex(0xd85c45, .65f);
+        static readonly Color Mint = Hex(0xb7dfc8), Coral = Hex(0xe7785e), Dark = Hex(0x1a2a30, .94f);
+        static readonly string[] WearSlots = { "Headwear", "Face", "Top", "Gloves", "Bottoms", "Footwear", "Back", "Badge" };
+
         readonly List<PlayerCard> cards = new();
         readonly List<RecipeView> recipes = new();
         readonly List<Sprite> ownedSprites = new();
@@ -29,30 +47,38 @@ namespace Wreckabulary
         readonly List<TouchStick> sticks = new();
         readonly Dictionary<TouchAction, (TouchActionButton button, TextMeshProUGUI label)> skillButtons = new();
         readonly Dictionary<string, Texture2D> itemIcons = new(StringComparer.Ordinal);
+        readonly StringBuilder sb = new();
         // The tray is two rows of five (the 10-letter bag); the capacity from rules.json decides how many are visible.
         const int TrayTiles = 10, TilesPerRow = 5;
-        readonly TextMeshProUGUI[] tileLabels = new TextMeshProUGUI[TrayTiles];
-        readonly Image[] tileFaces = new Image[TrayTiles];
+        readonly LetterCell[] trayCells = new LetterCell[TrayTiles], bagCells = new LetterCell[TrayTiles];
+        readonly HandView[] hands = new HandView[2], bagHands = new HandView[2];
         IReadOnlyList<PlayerController> players;
         Func<PlayerController, int> wins;
         int roundsToWin;
         bool showWins;
         PlayerJoinManager joins;
         Typewriter typewriter;
-        RectTransform safe;
-        GameObject touchRoot, bagRoot, craftRoot;
-        GameObject desktopHints;
+        RoomBuilder rooms;
+        ClearOutController clearOut;
+        RoundManager rounds;
+        RectTransform safe, side, status, vitals, tray, hint;
+        GameObject touchRoot, craftRoot, desktopHints, bagPanel, pauseRoot;
         GameObject typewriterControls, homeButton;
         TextMeshProUGUI typewriterChoice;
-        TextMeshProUGUI bagLabel, heldLabel, craftStatus, buildLabel, playLabel;
-        Image craftProgress;
+        TextMeshProUGUI matchTag, matchTitle, matchDetail, roomPill, objective, statusText;
+        TextMeshProUGUI hpValue, shieldText, bagCount, bagPanelCount, wearText, effectsText, bagRoom, touchToggle;
+        TextMeshProUGUI craftStatus, buildLabel, playLabel;
+        Image healthFill, craftProgress;
         Button buildButton;
         RectTransform playRect;
+        MapView miniMap, bigMap;
         Texture2D iconAtlas;
         Sprite roundSprite, panelSprite;
         Rect lastSafe;
         int lastWidth, lastHeight;
-        float nextRefresh;
+        float nextRefresh, resumeScale = 1f;
+        bool bagPinned;
+        string checklistText = "";
 
         sealed class PlayerCard
         {
@@ -68,6 +94,29 @@ namespace Wreckabulary
             public int index;
             public RawImage icon;
         }
+        sealed class LetterCell
+        {
+            public Image face, edge;
+            public TextMeshProUGUI letter;
+        }
+        sealed class HandView
+        {
+            public Image face, wear;
+            public Outline frame;
+            public RawImage icon;
+            public TextMeshProUGUI label;
+            public GameObject wearTrack;
+        }
+        sealed class MapView
+        {
+            public RectTransform content;
+            public readonly List<(RoomBox box, Image fill, TextMeshProUGUI name)> rooms = new();
+            public readonly List<(Image dot, TextMeshProUGUI name)> dots = new();
+            public bool full;
+            public HouseLayout layout;
+        }
+
+        static Color Hex(int rgb, float a = 1f) => new(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, a);
 
         void Start()
         {
@@ -86,6 +135,9 @@ namespace Wreckabulary
             }
             joins = FindFirstObjectByType<PlayerJoinManager>();
             typewriter = FindFirstObjectByType<Typewriter>();
+            rooms = FindFirstObjectByType<RoomBuilder>();
+            clearOut = FindFirstObjectByType<ClearOutController>();
+            rounds = FindFirstObjectByType<RoundManager>();
             iconAtlas = Resources.Load<Texture2D>("UI/ActionIcons");
             foreach (var item in GameConfig.Current.Items.All)
             {
@@ -98,109 +150,159 @@ namespace Wreckabulary
             safe.anchorMax = Vector2.one;
             safe.offsetMin = safe.offsetMax = Vector2.zero;
             StyleLegacyText();
-            BuildCards(); BuildBag(); BuildCraftDrawer(); BuildTouchControls();
-            BuildNavigation();
+            BuildTop(); BuildSide(); BuildStatus(); BuildVitals(); BuildTray(); BuildHint();
+            BuildCraftDrawer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause();
             ShowTouchControls(Application.isMobilePlatform || Touchscreen.current != null);
             ApplySafeArea();
         }
+
+        // ---- Layout ----
 
         void StyleLegacyText()
         {
             if (scoreboard) scoreboard.gameObject.SetActive(false);
             if (title) { title.fontSize = 88f; title.raycastTarget = false; title.rectTransform.sizeDelta = new Vector2(1450f, 170f); }
-            if (subtitle) { subtitle.fontSize = 32f; subtitle.raycastTarget = false; }
-            if (timer)
-            {
-                PlaceText(timer, new Vector2(0.5f, 1f), new Vector2(0f, -42f), new Vector2(320f, 72f), 42f);
-            }
-            if (instruction)
-            {
-                PlaceText(instruction, new Vector2(0.5f, 1f), new Vector2(0f, -122f), new Vector2(1200f, 108f), 26f);
-                instruction.textWrappingMode = TextWrappingModes.Normal;
-            }
-            if (checklist)
-            {
-                PlaceText(checklist, new Vector2(0f, 1f), new Vector2(35f, -265f), new Vector2(380f, 330f), 27f);
-                checklist.rectTransform.pivot = new Vector2(0f, 1f);
-            }
-            if (checklistPanel)
-            {
-                var rt = (RectTransform)checklistPanel.transform;
-                rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f); rt.pivot = new Vector2(0f, 1f);
-                rt.anchoredPosition = new Vector2(20f, -245f); rt.sizeDelta = new Vector2(410f, 365f);
-                if (checklistPanel.TryGetComponent<Image>(out var image))
-                { image.sprite = panelSprite; image.type = Image.Type.Sliced; image.color = Dark; image.raycastTarget = false; }
-            }
+            if (title) { title.outlineWidth = .18f; title.outlineColor = Ink; }
+            if (subtitle) { subtitle.fontSize = 32f; subtitle.raycastTarget = false; subtitle.outlineWidth = .22f; subtitle.outlineColor = Ink; }
+            // The objective lives in the side column now; the scene's checklist objects stay hidden.
+            if (checklist) checklist.gameObject.SetActive(false);
+            if (checklistPanel) checklistPanel.SetActive(false);
         }
 
-        static void PlaceText(TextMeshProUGUI text, Vector2 anchor, Vector2 position, Vector2 size, float fontSize)
+        void BuildTop()
         {
-            text.rectTransform.anchorMin = text.rectTransform.anchorMax = anchor;
-            text.rectTransform.anchoredPosition = position; text.rectTransform.sizeDelta = size;
-            text.fontSize = fontSize; text.raycastTarget = false;
-        }
+            var brand = Panel("Brand", safe, new Vector2(0f, 1f), new Vector2(38f, -30f), new Vector2(81f, 81f), new Vector2(0f, 1f), Hex(0xf2d295));
+            brand.localRotation = Quaternion.Euler(0f, 0f, 5f);
+            Text("W", brand, new Vector2(.5f, .5f), new Vector2(-4f, 0f), new Vector2(70f, 70f), 48f, Ink).text = "W<size=55%><color=#B86647>!</color></size>";
+            var label = Panel("Match label", safe, new Vector2(0f, 1f), new Vector2(134f, -30f), new Vector2(250f, 84f), new Vector2(0f, 1f), Paper);
+            matchTag = Text("Tag", label, new Vector2(0f, 1f), new Vector2(18f, -12f), new Vector2(220f, 18f), 12f, Ink, TextAlignmentOptions.Left);
+            matchTag.characterSpacing = 8f; matchTag.rectTransform.pivot = new Vector2(0f, 1f);
+            matchTitle = Text("Title", label, new Vector2(0f, 1f), new Vector2(18f, -29f), new Vector2(220f, 32f), 27f, Ink, TextAlignmentOptions.Left);
+            matchTitle.rectTransform.pivot = new Vector2(0f, 1f);
+            matchDetail = Text("Detail", label, new Vector2(0f, 1f), new Vector2(18f, -61f), new Vector2(220f, 16f), 12f, Ink, TextAlignmentOptions.Left);
+            matchDetail.characterSpacing = 4f; matchDetail.rectTransform.pivot = new Vector2(0f, 1f);
 
-        void BuildCards()
-        {
+            // Couch roommates (and AI seats) under the label; the local player has the vitals card instead.
             for (int i = 0; i < 4; i++)
             {
-                var anchor = new Vector2(i < 2 ? 0f : 1f, 1f);
-                var rt = Panel($"Roommate {i + 1}", safe, anchor, new Vector2(i < 2 ? 24f : -24f, -24f - (i % 2) * 76f), new Vector2(282f, 68f), anchor, Dark);
-                var badge = Panel("Initial badge", rt, new Vector2(0f, 0.5f), new Vector2(12f, 0f), new Vector2(45f, 45f), new Vector2(0f, 0.5f), Mint, true).GetComponent<Image>();
+                var rt = Panel($"Roommate {i + 1}", safe, new Vector2(0f, 1f), new Vector2(38f, -134f - i * 62f), new Vector2(300f, 54f), new Vector2(0f, 1f), Paper);
+                var badge = Panel("Initial badge", rt, new Vector2(0f, .5f), new Vector2(9f, 0f), new Vector2(38f, 38f), new Vector2(0f, .5f), Mint, true).GetComponent<Image>();
                 var card = new PlayerCard { root = rt.gameObject, badge = badge };
-                card.initial = Text("Initial", badge.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40f, 40f), 28f, Ink);
-                card.name = Text("Name", rt, new Vector2(0f, 1f), new Vector2(68f, -8f), new Vector2(204f, 25f), 20f, Cream, TextAlignmentOptions.Left);
+                card.initial = Text("Initial", badge.transform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(36f, 36f), 22f, Ink);
+                card.name = Text("Name", rt, new Vector2(0f, 1f), new Vector2(56f, -6f), new Vector2(150f, 22f), 16f, Ink, TextAlignmentOptions.Left);
                 card.name.rectTransform.pivot = new Vector2(0f, 1f);
-                card.status = Text("Status", rt, Vector2.zero, new Vector2(68f, 8f), new Vector2(204f, 21f), 15f, Cream, TextAlignmentOptions.Left);
-                card.status.rectTransform.pivot = Vector2.zero;
-                card.fill = Fill("Health", Panel("Health track", rt, new Vector2(0f, 0.5f), new Vector2(68f, -5f), new Vector2(194f, 8f), new Vector2(0f, 0.5f), new Color(1f, 1f, 1f, 0.12f)), Mint);
+                card.status = Text("Status", rt, new Vector2(1f, 1f), new Vector2(-12f, -8f), new Vector2(110f, 18f), 12f, Faded, TextAlignmentOptions.Right);
+                card.status.rectTransform.pivot = new Vector2(1f, 1f);
+                card.fill = Fill("Health", Panel("Health track", rt, new Vector2(0f, 0f), new Vector2(56f, 10f), new Vector2(230f, 8f), Vector2.zero, Track), Health);
                 cards.Add(card); rt.gameObject.SetActive(false);
             }
         }
 
-        void BuildBag()
+        void BuildSide()
         {
-            var rt = Panel("Letter bag", safe, new Vector2(0.5f, 0f), new Vector2(0f, 20f), new Vector2(330f, 156f), new Vector2(0.5f, 0f), Dark);
-            bagRoot = rt.gameObject;
-            bagLabel = Text("Bag count", rt, new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(300f, 28f), 18f, Cream);
-            bagLabel.rectTransform.pivot = new Vector2(0.5f, 1f);
-            for (int i = 0; i < tileLabels.Length; i++)
+            side = Rect("Side column", safe, Vector2.one, new Vector2(-38f, -30f), new Vector2(252f, 560f));
+            side.pivot = Vector2.one;
+            var mapFrame = Panel("Minimap", side, new Vector2(0f, 1f), Vector2.zero, new Vector2(252f, 252f), new Vector2(0f, 1f), MapEdge);
+            miniMap = MakeMap(mapFrame, false, 7f);
+            var timerPill = Panel("Timer", side, new Vector2(0f, 1f), new Vector2(0f, -262f), new Vector2(118f, 54f), new Vector2(0f, 1f), Teal);
+            if (timer)
             {
-                var tile = Panel($"Letter {i + 1}", rt, new Vector2(0f, 1f), new Vector2(25f + (i % TilesPerRow) * 56f, -44f - (i / TilesPerRow) * 42f), new Vector2(52f, 36f), new Vector2(0f, 1f), Cream);
-                tileFaces[i] = tile.GetComponent<Image>();
-                tileLabels[i] = Text("Letter", tile, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(48f, 36f), 26f, Ink);
+                // The scene's timer text moves into the pill, so every director keeps calling SetTimer.
+                timer.rectTransform.SetParent(timerPill, false);
+                timer.rectTransform.anchorMin = Vector2.zero; timer.rectTransform.anchorMax = Vector2.one;
+                timer.rectTransform.pivot = new Vector2(.5f, .5f);
+                timer.rectTransform.offsetMin = timer.rectTransform.offsetMax = Vector2.zero;
+                timer.fontSize = 27f; timer.color = Cream; timer.alignment = TextAlignmentOptions.Center;
+                timer.characterSpacing = 4f; timer.raycastTarget = false; timer.textWrappingMode = TextWrappingModes.NoWrap;
             }
-            heldLabel = Text("Gear", rt, new Vector2(0.5f, 0f), new Vector2(0f, 5f), new Vector2(300f, 24f), 15f, Mint);
-            heldLabel.rectTransform.pivot = new Vector2(0.5f, 0f); bagRoot.SetActive(false);
-            var hint = Text("Desktop controls", safe, new Vector2(0.5f, 0f), new Vector2(0f, 180f), new Vector2(1030f, 45f), 15f, Cream);
-            hint.text = "WASD move  •  mouse aim  •  click smash  •  SPACE jump  •  SHIFT dash\nE grab/throw  •  hold Q craft  •  F place  •  TAB swap  •  hold R drop  •  right click block";
+            MakeButton("Pause", side, new Vector2(0f, 1f), new Vector2(128f, -262f), new Vector2(58f, 54f), "II", TogglePause, Paper);
+            var room = Panel("Room", side, new Vector2(0f, 1f), new Vector2(0f, -326f), new Vector2(252f, 40f), new Vector2(0f, 1f), Paper);
+            roomPill = Text("Room name", room, new Vector2(.5f, .5f), Vector2.zero, new Vector2(240f, 36f), 15f, Ink);
+            var goal = Panel("Objective", side, new Vector2(0f, 1f), new Vector2(0f, -376f), new Vector2(252f, 120f), new Vector2(0f, 1f), Paper);
+            objective = Text("Objective text", goal, new Vector2(0f, 1f), new Vector2(14f, -10f), new Vector2(226f, 100f), 15f, Ink, TextAlignmentOptions.TopLeft);
+            objective.rectTransform.pivot = new Vector2(0f, 1f); objective.textWrappingMode = TextWrappingModes.Normal;
+        }
+
+        void BuildStatus()
+        {
+            status = Panel("Status", safe, new Vector2(.5f, 1f), new Vector2(0f, -168f), new Vector2(630f, 70f), new Vector2(.5f, 1f), Paper);
+            statusText = Text("Status text", status, new Vector2(.5f, .5f), Vector2.zero, new Vector2(600f, 60f), 17f, Ink);
+            statusText.textWrappingMode = TextWrappingModes.Normal;
+            if (instruction) instruction.gameObject.SetActive(false);
+            status.gameObject.SetActive(false);
+        }
+
+        void BuildVitals()
+        {
+            vitals = Panel("Vitals", safe, Vector2.zero, new Vector2(39f, 110f), new Vector2(360f, 222f), Vector2.zero, Paper);
+            var you = Text("You", vitals, new Vector2(0f, 1f), new Vector2(24f, -18f), new Vector2(120f, 18f), 14f, Ink, TextAlignmentOptions.Left);
+            you.text = "YOU"; you.characterSpacing = 10f; you.rectTransform.pivot = new Vector2(0f, 1f);
+            shieldText = Text("Shield", vitals, new Vector2(1f, 1f), new Vector2(-24f, -18f), new Vector2(200f, 18f), 12f, Hex(0x3f8c81), TextAlignmentOptions.Right);
+            shieldText.rectTransform.pivot = Vector2.one;
+            hpValue = Text("HP", vitals, new Vector2(0f, 1f), new Vector2(24f, -38f), new Vector2(300f, 50f), 46f, Ink, TextAlignmentOptions.Left);
+            hpValue.rectTransform.pivot = new Vector2(0f, 1f);
+            healthFill = Fill("Health", Panel("Health track", vitals, new Vector2(0f, 1f), new Vector2(24f, -94f), new Vector2(312f, 12f), new Vector2(0f, 1f), Track), Health);
+            for (int i = 0; i < 2; i++)
+            {
+                int slot = i;
+                hands[i] = MakeHand($"Hand {i + 1}", vitals, new Vector2(24f + i * 160f, 18f), new Vector2(152f, 86f), i, () => SelectHand(slot));
+            }
+        }
+
+        void BuildTray()
+        {
+            tray = Panel("Letter bag", safe, new Vector2(.5f, 0f), new Vector2(0f, 52f), new Vector2(400f, 196f), new Vector2(.5f, 0f), Paper);
+            var head = Text("Heading", tray, new Vector2(0f, 1f), new Vector2(22f, -16f), new Vector2(160f, 20f), 14f, Ink, TextAlignmentOptions.Left);
+            head.text = "YOUR LETTERS"; head.characterSpacing = 6f; head.rectTransform.pivot = new Vector2(0f, 1f);
+            bagCount = Text("Bag count", tray, new Vector2(0f, 1f), new Vector2(178f, -17f), new Vector2(70f, 20f), 12f, Ink, TextAlignmentOptions.Left);
+            bagCount.rectTransform.pivot = new Vector2(0f, 1f);
+            var spell = Text("Spell key", tray, new Vector2(1f, 1f), new Vector2(-104f, -17f), new Vector2(70f, 20f), 12f, Ink, TextAlignmentOptions.Right);
+            spell.text = "<u>Spell</u> Q"; spell.rectTransform.pivot = Vector2.one;
+            var link = MakeButton("Bag link", tray, Vector2.one, new Vector2(-14f, -10f), new Vector2(84f, 30f), "<u>Bag</u> Tab", () => SetBagPinned(!bagPinned), Color.clear);
+            link.GetComponentInChildren<TextMeshProUGUI>().fontSize = 12f;
+            float x0 = (400f - (TilesPerRow * 45f + (TilesPerRow - 1) * 7f)) * .5f;
+            for (int i = 0; i < TrayTiles; i++)
+                trayCells[i] = MakeCell($"Letter {i + 1}", tray, new Vector2(x0 + (i % TilesPerRow) * 52f, -50f - (i / TilesPerRow) * 58f), new Vector2(45f, 50f), 27f);
+            craftProgress = Fill("Building", Panel("Progress track", tray, new Vector2(.5f, 0f), new Vector2(0f, 14f), new Vector2(356f, 8f), new Vector2(.5f, 0f), Track), Health);
+        }
+
+        void BuildHint()
+        {
+            hint = Panel("Desktop controls", safe, Vector2.zero, new Vector2(39f, 38f), new Vector2(1100f, 44f), Vector2.zero, Teal);
+            var text = Text("Keys", hint, new Vector2(0f, .5f), new Vector2(18f, 0f), new Vector2(1070f, 40f), 14f, Cream, TextAlignmentOptions.Left);
+            text.rectTransform.pivot = new Vector2(0f, .5f);
+            const string dot = "  <alpha=#77>·<alpha=#FF>  ";
+            text.text = "<b>WASD</b> move" + dot + "mouse aim" + dot + "<b>Click</b> smash" + dot + "<b>Right click</b> block" + dot + "<b>Shift</b> dodge"
+                + dot + "<b>Space</b> jump" + dot + "<b>Q</b> spell" + dot + "<b>E</b> interact" + dot + "<b>F</b> place" + dot + "<b>1 / 2</b> hands"
+                + dot + "<b>Tab</b> bag & map" + dot + "<b>Esc</b> pause";
+            hint.sizeDelta = new Vector2(text.GetPreferredValues(text.text).x + 36f, 44f);
             desktopHints = hint.gameObject;
         }
 
         void BuildCraftDrawer()
         {
-            var rt = Panel("Craft drawer", safe, new Vector2(0.5f, 0f), new Vector2(0f, 178f), new Vector2(566f, 400f), new Vector2(0.5f, 0f), Dark);
+            var rt = Panel("Craft drawer", safe, new Vector2(.5f, 0f), new Vector2(0f, 262f), new Vector2(566f, 400f), new Vector2(.5f, 0f), Paper);
             craftRoot = rt.gameObject;
-            Text("Heading", rt, new Vector2(0.5f, 1f), new Vector2(0f, -16f), new Vector2(510f, 36f), 29f, Cream).text = "MAKE SOMETHING";
-            craftStatus = Text("Craft status", rt, new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(520f, 40f), 18f, Mint);
+            var heading = Text("Heading", rt, new Vector2(.5f, 1f), new Vector2(0f, -16f), new Vector2(510f, 36f), 27f, Ink);
+            heading.text = "SPELL SOMETHING";
+            craftStatus = Text("Craft status", rt, new Vector2(.5f, 1f), new Vector2(0f, -58f), new Vector2(520f, 40f), 16f, Faded);
             craftStatus.textWrappingMode = TextWrappingModes.Normal;
             for (int i = 0; i < 4; i++)
             {
-                var row = Panel($"Recipe {i + 1}", rt, new Vector2(0.5f, 1f), new Vector2(0f, -105f - i * 53f), new Vector2(500f, 46f), new Vector2(0.5f, 1f), Dark);
+                var row = Panel($"Recipe {i + 1}", rt, new Vector2(.5f, 1f), new Vector2(0f, -105f - i * 53f), new Vector2(500f, 46f), new Vector2(.5f, 1f), Slot);
                 var view = new RecipeView { face = row.GetComponent<Image>(), button = row.gameObject.AddComponent<Button>() };
                 view.face.raycastTarget = true;
-                view.icon = Rect("Object preview", row, new Vector2(0f, 0.5f), new Vector2(28f, 0f), new Vector2(42f, 42f)).gameObject.AddComponent<RawImage>();
+                view.icon = Rect("Object preview", row, new Vector2(0f, .5f), new Vector2(28f, 0f), new Vector2(42f, 42f)).gameObject.AddComponent<RawImage>();
                 view.icon.raycastTarget = false;
-                view.text = Text("Recipe", row, new Vector2(0.5f, 0.5f), new Vector2(25f, 0f), new Vector2(412f, 40f), 20f, Cream, TextAlignmentOptions.Left);
+                view.text = Text("Recipe", row, new Vector2(.5f, .5f), new Vector2(25f, 0f), new Vector2(412f, 40f), 20f, Ink, TextAlignmentOptions.Left);
                 view.button.onClick.AddListener(() => { if (LocalPlayer && view.index >= 0) LocalPlayer.Summoner.Select(view.index); });
                 recipes.Add(view);
             }
             MakeButton("Previous", rt, Vector2.zero, new Vector2(30f, 16f), new Vector2(66f, 48f), "<", () => { if (LocalPlayer) LocalPlayer.Summoner.Step(-1); });
             MakeButton("Next", rt, new Vector2(1f, 0f), new Vector2(-30f, 16f), new Vector2(66f, 48f), ">", () => { if (LocalPlayer) LocalPlayer.Summoner.Step(1); });
-            buildButton = MakeButton("Build", rt, new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(248f, 48f), "BUILD", ConfirmCraft);
+            buildButton = MakeButton("Build", rt, new Vector2(.5f, 0f), new Vector2(0f, 16f), new Vector2(248f, 48f), "SPELL IT", ConfirmCraft);
             buildLabel = buildButton.GetComponentInChildren<TextMeshProUGUI>();
-            MakeButton("Cancel", rt, Vector2.one, new Vector2(-8f, -8f), new Vector2(40f, 40f), "X", CancelCraft);
-            craftProgress = Fill("Building", Panel("Progress track", rt, new Vector2(0.5f, 0f), new Vector2(0f, 76f), new Vector2(500f, 9f), new Vector2(0.5f, 0f), new Color(1f, 1f, 1f, 0.12f)), Mint);
+            MakeButton("Cancel", rt, Vector2.one, new Vector2(-8f, -8f), new Vector2(40f, 40f), "X", CancelCraft, Slot);
             craftRoot.SetActive(false);
         }
 
@@ -211,41 +313,37 @@ namespace Wreckabulary
             AddStick(rt, false, new Vector2(135f, 128f), Vector2.zero, 190f);
             AddStick(rt, true, new Vector2(-128f, 142f), new Vector2(1f, 0f), 152f);
             AddSkill(rt, TouchAction.Attack, "SMASH", new Vector2(-280f, 167f), 112f, Coral);
-            AddSkill(rt, TouchAction.Dodge, "DASH", new Vector2(-250f, 297f), 89f, Mint);
+            AddSkill(rt, TouchAction.Dodge, "DODGE", new Vector2(-250f, 297f), 89f, Mint);
             AddSkill(rt, TouchAction.Jump, "JUMP", new Vector2(-123f, 294f), 89f, Cream);
             AddSkill(rt, TouchAction.Block, "BLOCK", new Vector2(-384f, 270f), 89f, Cream);
-            AddSkill(rt, TouchAction.Grab, "GRAB", new Vector2(-384f, 161f), 89f, Cream);
-            AddSkill(rt, TouchAction.Craft, "CRAFT", new Vector2(-503f, 270f), 89f, Mint);
-            AddSkill(rt, TouchAction.Deploy, "PLACE", new Vector2(-503f, 161f), 89f, Cream);
+            AddSkill(rt, TouchAction.Grab, "INTERACT", new Vector2(-384f, 161f), 89f, Cream);
+            AddSkill(rt, TouchAction.Craft, "SPELL", new Vector2(-503f, 270f), 89f, Mint);
+            AddSkill(rt, TouchAction.Deploy, "PLACE / USE", new Vector2(-503f, 161f), 89f, Cream);
             AddSkill(rt, TouchAction.Drop, "HOLD DROP", new Vector2(-384f, 51f), 76f, Cream);
-            AddSkill(rt, TouchAction.Swap, "SWAP", new Vector2(-503f, 51f), 76f, Cream);
-            playLabel = MakeButton("Play or Ready", rt, new Vector2(0.5f, 1f), new Vector2(0f, -185f), new Vector2(200f, 50f), "PLAY", JoinOrReady).GetComponentInChildren<TextMeshProUGUI>();
+            playLabel = MakeButton("Play or Ready", rt, new Vector2(.5f, 1f), new Vector2(0f, -185f), new Vector2(200f, 50f), "PLAY", JoinOrReady).GetComponentInChildren<TextMeshProUGUI>();
             playRect = (RectTransform)playLabel.transform.parent;
-            MakeButton("Touch switch", safe, Vector2.one, new Vector2(-22f, -182f), new Vector2(156f, 36f), "TOUCH", () => ShowTouchControls(!TouchControlsShown)).gameObject.SetActive(!Application.isMobilePlatform);
         }
 
         void AddStick(Transform parent, bool aim, Vector2 position, Vector2 anchor, float diameter)
         {
-            var rt = Panel(aim ? "Aim stick" : "Move stick", parent, anchor, position, new Vector2(diameter, diameter), new Vector2(0.5f, 0.5f), new Color(0.12f, 0.18f, 0.19f, 0.72f), true);
+            var rt = Panel(aim ? "Aim stick" : "Move stick", parent, anchor, position, new Vector2(diameter, diameter), new Vector2(.5f, .5f), Hex(0x153f3c, .45f), true);
             rt.GetComponent<Image>().raycastTarget = true;
-            var ring = Panel("Ring", rt, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(diameter - 12f, diameter - 12f), new Vector2(0.5f, 0.5f), new Color(0.76f, 0.90f, 0.83f, 0.20f), true);
-            var knob = Panel("Thumb", rt, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(diameter * 0.36f, diameter * 0.36f), new Vector2(0.5f, 0.5f), Cream, true);
-            Text("Hint", ring, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(diameter, 30f), 19f, Cream).text = aim ? "AIM" : "MOVE";
-            var stick = rt.gameObject.AddComponent<TouchStick>(); stick.knob = knob; stick.aims = aim; stick.radius = diameter * 0.28f;
+            var ring = Panel("Ring", rt, new Vector2(.5f, .5f), Vector2.zero, new Vector2(diameter - 12f, diameter - 12f), new Vector2(.5f, .5f), Hex(0xffe7bc, .2f), true);
+            var knob = Panel("Thumb", rt, new Vector2(.5f, .5f), Vector2.zero, new Vector2(diameter * .36f, diameter * .36f), new Vector2(.5f, .5f), Hex(0xffe6b5, .8f), true);
+            Text("Hint", ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(diameter, 30f), 19f, Cream).text = aim ? "AIM" : "MOVE";
+            var stick = rt.gameObject.AddComponent<TouchStick>(); stick.knob = knob; stick.aims = aim; stick.radius = diameter * .28f;
             stick.Initialise(Camera.main); sticks.Add(stick);
         }
 
         void BuildNavigation()
         {
-            homeButton = MakeButton("Return home", safe, Vector2.one, new Vector2(-22f, -226f), new Vector2(156f, 42f), "HOME", () =>
-            {
-                TouchBinding.Shared.ReleaseAll();
-                Session.GoHome();
-            }).gameObject;
+            // Sits beside the pause button at the right end of the timer row.
+            homeButton = MakeButton("Return home", safe, Vector2.one, new Vector2(-38f, -292f), new Vector2(58f, 54f), "HOME", GoHome, Paper).gameObject;
+            homeButton.GetComponentInChildren<TextMeshProUGUI>().fontSize = 13f;
             homeButton.SetActive(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != Session.HubScene);
-            var panel = Panel("Typewriter touch menu", safe, new Vector2(0.5f, 0f), new Vector2(0f, 178f), new Vector2(580f, 166f), new Vector2(0.5f, 0f), Dark);
+            var panel = Panel("Typewriter touch menu", safe, new Vector2(.5f, 0f), new Vector2(0f, 262f), new Vector2(580f, 166f), new Vector2(.5f, 0f), Paper);
             typewriterControls = panel.gameObject;
-            typewriterChoice = Text("Mode choice", panel, new Vector2(0.5f, 1f), new Vector2(0f, -35f), new Vector2(540f, 54f), 25f, Cream);
+            typewriterChoice = Text("Mode choice", panel, new Vector2(.5f, 1f), new Vector2(0f, -35f), new Vector2(540f, 54f), 25f, Ink);
             typewriterChoice.textWrappingMode = TextWrappingModes.Normal;
             MakeButton("Previous mode", panel, Vector2.zero, new Vector2(18f, 22f), new Vector2(132f, 52f), "PREV", () => TouchBinding.Shared.Pulse(TouchAction.Up));
             MakeButton("Next mode", panel, Vector2.zero, new Vector2(162f, 22f), new Vector2(132f, 52f), "NEXT", () => TouchBinding.Shared.Pulse(TouchAction.Down));
@@ -254,19 +352,83 @@ namespace Wreckabulary
             typewriterControls.SetActive(false);
         }
 
+        void BuildBagPanel()
+        {
+            var rt = Panel("Bag panel", safe, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), Hex(0xfff0dc, .96f));
+            rt.anchorMin = new Vector2(.1f, .1f); rt.anchorMax = new Vector2(.9f, .9f); rt.offsetMin = rt.offsetMax = Vector2.zero;
+            rt.GetComponent<Image>().raycastTarget = true;
+            bagPanel = rt.gameObject;
+            var left = Rect("Bag", rt, Vector2.zero, Vector2.zero, Vector2.zero);
+            left.anchorMin = Vector2.zero; left.anchorMax = new Vector2(.45f, 1f); left.offsetMin = new Vector2(30f, 26f); left.offsetMax = new Vector2(-10f, -26f);
+            Eyebrow("Your bag", left, new Vector2(0f, 0f), 15f);
+            Eyebrow("Letters", left, new Vector2(0f, -40f), 13f);
+            bagPanelCount = Text("Count", left, Vector2.one, new Vector2(0f, -40f), new Vector2(120f, 20f), 15f, Ink, TextAlignmentOptions.Right);
+            bagPanelCount.rectTransform.pivot = Vector2.one;
+            for (int i = 0; i < TrayTiles; i++)
+                bagCells[i] = MakeCell($"Big letter {i + 1}", left, new Vector2((i % TilesPerRow) * 84f, -68f - (i / TilesPerRow) * 88f), new Vector2(76f, 80f), 44f);
+            Eyebrow("Hands", left, new Vector2(0f, -258f), 13f);
+            for (int i = 0; i < 2; i++)
+            {
+                int slot = i;
+                bagHands[i] = MakeHand($"Bag hand {i + 1}", left, new Vector2(i * 212f, 0f), new Vector2(204f, 84f), i, () => SelectHand(slot), true);
+                var hand = (RectTransform)bagHands[i].face.transform;
+                hand.anchorMin = hand.anchorMax = hand.pivot = new Vector2(0f, 1f); hand.anchoredPosition = new Vector2(i * 212f, -286f);
+            }
+            Eyebrow("Wearing", left, new Vector2(0f, -392f), 13f);
+            wearText = Text("Outfit", left, new Vector2(0f, 1f), new Vector2(0f, -418f), new Vector2(420f, 70f), 16f, Ink, TextAlignmentOptions.TopLeft);
+            wearText.rectTransform.pivot = new Vector2(0f, 1f); wearText.textWrappingMode = TextWrappingModes.Normal;
+            Eyebrow("Effects", left, new Vector2(0f, -498f), 13f);
+            effectsText = Text("Effects", left, new Vector2(0f, 1f), new Vector2(0f, -524f), new Vector2(420f, 50f), 16f, Ink, TextAlignmentOptions.TopLeft);
+            effectsText.rectTransform.pivot = new Vector2(0f, 1f); effectsText.textWrappingMode = TextWrappingModes.Normal;
+            var note = Text("Note", left, new Vector2(0f, 0f), Vector2.zero, new Vector2(440f, 22f), 13f, Faded, TextAlignmentOptions.BottomLeft);
+            note.text = "Hold Tab to peek. The house keeps moving while you look."; note.rectTransform.pivot = Vector2.zero;
+
+            var right = Rect("House", rt, Vector2.zero, Vector2.zero, Vector2.zero);
+            right.anchorMin = new Vector2(.45f, 0f); right.anchorMax = Vector2.one; right.offsetMin = new Vector2(16f, 26f); right.offsetMax = new Vector2(-30f, -26f);
+            Eyebrow("The house", right, Vector2.zero, 15f);
+            bagRoom = Text("Room", right, Vector2.one, new Vector2(-50f, 0f), new Vector2(300f, 26f), 22f, Ink, TextAlignmentOptions.Right);
+            bagRoom.rectTransform.pivot = Vector2.one;
+            MakeButton("Close bag", right, Vector2.one, new Vector2(0f, 2f), new Vector2(40f, 40f), "X", () => SetBagPinned(false), Slot);
+            var area = Rect("Map area", right, Vector2.zero, Vector2.zero, Vector2.zero);
+            area.anchorMin = Vector2.zero; area.anchorMax = Vector2.one; area.offsetMin = Vector2.zero; area.offsetMax = new Vector2(0f, -44f);
+            var frame = Panel("Big map", area, new Vector2(.5f, .5f), Vector2.zero, new Vector2(100f, 100f), new Vector2(.5f, .5f), MapEdge);
+            var fit = frame.gameObject.AddComponent<AspectRatioFitter>();
+            fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent; fit.aspectRatio = 1f;
+            bigMap = MakeMap(frame, true, 9f);
+            bagPanel.SetActive(false);
+        }
+
+        void BuildPause()
+        {
+            var shade = Panel("Pause", safe, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), Hex(0x0f2827, .45f));
+            shade.anchorMin = Vector2.zero; shade.anchorMax = Vector2.one; shade.offsetMin = shade.offsetMax = Vector2.zero;
+            shade.GetComponent<Image>().raycastTarget = true;
+            pauseRoot = shade.gameObject;
+            var card = Panel("Pause card", shade, new Vector2(.5f, .5f), Vector2.zero, new Vector2(520f, 380f), new Vector2(.5f, .5f), Hex(0xfff0dc, .98f));
+            Text("Heading", card, new Vector2(.5f, 1f), new Vector2(0f, -40f), new Vector2(460f, 60f), 46f, Ink).text = "Paused";
+            Text("Note", card, new Vector2(.5f, 1f), new Vector2(0f, -92f), new Vector2(460f, 30f), 17f, Faded).text = "The house is holding its breath.";
+            MakeButton("Resume", card, new Vector2(.5f, 1f), new Vector2(0f, -150f), new Vector2(380f, 56f), "RESUME", TogglePause);
+            MakeButton("Pause home", card, new Vector2(.5f, 1f), new Vector2(0f, -216f), new Vector2(380f, 56f), "BACK TO THE HOUSE", GoHome, Slot);
+            touchToggle = MakeButton("Touch switch", card, new Vector2(.5f, 1f), new Vector2(0f, -282f), new Vector2(380f, 56f), "TOUCH CONTROLS: OFF",
+                () => ShowTouchControls(!TouchControlsShown), Slot).GetComponentInChildren<TextMeshProUGUI>();
+            pauseRoot.SetActive(false);
+        }
+
         void AddSkill(Transform parent, TouchAction action, string label, Vector2 position, float diameter, Color accent)
         {
-            var rt = Panel(label, parent, new Vector2(1f, 0f), position, new Vector2(diameter, diameter), new Vector2(0.5f, 0.5f), accent, true);
+            var rt = Panel(label, parent, new Vector2(1f, 0f), position, new Vector2(diameter, diameter), new Vector2(.5f, .5f), accent, true);
             rt.GetComponent<Image>().raycastTarget = true;
-            var inset = Panel("Face", rt, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(diameter - 7f, diameter - 7f), new Vector2(0.5f, 0.5f), Dark, true);
-            var icon = CreateImage("Icon", inset, new Vector2(0.5f, 0.5f), new Vector2(0f, 5f), new Vector2(diameter * 0.77f, diameter * 0.77f), Color.white);
+            var inset = Panel("Face", rt, new Vector2(.5f, .5f), Vector2.zero, new Vector2(diameter - 7f, diameter - 7f), new Vector2(.5f, .5f), Hex(0xfff0dc, .95f), true);
+            var icon = CreateImage("Icon", inset, new Vector2(.5f, .5f), new Vector2(0f, 5f), new Vector2(diameter * .77f, diameter * .77f), Color.white);
             icon.sprite = Icon(action); icon.preserveAspect = true; if (!icon.sprite) icon.enabled = false;
-            var text = Text("Label", rt, new Vector2(0.5f, 0f), new Vector2(0f, -4f), new Vector2(diameter + 34f, 26f), 15f, Cream);
-            text.rectTransform.pivot = new Vector2(0.5f, 1f); text.text = label;
+            var text = Text("Label", rt, new Vector2(.5f, 0f), new Vector2(0f, -4f), new Vector2(diameter + 34f, 26f), 14f, Cream);
+            text.rectTransform.pivot = new Vector2(.5f, 1f); text.text = label; text.outlineWidth = .2f; text.outlineColor = Ink;
             var button = rt.gameObject.AddComponent<TouchActionButton>(); button.action = action;
             skillButtons[action] = (button, text);
             if (action == TouchAction.Craft) { button.sendsInput = false; button.pressed = ToggleCraft; }
         }
+
+        // ---- Actions ----
 
         public void ShowTouchControls(bool on)
         {
@@ -275,7 +437,9 @@ namespace Wreckabulary
             TouchBinding.Shared.OverlayDesktop = on && LocalPlayer && LocalPlayer.Binding is DesktopBinding;
             TouchBinding.Shared.OverlayBindingId = on && LocalPlayer && LocalPlayer.Binding is not TouchBinding ? LocalPlayer.Binding?.Id : null;
             if (desktopHints) desktopHints.SetActive(!on);
+            if (touchToggle) touchToggle.text = on ? "TOUCH CONTROLS: ON" : "TOUCH CONTROLS: OFF";
             if (!on && LocalPlayer) LocalPlayer.Summoner.Close();
+            ApplySafeArea();
         }
         void JoinOrReady()
         {
@@ -295,14 +459,59 @@ namespace Wreckabulary
             if (LocalPlayer) { LocalPlayer.Summoner.Close(); LocalPlayer.Summoner.CancelCraft(); }
             TouchBinding.Shared.SetCraftOpen(false);
         }
+        void SelectHand(int slot) { if (LocalPlayer && !Paused) LocalPlayer.Combat.SelectSlot(slot); }
+        void SetBagPinned(bool on) { bagPinned = on; RefreshBagPanel(); }
+        void GoHome()
+        {
+            if (Paused) SetPaused(false);
+            TouchBinding.Shared.ReleaseAll();
+            Session.GoHome();
+        }
+        void TogglePause() => SetPaused(!Paused);
+        void SetPaused(bool on)
+        {
+            if (!pauseRoot || on == Paused) return;
+            if (on)
+            {
+                resumeScale = Time.timeScale > 0f ? Time.timeScale : 1f;
+                Time.timeScale = 0f;
+                TouchBinding.Shared.ReleaseAll();
+                bagPinned = false;
+            }
+            else Time.timeScale = resumeScale;
+            pauseRoot.SetActive(on);
+            pauseRoot.transform.SetAsLastSibling();
+            RefreshBagPanel();
+        }
+
+        // ---- Refresh ----
+
+        void Update()
+        {
+            if (!safe) return;
+            // Esc closes the open thing first, as in the browser edition, then pauses.
+            if (DesktopBinding.Shared.Pause.WasPressedThisFrame())
+            {
+                if (Paused) SetPaused(false);
+                else if (bagPinned) SetBagPinned(false);
+                else if (craftRoot.activeSelf) CancelCraft();
+                else if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != Session.HubScene && !(typewriter && typewriter.User)) SetPaused(true);
+            }
+            // The round-end slow motion restores time on its own realtime clock; a pause outlasts it.
+            if (Paused && Time.timeScale != 0f) { resumeScale = Time.timeScale; Time.timeScale = 0f; }
+            if (BagOpen != WantsBag()) RefreshBagPanel();
+        }
+
+        bool WantsBag() => LocalPlayer && !Paused && (bagPinned || (LocalPlayer.Binding is DesktopBinding && DesktopBinding.Shared.Bag.IsPressed()));
 
         void LateUpdate()
         {
             if (!safe) return;
             if (Screen.width != lastWidth || Screen.height != lastHeight || Screen.safeArea != lastSafe) ApplySafeArea();
             if (Time.unscaledTime < nextRefresh) return;
-            nextRefresh = Time.unscaledTime + 0.08f;
-            FindLocalPlayer(); RefreshCards(); RefreshBag(); RefreshCraft(); RefreshSkills(); RefreshNavigation();
+            nextRefresh = Time.unscaledTime + .08f;
+            FindLocalPlayer(); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshCraft(); RefreshSkills(); RefreshNavigation();
+            if (BagOpen) RefreshBagContents();
             // Round start/retry lives in ModeActions. Keep this join control separate so their
             // canvases cannot overlap after a touch player has joined.
             if (playRect) playRect.gameObject.SetActive(!LocalPlayer);
@@ -317,32 +526,158 @@ namespace Wreckabulary
             TouchBinding.Shared.OverlayDesktop = TouchControlsShown && LocalPlayer && LocalPlayer.Binding is DesktopBinding;
             TouchBinding.Shared.OverlayBindingId = TouchControlsShown && LocalPlayer && LocalPlayer.Binding is not TouchBinding ? LocalPlayer.Binding?.Id : null;
         }
+        IReadOnlyList<PlayerController> Roster => players ?? joins?.Players;
+        void RefreshMatch()
+        {
+            bool hub = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == Session.HubScene;
+            string mode = hub ? "Hub" : Match.Mode;
+            (string tag, string name) = mode switch
+            {
+                "Dibs" => ("HOUSE BRAWL", "Dibs!"),
+                "Duos" => ("2V2 · TEAMS", "Double trouble"),
+                "MovingOut" => ("CO-OP", "The great escape"),
+                "MovingDay" => ("CO-OP", "Moving day"),
+                "Tutorial" => ("PRACTICE", "Play & learn"),
+                "Hub" => ("WELCOME HOME", "The house"),
+                _ => ("HOUSE PARTY", "Wreckabulary"),
+            };
+            matchTag.text = tag; matchTitle.text = name;
+            var mine = LocalPlayer && wins != null ? wins(LocalPlayer) : 0;
+            matchDetail.text = mode is "Dibs" or "Duos" && rounds && rounds.Round > 0 ? $"ROUND {rounds.Round} · {mine} / {roundsToWin} WINS"
+                : mode == "Tutorial" ? "NO PRESSURE. JUST PLAY." : (Layout?.Name ?? "").ToUpperInvariant();
+        }
         void RefreshCards()
         {
-            for (int i = 0; i < cards.Count; i++)
+            var current = Roster;
+            int shown = 0;
+            for (int i = 0; current != null && i < current.Count && shown < cards.Count; i++)
             {
-                var current = players ?? joins?.Players;
-                var card = cards[i]; var p = current != null && i < current.Count ? current[i] : null;
-                card.root.SetActive(p); if (!p) continue;
+                var p = current[i];
+                if (!p || p == LocalPlayer) continue;
+                var card = cards[shown++];
+                card.root.SetActive(true);
                 card.badge.color = p.Color; card.initial.text = p.Initial.ToString();
-                card.name.text = p.Name + (showWins && wins != null ? $"   {wins(p)}/{roundsToWin}" : "");
-                card.fill.fillAmount = p.Health.Fraction; card.fill.color = p.Health.Fraction > 0.35f ? Mint : Coral;
-                card.status.text = p.IsEliminated ? "WRECKED" : p.IsDowned ? $"REVIVE ME  {Mathf.CeilToInt(p.Health.BleedOutLeft)}s" : $"{Mathf.CeilToInt(p.Health.Current)} HP   {p.Inventory.TotalCount}/{p.Inventory.Capacity} letters";
+                card.name.text = p.Name + (showWins && wins != null ? $"  <size=75%>{wins(p)}/{roundsToWin}</size>" : "");
+                card.fill.fillAmount = p.Health.Fraction; card.fill.color = p.Health.Fraction > .35f ? Health : Low;
+                card.status.text = p.IsEliminated ? "WRECKED" : p.IsDowned ? $"REVIVE ME {Mathf.CeilToInt(p.Health.BleedOutLeft)}s" : $"{Mathf.CeilToInt(p.Health.Current)} HP · {p.Inventory.TotalCount}/{p.Inventory.Capacity}";
+            }
+            for (int i = shown; i < cards.Count; i++) cards[i].root.SetActive(false);
+        }
+        HouseLayout Layout => rooms && rooms.Layout != null ? rooms.Layout : clearOut ? clearOut.Layout : null;
+        void RefreshSide()
+        {
+            UpdateMap(miniMap);
+            var layout = Layout;
+            string room = LocalPlayer && layout != null ? layout.RoomAt(LocalPlayer.transform.position.x, LocalPlayer.transform.position.z) : null;
+            roomPill.text = room != null ? Spaced(room) : layout != null ? "House" : "";
+            roomPill.transform.parent.gameObject.SetActive(roomPill.text.Length > 0);
+            if (checklistText.Length > 0) objective.text = checklistText;
+            else
+            {
+                var current = Roster;
+                int up = 0, all = 0;
+                if (current != null) foreach (var p in current) { if (!p) continue; all++; if (!p.IsDowned && !p.IsEliminated) up++; }
+                objective.text = all > 0 ? $"<size=72%><cspace=6>THE HOUSEMATES</cspace></size>\n<b>{up} / {all} UP & ABOUT</b>" : "";
+            }
+            var goal = (RectTransform)objective.transform.parent;
+            goal.gameObject.SetActive(objective.text.Length > 0);
+            goal.sizeDelta = new Vector2(252f, Mathf.Clamp(objective.GetPreferredValues(objective.text, 226f, 0f).y + 22f, 48f, 330f));
+        }
+        void RefreshVitals()
+        {
+            vitals.gameObject.SetActive(LocalPlayer);
+            if (!LocalPlayer) return;
+            var health = LocalPlayer.Health;
+            hpValue.text = health.IsDowned ? $"DOWN <size=40%>{Mathf.CeilToInt(health.BleedOutLeft)}s</size>" : $"{Mathf.CeilToInt(health.Current)} <size=40%>HP</size>";
+            healthFill.fillAmount = health.Fraction; healthFill.color = health.Fraction > .35f ? Health : Low;
+            shieldText.text = health.Bubble > 0f ? $"+{Mathf.CeilToInt(health.Bubble)} SHIELD" : "";
+            for (int i = 0; i < 2; i++) ShowHand(hands[i], i, false);
+        }
+        void ShowHand(HandView view, int slot, bool detail)
+        {
+            var combat = LocalPlayer.Combat;
+            var gear = combat.GearIn(slot);
+            bool active = slot == combat.ActiveSlot;
+            bool carrying = active && combat.IsHolding && !combat.Weapon;
+            view.face.color = active ? SlotActive : Slot;
+            view.frame.enabled = active;
+            string word = gear ? gear.word : carrying ? "Carrying" : null;
+            view.label.text = word ?? "Empty hand";
+            view.label.color = word != null ? Ink : Faded;
+            view.icon.texture = gear && itemIcons.TryGetValue(gear.word, out var texture) ? texture : null;
+            view.icon.enabled = view.icon.texture;
+            if (view.wearTrack)
+            {
+                int most = gear && gear.Definition != null ? Mathf.Max(1, gear.Definition.Durability) : 0;
+                view.wearTrack.SetActive(detail && gear && most > 0);
+                if (most > 0) view.wear.fillAmount = Mathf.Clamp01(gear.DurabilityLeft / most);
             }
         }
-        void RefreshBag()
+        void RefreshTray()
         {
-            bagRoot.SetActive(LocalPlayer); if (!LocalPlayer) return;
+            tray.gameObject.SetActive(LocalPlayer);
+            if (!LocalPlayer) return;
             var inv = LocalPlayer.Inventory;
-            bagLabel.text = $"YOUR LETTER BAG   {inv.TotalCount}/{inv.Capacity}" + (inv.ReservedCount > 0 ? $"   ({inv.ReservedCount} building)" : "");
-            for (int i = 0; i < tileLabels.Length; i++)
+            bagCount.text = $"{inv.TotalCount} / {inv.Capacity}";
+            FillCells(trayCells, inv);
+            var summon = LocalPlayer.Summoner;
+            craftProgress.transform.parent.gameObject.SetActive(summon.IsCrafting);
+            craftProgress.fillAmount = summon.CraftProgress;
+        }
+        void FillCells(LetterCell[] cells, LetterInventory inv)
+        {
+            var letters = inv.Letters.OrderBy(c => c).ToArray();
+            var crafting = LocalPlayer.Summoner.IsCrafting ? LocalPlayer.Summoner.CraftWord ?? "" : "";
+            for (int i = 0; i < cells.Length; i++)
             {
-                bool occupied = i < inv.Count; tileFaces[i].color = occupied ? Cream : new Color(0.98f, 0.95f, 0.86f, 0.12f);
-                tileLabels[i].text = occupied ? inv.Letters[i].ToString() : ""; tileFaces[i].gameObject.SetActive(i < inv.Capacity);
+                var cell = cells[i];
+                cell.face.transform.parent.gameObject.SetActive(i < inv.Capacity);
+                bool held = i < letters.Length, reserved = !held && i < letters.Length + inv.ReservedCount;
+                int r = i - letters.Length;
+                cell.face.color = held ? Tile : reserved ? Reserved : EmptyCell;
+                cell.edge.enabled = held;
+                cell.letter.color = reserved ? ReservedInk : Ink;
+                cell.letter.text = held ? letters[i].ToString() : reserved && r < crafting.Length ? crafting[r].ToString() : "";
             }
-            var weapon = LocalPlayer.Combat.Weapon;
-            var spare = LocalPlayer.Combat.StoredGear;
-            heldLabel.text = LocalPlayer.Combat.IsHolding ? (weapon ? $"IN HAND: {weapon.word}" + (spare ? $"   •   SPARE: {spare.word}   •   SWAP" : "   •   attack to use") : "FURNITURE   •   GRAB to throw   •   HOLD DROP") : spare ? $"SPARE: {spare.word}   •   SWAP to equip" : "Empty hands   •   smash furniture for letters";
+        }
+        void RefreshBagPanel()
+        {
+            if (!bagPanel) return;
+            bool open = WantsBag();
+            bagPanel.SetActive(open);
+            if (!open) return;
+            bagPanel.transform.SetAsLastSibling();
+            RefreshBagContents();
+        }
+        void RefreshBagContents()
+        {
+            if (!LocalPlayer) return;
+            var inv = LocalPlayer.Inventory;
+            bagPanelCount.text = $"{inv.TotalCount} / {inv.Capacity}";
+            FillCells(bagCells, inv);
+            for (int i = 0; i < 2; i++) ShowHand(bagHands[i], i, true);
+            var outfit = LocalPlayer.GetComponent<PlayerAppearance>()?.CurrentOutfit;
+            sb.Clear();
+            if (outfit != null)
+                foreach (var slot in WearSlots)
+                {
+                    var piece = outfit.PieceIn(slot);
+                    if (string.IsNullOrEmpty(piece)) continue;
+                    sb.Append("<size=70%><color=#62736A>").Append(slot.ToUpperInvariant()).Append("</color></size> ")
+                      .Append(piece == "TBadge" ? "Letter badge" : Spaced(piece)).Append("     ");
+                }
+            wearText.text = sb.Length > 0 ? sb.ToString() : "<color=#62736A>Nothing special</color>";
+            sb.Clear();
+            var health = LocalPlayer.Health;
+            if (health.Bubble > 0f) sb.Append("Bubble +").Append(Mathf.CeilToInt(health.Bubble)).Append("     ");
+            if (LocalPlayer.BoostLeft > 0f) sb.Append("Speed · ").Append(Mathf.CeilToInt(LocalPlayer.BoostLeft)).Append("s     ");
+            var combat = LocalPlayer.Combat;
+            if (combat.IsHolding && !combat.Weapon) sb.Append("Carrying ").Append(Spaced(combat.Held.name.Replace("(Clone)", "").Trim()));
+            effectsText.text = sb.Length > 0 ? sb.ToString() : "<color=#62736A>Nothing active</color>";
+            var layout = Layout;
+            var room = layout?.RoomAt(LocalPlayer.transform.position.x, LocalPlayer.transform.position.z);
+            bagRoom.text = room != null ? Spaced(room) : "";
+            UpdateMap(bigMap);
         }
         void RefreshCraft()
         {
@@ -350,9 +685,8 @@ namespace Wreckabulary
             var summon = LocalPlayer.Summoner; bool visible = summon.IsSpelling || summon.IsCrafting; craftRoot.SetActive(visible);
             if (!visible) { if (TouchBinding.Shared.CraftOpen && !TouchBinding.Shared.CraftPressPending) TouchBinding.Shared.SetCraftOpen(false); return; }
             bool building = summon.IsCrafting;
-            craftStatus.text = building ? $"BUILDING {summon.CraftWord}…  {Mathf.RoundToInt(summon.CraftProgress * 100f)}%" : summon.Ready.Count > 0 ? "Pick a word. Its letters become a real object." : "Smash furniture and find the missing letters.";
-            craftProgress.fillAmount = building ? summon.CraftProgress : 0f;
-            buildButton.interactable = !building && summon.SelectedWord != null; buildLabel.text = building ? "BUILDING…" : "BUILD";
+            craftStatus.text = building ? $"Spelling {summon.CraftWord}…  {Mathf.RoundToInt(summon.CraftProgress * 100f)}%" : summon.Ready.Count > 0 ? "Pick a word. Its letters become a real object." : "Smash furniture and find the missing letters.";
+            buildButton.interactable = !building && summon.SelectedWord != null; buildLabel.text = building ? "SPELLING…" : "SPELL IT";
             int start = Mathf.Max(0, summon.Selected - 1);
             for (int i = 0; i < recipes.Count; i++)
             {
@@ -361,17 +695,17 @@ namespace Wreckabulary
                 if (ready)
                 {
                     var word = summon.Ready[view.index]; bool selected = view.index == summon.Selected;
-                    view.face.color = selected ? Mint : new Color(0.2f, 0.29f, 0.30f); view.text.color = selected ? Ink : Cream;
+                    view.face.color = selected ? Mint : Slot; view.text.color = Ink;
                     view.text.text = $"{word.word}     <size=70%>{word.word.Length} letters</size>";
                     view.icon.texture = itemIcons.TryGetValue(word.word, out var texture) ? texture : null;
                     view.icon.color = Color.white; view.icon.enabled = view.icon.texture;
                 }
                 else
                 {
-                    int hint = view.index - summon.Ready.Count; view.face.color = new Color(0.2f, 0.29f, 0.30f, 0.5f); view.text.color = new Color(0.98f, 0.95f, 0.86f, 0.5f);
-                    view.text.text = hint < summon.Hints.Count ? $"{summon.Hints[hint].entry.word}     <size=70%>find {summon.Hints[hint].missing}</size>" : "";
-                    view.icon.texture = hint < summon.Hints.Count && itemIcons.TryGetValue(summon.Hints[hint].entry.word, out var texture) ? texture : null;
-                    view.icon.color = new Color(1f, 1f, 1f, 0.45f); view.icon.enabled = view.icon.texture;
+                    int hintIndex = view.index - summon.Ready.Count; view.face.color = Hex(0xf7e5c8, .5f); view.text.color = Faded;
+                    view.text.text = hintIndex < summon.Hints.Count ? $"{summon.Hints[hintIndex].entry.word}     <size=70%>find {summon.Hints[hintIndex].missing}</size>" : "";
+                    view.icon.texture = hintIndex < summon.Hints.Count && itemIcons.TryGetValue(summon.Hints[hintIndex].entry.word, out var texture) ? texture : null;
+                    view.icon.color = new Color(1f, 1f, 1f, .45f); view.icon.enabled = view.icon.texture;
                 }
             }
         }
@@ -389,7 +723,6 @@ namespace Wreckabulary
                     TouchAction.Block => free && weapon && weapon.Shield != null,
                     TouchAction.Deploy => free && weapon && weapon.Definition?.Deploy != null,
                     TouchAction.Drop => free && combat.IsHolding,
-                    TouchAction.Swap => free && combat.StoredGear,
                     TouchAction.Dodge => canAct && LocalPlayer.Health.CanDodge,
                     TouchAction.Jump => canAct,
                     TouchAction.Craft => canAct && (LocalPlayer.Summoner.IsCrafting || LocalPlayer.Summoner.IsSpelling || !combat.IsChanneling),
@@ -397,8 +730,8 @@ namespace Wreckabulary
                 };
                 pair.Value.button.SetAvailable(available);
             }
-            skillButtons[TouchAction.Grab].label.text = combat.IsReviving ? "REVIVING" : combat.IsHolding ? "THROW" : combat.DownedTeammateNearby() ? "HOLD REVIVE" : "GRAB";
-            skillButtons[TouchAction.Craft].label.text = LocalPlayer.Summoner.IsCrafting || LocalPlayer.Summoner.IsSpelling ? "CANCEL" : "CRAFT";
+            skillButtons[TouchAction.Grab].label.text = combat.IsReviving ? "REVIVING" : combat.IsHolding ? "THROW" : combat.DownedTeammateNearby() ? "HOLD REVIVE" : "INTERACT";
+            skillButtons[TouchAction.Craft].label.text = LocalPlayer.Summoner.IsCrafting || LocalPlayer.Summoner.IsSpelling ? "CANCEL" : "SPELL";
             skillButtons[TouchAction.Attack].label.text = weapon && weapon.Definition != null ? weapon.Definition.Family switch
             { HandlingFamily.Thrown => "THROW", HandlingFamily.Ranged => "FIRE", HandlingFamily.Heal or HandlingFamily.Buff => "USE", _ => "SMASH" } : "SMASH";
         }
@@ -410,36 +743,115 @@ namespace Wreckabulary
             var mode = typewriter.Modes[typewriter.Selected];
             typewriterChoice.text = mode.label + "\n<size=65%>" + mode.blurb + "</size>";
         }
+
+        // ---- Map ----
+
+        MapView MakeMap(RectTransform frame, bool full, float border)
+        {
+            var bg = Panel("Floor", frame, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), MapBg);
+            bg.anchorMin = Vector2.zero; bg.anchorMax = Vector2.one; bg.offsetMin = Vector2.one * border; bg.offsetMax = -Vector2.one * border;
+            bg.gameObject.AddComponent<RectMask2D>();
+            return new MapView { content = bg, full = full };
+        }
+        void UpdateMap(MapView map)
+        {
+            var layout = Layout;
+            map.content.parent.gameObject.SetActive(layout != null && layout.Rooms.Count > 0);
+            if (layout == null || layout.Rooms.Count == 0) return;
+            float minX = layout.Rooms.Min(r => r.MinX), maxX = layout.Rooms.Max(r => r.MaxX);
+            float minZ = layout.Rooms.Min(r => r.MinZ), maxZ = layout.Rooms.Max(r => r.MaxZ);
+            float extent = Mathf.Max(maxX - minX, maxZ - minZ) * 1.04f;
+            float ox = minX - (extent - (maxX - minX)) * .5f, oz = minZ - (extent - (maxZ - minZ)) * .5f;
+            Vector2 At(float x, float z) => new((x - ox) / extent, (z - oz) / extent);
+            if (map.layout != layout)
+            {
+                foreach (var (_, fill, _) in map.rooms) Destroy(fill.gameObject);
+                map.rooms.Clear();
+                foreach (var box in layout.Rooms)
+                {
+                    var rt = Panel(box.Name, map.content, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), RoomFill);
+                    rt.anchorMin = At(box.MinX, box.MinZ); rt.anchorMax = At(box.MaxX, box.MaxZ); rt.offsetMin = rt.offsetMax = Vector2.zero;
+                    var image = rt.GetComponent<Image>(); image.sprite = null;
+                    // A small inset lets the dark floor read as the walls between rooms.
+                    rt.offsetMin = Vector2.one * 2f; rt.offsetMax = -Vector2.one * 2f;
+                    var outline = rt.gameObject.AddComponent<Outline>(); outline.effectColor = Hex(0xe4d6b2, .7f); outline.effectDistance = new Vector2(1.5f, -1.5f);
+                    var label = Text("Name", rt, new Vector2(.5f, .5f), Vector2.zero, Vector2.zero, map.full ? 18f : 12f, Hex(0xead7b3));
+                    label.rectTransform.anchorMin = Vector2.zero; label.rectTransform.anchorMax = Vector2.one; label.rectTransform.offsetMin = label.rectTransform.offsetMax = Vector2.zero;
+                    label.text = map.full ? Spaced(box.Name) : box.Name.Substring(0, 1); label.textWrappingMode = TextWrappingModes.Normal;
+                    map.rooms.Add((box, image, label));
+                }
+                map.layout = layout;
+            }
+            string here = LocalPlayer ? layout.RoomAt(LocalPlayer.transform.position.x, LocalPlayer.transform.position.z) : null;
+            var schedule = clearOut && clearOut.Running ? clearOut.Schedule : null;
+            foreach (var (box, fill, _) in map.rooms)
+            {
+                var phase = schedule?.PhaseOf(box.Name, clearOut.Elapsed) ?? RoomPhase.Safe;
+                fill.color = phase == RoomPhase.Closed || phase == RoomPhase.Filling ? RoomClosed
+                    : phase == RoomPhase.Warning ? Color.Lerp(RoomWarn, RoomFill, Mathf.PingPong(Time.unscaledTime * 1.4f, 1f))
+                    : box.Name == here ? RoomHere : RoomFill;
+            }
+            int n = 0;
+            foreach (var p in World.Players)
+            {
+                if (!p || p.IsEliminated) continue;
+                if (n == map.dots.Count)
+                {
+                    var dot = Panel("Player", map.content, Vector2.zero, Vector2.zero, Vector2.one * 10f, new Vector2(.5f, .5f), Cream, true).GetComponent<Image>();
+                    var name = Text("Name", dot.transform, new Vector2(.5f, 1f), new Vector2(0f, 4f), new Vector2(160f, 22f), 15f, Cream);
+                    name.rectTransform.pivot = new Vector2(.5f, 0f); name.outlineWidth = .25f; name.outlineColor = Ink;
+                    map.dots.Add((dot, name));
+                }
+                var (image, label) = map.dots[n++];
+                image.gameObject.SetActive(true);
+                bool you = p == LocalPlayer;
+                var rt = image.rectTransform;
+                rt.anchorMin = rt.anchorMax = At(p.transform.position.x, p.transform.position.z);
+                rt.sizeDelta = Vector2.one * (map.full ? (you ? 20f : 15f) : (you ? 12f : 8f));
+                image.color = p.IsDowned ? Coral : you ? Hex(0x9ff8d3) : p.Color;
+                label.gameObject.SetActive(map.full);
+                label.text = you ? "You" : p.Name;
+            }
+            for (int i = n; i < map.dots.Count; i++) map.dots[i].dot.gameObject.SetActive(false);
+        }
+
+        // ---- Safe area and layout modes ----
+
         void ApplySafeArea()
         {
+            if (!safe) return;
             lastWidth = Screen.width; lastHeight = Screen.height; lastSafe = Screen.safeArea;
             if (lastWidth <= 0 || lastHeight <= 0) return;
             safe.anchorMin = new Vector2(lastSafe.xMin / lastWidth, lastSafe.yMin / lastHeight); safe.anchorMax = new Vector2(lastSafe.xMax / lastWidth, lastSafe.yMax / lastHeight);
             safe.offsetMin = safe.offsetMax = Vector2.zero;
+            bool portrait = lastWidth < lastHeight, touch = TouchControlsShown;
+            // Touch screens keep the vitals above the move stick, as the browser's coarse-pointer layout does.
+            if (vitals) vitals.anchoredPosition = new Vector2(39f, touch ? (portrait ? 420f : 250f) : 110f);
             // Portrait browser windows keep the bag above the thumb controls; mobile players
             // normally use landscape, but resizing must never hide the craft economy.
-            if (bagRoot)
+            if (tray)
             {
-                bool portrait = lastWidth < lastHeight;
-                var bag = (RectTransform)bagRoot.transform;
-                bag.anchorMin = bag.anchorMax = new Vector2(0.5f, portrait ? 1f : 0f);
-                bag.pivot = new Vector2(0.5f, portrait ? 1f : 0f);
-                bag.anchoredPosition = new Vector2(0f, portrait ? -235f : 20f);
-            }
-            if (instruction)
-            {
-                bool portrait = lastWidth < lastHeight;
-                float logicalWidth = lastSafe.width / Mathf.Max(0.01f, UiCanvas.scaleFactor);
-                instruction.rectTransform.sizeDelta = new Vector2(Mathf.Min(1200f, logicalWidth - 64f), 108f);
-                instruction.rectTransform.anchoredPosition = new Vector2(0f, portrait ? -195f : -122f);
+                tray.anchorMin = tray.anchorMax = tray.pivot = portrait ? new Vector2(0f, 1f) : new Vector2(.5f, 0f);
+                tray.anchoredPosition = portrait ? new Vector2(38f, -134f) : new Vector2(0f, touch ? 24f : 52f);
             }
             if (playRect)
             {
-                bool portrait = lastWidth < lastHeight;
-                playRect.anchorMin = playRect.anchorMax = portrait ? Vector2.zero : new Vector2(0.5f, 1f);
+                playRect.anchorMin = playRect.anchorMax = portrait ? Vector2.zero : new Vector2(.5f, 1f);
                 playRect.pivot = playRect.anchorMin;
                 playRect.anchoredPosition = portrait ? new Vector2(30f, 340f) : new Vector2(0f, -185f);
             }
+            if (status) status.anchoredPosition = new Vector2(0f, portrait ? -360f : -168f);
+            ResizeStatus();
+        }
+        void ResizeStatus()
+        {
+            if (!status || !UiCanvas) return;
+            float logicalWidth = lastSafe.width / Mathf.Max(.01f, UiCanvas.scaleFactor);
+            float width = Mathf.Min(630f, logicalWidth - 600f);
+            if (width < 360f) width = Mathf.Min(630f, logicalWidth - 64f);
+            var size = statusText.GetPreferredValues(statusText.text, width - 40f, 0f);
+            status.sizeDelta = new Vector2(Mathf.Min(width, size.x + 44f), size.y + 24f);
+            statusText.rectTransform.sizeDelta = new Vector2(Mathf.Min(width, size.x + 44f) - 40f, size.y + 4f);
         }
         void OnApplicationFocus(bool focused)
         {
@@ -449,23 +861,89 @@ namespace Wreckabulary
         void OnDisable() => TouchBinding.Shared.ReleaseAll();
         void OnDestroy()
         {
+            if (Paused) Time.timeScale = resumeScale;
             foreach (var sprite in ownedSprites) if (sprite) Destroy(sprite);
             foreach (var texture in ownedTextures) if (texture) Destroy(texture);
         }
+
+        // ---- What the directors call ----
+
         public void SetTitle(string text, string sub = "") { if (title) title.text = text; if (subtitle) subtitle.text = sub; }
-        public void SetInstruction(string main, string hint = "") { if (instruction) instruction.text = string.IsNullOrEmpty(hint) ? main : $"{main}\n<size=70%><color=#FFF4E0CC>{hint}</color></size>"; }
-        public void SetChecklist(string text) { if (checklist) checklist.text = text; if (checklistPanel) checklistPanel.SetActive(!string.IsNullOrEmpty(text)); }
-        public void SetTimer(string text) { if (timer) timer.text = text; }
+        public void SetInstruction(string main, string hint = "")
+        {
+            string text = string.IsNullOrEmpty(hint) ? main : $"<b>{main}</b>\n<size=82%><color=#173B3CB3>{hint}</color></size>";
+            if (instruction) instruction.text = text;
+            if (!statusText || statusText.text == OnCream(text)) return;
+            statusText.text = OnCream(text);
+            status.gameObject.SetActive(!string.IsNullOrEmpty(main) || !string.IsNullOrEmpty(hint));
+            ResizeStatus();
+        }
+        public void SetChecklist(string text)
+        {
+            if (checklist) checklist.text = text;
+            checklistText = OnCream(text ?? "").Replace("<b>", "<size=72%><cspace=6>").Replace("</b>", "</cspace></size>");
+        }
+        public void SetTimer(string text)
+        {
+            if (timer) timer.text = text;
+            if (timer) timer.transform.parent.gameObject.SetActive(!string.IsNullOrEmpty(text));
+        }
         public void SetScoreboard(IReadOnlyList<PlayerController> currentPlayers, Func<PlayerController, int> currentWins, int targetWins, bool winsVisible)
         { players = currentPlayers; wins = currentWins; roundsToWin = targetWins; showWins = winsVisible; }
 
+        /// <summary>The directors' colours were picked for dark panels; on the cream panels they need darker twins.</summary>
+        static string OnCream(string text) => text
+            .Replace("#FFF4E0AA", "#173B3C99").Replace("#FFF4E0CC", "#173B3CB3").Replace("#FFF4E0", "#173B3C")
+            .Replace("#8FD18B", "#2F7A5C").Replace("#FFD24A", "#B86647");
+
+        static readonly Regex Words = new("(?<=[a-z])(?=[A-Z])");
+        static string Spaced(string name) => Words.Replace(name, " ");
+
+        // ---- Builders ----
+
+        void Eyebrow(string label, RectTransform parent, Vector2 position, float size)
+        {
+            var text = Text(label, parent, new Vector2(0f, 1f), position, new Vector2(300f, 20f), size, Ink, TextAlignmentOptions.Left);
+            text.text = label.ToUpperInvariant(); text.characterSpacing = 8f; text.rectTransform.pivot = new Vector2(0f, 1f);
+        }
+        LetterCell MakeCell(string label, RectTransform parent, Vector2 position, Vector2 size, float fontSize)
+        {
+            var holder = Rect(label, parent, new Vector2(0f, 1f), position, size); holder.pivot = new Vector2(0f, 1f);
+            var edge = Panel("Edge", holder, new Vector2(.5f, .5f), new Vector2(0f, -3f), size, new Vector2(.5f, .5f), TileEdge).GetComponent<Image>();
+            var face = Panel("Face", holder, new Vector2(.5f, .5f), Vector2.zero, size, new Vector2(.5f, .5f), Tile).GetComponent<Image>();
+            var letter = Text("Letter", face.transform, new Vector2(.5f, .5f), Vector2.zero, size, fontSize, Ink);
+            letter.fontStyle = FontStyles.Bold;
+            return new LetterCell { face = face, edge = edge, letter = letter };
+        }
+        HandView MakeHand(string label, RectTransform parent, Vector2 position, Vector2 size, int slot, Action onTap, bool detail = false)
+        {
+            var rt = Panel(label, parent, Vector2.zero, position, size, Vector2.zero, Slot);
+            var view = new HandView { face = rt.GetComponent<Image>() };
+            view.face.raycastTarget = true;
+            rt.gameObject.AddComponent<Button>().onClick.AddListener(() => onTap());
+            // The browser's 2px ink border on the hand in use.
+            view.frame = rt.gameObject.AddComponent<Outline>();
+            view.frame.effectColor = Ink; view.frame.effectDistance = new Vector2(3f, -3f);
+            var key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(8f, -5f), new Vector2(20f, 18f), 12f, Ink, TextAlignmentOptions.Left);
+            key.text = (slot + 1).ToString(); key.rectTransform.pivot = new Vector2(0f, 1f);
+            view.icon = Rect("Icon", rt, new Vector2(.5f, 1f), new Vector2(0f, -4f), new Vector2(54f, 50f)).gameObject.AddComponent<RawImage>();
+            ((RectTransform)view.icon.transform).pivot = new Vector2(.5f, 1f); view.icon.raycastTarget = false;
+            view.label = Text("Word", rt, new Vector2(.5f, 0f), new Vector2(0f, detail ? 16f : 6f), new Vector2(size.x - 10f, 20f), detail ? 15f : 12f, Ink);
+            view.label.rectTransform.pivot = new Vector2(.5f, 0f);
+            if (detail)
+            {
+                var track = Panel("Wear", rt, new Vector2(.5f, 0f), new Vector2(0f, 7f), new Vector2(size.x - 24f, 6f), new Vector2(.5f, 0f), Track);
+                view.wear = Fill("Left", track, Health); view.wearTrack = track.gameObject;
+            }
+            return view;
+        }
         Sprite Icon(TouchAction action)
         {
             if (!iconAtlas || (int)action > 8) return null;
             // Measured silhouettes avoid bleed where the generated atlas differs from a regular grid.
             var bounds = new Rect[] { new(34,19,391,376), new(453,100,369,286), new(925,28,280,373), new(39,445,365,336), new(499,434,313,353), new(874,439,333,346), new(35,833,381,375), new(487,813,281,405), new(836,870,410,314) };
             var r = bounds[(int)action]; float sx = iconAtlas.width / 1254f, sy = iconAtlas.height / 1254f;
-            var sprite = Sprite.Create(iconAtlas, new Rect(r.x * sx, iconAtlas.height - (r.y + r.height) * sy, r.width * sx, r.height * sy), new Vector2(0.5f, 0.5f), 100f);
+            var sprite = Sprite.Create(iconAtlas, new Rect(r.x * sx, iconAtlas.height - (r.y + r.height) * sy, r.width * sx, r.height * sy), new Vector2(.5f, .5f), 100f);
             ownedSprites.Add(sprite); return sprite;
         }
         Sprite MakeShape(bool circle)
@@ -477,10 +955,10 @@ namespace Wreckabulary
             {
                 float dx = Mathf.Abs(x - 31.5f), dy = Mathf.Abs(y - 31.5f);
                 float distance = circle ? Mathf.Sqrt(dx * dx + dy * dy) - 30f : new Vector2(Mathf.Max(dx - 20f, 0f), Mathf.Max(dy - 20f, 0f)).magnitude - 11f;
-                pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(0.5f - distance));
+                pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(.5f - distance));
             }
             texture.SetPixels(pixels); texture.Apply(false, true);
-            var sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, circle ? Vector4.zero : new Vector4(14f, 14f, 14f, 14f));
+            var sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 100f, 0, SpriteMeshType.FullRect, circle ? Vector4.zero : new Vector4(14f, 14f, 14f, 14f));
             ownedSprites.Add(sprite); ownedTextures.Add(texture); return sprite;
         }
         RectTransform Rect(string label, Transform parent, Vector2 anchor, Vector2 position, Vector2 size)
@@ -510,11 +988,11 @@ namespace Wreckabulary
             text.font = GameAssets.I ? GameAssets.I.font : TMP_Settings.defaultFontAsset; text.fontSize = fontSize; text.fontStyle = FontStyles.Bold;
             text.color = color; text.alignment = alignment; text.textWrappingMode = TextWrappingModes.NoWrap; text.raycastTarget = false; return text;
         }
-        Button MakeButton(string label, Transform parent, Vector2 anchor, Vector2 position, Vector2 size, string caption, Action action)
+        Button MakeButton(string label, Transform parent, Vector2 anchor, Vector2 position, Vector2 size, string caption, Action action, Color? colour = null)
         {
-            var rt = Panel(label, parent, anchor, position, size, anchor, Mint); rt.GetComponent<Image>().raycastTarget = true;
+            var rt = Panel(label, parent, anchor, position, size, anchor, colour ?? Teal); rt.GetComponent<Image>().raycastTarget = true;
             var button = rt.gameObject.AddComponent<Button>(); button.onClick.AddListener(() => action?.Invoke());
-            Text("Label", rt, new Vector2(0.5f, 0.5f), Vector2.zero, size - new Vector2(8f, 4f), 20f, Ink).text = caption; return button;
+            Text("Label", rt, new Vector2(.5f, .5f), Vector2.zero, size - new Vector2(8f, 4f), 20f, colour.HasValue ? Ink : Cream).text = caption; return button;
         }
     }
 }

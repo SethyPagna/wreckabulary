@@ -31,7 +31,7 @@ namespace Wreckabulary
             layoutDepth = maxZ - minZ;
             camera.orthographic = true;
             float aspect = Mathf.Max(.5f, camera.aspect);
-            camera.orthographicSize = Mathf.Max((maxX - minX) / aspect, (maxZ - minZ) * .85f) * .55f + 1.5f;
+            camera.orthographicSize = HouseSize(aspect);
             layoutCentre = centre;
             wholeHouseSize = camera.orthographicSize;
             basePosition = smooth = centre + new Vector3(0f, 30f, -22f);
@@ -44,7 +44,12 @@ namespace Wreckabulary
         {
             Instance = this;
             basePosition = smooth = transform.position;
+            // The browser edition's deep teal surrounds the house, so the edges blend into the HUD instead of a void.
+            if (TryGetComponent<Camera>(out var camera)) { camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = new Color32(0x17, 0x3a, 0x3d, 0xff); }
         }
+
+        /// <summary>Orthographic size that shows the whole house with a slim margin.</summary>
+        float HouseSize(float aspect) => Mathf.Max(layoutWidth / aspect, layoutDepth * .85f) * .5f + .8f;
 
         public static void Shake(float amount)
         {
@@ -57,19 +62,37 @@ namespace Wreckabulary
             int n = 0;
             int localCount = 0;
             PlayerController localPlayer = null;
+            Vector3 low = Vector3.positiveInfinity, high = Vector3.negativeInfinity;
             foreach (var p in World.Players)
             {
                 if (!p || p.IsEliminated) continue;
                 centre += p.transform.position;
                 n++;
-                if (p.Binding is not BotBinding) { localCount++; localPlayer = p; }
+                if (p.Binding is not BotBinding)
+                {
+                    localCount++; localPlayer = p;
+                    low = Vector3.Min(low, p.transform.position); high = Vector3.Max(high, p.transform.position);
+                }
             }
             var target = basePosition;
             if (framesLayout)
             {
-                // One local player needs readable action, even in the large house. Couch players share the full view.
+                // One local player gets the browser edition's close follow camera. Couch players share a view
+                // that frames them all, close when they're together and never wider than the whole house.
                 bool followLocal = localCount == 1;
+                float aspect = lens ? Mathf.Max(.5f, lens.aspect) : 16f / 9f;
+                wholeHouseSize = HouseSize(aspect);
                 var focus = followLocal ? localPlayer.transform.position : layoutCentre;
+                float size = wholeHouseSize;
+                if (localCount > 1)
+                {
+                    var spread = high - low;
+                    // Room for the HUD columns and a step of space around everyone.
+                    size = Mathf.Clamp(Mathf.Max((spread.x + 9f) / aspect, (spread.z + 7f) * .85f) * .5f + 1f, 7.5f, wholeHouseSize);
+                    var middle = (low + high) * .5f;
+                    // Near the whole-house size, settle on the house centre so the edges don't wobble.
+                    focus = Vector3.Lerp(middle, layoutCentre, Mathf.InverseLerp(wholeHouseSize * .7f, wholeHouseSize, size));
+                }
                 focus.y = 0f;
                 // Solo play gets a closer perspective view along the same direction, so
                 // world-aligned controls and pointer aim read the same as the couch view.
@@ -78,8 +101,7 @@ namespace Wreckabulary
                 {
                     lens.orthographic = !followLocal;
                     if (followLocal) lens.fieldOfView = soloFieldOfView;
-                    wholeHouseSize = Mathf.Max(layoutWidth / Mathf.Max(.5f, lens.aspect), layoutDepth * .85f) * .55f + 1.5f;
-                    lens.orthographicSize = Mathf.Lerp(lens.orthographicSize, wholeHouseSize,
+                    lens.orthographicSize = Mathf.Lerp(lens.orthographicSize, size,
                         1f - Mathf.Exp(-3f * Time.unscaledDeltaTime));
                 }
             }

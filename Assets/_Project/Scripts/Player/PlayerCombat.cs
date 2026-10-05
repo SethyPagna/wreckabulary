@@ -102,6 +102,7 @@ namespace Wreckabulary
 
             if (c.drop) Drop();
             if (c.swap) SwitchGear();
+            if (c.slot > 0) SelectSlot(c.slot - 1);
             if (c.deploy) DeployHeld();
             if (c.grab) GrabOrThrow();
             // No swinging from behind a raised (or rising) shield.
@@ -359,6 +360,8 @@ namespace Wreckabulary
                 storedGear = Weapon;
                 ClearHeld();
                 storedGear.gameObject.SetActive(false);
+                // The old gear keeps its hand; the new gear takes the free one.
+                ActiveSlot = 1 - ActiveSlot;
             }
             else if (held) Drop();
             Pick(w.GetComponent<Rigidbody>());
@@ -375,6 +378,35 @@ namespace Wreckabulary
             if (previous) previous.gameObject.SetActive(false);
             next.gameObject.SetActive(true);
             Pick(next.GetComponent<Rigidbody>());
+            ActiveSlot = 1 - ActiveSlot;
+            return true;
+        }
+
+        /// <summary>
+        /// The hand (0 or 1) in use. Gear keeps its hand: the in-hand item is in this slot and the stored one
+        /// in the other, as in the browser edition's two-slot HUD.
+        /// </summary>
+        public int ActiveSlot { get; private set; }
+
+        /// <summary>The gear in hand 0 or 1.</summary>
+        public HeldWeapon GearIn(int slot) => slot == ActiveSlot ? Weapon : storedGear;
+
+        /// <summary>
+        /// Uses hand 0 or 1 (keys 1 and 2, or a tap on the slot). An empty hand puts the current gear away.
+        /// </summary>
+        public bool SelectSlot(int slot)
+        {
+            if (slot is < 0 or > 1 || slot == ActiveSlot) return false;
+            if (storedGear) return SwitchGear();
+            if (!controller.CanAct || controller.IsDodging || deploying || (controller.Summoner && controller.Summoner.IsCrafting)) return false;
+            if (held && !Weapon) return false;
+            if (Weapon)
+            {
+                storedGear = Weapon;
+                ClearHeld();
+                storedGear.gameObject.SetActive(false);
+            }
+            ActiveSlot = slot;
             return true;
         }
 
@@ -524,6 +556,7 @@ namespace Wreckabulary
             else Drop();
             if (storedGear) Destroy(storedGear.gameObject);
             storedGear = null;
+            ActiveSlot = 0;
             nextAttack = 0f;
             ClearHeld();
         }

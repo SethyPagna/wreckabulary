@@ -20,6 +20,8 @@ namespace Wreckabulary
         public bool deploy;
         /// <summary>Switches the two carried gear slots.</summary>
         public bool swap;
+        /// <summary>1 or 2 uses that hand (keys 1 and 2, or a tap on the slot); 0 leaves the hands alone.</summary>
+        public int slot;
         public bool spellHeld, spellDown, spellUp;
         public bool up, down;
         public bool start;
@@ -218,6 +220,7 @@ namespace Wreckabulary
             c = Next;
             Next.grab = Next.attack = Next.jump = Next.dodge = Next.drop = false;
             Next.deploy = Next.swap = false;
+            Next.slot = 0;
             Next.spellDown = Next.spellUp = Next.up = Next.down = Next.start = false;
         }
 

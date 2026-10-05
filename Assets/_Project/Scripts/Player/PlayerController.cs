@@ -271,6 +271,8 @@ namespace Wreckabulary
         }
 
         public void Boost(float multiplier, float seconds) { boost = multiplier; boostUntil = Time.time + seconds; }
+        /// <summary>Seconds of speed boost left, for the bag panel's effects list.</summary>
+        public float BoostLeft => Mathf.Max(0f, boostUntil - Time.time);
         public void MakeSlippery(float seconds) => slipperyUntil = Time.time + seconds;
         public void MakeFloaty(float seconds) => floatyUntil = Time.time + seconds;
 

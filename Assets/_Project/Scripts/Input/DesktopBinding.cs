@@ -8,7 +8,7 @@ namespace Wreckabulary
     /// <summary>
     /// One player on keyboard and mouse, with the brief's desktop layout (§8): WASD move, mouse aim,
     /// left click attack, right click block, Space jump, Shift dodge, E grab (hold to revive),
-    /// Q spell (mouse wheel or W/S to choose), hold R to drop, Enter start.
+    /// Q spell (mouse wheel or W/S to choose), hold R to drop, 1/2 hands, hold Tab bag and map, Esc pause, Enter start.
     /// The keys live in an action map so they can be rebound, and prompts read them back
     /// through <see cref="ControlHints"/>.
     /// </summary>
@@ -27,7 +27,7 @@ namespace Wreckabulary
         }
 
         public readonly InputActionMap Map = new("Desktop");
-        public readonly InputAction Move, Attack, Block, Jump, Dodge, Interact, Spell, Drop, Deploy, Swap, Up, Down, Start, Point;
+        public readonly InputAction Move, Attack, Block, Jump, Dodge, Interact, Spell, Drop, Deploy, Hand1, Hand2, Bag, Pause, Up, Down, Start, Point;
         HoldToFire dropHold;
         readonly List<RaycastResult> uiHits = new();
         PointerEventData uiPointer;
@@ -47,7 +47,11 @@ namespace Wreckabulary
             Spell = Button("Spell", "<Keyboard>/q");
             Drop = Button("Drop", "<Keyboard>/r");
             Deploy = Button("Place", "<Keyboard>/f");
-            Swap = Button("Swap", "<Keyboard>/tab");
+            // As in the browser edition: 1 and 2 pick a hand, hold Tab to peek at the bag and map, Esc pauses.
+            Hand1 = Button("Hand 1", "<Keyboard>/1");
+            Hand2 = Button("Hand 2", "<Keyboard>/2");
+            Bag = Button("Bag", "<Keyboard>/tab");
+            Pause = Button("Pause", "<Keyboard>/escape");
             Up = Button("Up", "<Keyboard>/w", "<Mouse>/scroll/up");
             Down = Button("Down", "<Keyboard>/s", "<Mouse>/scroll/down");
             Start = Button("Start", "<Keyboard>/enter");
@@ -75,7 +79,7 @@ namespace Wreckabulary
             c.grabHeld = Interact.IsPressed();
             c.drop = dropHold.Update(Drop.IsPressed(), Time.unscaledTime);
             c.deploy = Deploy.WasPressedThisFrame();
-            c.swap = Swap.WasPressedThisFrame();
+            c.slot = Hand1.WasPressedThisFrame() ? 1 : Hand2.WasPressedThisFrame() ? 2 : 0;
             c.spellHeld = Spell.IsPressed();
             c.spellDown = Spell.WasPressedThisFrame();
             c.spellUp = Spell.WasReleasedThisFrame();
