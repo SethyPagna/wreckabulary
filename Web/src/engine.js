@@ -1514,7 +1514,11 @@ export class Game {
     const p = this.players[0];
     p.motion = { x: input.x ?? 0, z: input.z ?? 0 };
     if (p.state === "alive") {
-      if (input.aim) this.aim(p, input.aim.x, input.aim.z);
+      // Shoulder camera: the body always faces where the camera looks, like a shooter.
+      if (Number.isFinite(input.yaw)) {
+        p.yaw = input.yaw;
+        p.facing = { x: Math.sin(input.yaw), z: Math.cos(input.yaw) };
+      } else if (input.aim) this.aim(p, input.aim.x, input.aim.z);
       else if (input.x || input.z) {
         p.facing = normalize(input.x, input.z);
         p.yaw = Math.atan2(p.facing.x, p.facing.z);
@@ -1542,8 +1546,28 @@ export class Game {
             this.rules.dodgeSeconds) *
             dt,
         );
-      else
-        this.move(p, dir.x * speed * dt * length, dir.z * speed * dt * length);
+      else {
+        // Ground physics like a shooter: accelerate towards the wished velocity and
+        // brake with friction when the keys are released, instead of snapping.
+        const v = (p.velocity ??= { x: 0, z: 0 }),
+          wish = { x: dir.x * speed * length, z: dir.z * speed * length },
+          rate = (length > 0.01 ? this.rules.groundAccel : this.rules.groundFriction) ?? 1e9,
+          dx = wish.x - v.x,
+          dz = wish.z - v.z,
+          gap = Math.hypot(dx, dz),
+          step = Math.min(gap, rate * dt);
+        if (gap > 1e-6) {
+          v.x += (dx / gap) * step;
+          v.z += (dz / gap) * step;
+        }
+        const before = { x: p.x, z: p.z };
+        this.move(p, v.x * dt, v.z * dt);
+        // Walls soak up the blocked part of the momentum.
+        if (dt > 0) {
+          if (Math.abs(p.x - before.x) < Math.abs(v.x * dt) * 0.5) v.x = 0;
+          if (Math.abs(p.z - before.z) < Math.abs(v.z * dt) * 0.5) v.z = 0;
+        }
+      }
     }
     for (const q of this.players) {
       if (q.ai) this.ai(q, dt);

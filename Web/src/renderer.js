@@ -72,6 +72,10 @@ export class WorldView {
     this.camera.position.set(16, 22, 23);
     this.target = new THREE.Vector3();
     this.camera.lookAt(this.target);
+    // Mouse-driven view for the shoulder camera: yaw matches the engine's facing angle,
+    // pitch is positive when looking down.
+    this.look = { yaw: 0, pitch: 0.16, distance: 2.6 };
+    this.shake = 0;
     this.raycaster = new THREE.Raycaster();
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.models = new Map();
@@ -292,7 +296,10 @@ export class WorldView {
     return value;
   }
   rebuild(game) {
-    const worldKey = `${game.map.id}:${game.house.name}:${game.mode === "MovingOut"}`;
+    // Played matches and tours get full-height walls for the shoulder camera; overview
+    // screens (lobby, Workshop) keep the low dollhouse walls you can see over.
+    this.tallWalls = game.status !== "preview";
+    const worldKey = `${game.map.id}:${game.house.name}:${game.mode === "MovingOut"}:${this.tallWalls}`;
     const reuse =
       game.mode === "Tour" &&
       this.game?.mode === "Tour" &&
@@ -358,6 +365,8 @@ export class WorldView {
       );
       text.position.set(floor.position.x, 0.4, floor.position.z - d * 0.35);
       text.material.opacity = 0.8;
+      // At eye level a standing room sign blocks the view; the HUD names the room instead.
+      text.visible = !this.tallWalls;
       this.world.add(text);
     }
     for (const wall of game.walls) {
@@ -365,7 +374,7 @@ export class WorldView {
         length = horizontal ? wall.x2 - wall.x1 : wall.z2 - wall.z1;
       const exterior =
         Math.abs(horizontal ? wall.z1 : wall.x1) >= game.extent - 0.01;
-      const height = exterior ? 0.8 : 1.2;
+      const height = this.tallWalls ? (exterior ? 2.7 : 2.4) : exterior ? 0.8 : 1.2;
       const m = this.box(
         horizontal ? length : 0.18,
         height,
@@ -587,6 +596,8 @@ export class WorldView {
       );
       name.position.y = 1.8;
       name.scale.set(1.1, 0.28, 1);
+      // The shoulder camera sits right behind you, so your own tag would cover the view.
+      name.visible = p.id !== 0;
       group.add(name);
       const bubble = mesh(
         new THREE.SphereGeometry(0.78, 24, 16),
@@ -747,11 +758,19 @@ export class WorldView {
   }
   update(game, dt) {
     if (!this.ready) return;
-    if (this.workshop.enabled) this.updateWorkshopCamera();
+    if (this.workshop.enabled) {
+      this.setFov(43);
+      this.updateWorkshopCamera();
+    }
     else {
       this.camera.clearViewOffset();
       const p = game.players[0],
         preview = game.status === "preview";
+      this.setFov(!this.closet && !preview ? 64 : 43);
+      if (!this.closet && !preview) {
+        this.shoulderCamera(p, dt);
+        return this.updateEntities(game, dt);
+      }
       const desired = this.closet
         ? new THREE.Vector3(p.x + 3.5, 2.4, p.z + 4.4)
         : preview
@@ -770,6 +789,74 @@ export class WorldView {
       this.target.lerp(target, 1 - Math.exp(-dt * 5));
       this.camera.lookAt(this.target);
     }
+    this.updateEntities(game, dt);
+  }
+  /**
+   * Third-person follow camera, centred close behind the character. It turns with `look`
+   * (driven by the mouse), so the camera, crosshair and character always point the same way.
+   */
+  shoulderCamera(p, dt) {
+    const look = this.look,
+      yaw = look.yaw,
+      pitch = look.pitch,
+      forward = new THREE.Vector3(
+        Math.sin(yaw) * Math.cos(pitch),
+        -Math.sin(pitch),
+        Math.cos(yaw) * Math.cos(pitch),
+      );
+    // Ease only the height, so jumps feel weighty while turning stays 1:1 with the mouse.
+    this.shoulderY = THREE.MathUtils.lerp(
+      this.shoulderY ?? p.y,
+      p.y,
+      1 - Math.exp(-dt * 12),
+    );
+    // Centred behind the head: the crosshair, the body and the camera share one line.
+    const pivot = new THREE.Vector3(p.x, this.shoulderY + 1.3, p.z);
+    // Pull the camera in when a wall sits between it and the shoulder.
+    let distance = look.distance;
+    const game = this.lastGame ?? this.game;
+    if (this.tallWalls && game?.segmentBlocked) {
+      const at = (d) => ({
+        x: pivot.x - forward.x * d * 1.15,
+        z: pivot.z - forward.z * d * 1.15,
+      });
+      if (game.segmentBlocked(pivot, at(distance))) {
+        let low = 0,
+          high = distance;
+        for (let i = 0; i < 8; i++) {
+          const mid = (low + high) / 2;
+          if (game.segmentBlocked(pivot, at(mid))) high = mid;
+          else low = mid;
+        }
+        distance = Math.max(0.35, low);
+      }
+    }
+    this.cameraDistance = THREE.MathUtils.lerp(
+      this.cameraDistance ?? distance,
+      distance,
+      distance < (this.cameraDistance ?? distance) ? 1 : 1 - Math.exp(-dt * 6),
+    );
+    const position = pivot.clone().addScaledVector(forward, -this.cameraDistance);
+    // A little lift keeps the character in the lower middle, under the crosshair, not on it.
+    position.y = Math.max(0.35, position.y + 0.55);
+    this.camera.position.copy(position);
+    this.target.copy(pivot).addScaledVector(forward, 12);
+    this.camera.lookAt(this.target);
+    this.camera.position.add(
+      new THREE.Vector3(
+        (Math.random() - 0.5) * this.shake,
+        (Math.random() - 0.5) * this.shake,
+        0,
+      ),
+    );
+    this.shake = Math.max(0, (this.shake ?? 0) - dt * 1.2);
+  }
+  setFov(fov) {
+    if (this.camera.fov === fov) return;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+  updateEntities(game, dt) {
     for (const player of game.players) {
       const group = this.entities.get(`p${player.id}`);
       if (!group) continue;
@@ -786,6 +873,7 @@ export class WorldView {
           game.items.find(
             (i) => i.id === player.slots?.[player.slot] && i.state === "held",
           ) ?? null;
+        anim.animator.instantTurn = player.id === 0 && game.status === "playing";
         anim.animator.update(dt, player, game, item);
       }
       group.userData.last = { x: player.x, z: player.z };
@@ -1593,8 +1681,8 @@ export class WorldView {
     if (this.icons.has(word)) return this.icons.get(word);
     const model = this.clone(word);
     if (!model) return "";
+    // Transparent, so the item sits on any HUD surface (glass hand slots, cream cards).
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xe8d6b5);
     scene.add(new THREE.HemisphereLight(0xfff7e2, 0x596966, 3));
     const light = new THREE.DirectionalLight(0xffffff, 4);
     light.position.set(-3, 5, 4);
@@ -1608,9 +1696,14 @@ export class WorldView {
     const cam = new THREE.PerspectiveCamera(32, 1, 0.01, 100);
     cam.position.set(r * 0.8, r * 0.6, r);
     cam.lookAt(0, 0, 0);
-    const target = new THREE.WebGLRenderTarget(160, 160);
+    const target = new THREE.WebGLRenderTarget(160, 160),
+      clearColor = this.renderer.getClearColor(new THREE.Color()),
+      clearAlpha = this.renderer.getClearAlpha();
     this.renderer.setRenderTarget(target);
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.clear();
     this.renderer.render(scene, cam);
+    this.renderer.setClearColor(clearColor, clearAlpha);
     const pixels = new Uint8Array(160 * 160 * 4);
     this.renderer.readRenderTargetPixels(target, 0, 0, 160, 160, pixels);
     this.renderer.setRenderTarget(null);

@@ -2671,3 +2671,582 @@ kbd {
     font-size: 22px;
   }
 }
+
+/* Spell composer (Q): type the word on wooden tiles, Enter spells it. */
+.spell-composer {
+  position: absolute;
+  bottom: 190px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, 92vw);
+  background: #fff0dcf2;
+  border: 2px solid transparent;
+  border-radius: 20px;
+  padding: 13px 16px 12px;
+  box-shadow: 0 15px 60px #102d2c55;
+  backdrop-filter: blur(12px);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  z-index: 5;
+}
+.spell-composer[data-state="ready"] {
+  border-color: #5bb48e;
+  box-shadow: 0 0 0 5px #9ff8d340, 0 15px 60px #102d2c55;
+}
+.composer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.composer-head .link {
+  margin-left: auto;
+  font-size: 9px;
+}
+.composer-head .close {
+  position: static;
+}
+.spell-composer #spell-form {
+  align-items: stretch;
+  gap: 8px;
+}
+.composer-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 13px;
+  background: #173b3c12;
+  cursor: text;
+}
+.composer-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.composer-tiles .letter {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 44px;
+  font-size: 26px;
+}
+.composer-tiles .letter.missing {
+  background: #f3d3c6;
+  border-color: #e3a994;
+  box-shadow: 0 3px 0 #c98f7c;
+  color: #b3533b;
+}
+.composer-caret {
+  width: 3px;
+  height: 34px;
+  border-radius: 2px;
+  background: #173b3c;
+  animation: composer-caret 1s steps(1) infinite;
+}
+@keyframes composer-caret {
+  50% {
+    opacity: 0;
+  }
+}
+.spell-composer #spell-word {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  font-size: 16px;
+  padding: 0;
+  border: 0;
+}
+.spell-composer #spell-form .primary {
+  padding: 0 16px;
+}
+.spell-composer #spell-form .primary kbd {
+  display: block;
+  margin-top: 3px;
+  font-size: 7px;
+  background: #ffffff26;
+  color: inherit;
+}
+.composer-status {
+  margin: 9px 2px 0;
+  font-size: 10px;
+  font-weight: 800;
+  color: #62736a;
+}
+.composer-status[data-state="ready"] {
+  color: #2f7a5c;
+}
+.composer-status[data-state="bad"] {
+  color: #b3533b;
+}
+.bag-recipes h3 small {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #62736a;
+  margin-left: 6px;
+  text-transform: none;
+}
+.bag-recipes .recipe-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.bag-recipes .recipe {
+  min-height: 60px;
+}
+.bag-recipes .recipe > .item-image {
+  width: 42px;
+  height: 42px;
+}
+@media (pointer: coarse) {
+  /* The phone keyboard rises from the bottom, so the composer sits up top. */
+  .spell-composer {
+    bottom: auto;
+    top: 70px;
+  }
+}
+@media (max-height: 520px) {
+  .spell-composer {
+    bottom: auto;
+    top: 10px;
+  }
+}
+
+/* Vitals: content only, no panel. Readable over the scene with a soft shadow;
+   the hand slots are grey glass and only the items are solid. */
+.vitals {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  color: #fff7e8;
+  text-shadow: 0 1px 2px #0b1f1fcc, 0 0 12px #0b1f1f80;
+}
+.vitals-hp {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hp-cross {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  background:
+    linear-gradient(#fff7e8, #fff7e8) center / 100% 34% no-repeat,
+    linear-gradient(#fff7e8, #fff7e8) center / 34% 100% no-repeat;
+  filter: drop-shadow(0 1px 2px #0b1f1fcc);
+}
+.vitals .hp-label {
+  margin: 0;
+}
+.vitals .hp-label strong {
+  font-size: 40px;
+  letter-spacing: -1px;
+}
+.vitals .hp-label span {
+  font-size: 11px;
+  opacity: 0.85;
+}
+.hp-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.vitals .player-name {
+  font-size: 9px;
+}
+.vitals .player-name span {
+  float: none;
+  margin-left: 6px;
+  font-size: 9px;
+  color: #9ff8d3;
+}
+.vitals .health-track {
+  height: 7px;
+  border-radius: 4px;
+  background: #0b1f1f66;
+  box-shadow: 0 1px 4px #0b1f1f55;
+}
+.vitals .health-track > div {
+  background: #7fe0b4;
+}
+.vitals .health-track .low {
+  background: #ff8a6b;
+}
+.vitals .equipment {
+  margin-top: 10px;
+  gap: 8px;
+}
+.vitals .gear-slot {
+  color: #fff7e8;
+  background: #1d2b2b47;
+  border: 1px solid #ffffff2b;
+  border-radius: 10px;
+  backdrop-filter: blur(3px);
+}
+.vitals .gear-slot.active {
+  background: #1d2b2b66;
+  border: 2px solid #fff7e8d9;
+  box-shadow: 0 0 12px #9ff8d340;
+}
+.vitals .gear-slot:not(.active) span {
+  opacity: 0.75;
+}
+.vitals .gear-slot img {
+  mix-blend-mode: normal;
+  filter: drop-shadow(0 2px 3px #0b1f1f99);
+}
+.vitals .gear-slot kbd {
+  color: #fff7e8;
+}
+.vitals .drop-button {
+  color: #fff7e8;
+  background: #1d2b2b47;
+  border: 1px solid #ffffff2b;
+}
+@media (pointer: coarse), (max-width: 760px) {
+  .vitals .hp-label strong {
+    font-size: 28px;
+  }
+  .hp-cross {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Shoulder camera crosshair: four short ticks around the screen centre. */
+.crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 3;
+  filter: drop-shadow(0 0 2px #0009);
+}
+.crosshair i {
+  position: absolute;
+  background: #fff8e8;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px #10292bcc;
+}
+.crosshair i:nth-child(1),
+.crosshair i:nth-child(2) {
+  left: 10px;
+  width: 2px;
+  height: 6px;
+}
+.crosshair i:nth-child(1) { top: 0; }
+.crosshair i:nth-child(2) { bottom: 0; }
+.crosshair i:nth-child(3),
+.crosshair i:nth-child(4) {
+  top: 10px;
+  width: 6px;
+  height: 2px;
+}
+.crosshair i:nth-child(3) { left: 0; }
+.crosshair i:nth-child(4) { right: 0; }
+
+/* Tab panel, picture-first: inventory | zoomed live minimap | recipe book. */
+.bag-panel {
+  inset: 0;
+  left: 0;
+  top: 0;
+  transform: none;
+  width: auto;
+  height: auto;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr) minmax(240px, 330px);
+  gap: 24px;
+  padding: 84px 28px 28px;
+  border-radius: 0;
+  background: radial-gradient(circle at 50% 50%, #10292b8c, #0b1d1fd9);
+  box-shadow: none;
+  color: #fff4e2;
+  animation: bag-fade 0.12s ease-out;
+}
+@keyframes bag-fade {
+  from {
+    opacity: 0;
+  }
+}
+.bag-panel .glyph {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.bag-close {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff4e2;
+  background: #ffffff1f;
+  border: 1px solid #ffffff40;
+}
+.bag-inv {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-self: center;
+  min-height: 0;
+}
+.inv-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.inv-letters {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 6px 10px;
+}
+.inv-letters .inv-count {
+  grid-column: 2;
+  justify-self: end;
+  font-size: 13px;
+  opacity: 0.8;
+}
+.bag-panel .bag-letters {
+  grid-template-columns: repeat(5, minmax(0, 44px));
+  gap: 6px;
+}
+.bag-panel .bag-letters .letter,
+.bag-panel .bag-letters .letter-cell {
+  height: 48px;
+  font-size: 26px;
+}
+.bag-panel .bag-letters .letter-cell.empty {
+  background: #ffffff14;
+  border: 1px dashed #ffffff40;
+  box-shadow: none;
+}
+.bag-panel .bag-hands {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.bag-panel .bag-hand {
+  display: grid;
+  place-items: center;
+  grid-template-columns: none;
+  grid-template-rows: none;
+  aspect-ratio: 1.25;
+  padding: 10px;
+  border-radius: 14px;
+  background: #ffffff17;
+  border: 2px solid #ffffff3d;
+  backdrop-filter: blur(6px);
+}
+.bag-panel .bag-hand.active {
+  border-color: #ffe7b8;
+  background: #ffffff26;
+}
+.bag-panel .bag-hand.empty .glyph {
+  width: 34px;
+  height: 34px;
+  opacity: 0.45;
+}
+.bag-panel .bag-hand kbd {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  grid-row: auto;
+}
+.bag-panel .bag-hand img {
+  width: 62px;
+  height: 62px;
+  grid-row: auto;
+  mix-blend-mode: normal;
+}
+.bag-panel .bag-hand .progress {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+}
+.bag-panel .bag-wear,
+.bag-panel .bag-effects {
+  gap: 8px;
+}
+.bag-panel .bag-wear .wear-chip,
+.bag-panel .bag-effects .effect-chip {
+  display: inline-grid;
+  place-items: center;
+  position: relative;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 12px;
+  background: #ffffff17;
+  border: 1px solid #ffffff38;
+  color: #fff4e2;
+}
+.bag-panel .effect-chip b {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  min-width: 18px;
+  padding: 1px 4px;
+  border-radius: 9px;
+  background: #ffe7b8;
+  color: #17393a;
+  font-size: 10px;
+  text-align: center;
+}
+.bag-panel .effect-chip.bubble {
+  color: #9fe3ff;
+}
+.bag-panel .effect-chip.speed {
+  color: #b9ffb0;
+}
+.bag-panel .effect-chip img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+.bag-map-slot {
+  min-height: 0;
+}
+.bag-book {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  align-self: stretch;
+}
+.bag-book > .glyph {
+  align-self: flex-start;
+}
+.bag-panel .recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  overflow: auto;
+  min-height: 0;
+  padding: 2px;
+}
+.bag-panel .recipe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: #ffffff12;
+  border: 1px solid #ffffff2e;
+  color: #fff4e2;
+  min-height: 0;
+}
+.bag-panel .recipe.available {
+  background: #ffe7b82b;
+  border-color: #ffe7b8;
+  box-shadow: 0 0 14px #ffd46a66;
+}
+.bag-panel .recipe > .item-image {
+  width: 46px;
+  height: 46px;
+  mix-blend-mode: normal;
+}
+.bag-panel .recipe-letters span {
+  background: #ffffff1f;
+  color: #ffffffa6;
+}
+.bag-panel .recipe-letters .got {
+  background: #e8c48b;
+  color: #3b2614;
+}
+/* The corner minimap grows into the middle of the screen while Tab is held. */
+.hud-side .minimap.zoomed {
+  --zoom: max(260px, min(62vh, calc(100vw - 720px)));
+  position: fixed;
+  z-index: 31;
+  left: calc(50% - var(--zoom) / 2);
+  top: calc(50% + 28px - var(--zoom) / 2);
+  width: var(--zoom);
+  height: var(--zoom);
+  transform: none;
+  border-width: 7px;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px #0008;
+}
+.hud.bag-open .hud-side {
+  z-index: 31;
+}
+.hud.bag-open .side-info,
+.hud.bag-open .letter-tray,
+.hud.bag-open .vitals,
+.hud.bag-open .control-hint,
+.hud.bag-open .crosshair {
+  visibility: hidden;
+}
+.minimap.zoomed .map-room span {
+  font-size: 15px;
+  font-weight: 800;
+}
+.minimap.zoomed .map-player {
+  width: 11px;
+  height: 11px;
+}
+.minimap.zoomed .map-player.you {
+  width: 16px;
+  height: 16px;
+}
+.minimap.zoomed .map-keepsake {
+  font-size: 15px;
+}
+@media (max-width: 900px) {
+  .bag-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    padding: 64px 14px 14px;
+    gap: 12px;
+  }
+  .bag-map-slot {
+    display: none;
+  }
+  .hud-side .minimap.zoomed {
+    --zoom: min(40vh, 44vw);
+    left: calc(75% - var(--zoom) / 2);
+    top: calc(50% - var(--zoom) / 2);
+  }
+}
+
+/* Head count before the timer (PUBG style): people icon plus alive / total. */
+.hud-side .side-row {
+  align-items: stretch;
+}
+.alive-count {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: #10292bb3;
+  color: #fff4e2;
+  font-weight: 900;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.alive-count svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+.hud-side .side-row .timer {
+  flex: 1;
+}

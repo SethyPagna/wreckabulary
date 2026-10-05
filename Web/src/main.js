@@ -24,6 +24,7 @@ let game,
   screen = "loading",
   craftOpen = false,
   bagOpen = false,
+  lastComposerKey = "",
   paused = false,
   muted = false,
   last = performance.now(),
@@ -133,6 +134,28 @@ function resetInputs() {
   pointerAim = null;
   if (bagOpen) setBag(false);
 }
+const MOUSE_SENSITIVITY = 0.0024;
+const worldCanvas = () => document.querySelector("#world");
+const mouseLocked = () => document.pointerLockElement === worldCanvas();
+function lockMouse() {
+  // Automated test browsers keep the cursor free so they can still click the HUD.
+  if (matchMedia("(pointer: coarse)").matches || mouseLocked() || navigator.webdriver) return;
+  try {
+    worldCanvas().requestPointerLock()?.catch?.(() => {});
+  } catch {}
+}
+function releaseMouse() {
+  if (mouseLocked()) document.exitPointerLock();
+}
+function resetLook() {
+  const p = game.players[0];
+  view.look.yaw = p.yaw ?? Math.atan2(p.facing?.x ?? 0, p.facing?.z ?? 1);
+  view.look.pitch = 0.16;
+}
+function turnLook(dx, dy) {
+  view.look.yaw -= dx;
+  view.look.pitch = Math.min(0.95, Math.max(-0.45, view.look.pitch + dy));
+}
 function start() {
   view.setWorkshop?.({ enabled: false, selectedId: null, ghost: null });
   resetInputs();
@@ -146,7 +169,9 @@ function start() {
   });
   screen = "game";
   view.rebuild(game);
+  resetLook();
   renderHud();
+  lockMouse();
   toast(
     mode === "MovingOut"
       ? `Carry ${game.keepsakes.length} keepsakes to the van. Drop them inside the circle.`
@@ -157,6 +182,7 @@ function start() {
 function home() {
   view.setWorkshop?.({ enabled: false, selectedId: null, ghost: null });
   resetInputs();
+  releaseMouse();
   screen = "home";
   craftOpen = false;
   paused = false;
@@ -176,7 +202,7 @@ function home() {
 }
 function renderHud() {
   const m = MODES[game.mode];
-  ui.innerHTML = `<div class="hud"><header class="hud-top"><button class="brand-small" data-action="pause" aria-label="Pause game">W<span>!</span></button><div class="match-label"><span class="eyebrow">${m.tag}</span><strong>${m.title}</strong><span id="round-text"></span></div></header><aside class="hud-side"><div class="minimap" id="minimap" aria-label="House map"></div><div class="side-info"><div class="side-row"><div class="timer" id="timer">2:30</div><button class="quiet pause-button" data-action="pause" aria-label="Pause"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path fill="currentColor" d="M1 1h4v14H1zm8 0h4v14H9z"/></svg></button></div><div class="room-pill" id="room-pill">Bedroom</div><div class="objective-top" id="objective-top"></div></div></aside><div class="status-message" id="status-message"></div><section class="vitals"><div class="player-name">YOU <span id="shield-text"></span></div><div class="hp-label"><strong id="hp-value">100</strong><span>HP</span></div><div class="health-track"><div id="health-fill"></div></div><div class="equipment"><button data-action="slot0" class="gear-slot" id="slot0"><kbd>1</kbd><span>Empty hand</span></button><button data-action="slot1" class="gear-slot" id="slot1"><kbd>2</kbd><span>Empty hand</span></button><button class="drop-button" data-action="drop" title="Drop equipped item (R)">${actionArt("drop", 20)}<span>Drop</span></button></div></section><section class="letter-tray"><div class="tray-header"><span>YOUR LETTERS</span><strong id="bag-count">0 / 10</strong><button class="link" data-action="craft">Recipes <kbd>Q</kbd></button><button class="link bag-link" data-action="bag">Bag <kbd>Tab</kbd></button></div><div id="letters"></div><div id="craft-progress"></div></section><section class="actions"><button class="action small" data-hold="block" id="block-action">${actionArt("block")}<small>BLOCK</small><kbd>RMB</kbd></button><button class="action small" data-hold="interact" id="interact-action">${actionArt("interact")}<small>INTERACT</small><kbd>E</kbd></button><button class="action attack" data-hold="attack" id="attack-action"><span id="attack-icon">${actionArt("smash", 42)}</span><small id="attack-label">SMASH</small><kbd>LMB</kbd></button><button class="action small" data-action="jump" id="jump-action">${actionArt("jump")}<small>JUMP</small><kbd>Space</kbd></button><button class="action small" data-action="dodge" id="dodge-action">${actionArt("dodge")}<small>DODGE</small><kbd>Shift</kbd></button><button class="action craft-button" data-action="craft">${actionArt("craft", 34)}<small>SPELL</small><kbd>Q</kbd></button><button class="action small deploy-action" data-action="deploy">${actionArt("deploy")}<small>PLACE / USE</small><kbd>F</kbd></button><button class="action small throw-action" data-action="throw">${actionArt("throw")}<small>THROW</small><kbd>G</kbd></button></section><div class="joystick" id="joystick" aria-label="Touch movement joystick"><div class="joystick-knob"></div></div><p class="control-hint"><kbd>WASD</kbd> move <span>·</span> mouse aim <span>·</span> <kbd>Q</kbd> spell <span>·</span> <kbd>E</kbd> interact <span>·</span> <kbd>Tab</kbd> bag &amp; map <span>·</span> <kbd>Esc</kbd> pause</p><div id="bag-root"></div></div><div id="drawer-root"></div><div id="modal-root"></div>`;
+  ui.innerHTML = `<div class="hud"><header class="hud-top"><button class="brand-small" data-action="pause" aria-label="Pause game">W<span>!</span></button><div class="match-label"><span class="eyebrow">${m.tag}</span><strong>${m.title}</strong><span id="round-text"></span></div></header><aside class="hud-side"><div class="minimap" id="minimap" aria-label="House map"></div><div class="side-info"><div class="side-row"><div class="alive-count" id="alive-count" role="img" aria-label="Housemates up"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0z"/><circle cx="17" cy="8" r="2.6"/><path d="M16 13.2a5.5 5.5 0 0 1 6 5.8h-4.4"/></svg><b>4/4</b></div><div class="timer" id="timer">2:30</div></div><div class="room-pill" id="room-pill">Bedroom</div><div class="objective-top" id="objective-top"></div></div></aside><div class="status-message" id="status-message"></div><section class="vitals"><div class="vitals-hp"><span class="hp-cross" aria-hidden="true"></span><div class="hp-label"><strong id="hp-value">100</strong><span>HP</span></div><div class="hp-side"><span class="player-name">YOU <span id="shield-text"></span></span><div class="health-track"><div id="health-fill"></div></div></div></div><div class="equipment"><button data-action="slot0" class="gear-slot" id="slot0"><kbd>1</kbd><span>Empty hand</span></button><button data-action="slot1" class="gear-slot" id="slot1"><kbd>2</kbd><span>Empty hand</span></button><button class="drop-button" data-action="drop" title="Drop equipped item (R)">${actionArt("drop", 20)}<span>Drop</span></button></div></section><section class="letter-tray"><div class="tray-header"><span>YOUR LETTERS</span><strong id="bag-count">0 / 10</strong><button class="link" data-action="craft">Spell <kbd>Q</kbd></button><button class="link bag-link" data-action="bag">Bag <kbd>Tab</kbd></button></div><div id="letters"></div><div id="craft-progress"></div></section><section class="actions"><button class="action small" data-hold="block" id="block-action">${actionArt("block")}<small>BLOCK</small><kbd>RMB</kbd></button><button class="action small" data-hold="interact" id="interact-action">${actionArt("interact")}<small>INTERACT</small><kbd>E</kbd></button><button class="action attack" data-hold="attack" id="attack-action"><span id="attack-icon">${actionArt("smash", 42)}</span><small id="attack-label">SMASH</small><kbd>LMB</kbd></button><button class="action small" data-action="jump" id="jump-action">${actionArt("jump")}<small>JUMP</small><kbd>Space</kbd></button><button class="action small" data-action="dodge" id="dodge-action">${actionArt("dodge")}<small>DODGE</small><kbd>Shift</kbd></button><button class="action craft-button" data-action="craft">${actionArt("craft", 34)}<small>SPELL</small><kbd>Q</kbd></button><button class="action small deploy-action" data-action="deploy">${actionArt("deploy")}<small>PLACE / USE</small><kbd>F</kbd></button><button class="action small throw-action" data-action="throw">${actionArt("throw")}<small>THROW</small><kbd>G</kbd></button></section><div class="joystick" id="joystick" aria-label="Touch movement joystick"><div class="joystick-knob"></div></div><p class="control-hint"><kbd>WASD</kbd> move <span>·</span> mouse look <span>·</span> <kbd>Q</kbd> spell <span>·</span> <kbd>E</kbd> interact <span>·</span> <kbd>Tab</kbd> bag &amp; map <span>·</span> <kbd>Esc</kbd> pause</p><div class="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div id="bag-root"></div></div><div id="drawer-root"></div><div id="modal-root"></div>`;
   bindUi();
   bindJoystick();
   updateHud();
@@ -273,8 +299,12 @@ function updateHud() {
       .filter((o) => !o.done)
       .map((o) => `${o.word} → ${o.room}`)
       .join(" · ")}</span>`;
-  else
-    objective.innerHTML = `<span class="eyebrow">THE HOUSEMATES</span><strong>${game.players.filter((p) => p.state === "alive").length} / ${game.players.length} UP & ABOUT</strong>`;
+  else objective.innerHTML = "";
+  // PUBG-style head count beside the timer: who is still up, at a glance.
+  const alive = game.players.filter((q) => q.state === "alive").length,
+    count = document.querySelector("#alive-count");
+  count.querySelector("b").textContent = `${alive}/${game.players.length}`;
+  count.setAttribute("aria-label", `${alive} of ${game.players.length} housemates up`);
   const warning = [...game.roomStatus.entries()]
       .filter(([r, s]) => s.warning)
       .map(([r]) => r)
@@ -300,11 +330,15 @@ function updateHud() {
         : game.stats.collected === 0
           ? "Step 2 · Walk over the letter tiles."
           : game.stats.crafted === 0
-            ? "Step 3 · Open SPELL and craft an available word."
+            ? "Step 3 · Press Q (or SPELL) and type a word you have the letters for. Tab shows the recipe book."
             : "Nice wordwork! Try placing, throwing, dodging and different recipes.";
   else status.innerHTML = "";
   updateMinimap();
-  if (craftOpen) updateRecipes();
+  const composerKey = p.bag + !!p.craft + p.slots.join(",");
+  if (craftOpen && composerKey !== lastComposerKey) {
+    lastComposerKey = composerKey;
+    updateComposer();
+  }
   if (bagOpen) updateBag();
   if (
     ["roundOver", "finished"].includes(game.status) &&
@@ -331,22 +365,50 @@ const WEAR_SLOTS = ["Headwear", "Face", "Top", "Gloves", "Bottoms", "Footwear", 
 // The match keeps running underneath, so it closes the moment Tab is released.
 function setBag(open) {
   bagOpen = open && screen === "game";
+  if (bagOpen) releaseMouse();
   const root = document.querySelector("#bag-root");
   if (!root) return;
+  // The panel is pictures, not paragraphs: inventory on the left, the live minimap
+  // zoomed in the middle, and the recipe book down the right.
   root.innerHTML = bagOpen
-    ? `<section class="bag-panel" aria-label="Bag and map"><div class="bag-main"><header class="bag-head"><span class="eyebrow">YOUR BAG</span><button class="close" data-action="bag" aria-label="Close bag">×</button></header><div class="bag-block"><h3>Letters <strong id="bag-panel-count"></strong></h3><div class="bag-letters" id="bag-letters"></div></div><div class="bag-block"><h3>Hands</h3><div class="bag-hands" id="bag-hands"></div></div><div class="bag-block"><h3>Wearing</h3><div class="bag-wear" id="bag-wear"></div></div><div class="bag-block"><h3>Effects</h3><div class="bag-effects" id="bag-effects"></div></div><p class="bag-hint"><span class="desktop-only">Hold <kbd>Tab</kbd> to peek.</span> The house keeps moving while you look.</p></div><div class="bag-map-wrap"><div class="bag-map-title"><span class="eyebrow">THE HOUSE</span><strong id="bag-room"></strong></div><div class="bag-map" id="bag-map"></div></div></section>`
+    ? `<section class="bag-panel" aria-label="Bag and map"><div class="bag-inv"><div class="inv-row inv-letters" aria-label="Letters">${glyph("bag")}<div class="bag-letters" id="bag-letters"></div><b class="inv-count" id="bag-panel-count"></b></div><div class="inv-row bag-hands" id="bag-hands" aria-label="Hands"></div><div class="inv-row bag-wear" id="bag-wear" aria-label="Wearing"></div><div class="inv-row bag-effects" id="bag-effects" aria-label="Effects"></div></div><div class="bag-map-slot" aria-hidden="true"></div><aside class="bag-book" aria-label="Recipe book">${glyph("book")}<div class="recipe-grid" id="bag-recipes"></div></aside><button class="close bag-close" data-action="bag" aria-label="Close bag">×</button></section>`
     : "";
   root.querySelectorAll("[data-action]").forEach(
     (b) => (b.onclick = () => actions[b.dataset.action]()),
   );
+  // Tab zooms the same minimap from the corner instead of drawing a second map.
+  document.querySelector("#minimap")?.classList.toggle("zoomed", bagOpen);
+  document.querySelector(".hud")?.classList.toggle("bag-open", bagOpen);
   if (bagOpen) updateBag();
+  updateMinimap();
+}
+// Small line icons for the Tab panel, so it reads at a glance without words.
+const GLYPHS = {
+  bag: '<path d="M7 8V6a5 5 0 0 1 10 0v2"/><rect x="4" y="8" width="16" height="13" rx="3"/>',
+  book: '<path d="M4 5a2 2 0 0 1 2-2h6v17H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-6v17h6a2 2 0 0 1 2 2z"/>',
+  hand: '<path d="M8 13V5a1.5 1.5 0 0 1 3 0v6m0-1V3.5a1.5 1.5 0 0 1 3 0V11m0-6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2.5-4a1.5 1.5 0 0 1 2.5-1.6L8 14"/>',
+  Headwear: '<path d="M4 16a8 8 0 0 1 16 0z"/><path d="M2 16h20"/>',
+  Face: '<circle cx="8" cy="12" r="3"/><circle cx="16" cy="12" r="3"/><path d="M11 12h2"/>',
+  Top: '<path d="M8 3 3 7l3 3 2-1v12h8V9l2 1 3-3-5-4a4 4 0 0 1-8 0z"/>',
+  Gloves: '<path d="M7 21v-6l-3-4 2-2 3 3V4a1.5 1.5 0 0 1 3 0v5-6a1.5 1.5 0 0 1 3 0v6-4a1.5 1.5 0 0 1 3 0v10a6 6 0 0 1-4 6z"/>',
+  Bottoms: '<path d="M6 3h12l1 18h-5l-2-11-2 11H5z"/>',
+  Footwear: '<path d="M3 17V9h6l2 4 8 1a2 2 0 0 1 2 2v1z"/><path d="M3 20h18"/>',
+  Back: '<rect x="6" y="5" width="12" height="16" rx="3"/><path d="M9 5a3 3 0 0 1 6 0M9 13h6"/>',
+  Badge: '<circle cx="12" cy="9" r="6"/><path d="m9 14-2 7 5-3 5 3-2-7"/>',
+  bubble: '<circle cx="12" cy="12" r="9"/><path d="M8 9a4 4 0 0 1 4-3"/>',
+  speed: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  carry: '<path d="M3 8 12 3l9 5v9l-9 5-9-5z"/><path d="m3 8 9 5 9-5M12 13v9"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+};
+function glyph(name, label = "") {
+  return `<svg class="glyph" viewBox="0 0 24 24" ${label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"'}>${label ? `<title>${esc(label)}</title>` : ""}${GLYPHS[name] ?? ""}</svg>`;
 }
 function updateBag() {
   if (!bagOpen || !document.querySelector("#bag-letters")) return;
   const p = game.players[0],
     word = (w) => esc(w.replace(/([a-z])([A-Z])/g, "$1 $2"));
   document.querySelector("#bag-panel-count").textContent =
-    `${p.bag.length + (p.craft?.word.length ?? 0)} / ${game.rules.maxLetters}`;
+    `${p.bag.length + (p.craft?.word.length ?? 0)}/${game.rules.maxLetters}`;
   document.querySelector("#bag-letters").innerHTML = bagCells(
     [...p.bag].sort().join(""),
     p.craft?.word ?? "",
@@ -358,7 +420,7 @@ function updateBag() {
         wear = item?.maxDurability
           ? Math.max(0, item.durability / item.maxDurability)
           : 0;
-      return `<div class="bag-hand ${p.slot === slot ? "active" : ""}"><kbd>${slot + 1}</kbd>${item ? `${iconHtml(item.word)}<strong>${item.word}</strong><div class="progress"><i style="width:${wear * 100}%"></i></div>` : `<span>Empty hand</span>`}</div>`;
+      return `<div class="bag-hand ${p.slot === slot ? "active" : ""} ${item ? "" : "empty"}" title="${item ? item.word : "Empty hand"}"><kbd>${slot + 1}</kbd>${item ? `${iconHtml(item.word)}<div class="progress"><i style="width:${wear * 100}%"></i></div>` : glyph("hand", "Empty hand")}</div>`;
     })
     .join("");
   const pieces = p.wardrobe?.pieces ?? {};
@@ -367,24 +429,46 @@ function updateBag() {
   )
     .map(
       (s) =>
-        `<span><small>${s}</small>${pieces[s] === "TBadge" ? "Letter badge" : word(pieces[s])}</span>`,
+        `<span class="wear-chip" title="${pieces[s] === "TBadge" ? "Letter badge" : word(pieces[s])}">${glyph(s, `${s}: ${pieces[s] === "TBadge" ? "Letter badge" : word(pieces[s])}`)}</span>`,
     )
     .join("");
   const effects = [];
   if (p.bubble > 0 && game.time < p.bubbleUntil)
-    effects.push(`Bubble +${Math.ceil(p.bubble)} · ${Math.ceil(p.bubbleUntil - game.time)}s`);
+    effects.push(
+      `<span class="effect-chip bubble" title="Bubble">${glyph("bubble", "Bubble")}<b>${Math.ceil(p.bubbleUntil - game.time)}</b></span>`,
+    );
   if (game.time < (p.speedUntil ?? 0))
-    effects.push(`Speed · ${Math.ceil(p.speedUntil - game.time)}s`);
-  if (p.carried !== null) effects.push(`Carrying ${game.item(p.carried)?.word ?? ""}`);
-  document.querySelector("#bag-effects").innerHTML = effects.length
-    ? effects.map((e) => `<span>${e}</span>`).join("")
-    : `<span class="none">Nothing active</span>`;
-  document.querySelector("#bag-room").textContent = word(
-    game.roomAt(p)?.name ?? "House",
-  );
-  updateMinimap(document.querySelector("#bag-map"), true);
+    effects.push(
+      `<span class="effect-chip speed" title="Speed">${glyph("speed", "Speed")}<b>${Math.ceil(p.speedUntil - game.time)}</b></span>`,
+    );
+  if (p.carried !== null) {
+    const carried = game.item(p.carried)?.word;
+    effects.push(
+      `<span class="effect-chip carry" title="Carrying">${carried && view?.manifest.items[carried] ? iconHtml(carried) : glyph("carry", "Carrying")}</span>`,
+    );
+  }
+  document.querySelector("#bag-effects").innerHTML = effects.join("");
+  const book = document.querySelector("#bag-recipes");
+  if (book.dataset.bag !== p.bag) {
+    book.dataset.bag = p.bag;
+    book.innerHTML = recipeBook(p.bag);
+    book.querySelectorAll("[data-recipe]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          setBag(false);
+          const input = document.querySelector("#spell-word");
+          if (!craftOpen) drawer(b.dataset.recipe);
+          else if (input) {
+            input.value = b.dataset.recipe;
+            updateComposer();
+            input.focus();
+          }
+        }),
+    );
+  }
 }
 function updateMinimap(root = document.querySelector("#minimap"), full = false) {
+  if (!root || !game) return;
   const extent = game.extent;
   root.innerHTML = `${game.house.rooms
     .map((r) => {
@@ -407,56 +491,110 @@ function updateMinimap(root = document.querySelector("#minimap"), full = false) 
     )
     .join("")}`;
 }
-function drawer() {
+const RECIPE_BLURBS = {
+  MeleeSwing: "A satisfying swing",
+  MeleeThrust: "A little extra reach",
+  Thrown: "Catch. Throw. Repeat.",
+  Buff: "A protective bubble",
+  Shield: "Frontal block · hold RMB",
+  DeployPad: "A bouncy jump pad",
+  DeploySpeed: "A speedy little shortcut",
+  DeployZone: "A slippery surprise",
+  DeployCover: "Make your own cover",
+};
+// Which letters of `word` the bag covers, each bag letter used once.
+function letterCover(bag, word) {
+  const copy = [...bag];
+  return [...word].map((c) => {
+    const index = copy.indexOf(c);
+    if (index < 0) return false;
+    copy.splice(index, 1);
+    return true;
+  });
+}
+// The recipe book: every word, with the letters you already hold marked. It is
+// reference only (Tab panel and lobby); in a match you spell by typing on Q.
+function recipeBook(bag = "") {
+  return data.items.items
+    .filter((i) => i.enabled)
+    .map((item) => {
+      const cover = letterCover(bag, item.id),
+        ready = bag && cover.every(Boolean);
+      return `<button class="recipe ${ready ? "available" : ""}" data-recipe="${item.id}" title="${item.id === "BOMB" ? "A 2.5 second surprise" : (RECIPE_BLURBS[item.family] ?? item.family)}" aria-label="${item.id}${ready ? ", you have the letters" : ""}">${iconHtml(item.id)}<div class="recipe-letters">${[...item.id].map((c, i) => `<span class="${cover[i] ? "got" : ""}">${c}</span>`).join("")}</div></button>`;
+    })
+    .join("");
+}
+// Q opens the composer: type the word, Enter spells it. No list to pick from;
+// the recipe book lives in the Tab panel and the lobby.
+function drawer(prefill = "") {
   craftOpen = !craftOpen;
   resetInputs();
+  if (craftOpen) releaseMouse();
   const root = document.querySelector("#drawer-root");
   if (!craftOpen) {
     root.innerHTML = "";
     return;
   }
-  root.innerHTML = `<section class="craft-drawer"><div class="drawer-title"><div><span class="eyebrow">YOUR LITTLE SPELLBOOK</span><h2>Letters become possibilities.</h2></div><button class="close" data-action="craft" aria-label="Close crafting">×</button></div><form id="spell-form"><label for="spell-word" class="sr-only">Type a recipe word</label><input id="spell-word" maxlength="10" placeholder="Type a word… BAT, BOMB, FOAM" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="primary" type="submit">SPELL →</button></form><p class="recipe-note">Only your loose letters can be used. Recipes reserve letters until finished; cancel with Esc.</p><div class="recipe-grid" id="recipe-grid"></div></section>`;
+  root.innerHTML = `<section class="spell-composer" aria-label="Spell a word"><div class="composer-head"><span class="eyebrow">SPELL A WORD</span><button class="link" type="button" data-action="recipes">Recipe book <kbd>Tab</kbd></button><button class="close" data-action="craft" aria-label="Close spelling">×</button></div><form id="spell-form"><label class="composer-field" for="spell-word"><span class="composer-tiles" id="composer-tiles" aria-hidden="true"></span><input id="spell-word" maxlength="10" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go" aria-describedby="composer-status"></label><button class="primary" type="submit">SPELL <kbd>Enter</kbd></button></form><p class="composer-status" id="composer-status"></p></section>`;
   bindUi();
+  const input = document.querySelector("#spell-word");
+  input.value = prefill;
+  input.oninput = () => {
+    input.value = input.value.toUpperCase().replace(/[^A-Z]/g, "");
+    updateComposer();
+  };
+  input.onkeydown = (e) => {
+    if (e.code === "Escape") {
+      e.preventDefault();
+      if (bagOpen) setBag(false);
+      else drawer();
+    } else if (e.code === "Tab") {
+      e.preventDefault();
+      if (!e.repeat) setBag(true);
+    }
+  };
   document.querySelector("#spell-form").onsubmit = (e) => {
     e.preventDefault();
-    craftWord(document.querySelector("#spell-word").value);
+    craftWord(input.value);
   };
-  updateRecipes(true);
+  updateComposer();
+  input.focus();
 }
-function updateRecipes(force = false) {
+function updateComposer(error = "") {
+  const input = document.querySelector("#spell-word");
+  if (!input) return;
   const p = game.players[0],
-    grid = document.querySelector("#recipe-grid");
-  if (!grid) return;
-  const signature = p.bag + !!p.craft + p.slots.join(",");
-  if (!force && grid.dataset.signature === signature) return;
-  grid.dataset.signature = signature;
-  grid.innerHTML = data.items.items
-    .filter((i) => i.enabled)
-    .map((item) => {
-      const available =
-        canSpell(p.bag, item.id) && !p.craft && game.freeSlot(p) >= 0;
-      const copy = [...p.bag];
-      const missing = [...item.id]
-        .map((c) => {
-          const index = copy.indexOf(c);
-          if (index >= 0) {
-            copy.splice(index, 1);
-            return `<span class="got">${c}</span>`;
-          }
-          return `<span>${c}</span>`;
-        })
-        .join("");
-      return `<button class="recipe ${available ? "available" : ""}" data-recipe="${item.id}" aria-label="Spell ${item.id}, ${available ? "available" : "missing letters"}">${iconHtml(item.id)}<div class="recipe-text"><strong>${item.id}</strong><small>${{ MeleeSwing: "A satisfying swing", MeleeThrust: "A little extra reach", Thrown: item.id === "BOMB" ? "A 2.5 second surprise" : "Catch. Throw. Repeat.", Buff: "A protective bubble", Shield: "Frontal block · hold RMB", DeployPad: "A bouncy jump pad", DeploySpeed: "A speedy little shortcut", DeployZone: "A slippery surprise", DeployCover: "Make your own cover" }[item.family] ?? item.family}</small><div class="recipe-letters">${missing}</div></div><span class="recipe-arrow">${available ? "↗" : "+"}</span></button>`;
-    })
-    .join("");
-  grid
-    .querySelectorAll("[data-recipe]")
-    .forEach((b) => (b.onclick = () => craftWord(b.dataset.recipe)));
+    word = input.value,
+    cover = letterCover(p.bag, word),
+    recipe = data.items.items.find((i) => i.enabled && i.id === word),
+    partial = word && data.items.items.some((i) => i.enabled && i.id.startsWith(word)),
+    missing = [...word].filter((c, i) => !cover[i]);
+  document.querySelector("#composer-tiles").innerHTML =
+    [...word]
+      .map((c, i) => `<span class="letter ${cover[i] ? "" : "missing"}">${c}</span>`)
+      .join("") + `<span class="composer-caret"></span>`;
+  let text, state;
+  if (error) [text, state] = [error, "bad"];
+  else if (!word) [text, state] = ["Type a word you can make from your letters.", ""];
+  else if (recipe && !missing.length && p.craft) [text, state] = ["Already spelling something. Hang on.", "bad"];
+  else if (recipe && !missing.length && game.freeSlot(p) < 0) [text, state] = ["Both hands are full. Drop something first.", "bad"];
+  else if (recipe && !missing.length) [text, state] = [`${word} is ready. Press Enter!`, "ready"];
+  else if (recipe) [text, state] = [`${word} needs ${missing.join(" ")}. Smash more furniture.`, "bad"];
+  else if (partial) [text, state] = ["Keep going…", ""];
+  else [text, state] = ["That isn't a recipe. Check the book with Tab.", "bad"];
+  const status = document.querySelector("#composer-status");
+  status.textContent = text;
+  status.dataset.state = state;
+  document.querySelector(".spell-composer").dataset.state = state;
 }
 function craftWord(word) {
   const error = game.craft(game.players[0], word.trim());
   if (error) {
-    toast(error);
+    updateComposer(error);
+    document.querySelector(".spell-composer")?.animate(
+      [{ transform: "translateX(-50%)" }, { transform: "translateX(calc(-50% - 7px))" }, { transform: "translateX(calc(-50% + 7px))" }, { transform: "translateX(-50%)" }],
+      { duration: 240 },
+    );
     return;
   }
   toast(`Spelling ${word.toUpperCase()}…`);
@@ -464,6 +602,7 @@ function craftWord(word) {
 }
 function result() {
   resetInputs();
+  releaseMouse();
   craftOpen = false;
   document.querySelector("#drawer-root").innerHTML = "";
   const win = game.winner === game.players[0].team;
@@ -479,6 +618,8 @@ function pause() {
     return;
   }
   paused = !paused;
+  if (paused) releaseMouse();
+  else lockMouse();
   document.querySelector("#modal-root").innerHTML = paused
     ? `<div class="modal-shade"><section class="result-card"><span class="eyebrow">TAKE A BREATHER</span><h2>The mess can wait.</h2><p>${MODES[game.mode].description}</p><button class="primary" data-action="pause">KEEP PLAYING →</button><button class="quiet" data-action="how">Controls & recipes</button><button class="quiet" data-action="home">Back to the house party</button></section></div>`
     : "";
@@ -628,6 +769,7 @@ function loadWorkshopSession(id) {
   };
 }
 function openWorkshop(id = map) {
+  releaseMouse();
   resetInputs();
   craftOpen = false;
   paused = false;
@@ -892,6 +1034,7 @@ function tourWorkshop() {
   });
   view.setWorkshop({ enabled: false, selectedId: null, ghost: null });
   view.rebuild(game);
+  resetLook();
   ui.innerHTML = `<main class="tour-hud"><header class="tour-head"><div><span class="eyebrow">YOUR HOUSE · PEACEFUL TOUR</span><strong>${esc(workshop.layout.name)}</strong></div><button class="primary" data-action="workshop-return">Back to decorating</button></header><p class="tour-note">Take a look around. <span class="desktop-tour-help">WASD or arrows to walk.</span><span class="touch-tour-help">Drag the joystick to walk.</span></p><div class="joystick" id="joystick" aria-label="Touch movement joystick"><div class="joystick-knob"></div></div></main>`;
   bindUi();
   bindJoystick();
@@ -1102,8 +1245,9 @@ const actions = {
   home,
   closet,
   how,
-  craft: drawer,
+  craft: () => drawer(),
   bag: () => setBag(!bagOpen),
+  recipes: () => setBag(true),
   pause,
   sound: () => {
     muted = !muted;
@@ -1113,7 +1257,9 @@ const actions = {
   next: () => {
     game.nextRound();
     view.rebuild(game);
+    resetLook();
     renderHud();
+    lockMouse();
   },
   dodge: () => game.dodge(game.players[0]),
   jump: () => game.jump(game.players[0]),
@@ -1172,7 +1318,10 @@ function autoAim() {
       ),
       ...game.items.filter((i) => i.state === "world"),
     ].sort((a, b) => distance(a, p) - distance(b, p))[0];
-  if (target) input.aim = { x: target.x, z: target.z };
+  if (target) {
+    input.aim = { x: target.x, z: target.z };
+    view.look.yaw = Math.atan2(target.x - p.x, target.z - p.z);
+  }
 }
 function bindJoystick() {
   const joy = document.querySelector("#joystick"),
@@ -1244,6 +1393,8 @@ window.addEventListener("keydown", (e) => {
   if ((paused || game.status !== "playing") && e.code !== "Escape") return;
   keys.add(e.code);
   if (e.code === "KeyQ" || e.code === "KeyC") {
+    // Keep the Q itself out of the composer box that opens and takes focus.
+    e.preventDefault();
     drawer();
     return;
   }
@@ -1253,6 +1404,10 @@ window.addEventListener("keydown", (e) => {
   }
   if (e.code === "Escape" && bagOpen) {
     setBag(false);
+    return;
+  }
+  if (e.code === "Escape" && craftOpen) {
+    drawer();
     return;
   }
   if (e.code === "Escape") {
@@ -1284,7 +1439,8 @@ window.addEventListener("contextmenu", (e) => e.preventDefault());
 viewCanvasEvents();
 function viewCanvasEvents() {
   const canvas = document.querySelector("#world");
-  let drag = null;
+  let drag = null,
+    look = null;
   const pointGhost = (point) => {
     if (!workshop.ghost) return;
     workshop.ghost.x = Math.round(point.x * 2) / 2;
@@ -1311,7 +1467,11 @@ function viewCanvasEvents() {
       }
       return;
     }
-    if (e.pointerType === "mouse") pointerAim = { x: e.clientX, y: e.clientY };
+    if (look?.id === e.pointerId) {
+      turnLook((e.clientX - look.x) * 0.006, (e.clientY - look.y) * 0.004);
+      look.x = e.clientX;
+      look.y = e.clientY;
+    }
   });
   canvas.addEventListener("pointerdown", (e) => {
     canvas.setPointerCapture(e.pointerId);
@@ -1326,10 +1486,17 @@ function viewCanvasEvents() {
       };
       return;
     }
-    if (screen !== "game" || paused || craftOpen) return;
+    if ((screen !== "game" && screen !== "tour") || paused || craftOpen) return;
+    // Touch drags on the world turn the camera; the action buttons do the fighting.
+    if (e.pointerType !== "mouse") {
+      look = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      return;
+    }
+    // Any click in the world captures the mouse so it steers the camera, like a shooter.
+    if (!mouseLocked()) lockMouse();
+    if (screen !== "game") return;
     if (e.button === 2) input.block = true;
     else input.attack = true;
-    pointerAim = { x: e.clientX, y: e.clientY };
   });
   canvas.addEventListener("pointerup", (e) => {
     if (screen !== "workshop" || !drag || drag.id !== e.pointerId) return;
@@ -1344,7 +1511,30 @@ function viewCanvasEvents() {
     } else selectDesignProp(null);
   });
   canvas.addEventListener("pointercancel", () => {
-    drag = null;
+    drag = look = null;
+  });
+  canvas.addEventListener("lostpointercapture", (e) => {
+    if (look?.id === e.pointerId) look = null;
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (paused || craftOpen || bagOpen) return;
+    if (screen !== "game" && screen !== "tour") return;
+    // Before the mouse is captured, only moves over the world steer (so HUD buttons stay usable).
+    if (!mouseLocked() && e.target !== canvas) return;
+    turnLook(e.movementX * MOUSE_SENSITIVITY, e.movementY * MOUSE_SENSITIVITY);
+  });
+  document.addEventListener("pointerlockchange", () => {
+    document.body.classList.toggle("mouse-locked", mouseLocked());
+    // Losing the mouse mid-match (Esc, alt-tab) pauses, the way shooters do.
+    if (
+      !mouseLocked() &&
+      screen === "game" &&
+      game?.status === "playing" &&
+      !paused &&
+      !bagOpen &&
+      !craftOpen
+    )
+      pause();
   });
   canvas.addEventListener(
     "wheel",
@@ -1376,9 +1566,13 @@ function animate(now) {
             touch.y +
             (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) -
             (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0);
-        input.x = sx * 0.8 - sy * 0.6;
-        input.z = -sx * 0.6 - sy * 0.8;
-        if (pointerAim) input.aim = view.aim(pointerAim.x, pointerAim.y);
+        // Camera-relative: W walks where the crosshair looks, A/D strafe.
+        const yaw = view.look.yaw,
+          fx = Math.sin(yaw),
+          fz = Math.cos(yaw);
+        input.x = -fz * sx + fx * sy;
+        input.z = fx * sx + fz * sy;
+        input.yaw = screen === "game" ? yaw : undefined;
         input.attack ||= keys.has("KeyJ");
         input.block ||= keys.has("KeyK");
         input.interact ||= keys.has("KeyE");

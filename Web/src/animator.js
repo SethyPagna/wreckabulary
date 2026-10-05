@@ -152,7 +152,9 @@ export class AvatarAnimator {
 
     // Facing: the engine snaps yaw to input; the body turns at a bounded rate.
     if (this.yaw === null) this.yaw = player.yaw;
-    const turn = clamp(wrap(player.yaw - this.yaw), -TURN_SPEED * dt, TURN_SPEED * dt);
+    // The mouse-driven player turns 1:1 with the camera, like a shooter; others ease.
+    const limit = this.instantTurn ? Infinity : TURN_SPEED * dt;
+    const turn = clamp(wrap(player.yaw - this.yaw), -limit, limit);
     this.yaw = wrap(this.yaw + turn);
     this.turnRate += ((dt > 0 ? turn / dt : 0) - this.turnRate) * ease(10, dt);
     avatar.rotation.y = this.yaw;

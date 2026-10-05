@@ -150,27 +150,32 @@ try {
     sideRight: true,
   });
   await page.keyboard.down("Tab");
-  await page.waitForSelector(".bag-panel #bag-map .map-room");
+  await page.waitForSelector(".bag-panel #bag-recipes .recipe");
   const bag = await page.evaluate(() => {
-    const r = document.querySelector(".bag-panel").getBoundingClientRect();
+    const r = document.querySelector(".bag-panel").getBoundingClientRect(),
+      map = document.querySelector("#minimap").getBoundingClientRect();
     return {
       width: r.width / innerWidth,
       height: r.height / innerHeight,
       letters: document.querySelectorAll("#bag-letters > *").length,
       hands: document.querySelectorAll("#bag-hands .bag-hand").length,
-      wearing: document.querySelectorAll("#bag-wear span").length > 0,
-      you: !!document.querySelector("#bag-map .map-player.you"),
+      wearing: document.querySelectorAll("#bag-wear .wear-chip svg").length > 0,
+      recipes: document.querySelectorAll("#bag-recipes .recipe").length,
+      // One map: the corner minimap zooms into the middle; no second copy is drawn.
+      maps: document.querySelectorAll(".map-room").length / document.querySelectorAll("#minimap .map-room").length,
+      zoomed: map.width > 240 && Math.abs(map.left + map.width / 2 - innerWidth / 2) < 40,
+      you: !!document.querySelector("#minimap .map-player.you"),
     };
   });
   assert.ok(bag.width >= 0.75 && bag.height >= 0.75, JSON.stringify(bag));
   assert.deepEqual(
-    { letters: bag.letters, hands: bag.hands, wearing: bag.wearing, you: bag.you },
-    { letters: 10, hands: 2, wearing: true, you: true },
+    { letters: bag.letters, hands: bag.hands, wearing: bag.wearing, recipes: bag.recipes, maps: bag.maps, zoomed: bag.zoomed, you: bag.you },
+    { letters: 10, hands: 2, wearing: true, recipes: 12, maps: 1, zoomed: true, you: true },
   );
   await page.keyboard.up("Tab");
   assert.equal(await page.locator(".bag-panel").count(), 0);
   record(
-    "Desktop HUD hides touch buttons, stacks timer under the map, shows a 5 x 2 bag, and Tab peeks a large bag and map panel.",
+    "Desktop HUD hides touch buttons, stacks timer under the map, shows a 5 x 2 bag, and Tab peeks an icon bag, the zoomed minimap and the recipe book.",
   );
   // Place the test player beside real map furniture; damage still comes through the public controls.
   await page.evaluate(() => {
@@ -181,6 +186,8 @@ try {
     p.z = lamp.z;
     p.facing = { x: -1, z: 0 };
     p.yaw = -Math.PI / 2;
+    // The camera owns facing in a match: turn the view like the mouse would.
+    window.wreckabulary.view.look.yaw = p.yaw;
     window.testFurniture = lamp.id;
   });
   await page.keyboard.down("KeyJ");
@@ -205,8 +212,12 @@ try {
     () => window.wreckabulary.game.players[0].bag.length >= 4,
   );
   await click(page, "[data-action=craft]");
-  await page.waitForSelector("[data-recipe=LAMP].available");
-  await click(page, "[data-recipe=LAMP]");
+  await page.waitForSelector(".spell-composer");
+  await page.keyboard.type("lamp");
+  await page.waitForFunction(
+    () => document.querySelector(".spell-composer").dataset.state === "ready",
+  );
+  await page.keyboard.press("Enter");
   await page.waitForFunction(
     () =>
       window.wreckabulary.game.held(window.wreckabulary.game.players[0])
@@ -323,12 +334,14 @@ try {
     p.z = goal.z;
     p.facing = { x: 0, z: 1 };
     p.yaw = 0;
+    window.wreckabulary.view.look.yaw = 0;
     g.mintTiles("LAMP", p.x, p.z);
     for (const t of [...g.tiles]) g.collect(p, t);
   });
   await page.keyboard.press("KeyQ");
-  await page.waitForSelector("[data-recipe=LAMP].available");
-  await click(page, "[data-recipe=LAMP]");
+  await page.waitForSelector(".spell-composer");
+  await page.keyboard.type("LAMP");
+  await page.keyboard.press("Enter");
   await page.waitForFunction(
     () =>
       window.wreckabulary.game.held(window.wreckabulary.game.players[0])
@@ -391,6 +404,7 @@ try {
     p.z = g.extraction.z;
     p.facing = { x: 0, z: 1 };
     p.yaw = 0;
+    window.wreckabulary.view.look.yaw = 0;
   });
   await page.keyboard.press("KeyR");
   await page.waitForFunction(
@@ -551,17 +565,21 @@ try {
   assert.match(bounds.art, /ActionIcons/);
   await screenshot(phone, "game-mobile");
   await click(phone, "[data-action=craft]");
-  await phone.waitForSelector(".craft-drawer");
-  assert.equal(await phone.locator(".recipe").count(), 12);
+  await phone.waitForSelector(".spell-composer #spell-word");
+  assert.equal(await phone.locator(".spell-composer .recipe").count(), 0, "In play you type the word; no list to pick from.");
+  await click(phone, ".spell-composer [data-action=recipes]");
+  await phone.waitForSelector(".bag-panel #bag-recipes .recipe");
+  assert.equal(await phone.locator("#bag-recipes .recipe").count(), 12);
   await screenshot(phone, "recipes-mobile");
   record(
-    "Mobile HUD has separate touch targets, real item thumbnails and all 12 recipes.",
+    "Mobile HUD has separate touch targets, a typed spell composer and all 12 recipes in the bag's recipe book.",
   );
+  await click(phone, ".bag-panel [data-action=bag]");
   assert.equal(
     await phone.evaluate(() => window.wreckabulary.game.audit().balanced),
     true,
   );
-  await click(phone, ".craft-drawer .close");
+  await click(phone, ".spell-composer .close");
   await phone.setViewportSize({ width: 844, height: 390 });
   await phone.waitForTimeout(500);
   await phone.evaluate(() => {
@@ -581,7 +599,7 @@ try {
       ".actions button",
       ".gear-slot",
       ".drop-button",
-      ".pause-button",
+      ".brand-small",
       "#letters button",
       ".tray-header button",
     ];

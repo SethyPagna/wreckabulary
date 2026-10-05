@@ -494,6 +494,33 @@ test("changing aim does not steer an already committed dash", () => {
   assert.ok(p.x > 0.5);
   assert.equal(p.z, 0);
 });
+test("camera yaw turns the body in the same tick, even while moving another way", () => {
+  const g = game(),
+    p = g.players[0];
+  g.time = 3;
+  g.tick(0.025, { yaw: Math.PI / 2, x: 0, z: 1 });
+  assert.equal(p.yaw, Math.PI / 2);
+  assert.ok(Math.abs(p.facing.x - 1) < 1e-9 && Math.abs(p.facing.z) < 1e-9);
+});
+test("ground movement accelerates and brakes with friction instead of snapping", () => {
+  const g = game(),
+    p = g.players[0];
+  g.players.slice(1).forEach((q) => (q.ai = false));
+  g.time = 3;
+  const room = g.house.rooms.find((r) => r.name === "LivingRoom").bounds;
+  p.x = (room[0] + room[2]) / 2;
+  p.z = (room[1] + room[3]) / 2;
+  g.tick(0.025, { x: 1, z: 0 });
+  const first = Math.hypot(p.velocity.x, p.velocity.z);
+  assert.ok(first > 0 && first < 4.5, `first tick speed ${first}`);
+  for (let n = 0; n < 12; n++) g.tick(0.025, { x: 1, z: 0 });
+  assert.ok(Math.abs(p.velocity.x - 4.5) < 1e-6, "reaches full speed");
+  const x = p.x;
+  g.tick(0.025, {});
+  assert.ok(p.x > x, "keeps sliding for a moment after release");
+  for (let n = 0; n < 12; n++) g.tick(0.025, {});
+  assert.equal(Math.hypot(p.velocity.x, p.velocity.z), 0, "friction stops it");
+});
 test("dropping or swapping a windup weapon cancels its attack; active hits are deduplicated", () => {
   const g = game(),
     p = g.players[0],
