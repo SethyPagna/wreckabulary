@@ -23,7 +23,10 @@ async function boot(context) {
   if (softwareGpu) page.setDefaultTimeout(120000);
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("response", (r) => {
-    if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`);
+    // A dev or preview server has no Worker behind /api/scores; the leaderboard's
+    // offline fallback handles that, so only that endpoint may be missing.
+    const offlineBoard = r.status() === 404 && new URL(r.url()).pathname === "/api/scores";
+    if (r.status() >= 400 && !offlineBoard) errors.push(`${r.status()} ${r.url()}`);
   });
   await page.goto(base);
   await page.waitForFunction(() => window.wreckabulary?.screen === "home", undefined, {
@@ -56,7 +59,10 @@ try {
   await screenshot(page, "home-desktop");
   record("Real supplied GLBs load and render the home scene.");
   await workshopDesktop(page, { click, screenshot, record });
-  await page.selectOption("#map-choice", "courtyard");
+  // The dock shows only the chosen house; clicking it opens the picker.
+  await click(page, "[data-action=maps]");
+  await click(page, "[data-map=courtyard]");
+  assert.equal(await page.locator(".picker").count(), 0, "Picking a house closes the picker.");
   assert.equal(
     await page.evaluate(() => window.wreckabulary.game.house.name),
     await page.evaluate(() => window.wreckabulary.data.houses.courtyard.name),
@@ -88,8 +94,15 @@ try {
   record(
     "Wardrobe controls change real modular meshes and persist the selection.",
   );
-  await page.selectOption("#map-choice", "pinwheel");
+  await click(page, "[data-action=maps]");
+  await click(page, "[data-map=pinwheel]");
+  await click(page, "[data-action=modes]");
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator(".picker").count(), 0, "Escape closes the mode picker.");
+  await click(page, "[data-action=modes]");
   await click(page, "[data-mode=Tutorial]");
+  assert.match(await page.locator(".dock-mode strong").innerText(), /learn/i);
+  record("The lobby dock shows the chosen mode and house; each opens a picker that Escape or a choice closes.");
   await click(page, "[data-action=start]");
   await page.waitForFunction(() => window.wreckabulary.screen === "game");
   await click(page, "[data-action=pause]");
@@ -232,7 +245,7 @@ try {
   record(
     "Smash input releases exact tiles; live pickup, recipe UI, craft channel and equipment all connect.",
   );
-  await click(page, "[data-action=drop]");
+  await page.keyboard.press("KeyR");
   assert.equal(
     await page.evaluate(
       () =>
@@ -448,8 +461,9 @@ try {
     "Moving Out physically carries and drops a keepsake; a downed crew member blocks victory until revived and gathered, then retry resets the rescue.",
   );
   await desktop.close();
+  // Phones play sideways only; upright they get a rotate hint (checked below).
   const mobile = await browser.newContext({
-      viewport: { width: 390, height: 844 },
+      viewport: { width: 844, height: 390 },
       isMobile: true,
       hasTouch: true,
       deviceScaleFactor,
@@ -475,11 +489,36 @@ try {
   }, metrics.desktop.aspect);
   assert.ok(metrics.mobile.triangles < metrics.desktop.triangles);
   await screenshot(phone, "home-mobile");
+  const sideways = await phone.evaluate(() => {
+    const hint = getComputedStyle(document.querySelector(".rotate-hint")).display,
+      dock = document.querySelector(".match-dock").getBoundingClientRect(),
+      you = window.wreckabulary.game.players[0],
+      head = window.wreckabulary.view.screenOf(you.x, you.y + 1.2, you.z);
+    return {
+      hint,
+      dockInside: dock.right <= innerWidth + 1 && dock.bottom <= innerHeight + 1,
+      centred: Math.abs(head.x - innerWidth / 2) < innerWidth * 0.08,
+      scroll: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  assert.deepEqual(sideways, { hint: "none", dockInside: true, centred: true, scroll: false });
+  await phone.setViewportSize({ width: 390, height: 844 });
+  await phone.waitForFunction(
+    () => getComputedStyle(document.querySelector(".rotate-hint")).display === "flex",
+  );
+  await screenshot(phone, "rotate-hint-mobile");
+  await phone.setViewportSize({ width: 844, height: 390 });
+  await phone.waitForFunction(
+    () => getComputedStyle(document.querySelector(".rotate-hint")).display === "none",
+  );
+  record("Phones play sideways: the lobby fits a landscape phone with you centred, and an upright phone gets the rotate hint.");
+  await click(phone, "[data-action=modes]");
   await click(phone, "[data-mode=Tutorial]");
   await click(phone, "[data-action=start]");
   await phone.waitForFunction(() => window.wreckabulary.screen === "game");
   const joy = await phone.locator("#joystick").boundingBox();
-  assert.ok(joy && joy.width > 90);
+  // The sideways-phone joystick is 90px (thumb-sized on a 390px-tall screen).
+  assert.ok(joy && joy.width >= 88);
   const initial = await phone.evaluate(() => ({
     x: window.wreckabulary.game.players[0].x,
     z: window.wreckabulary.game.players[0].z,
@@ -598,7 +637,6 @@ try {
       "#joystick",
       ".actions button",
       ".gear-slot",
-      ".drop-button",
       ".brand-small",
       "#letters button",
       ".tray-header button",

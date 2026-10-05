@@ -299,6 +299,8 @@ export class WorldView {
     // Played matches and tours get full-height walls for the shoulder camera; overview
     // screens (lobby, Workshop) keep the low dollhouse walls you can see over.
     this.tallWalls = game.status !== "preview";
+    // Matches and tours never keep the lobby showroom or its camera.
+    if (game.status !== "preview" || game.mode === "Tour") this.setLobby(null);
     const worldKey = `${game.map.id}:${game.house.name}:${game.mode === "MovingOut"}:${this.tallWalls}`;
     const reuse =
       game.mode === "Tour" &&
@@ -366,7 +368,8 @@ export class WorldView {
       text.position.set(floor.position.x, 0.4, floor.position.z - d * 0.35);
       text.material.opacity = 0.8;
       // At eye level a standing room sign blocks the view; the HUD names the room instead.
-      text.visible = !this.tallWalls;
+      text.visible = !this.tallWalls && !this.lobbyView;
+      text.userData.roomLabel = true;
       this.world.add(text);
     }
     for (const wall of game.walls) {
@@ -468,6 +471,7 @@ export class WorldView {
           Math.sin(angle) * radius,
         );
         plant.scale.setScalar(1.8 + (n % 3) * 0.35);
+        plant.userData.yardPlant = true;
         this.world.add(plant);
       }
     }
@@ -597,7 +601,9 @@ export class WorldView {
       name.position.y = 1.8;
       name.scale.set(1.1, 0.28, 1);
       // The shoulder camera sits right behind you, so your own tag would cover the view.
-      name.visible = p.id !== 0;
+      // The lobby's party list names everyone, so tags stay hidden there too.
+      name.visible = p.id !== 0 && !this.lobbyView;
+      name.userData.nameTag = p.id !== 0;
       group.add(name);
       const bubble = mesh(
         new THREE.SphereGeometry(0.78, 24, 16),
@@ -766,6 +772,16 @@ export class WorldView {
       this.camera.clearViewOffset();
       const p = game.players[0],
         preview = game.status === "preview";
+      if (this.lobbyView) {
+        this.setFov(40);
+        const { camera, target } = this.lobbyView,
+          k = dt === 0 ? 1 : 1 - Math.exp(-dt * 4);
+        this.camera.position.lerp(new THREE.Vector3(camera.x, camera.y, camera.z), k);
+        this.target.lerp(new THREE.Vector3(target.x, target.y, target.z), k);
+        this.camera.lookAt(this.target);
+        this.animateLobby(performance.now() / 1000);
+        return this.updateEntities(game, dt);
+      }
       this.setFov(!this.closet && !preview ? 64 : 43);
       if (!this.closet && !preview) {
         this.shoulderCamera(p, dt);
@@ -850,6 +866,293 @@ export class WorldView {
       ),
     );
     this.shake = Math.max(0, (this.shake ?? 0) - dt * 1.2);
+  }
+  /**
+   * The lobby is its own showroom, like a shooter's front end: the house is
+   * hidden and the line-up stands on light pads on a glowing grid floor, under
+   * a giant letter-tile sign. `view` is { centre, yaw, floor, spots, camera,
+   * target }; null leaves the lobby and brings the house back.
+   */
+  setLobby(view) {
+    this.lobbyView = view;
+    if (!view) {
+      if (this.lobbyStage?.parent) {
+        this.lobbyStage.removeFromParent();
+        this.world.visible = true;
+        this.scene.background = this.lobbySaved.background;
+        this.scene.fog.color.copy(this.lobbySaved.fog);
+        this.scene.fog.near = this.lobbySaved.near;
+        this.scene.fog.far = this.lobbySaved.far;
+        for (const [light, intensity] of this.lobbySaved.lights) light.intensity = intensity;
+      }
+      for (const node of this.entities.values()) node.visible = true;
+      this.dynamic.traverse((o) => {
+        if (o.userData.nameTag) o.visible = true;
+      });
+      return;
+    }
+    if (!this.lobbyStage) this.lobbyStage = this.buildLobbyStage(view.spots);
+    if (!this.lobbyStage.parent) {
+      this.lobbySaved = {
+        background: this.scene.background,
+        fog: this.scene.fog.color.clone(),
+        near: this.scene.fog.near,
+        far: this.scene.fog.far,
+        lights: this.scene.children.filter((o) => o.isLight).map((l) => [l, l.intensity]),
+      };
+      // The house lights are tuned for wood and plaster; the showroom gets its own key
+      // light, so the house ones drop to a fill and the blues stay saturated.
+      for (const [light, intensity] of this.lobbySaved.lights) light.intensity = intensity * 0.42;
+      this.scene.add(this.lobbyStage);
+      this.scene.background = this.lobbyStage.userData.sky;
+      this.scene.fog.color.set(0x1a2fb8);
+      this.scene.fog.near = 16;
+      this.scene.fog.far = 42;
+    }
+    this.world.visible = false;
+    this.lobbyStage.position.set(view.centre.x, view.floor, view.centre.z);
+    this.lobbyStage.rotation.y = view.yaw;
+    this.dynamic.traverse((o) => {
+      if (o.userData.nameTag) o.visible = false;
+    });
+  }
+  /** Screen position (CSS pixels) of a world point, for HTML tags over the scene. */
+  screenOf(x, y, z) {
+    const v = new THREE.Vector3(x, y, z).project(this.camera),
+      rect = this.renderer.domElement.getBoundingClientRect();
+    return {
+      x: rect.left + ((v.x + 1) / 2) * rect.width,
+      y: rect.top + ((1 - v.y) / 2) * rect.height,
+      visible: v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1,
+    };
+  }
+  /** Lobby animation: floating letters bob and turn, the beam breathes. */
+  animateLobby(time) {
+    const stage = this.lobbyStage;
+    if (!stage) return;
+    for (const f of stage.userData.floaters) {
+      f.node.position.y = f.y + Math.sin(time * 0.9 + f.phase) * 0.12;
+      f.node.rotation.y = f.turn + Math.sin(time * 0.5 + f.phase) * 0.5;
+    }
+    if (stage.userData.beam)
+      stage.userData.beam.material.opacity = 0.4 + Math.sin(time * 2.2) * 0.1;
+  }
+  /** Stage space: +z faces the camera and +x reads left to right on screen. */
+  buildLobbyStage(spots) {
+    const stage = new THREE.Group(),
+      canvasTexture = (w, h, paint) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        paint(canvas.getContext("2d"), w, h);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        return texture;
+      };
+    // Sky: deep indigo overhead into electric blue at the horizon.
+    stage.userData.sky = canvasTexture(4, 512, (ctx, w, h) => {
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#0b0c44");
+      g.addColorStop(0.45, "#1d2fc4");
+      g.addColorStop(0.72, "#2f6dff");
+      g.addColorStop(1, "#46c4ff");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    });
+    // Floor: a royal-blue grid that glows in the middle and fades at the edge.
+    const floorMap = canvasTexture(1024, 1024, (ctx, w, h) => {
+      const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+      g.addColorStop(0, "#3a63ff");
+      g.addColorStop(0.35, "#2440d8");
+      g.addColorStop(1, "#141f86");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = "#7fb2ff55";
+      ctx.lineWidth = 2;
+      for (let i = 0; i <= w; i += 32) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, h);
+        ctx.moveTo(0, i);
+        ctx.lineTo(w, i);
+        ctx.stroke();
+      }
+    });
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(32, 96),
+      // Unlit and untoned, so the grid keeps its electric blue instead of washing out.
+      new THREE.MeshBasicMaterial({ map: floorMap, toneMapped: false }),
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    stage.add(floor);
+    // Soft glows: additive discs with a radial falloff.
+    const glowMap = canvasTexture(256, 256, (ctx, w) => {
+      const g = ctx.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+      g.addColorStop(0, "#ffffff");
+      g.addColorStop(0.35, "#ffffff88");
+      g.addColorStop(1, "#ffffff00");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, w);
+    });
+    const glow = (radius, color, opacity) => {
+      const disc = new THREE.Mesh(
+        new THREE.PlaneGeometry(radius * 2, radius * 2),
+        new THREE.MeshBasicMaterial({
+          map: glowMap,
+          color,
+          transparent: true,
+          opacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+      );
+      disc.rotation.x = -Math.PI / 2;
+      return disc;
+    };
+    const centreGlow = glow(5.5, 0x4fd8ff, 0.3);
+    centreGlow.position.y = 0.01;
+    stage.add(centreGlow);
+    // Light pads under each roommate; yours has a beam, like a shooter lobby.
+    const padTop = material(0x10155a),
+      beamMap = canvasTexture(4, 256, (ctx, w, h) => {
+        const g = ctx.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, "#ffffff00");
+        g.addColorStop(0.7, "#ffffff33");
+        g.addColorStop(1, "#ffffff99");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      });
+    spots.forEach(([side, back], i) => {
+      const you = i === 0,
+        colour = you ? 0x3ff0ff : 0x9ec5ff,
+        pad = new THREE.Group(),
+        base = mesh(new THREE.CylinderGeometry(0.66, 0.72, 0.12, 48), padTop),
+        ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.67, 0.035, 8, 64),
+          new THREE.MeshBasicMaterial({ color: colour }),
+        );
+      base.position.y = 0.06;
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.12;
+      const shine = glow(you ? 1.5 : 1.1, colour, you ? 0.9 : 0.45);
+      shine.position.y = 0.125;
+      pad.add(base, ring, shine);
+      if (you) {
+        const beam = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.62, 0.68, 2.8, 48, 1, true),
+          new THREE.MeshBasicMaterial({
+            map: beamMap,
+            color: colour,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          }),
+        );
+        beam.position.y = 1.52;
+        pad.add(beam);
+        stage.userData.beam = beam;
+      }
+      pad.position.set(-side, 0, back);
+      stage.add(pad);
+    });
+    stage.add(this.lobbyTiles());
+    // Floating letters drift between the sign and the line-up.
+    stage.userData.floaters = [];
+    [
+      ["W", -4.6, 2.6, -2.6],
+      ["O", 4.4, 2.2, -2.2],
+      ["R", -3.4, 3.4, -3.6],
+      ["D", 3.6, 3.3, -3.4],
+      ["S", 5.6, 1.4, -1.0],
+      ["A", -5.8, 1.2, -1.4],
+    ].forEach(([char, x, y, z], i) => {
+      const node = this.clone(`letter:${char}`);
+      if (!node) return;
+      node.scale.setScalar(2.1);
+      node.position.set(x, y, z);
+      stage.add(node);
+      stage.userData.floaters.push({ node, y, phase: i * 1.7, turn: x < 0 ? 0.35 : -0.35 });
+    });
+    // Warm key light on the sign and a cool rim behind the line-up.
+    const key = new THREE.SpotLight(0xffd9a0, 28, 22, 0.55, 0.6, 1.4);
+    key.position.set(0, 7, 3);
+    key.target.position.set(0, 2.4, -5);
+    const rim = new THREE.DirectionalLight(0x6fd4ff, 1.6);
+    rim.position.set(0, 4, -6);
+    rim.target.position.set(0, 1, 0);
+    stage.add(key, key.target, rim, rim.target);
+    return stage;
+  }
+  /**
+   * The lobby backdrop: the real letter-tile models stacked into the logo
+   * (WRECK on ABULARY) on a wall of moving boxes behind the line-up.
+   */
+  lobbyTiles() {
+    const group = new THREE.Group(),
+      tile = (char, scale) => {
+        const node = this.clone(`letter:${char}`);
+        if (!node) return null;
+        node.scale.setScalar(scale);
+        group.add(node);
+        return node;
+      },
+      wobble = (i, amount) => (((i * 37) % 7) - 3) * amount,
+      size = 4.4,
+      step = 0.21 * size + 0.05,
+      back = -5,
+      boxHeight = 0.74,
+      lift = boxHeight * 2;
+    // A wall of taped moving boxes lifts the sign above the line-up's heads.
+    const cardboard = material(0xb06f32),
+      tape = material(0xe9d6ac);
+    for (let row = 0; row < 2; row++)
+      for (let i = 0; i < 8 - row; i++) {
+        const w = 0.98 + wobble(i + row, 0.025),
+          box = new THREE.Group(),
+          body = mesh(new THREE.BoxGeometry(w, boxHeight, 0.9), cardboard),
+          strip = mesh(new THREE.BoxGeometry(0.2, 0.012, 0.92), tape),
+          band = mesh(new THREE.BoxGeometry(0.2, boxHeight * 0.45, 0.012), tape);
+        strip.position.y = boxHeight / 2 + 0.006;
+        band.position.set(0, boxHeight * 0.27, 0.456);
+        box.add(body, strip, band);
+        box.position.set(
+          (i - (7 - row) / 2) * 1.0 + wobble(i, 0.02),
+          boxHeight * (row + 0.5),
+          back - 0.05 + wobble(i * 2 + row, 0.03),
+        );
+        box.rotation.y = wobble(i * 5 + row, 0.025);
+        group.add(box);
+      }
+    [
+      ["ABULARY", 0],
+      ["WRECK", 1],
+    ].forEach(([word, row]) =>
+      [...word].forEach((char, i) => {
+        const node = tile(char, size);
+        if (!node) return;
+        node.position.set(
+          (i - (word.length - 1) / 2) * step + (row ? 0.08 : 0),
+          lift + row * 0.21 * size + Math.abs(wobble(i + row, 0.01)),
+          back + wobble(i * 3 + row, 0.03),
+        );
+        node.rotation.set(0, wobble(i + 2 * row, 0.035), wobble(i + 5 * row, 0.018));
+      }),
+    );
+    // Knocked-over tiles lying face up on the deck, like the board's "dropped" tiles.
+    [
+      ["B", -2.35, 1.55, 0.5],
+      ["A", 2.15, 1.85, -0.35],
+      ["M", 2.75, 0.9, 0.9],
+    ].forEach(([char, x, z, turn]) => {
+      const node = tile(char, 2.2);
+      if (!node) return;
+      node.rotation.set(-Math.PI / 2, 0, turn);
+      node.position.set(x, 0.0285 * 2.2, z);
+    });
+    return group;
   }
   setFov(fov) {
     if (this.camera.fov === fov) return;
@@ -1089,6 +1392,9 @@ export class WorldView {
       if (objective.label) objective.label.visible = !objective.done;
     }
     this.updateWorkshopSelection();
+    // Only the line-up stands in the showroom; props stay with the hidden house.
+    if (this.lobbyView)
+      for (const [key, node] of this.entities) node.visible = /^p\d+$/.test(key);
     this.renderer.render(this.scene, this.camera);
   }
   // Held gear sits in the right grip bone and turns with the wrist; carried

@@ -392,7 +392,8 @@ async function fit(page) {
   });
 }
 export async function workshopMobile(phone, { click, screenshot, record }) {
-  await phone.setViewportSize({ width: 390, height: 844 });
+  // Phones play sideways only, so the workshop is checked in landscape.
+  await phone.setViewportSize({ width: 844, height: 390 });
   await click(phone, "[data-action=pause]");
   await click(phone, ".result-card [data-action=home]");
   await click(phone, "[data-action=workshop]");
@@ -408,13 +409,9 @@ export async function workshopMobile(phone, { click, screenshot, record }) {
     () => window.wreckabulary.workshop.layout.props.length === 1,
   );
   await fit(phone);
-  await screenshot(phone, "workshop-mobile-portrait");
-  await phone.setViewportSize({ width: 844, height: 390 });
-  await phone.waitForTimeout(250);
-  await fit(phone);
   await screenshot(phone, "workshop-mobile-landscape");
   record(
-    "Workshop phone portrait and landscape keep primary buttons, house view and scrollable tools separate; native touch places a supplied model.",
+    "Workshop on a landscape phone keeps primary buttons, house view and scrollable tools separate; native touch places a supplied model.",
   );
   await click(phone, "#design-tour");
   const client = await phone.context().newCDPSession(phone),

@@ -40,13 +40,14 @@ try {
   await workshopDesktop(page, { click, screenshot, record });
   await desktop.close();
   const mobile = await browser.newContext({
-      viewport: { width: 390, height: 844 },
+      viewport: { width: 844, height: 390 },
       isMobile: true,
       hasTouch: true,
       deviceScaleFactor: 1,
       reducedMotion: "reduce",
     }),
     phone = await boot(mobile);
+  await click(phone, "[data-action=modes]");
   await click(phone, "[data-mode=Tutorial]");
   await click(phone, "[data-action=start]");
   await workshopMobile(phone, { click, screenshot, record });

@@ -2,6 +2,15 @@ import "./style.css";
 import { Game, MODES, MAPS, canSpell, distance } from "./engine.js";
 import { WorldView } from "./renderer.js";
 import {
+  SHOP,
+  RANKED_MODES,
+  loadProgress,
+  owns,
+  buy,
+  matchReward,
+  recordMatch,
+} from "./progression.js";
+import {
   createLayout,
   validateLayout,
   placementCheck,
@@ -30,6 +39,10 @@ let game,
   last = performance.now(),
   hudAt = 0,
   profile,
+  progress,
+  lobbyTab = "play",
+  lobbyPicker = null,
+  boardMode = "Dibs",
   skin = "Classic";
 const input = {
   x: 0,
@@ -147,6 +160,17 @@ function lockMouse() {
 function releaseMouse() {
   if (mouseLocked()) document.exitPointerLock();
 }
+// On touch devices PLAY goes fullscreen and asks to stay sideways, so the match uses
+// the whole screen. Browsers that refuse (iPhone Safari) fall back to the rotate hint.
+function fullscreenLandscape() {
+  if (!matchMedia("(pointer: coarse)").matches || navigator.webdriver) return;
+  const root = document.documentElement;
+  if (document.fullscreenElement || !root.requestFullscreen) return;
+  root
+    .requestFullscreen({ navigationUI: "hide" })
+    .then(() => window.screen.orientation?.lock?.("landscape"))
+    .catch(() => {});
+}
 function resetLook() {
   const p = game.players[0];
   view.look.yaw = p.yaw ?? Math.atan2(p.facing?.x ?? 0, p.facing?.z ?? 1);
@@ -172,6 +196,7 @@ function start() {
   resetLook();
   renderHud();
   lockMouse();
+  fullscreenLandscape();
   toast(
     mode === "MovingOut"
       ? `Carry ${game.keepsakes.length} keepsakes to the van. Drop them inside the circle.`
@@ -179,30 +204,428 @@ function start() {
   );
   sound("craft");
 }
-function home() {
+// The lobby: your character on a little stage with the roommates beside you, and
+// tabs for Play, Locker, Shop, Recipes and Leaderboard, like a shooter's front end.
+// The look follows the art boards: honey-wood letter tiles, cocoa outlines and
+// sticker-style cards with hard shadows.
+const LOBBY_TABS = [
+  ["play", "lobbyPlay", "Play"],
+  ["locker", "closet", "Locker"],
+  ["shop", "shop", "Shop"],
+  ["recipes", "lobbyRecipes", "Recipes"],
+  ["leaderboard", "leaderboard", "Leaderboard"],
+];
+const ICON_PATHS = {
+  play: '<path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor" stroke="none"/>',
+  locker: '<path d="M10 6.5a2 2 0 1 1 2.6 1.9c-.4.2-.6.6-.6 1V10L3.5 16.5c-.6.5-.3 1.5.5 1.5h16c.8 0 1.1-1 .5-1.5L12 10"/>',
+  shop: '<path d="M5 8.5h14l-1.2 11.5H6.2zM9 8.5V7a3 3 0 0 1 6 0v1.5"/>',
+  recipes: '<path d="M3.5 5.5H10a2 2 0 0 1 2 2V20a2 2 0 0 0-2-2H3.5zM20.5 5.5H14a2 2 0 0 0-2 2V20a2 2 0 0 1 2-2h6.5z"/>',
+  leaderboard: '<path d="M7.5 4h9v4.5a4.5 4.5 0 0 1-9 0zM7.5 6H4.5a3 3 0 0 0 3.3 3.8M16.5 6h3a3 3 0 0 1-3.3 3.8M12 13v3.5M8 20h8l-1-3.5H9z"/>',
+  crown: '<path d="M3.5 8.5l4.2 3.8L12 6l4.3 6.3 4.2-3.8-1.8 9.5H5.3z" fill="currentColor"/>',
+  pencil: '<path d="M4.5 19.5l1-4.2L15.8 5a1.8 1.8 0 0 1 2.6 0l.6.6a1.8 1.8 0 0 1 0 2.6L8.7 18.5z"/>',
+  hammer: '<path d="M13 4.5l6.5 6.5-2.6 2.6L10.4 7zM11.8 8.4L3.6 16.6a1.8 1.8 0 0 0 0 2.6l1.2 1.2a1.8 1.8 0 0 0 2.6 0l8.2-8.2"/>',
+  soundOn: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+  soundOff: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>',
+  help: '<path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.4-1.2 1-1.2 1.9v.7"/><circle cx="12" cy="17.6" r=".6" fill="currentColor"/>',
+  lock: '<path d="M7.5 11V8.5a4.5 4.5 0 0 1 9 0V11"/><rect x="5" y="11" width="14" height="9.5" rx="2.5" fill="currentColor"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  glasses: '<circle cx="7" cy="13" r="3.5"/><circle cx="17" cy="13" r="3.5"/><path d="M10.5 13h3M3.5 12l-1-3M20.5 12l1-3"/>',
+  satchel: '<path d="M4.5 10h15v9.5h-15zM8 10V8a4 4 0 0 1 8 0v2M4.5 13.5h15"/><rect x="10.5" y="12.5" width="3" height="2.5" rx=".6" fill="currentColor"/>',
+  badge: '<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/><path d="M8.5 9h7M12 9v7"/>',
+  arrow: '<path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/>',
+  party: '<circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0z" fill="currentColor"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14a5 5 0 0 1 5 5.5"/>',
+  house: '<path d="M3.5 11.5L12 4l8.5 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-5.5h4V20"/>',
+  close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+};
+const icon = (name, cls = "") =>
+  `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+const COIN_ICON =
+  '<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.2"/><circle class="coin-rim" cx="12" cy="12" r="7.2"/><path class="coin-w" d="M7.6 9.2l1.6 5.8 1.6-4.1 1.2 0 1.6 4.1 1.6-5.8"/></svg>';
+// Each mode gets a colour and a crafted item as its poster art.
+const MODE_ART = {
+  Dibs: ["BAT", "#ef5b2b"],
+  Duos: ["BALL", "#3fa9dd"],
+  MovingOut: ["BOX", "#6fa957"],
+  MovingDay: ["SOFA", "#9471dc"],
+  Tutorial: ["BOOK", "#f2b230"],
+};
+// Little floor plans for the house picker: five rooms in a pinwheel, or four wings
+// round a garden.
+const HOUSE_PLANS = {
+  pinwheel:
+    '<rect x="8" y="8" width="56" height="30" rx="4"/><rect x="64" y="8" width="28" height="56" rx="4"/><rect x="36" y="64" width="56" height="28" rx="4"/><rect x="8" y="38" width="28" height="54" rx="4"/><rect class="plan-hall" x="36" y="38" width="28" height="26" rx="3"/><circle class="plan-dot" cx="22" cy="22" r="4"/><circle class="plan-dot" cx="78" cy="48" r="4"/><circle class="plan-dot" cx="64" cy="78" r="4"/><circle class="plan-dot" cx="22" cy="66" r="4"/>',
+  courtyard:
+    '<rect x="8" y="8" width="84" height="84" rx="6"/><rect class="plan-garden" x="30" y="30" width="40" height="40" rx="4"/><circle class="plan-tree" cx="50" cy="50" r="9"/><path d="M30 8v22M70 8v22M30 70v22M70 70v22M8 30h22M8 70h22M70 30h22M70 70h22"/><circle class="plan-dot" cx="19" cy="19" r="4"/><circle class="plan-dot" cx="81" cy="81" r="4"/>',
+};
+const housePlan = (id) =>
+  HOUSE_PLANS[id]
+    ? `<svg class="plan" viewBox="0 0 100 100" aria-hidden="true">${HOUSE_PLANS[id]}</svg>`
+    : icon("house");
+const paletteCss = (id) => {
+  const c = data.wardrobe.palettes.Top.find((p) => p.id === id);
+  return c ? `rgb(${c.rgb.map((n) => Math.round(n * 255)).join(",")})` : "#e9b46a";
+};
+function home(tab = "play") {
   view.setWorkshop?.({ enabled: false, selectedId: null, ghost: null });
   resetInputs();
   releaseMouse();
-  screen = "home";
+  const entering =
+    !["home", "closet"].includes(screen) ||
+    !game ||
+    game.status !== "preview" ||
+    game.mode === "Tour" ||
+    game.map.id !== map;
+  const switched = lobbyTab !== tab || entering;
+  lobbyTab = tab;
+  if (tab !== "play") lobbyPicker = null;
+  screen = tab === "locker" ? "closet" : "home";
   craftOpen = false;
   paused = false;
-  game = new Game(data, { preview: true, map, wardrobe: profile });
-  view.rebuild(game);
-  ui.innerHTML = `<main class="home"><div class="home-top"><span class="eyebrow">A LITTLE WORDPLAY. A LOT OF MAYHEM.</span><button class="quiet" data-action="sound" aria-label="Toggle sound">${muted ? "Sound off" : "Sound on"}</button></div><section class="home-copy"><div class="logo"><span>WRECK</span><span>ABULARY<span class="logo-dot">!</span></span></div><p class="lede">Make a mess.<br>Make a word.<br><em>Make your move.</em></p><div class="home-pills"><span>100 HP</span><span>10 letters</span><span>Endless mischief</span></div></section><section class="play-card"><div class="card-top"><span class="eyebrow">TODAY’S HOUSE PARTY</span><button class="link" data-action="closet">Your wardrobe +</button></div><div class="mode-grid">${Object.entries(
-    MODES,
-  )
-    .map(
-      ([id, m]) =>
-        `<button class="mode-card ${id === mode ? "selected" : ""}" data-mode="${id}" aria-pressed="${id === mode}"><span class="mode-emoji">${actionArt({ Dibs: "smash", Duos: "throw", MovingOut: "dodge", MovingDay: "deploy", Tutorial: "craft" }[id], 25)}</span><span><strong>${m.title}</strong><small>${m.tag}</small></span></button>`,
-    )
-    .join(
-      "",
-    )}</div><p class="mode-description">${MODES[mode].description}</p><div class="map-row"><label for="map-choice">The playground</label><select id="map-choice">${MAPS.map((m) => `<option value="${m.id}" ${m.id === map ? "selected" : ""}>${m.name}</option>`).join("")}</select></div><button class="primary start" data-action="start">LET’S MAKE A MESS <span>→</span></button><p class="fineprint">Solo with clever little AI housemates · keyboard, mouse or touch</p></section><div class="home-footer"><span>BREAK IT. SPELL IT. BRING IT.</span><div class="home-links"><button class="link workshop-entry" data-action="workshop">Creative Workshop +</button><button class="link" data-action="how">How to play +</button></div></div></main>`;
+  if (entering) {
+    game = new Game(data, { preview: true, map, wardrobe: profile });
+    view.rebuild(game);
+  }
+  view.closet = false;
+  stageLobby(tab);
+  ui.innerHTML = `<main class="lobby lobby-${tab} ${switched ? "lobby-enter" : ""}">
+<header class="lobby-top">
+  <div class="lobby-logo" aria-label="Wreckabulary"><b>WRECKABULARY</b></div>
+  <nav class="lobby-tabs" aria-label="Lobby">${LOBBY_TABS.map(([id, action, label]) => `<button class="lobby-tab ${id === tab ? "on" : ""}" data-action="${action}" aria-current="${id === tab ? "page" : "false"}"><span>${icon(id)}${label}</span></button>`).join("")}</nav>
+  <div class="lobby-meta">
+    <span class="meta-chip coins" title="Coins">${COIN_ICON}<b id="coin-count">${progress.coins.toLocaleString()}</b></span>
+    <span class="meta-chip party-count" title="Housemates">${icon("party")}<b>${game.players.length}</b></span>
+    <button class="round-button" data-action="sound" aria-label="${muted ? "Sound off" : "Sound on"}" title="${muted ? "Sound off" : "Sound on"}">${icon(muted ? "soundOff" : "soundOn")}</button>
+    <button class="round-button" data-action="how" aria-label="How to play" title="How to play">${icon("help")}</button>
+  </div>
+</header>
+${tab === "play" ? lobbyStageUi() : `<section class="lobby-panel" aria-label="${LOBBY_TABS.find(([id]) => id === tab)[2]}">${lobbyPanel(tab)}</section>`}
+</main>`;
   bindUi();
+  bindLobby(tab);
+  placeLobbyTags();
+}
+// Play tab: name tags over the line-up, the chosen mode and house, and PLAY.
+function lobbyStageUi() {
+  const [art, colour] = MODE_ART[mode] ?? ["BOX", "#ffd21f"],
+    house = MAPS.find((m) => m.id === map) ?? MAPS[0];
+  const tags = game.players
+    .map((p, i) =>
+      i === 0
+        ? `<div class="stage-tag you" data-tag="0"><span class="tag-crown">${icon("crown")}</span><label class="tag-name"><input id="player-name" maxlength="16" value="${esc(progress.name)}" aria-label="Your name" spellcheck="false">${icon("pencil", "tag-edit")}</label><span class="tag-status leader">Party leader</span></div>`
+        : `<div class="stage-tag" data-tag="${i}"><span class="tag-name"><strong>${esc(p.name)}</strong></span><span class="tag-status ready">Ready</span></div>`,
+    )
+    .join("");
+  return `<div class="stage-tags" aria-label="Party">${tags}</div>
+<footer class="lobby-dock">
+  <button class="workshop-sign" data-action="workshop">${icon("hammer")}<span>Creative<br>Workshop</span></button>
+  <div class="match-dock">
+    <button class="dock-pick dock-mode" data-action="modes" style="--mode:${colour}" aria-label="Game mode: ${esc(MODES[mode].title)}. Change mode">
+      <span class="dock-art">${iconHtml(art)}</span>
+      <span class="dock-text"><small>Game mode</small><strong>${MODES[mode].title}</strong><em>${MODES[mode].tag}</em></span>
+      <span class="dock-change">Change</span>
+    </button>
+    <button class="dock-pick dock-map" data-action="maps" aria-label="House: ${esc(house.name)}. Change house">
+      ${icon("house", "dock-house")}
+      <span class="dock-text"><small>House</small><b>${esc(house.name)}</b></span>
+      <span class="dock-change">Change</span>
+    </button>
+    <button class="play-button start" data-action="start" aria-label="Play ${esc(MODES[mode].title)}"><span class="play-tiles" aria-hidden="true">${[..."PLAY"].map((c, i) => `<i style="--i:${i}">${c}</i>`).join("")}</span>${icon("arrow", "play-arrow")}</button>
+  </div>
+</footer>
+${lobbyPicker ? lobbyPickerUi() : ""}`;
+}
+// Clicking the chosen mode or house opens the full choice.
+function lobbyPickerUi() {
+  const body =
+    lobbyPicker === "mode"
+      ? `<div class="picker-modes">${Object.entries(MODES)
+          .map(([id, m]) => {
+            const [art, colour] = MODE_ART[id] ?? ["BOX", "#ffd21f"];
+            return `<button class="mode-poster ${id === mode ? "selected" : ""}" data-mode="${id}" aria-pressed="${id === mode}" style="--mode:${colour}"><span class="poster-art">${iconHtml(art)}</span><strong>${m.title}</strong><em>${m.tag}</em><span class="poster-blurb">${m.description}</span>${id === mode ? `<span class="poster-check">${icon("check")}</span>` : ""}</button>`;
+          })
+          .join("")}</div>`
+      : `<div class="picker-houses">${MAPS.map(
+          (m, i) =>
+            `<button class="house-card ${m.id === map ? "selected" : ""}" data-map="${m.id}" aria-pressed="${m.id === map}" style="--mode:${["#ff5a1f", "#7be03a"][i % 2]}"><span class="house-art">${housePlan(m.id)}</span><strong>${esc(m.name)}</strong><span class="poster-blurb">${esc(m.subtitle ?? "")}</span>${m.id === map ? `<span class="poster-check">${icon("check")}</span>` : ""}</button>`,
+        ).join("")}</div>`;
+  return `<div class="picker-shade" id="picker-shade"><section class="picker" role="dialog" aria-modal="true" aria-label="${lobbyPicker === "mode" ? "Choose a mode" : "Choose a house"}"><header class="picker-head"><h2>${lobbyPicker === "mode" ? "Pick your chaos" : "Pick a house"}</h2><button class="round-button" data-action="closePicker" aria-label="Close">${icon("close")}</button></header>${body}</section></div>`;
+}
+const panelHead = (title, sub) =>
+  `<header class="panel-head"><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ""}</header>`;
+function lobbyPanel(tab) {
+  if (tab === "locker") return lockerPanel();
+  if (tab === "shop")
+    return `${panelHead("Item shop", "Looks only. Never stats.")}<div class="shop-grid">${SHOP.map((item) => {
+      const owned = owns(progress, item.kind, item.value),
+        short = progress.coins < item.price,
+        art =
+          item.kind === "colour"
+            ? `<span class="paint-blob" style="--paint:${paletteCss(item.value)}"></span>`
+            : `<span class="skin-art skin-${item.value.toLowerCase()}">${iconHtml("BAT")}</span>`;
+      return `<div class="shop-item ${owned ? "owned" : ""} ${item.kind}" data-item="${item.id}"><div class="shop-art">${art}</div><strong>${item.name}</strong><small>${item.kind === "skin" ? "Crafted gear style" : "Hoodie colour"}</small>${owned ? `<span class="owned-stamp">Owned</span>` : `<button class="price-tag ${short ? "short" : ""}" data-buy="${item.id}" ${short ? "disabled" : ""} aria-label="Buy ${item.name} for ${item.price} coins">${COIN_ICON}<b>${item.price}</b></button>`}</div>`;
+    }).join("")}</div><p class="panel-foot">${COIN_ICON} Earn coins in matches: smash, spell and win for more.</p>`;
+  if (tab === "recipes") {
+    const count = data.items.items.filter((i) => i.enabled).length;
+    return `${panelHead("Recipe book", `${count} words you can spell. In a match press <kbd>Q</kbd> and type one.`)}<div class="recipe-grid lobby-recipes">${recipeBook("")}</div>`;
+  }
+  return `${panelHead("Leaderboards", "Best single-match score, worldwide.")}<div class="board-modes" role="tablist">${RANKED_MODES.map((m) => `<button class="board-chip ${m === boardMode ? "on" : ""}" data-board="${m}" role="tab" aria-selected="${m === boardMode}" style="--mode:${MODE_ART[m][1]}">${iconHtml(MODE_ART[m][0])}<span>${MODES[m].title}</span></button>`).join("")}</div><ol class="board" id="board"><li class="board-note">Loading…</li></ol><p class="board-best">${icon("leaderboard")}<span>Your best</span><b>${(progress.bests[boardMode] ?? 0).toLocaleString()}</b></p>`;
+}
+function lockerPanel() {
+  return `${panelHead("Locker", "All style. Zero stats.")}<div class="locker-row"><label class="wood-select">Top<select id="outfit-top">${data.wardrobe.pieces
+    .filter((p) => p.slot === "Top")
+    .map((p) => `<option ${profile.pieces.Top === p.id ? "selected" : ""}>${p.id}</option>`)
+    .join("")}</select></label><label class="wood-select">Headwear<select id="outfit-head"><option value="">Bare head</option>${data.wardrobe.pieces
+    .filter((p) => p.slot === "Headwear")
+    .map((p) => `<option ${profile.pieces.Headwear === p.id ? "selected" : ""}>${p.id}</option>`)
+    .join("")}</select></label></div><h3 class="locker-label">Signature colour</h3><div class="swatches paint-swatches">${data.wardrobe.palettes.Top.map((c) => {
+    const owned = owns(progress, "colour", c.id),
+      price = SHOP.find((s) => s.id === `colour:${c.id}`)?.price;
+    return `<button data-color="${c.id}" class="swatch ${profile.colours.Top === c.id ? "selected" : ""} ${owned ? "" : "locked"}" style="--paint:${paletteCss(c.id)}" title="${c.name}${owned ? "" : ` · ${price} coins in the shop`}" aria-label="${c.name}${owned ? "" : ", locked"}">${owned ? "" : icon("lock")}</button>`;
+  }).join("")}</div><h3 class="locker-label">Extras</h3><div class="accessories extra-toggles">${[
+    ["Glasses", "Face", "glasses", "Glasses"],
+    ["Satchel", "Back", "satchel", "Satchel"],
+    ["TBadge", "Badge", "badge", "Letter badge"],
+  ]
+    .map(
+      ([id, slot, glyphName, label]) =>
+        `<label class="extra"><input type="checkbox" data-piece="${id}" data-slot="${slot}" ${profile.pieces[slot] === id ? "checked" : ""}>${icon(glyphName)}<span>${label}</span></label>`,
+    )
+    .join("")}</div><label class="wood-select wide">Crafted gear style<select id="skin-choice">${["Classic", "Candy", "Arcade"]
+    .filter((s) => owns(progress, "skin", s))
+    .map((s) => `<option ${skin === s ? "selected" : ""}>${s}</option>`)
+    .join("")}</select></label><button class="sticker-button" data-action="home">That’s my look ${icon("check")}</button>`;
+}
+// You stand in the middle; the roommates fan out beside and a step behind you.
+// [side, back] in metres: +side is screen-left, -back is further from the camera.
+const LOBBY_SPOTS = [
+  [0, 0],
+  [-1.3, -0.45],
+  [1.3, -0.45],
+  [2.45, -1.25],
+];
+function stageLobby(tab) {
+  const extent = game.extent,
+    angle = 1.374,
+    f = { x: Math.sin(angle), z: Math.cos(angle) },
+    r = { x: -f.z, z: f.x },
+    floor = -0.65,
+    top = floor + 0.12,
+    c = { x: f.x * (extent + 6), z: f.z * (extent + 6) };
+  game.players.forEach((p, i) => {
+    const [side, back] = LOBBY_SPOTS[i] ?? [0, -2.4];
+    p.x = c.x + r.x * side + f.x * back;
+    p.z = c.z + r.z * side + f.z * back;
+    p.y = top;
+    p.yaw = angle - side * 0.12;
+    p.facing = { x: Math.sin(p.yaw), z: Math.cos(p.yaw) };
+  });
+  // Frame by screen shape so PC, phone portrait and phone landscape all fill the screen.
+  const aspect = innerWidth / Math.max(1, innerHeight),
+    portrait = aspect < 1,
+    halfTan = Math.tan((20 * Math.PI) / 180),
+    clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v)),
+    fit = (width) => clamp(width / (2 * halfTan * aspect), 3.2, 9.5),
+    widthAt = (d) => 2 * halfTan * aspect * d;
+  let distance, shift, eye, look;
+  if (tab === "play") {
+    distance = fit(portrait ? 2.3 : 5.6);
+    shift = 0;
+    eye = portrait ? 1.05 : 0.95;
+    look = portrait ? 0.95 : 0.78;
+  } else if (tab === "locker") {
+    distance = portrait ? 5.2 : 3.3;
+    // The panel takes the right side on wide screens and the bottom on phones.
+    shift = portrait ? 0 : widthAt(distance) * 0.17;
+    eye = portrait ? 1.1 : 0.95;
+    // On phones a bottom sheet covers the lower half, so aim low to lift the line-up
+    // into the strip between the tabs and the sheet.
+    look = portrait ? -0.2 : 0.68;
+  } else {
+    distance = portrait ? 7 : fit(9.5);
+    shift = portrait ? 0 : widthAt(distance) * 0.23;
+    eye = 1.0;
+    look = portrait ? -0.55 : 0.8;
+  }
+  const at = (along, height, sideways) => ({
+    x: c.x + f.x * along - r.x * sideways,
+    y: top + height,
+    z: c.z + f.z * along - r.z * sideways,
+  });
+  view.setLobby({
+    centre: c,
+    yaw: angle,
+    floor,
+    spots: LOBBY_SPOTS,
+    camera: at(distance, eye, shift),
+    target: at(0, look, shift),
+  });
+}
+// Keeps the HTML name tags over the roommates' heads as the camera moves.
+function placeLobbyTags() {
+  if (screen !== "home" || lobbyTab !== "play") return;
+  ui.querySelectorAll("[data-tag]").forEach((tag) => {
+    const p = game.players[Number(tag.dataset.tag)];
+    if (!p) return;
+    const s = view.screenOf(p.x, p.y + 1.42, p.z);
+    tag.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px) translate(-50%, -100%)`;
+    tag.style.visibility = s.visible ? "visible" : "hidden";
+  });
+}
+function bindLobby(tab) {
+  const name = document.querySelector("#player-name");
+  if (name)
+    name.onchange = () => {
+      const clean = name.value.replace(/[^A-Za-z0-9 _-]/g, "").trim().slice(0, 16);
+      if (clean.length >= 2) progress.name = clean;
+      name.value = progress.name;
+      saveProgress();
+    };
+  if (tab === "locker") bindLocker();
+  ui.querySelectorAll("[data-mode]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        mode = b.dataset.mode;
+        lobbyPicker = null;
+        sound("craft");
+        home("play");
+      }),
+  );
+  ui.querySelectorAll("[data-map]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        map = b.dataset.map;
+        lobbyPicker = null;
+        home("play");
+      }),
+  );
+  const shade = document.querySelector("#picker-shade");
+  if (shade)
+    shade.onclick = (e) => {
+      if (e.target === shade) actions.closePicker();
+    };
+  ui.querySelectorAll("[data-buy]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const result = buy(progress, b.dataset.buy);
+        if (!result.ok) return toast(result.error);
+        saveProgress();
+        sound("buff");
+        toast(`${result.item.name} unlocked. Equip it in the Locker.`);
+        home("shop");
+      }),
+  );
+  ui.querySelectorAll("[data-board]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        boardMode = b.dataset.board;
+        home("leaderboard");
+      }),
+  );
+  if (tab === "leaderboard") loadBoard(boardMode);
+}
+function bindLocker() {
+  const update = () => {
+    if (profile.pieces.Headwear === "Hood" && profile.pieces.Top !== "Hoodie")
+      profile.pieces.Top = "Hoodie";
+    saveProfile();
+    game.wardrobe = profile;
+    game.players[0].wardrobe = profile;
+    view.applyWardrobe(view.entities.get("p0").userData.avatar, profile);
+  };
+  document.querySelector("#outfit-top").onchange = (e) => {
+    profile.pieces.Top = e.target.value;
+    if (e.target.value !== "Hoodie" && profile.pieces.Headwear === "Hood")
+      delete profile.pieces.Headwear;
+    update();
+  };
+  document.querySelector("#outfit-head").onchange = (e) => {
+    if (e.target.value) profile.pieces.Headwear = e.target.value;
+    else delete profile.pieces.Headwear;
+    update();
+  };
+  document.querySelector("#skin-choice").onchange = (e) => {
+    skin = e.target.value;
+    saveProfile();
+  };
+  ui.querySelectorAll("[data-color]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (b.classList.contains("locked")) {
+          toast("That colour is in the Shop.");
+          return home("shop");
+        }
+        profile.colours.Top = b.dataset.color;
+        ui.querySelectorAll("[data-color]").forEach((n) =>
+          n.classList.toggle("selected", n === b),
+        );
+        update();
+      }),
+  );
+  ui.querySelectorAll("[data-piece]").forEach(
+    (b) =>
+      (b.onchange = () => {
+        if (b.checked) profile.pieces[b.dataset.slot] = b.dataset.piece;
+        else delete profile.pieces[b.dataset.slot];
+        update();
+      }),
+  );
+}
+function closet() {
+  home("locker");
+}
+function saveProgress() {
+  try {
+    localStorage.setItem("wreckabulary.progress.v1", JSON.stringify(progress));
+  } catch {}
+}
+// Online board first; if the server has no leaderboard yet, show this device's bests.
+async function loadBoard(boardFor) {
+  const list = () => document.querySelector("#board");
+  try {
+    const response = await fetch(
+      `/api/scores?mode=${encodeURIComponent(boardFor)}&player=${encodeURIComponent(progress.player)}`,
+      { headers: { accept: "application/json" } },
+    );
+    const body = response.headers.get("content-type")?.includes("json") ? await response.json() : null;
+    if (!response.ok || !body?.rows) throw new Error(body?.error ?? "offline");
+    if (lobbyTab !== "leaderboard" || boardMode !== boardFor || !list()) return;
+    list().innerHTML = body.rows.length
+      ? body.rows
+          .map(
+            (row) =>
+              `<li class="${row.you ? "you" : ""} ${row.rank <= 3 ? `podium top-${row.rank}` : ""}"><span class="rank">${row.rank}</span><strong>${esc(row.name)}</strong><b>${row.score.toLocaleString()}</b></li>`,
+          )
+          .join("")
+      : `<li class="board-note">No scores yet. Be the first!</li>`;
+  } catch {
+    if (lobbyTab !== "leaderboard" || boardMode !== boardFor || !list()) return;
+    const best = progress.bests[boardFor];
+    list().innerHTML = `<li class="board-note">The online board is offline. Showing this device.</li>${best ? `<li class="you"><span class="rank">–</span><strong>${esc(progress.name)}</strong><b>${best.toLocaleString()}</b></li>` : ""}`;
+  }
+}
+// Called once when a match finishes: coins, best score and the online submission.
+function rewardMatch(won) {
+  if (game.rewarded) return game.rewarded;
+  const reward = matchReward(game.stats, won),
+    best = recordMatch(progress, game.mode, reward);
+  game.rewarded = { ...reward, best };
+  saveProgress();
+  if (RANKED_MODES.includes(game.mode))
+    fetch("/api/scores", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: progress.name,
+        mode: game.mode,
+        score: reward.score,
+        player: progress.player,
+      }),
+    }).catch(() => {});
+  return game.rewarded;
 }
 function renderHud() {
   const m = MODES[game.mode];
-  ui.innerHTML = `<div class="hud"><header class="hud-top"><button class="brand-small" data-action="pause" aria-label="Pause game">W<span>!</span></button><div class="match-label"><span class="eyebrow">${m.tag}</span><strong>${m.title}</strong><span id="round-text"></span></div></header><aside class="hud-side"><div class="minimap" id="minimap" aria-label="House map"></div><div class="side-info"><div class="side-row"><div class="alive-count" id="alive-count" role="img" aria-label="Housemates up"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0z"/><circle cx="17" cy="8" r="2.6"/><path d="M16 13.2a5.5 5.5 0 0 1 6 5.8h-4.4"/></svg><b>4/4</b></div><div class="timer" id="timer">2:30</div></div><div class="room-pill" id="room-pill">Bedroom</div><div class="objective-top" id="objective-top"></div></div></aside><div class="status-message" id="status-message"></div><section class="vitals"><div class="vitals-hp"><span class="hp-cross" aria-hidden="true"></span><div class="hp-label"><strong id="hp-value">100</strong><span>HP</span></div><div class="hp-side"><span class="player-name">YOU <span id="shield-text"></span></span><div class="health-track"><div id="health-fill"></div></div></div></div><div class="equipment"><button data-action="slot0" class="gear-slot" id="slot0"><kbd>1</kbd><span>Empty hand</span></button><button data-action="slot1" class="gear-slot" id="slot1"><kbd>2</kbd><span>Empty hand</span></button><button class="drop-button" data-action="drop" title="Drop equipped item (R)">${actionArt("drop", 20)}<span>Drop</span></button></div></section><section class="letter-tray"><div class="tray-header"><span>YOUR LETTERS</span><strong id="bag-count">0 / 10</strong><button class="link" data-action="craft">Spell <kbd>Q</kbd></button><button class="link bag-link" data-action="bag">Bag <kbd>Tab</kbd></button></div><div id="letters"></div><div id="craft-progress"></div></section><section class="actions"><button class="action small" data-hold="block" id="block-action">${actionArt("block")}<small>BLOCK</small><kbd>RMB</kbd></button><button class="action small" data-hold="interact" id="interact-action">${actionArt("interact")}<small>INTERACT</small><kbd>E</kbd></button><button class="action attack" data-hold="attack" id="attack-action"><span id="attack-icon">${actionArt("smash", 42)}</span><small id="attack-label">SMASH</small><kbd>LMB</kbd></button><button class="action small" data-action="jump" id="jump-action">${actionArt("jump")}<small>JUMP</small><kbd>Space</kbd></button><button class="action small" data-action="dodge" id="dodge-action">${actionArt("dodge")}<small>DODGE</small><kbd>Shift</kbd></button><button class="action craft-button" data-action="craft">${actionArt("craft", 34)}<small>SPELL</small><kbd>Q</kbd></button><button class="action small deploy-action" data-action="deploy">${actionArt("deploy")}<small>PLACE / USE</small><kbd>F</kbd></button><button class="action small throw-action" data-action="throw">${actionArt("throw")}<small>THROW</small><kbd>G</kbd></button></section><div class="joystick" id="joystick" aria-label="Touch movement joystick"><div class="joystick-knob"></div></div><p class="control-hint"><kbd>WASD</kbd> move <span>·</span> mouse look <span>·</span> <kbd>Q</kbd> spell <span>·</span> <kbd>E</kbd> interact <span>·</span> <kbd>Tab</kbd> bag &amp; map <span>·</span> <kbd>Esc</kbd> pause</p><div class="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div id="bag-root"></div></div><div id="drawer-root"></div><div id="modal-root"></div>`;
+  ui.innerHTML = `<div class="hud"><header class="hud-top"><button class="brand-small" data-action="pause" aria-label="Pause game">W<span>!</span></button><div class="match-label"><span class="eyebrow">${m.tag}</span><strong>${m.title}</strong><span id="round-text"></span></div></header><aside class="hud-side"><div class="minimap" id="minimap" aria-label="House map"></div><div class="side-info"><div class="side-row"><div class="alive-count" id="alive-count" role="img" aria-label="Housemates up"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0z"/><circle cx="17" cy="8" r="2.6"/><path d="M16 13.2a5.5 5.5 0 0 1 6 5.8h-4.4"/></svg><b>4/4</b></div><div class="timer" id="timer">2:30</div></div><div class="room-pill" id="room-pill">Bedroom</div><div class="objective-top" id="objective-top"></div></div></aside><div class="status-message" id="status-message"></div><section class="vitals"><div class="vitals-hp"><span class="hp-cross" aria-hidden="true"></span><div class="hp-label"><strong id="hp-value">100</strong><span>HP</span></div><div class="hp-side"><span id="shield-text"></span></div></div><div class="equipment"><button data-action="slot0" class="gear-slot" id="slot0"><kbd>1</kbd><span>Empty hand</span></button><button data-action="slot1" class="gear-slot" id="slot1"><kbd>2</kbd><span>Empty hand</span></button></div></section><section class="letter-tray"><div class="tray-header"><span>YOUR LETTERS</span><strong id="bag-count">0 / 10</strong><button class="link" data-action="craft">Spell <kbd>Q</kbd></button><button class="link bag-link" data-action="bag">Bag <kbd>Tab</kbd></button></div><div id="letters"></div><div id="craft-progress"></div></section><section class="actions"><button class="action small" data-hold="block" id="block-action">${actionArt("block")}<small>BLOCK</small><kbd>RMB</kbd></button><button class="action small" data-hold="interact" id="interact-action">${actionArt("interact")}<small>INTERACT</small><kbd>E</kbd></button><button class="action attack" data-hold="attack" id="attack-action"><span id="attack-icon">${actionArt("smash", 42)}</span><small id="attack-label">SMASH</small><kbd>LMB</kbd></button><button class="action small" data-action="jump" id="jump-action">${actionArt("jump")}<small>JUMP</small><kbd>Space</kbd></button><button class="action small" data-action="dodge" id="dodge-action">${actionArt("dodge")}<small>DODGE</small><kbd>Shift</kbd></button><button class="action craft-button" data-action="craft">${actionArt("craft", 34)}<small>SPELL</small><kbd>Q</kbd></button><button class="action small deploy-action" data-action="deploy">${actionArt("deploy")}<small>PLACE / USE</small><kbd>F</kbd></button><button class="action small throw-action" data-action="throw">${actionArt("throw")}<small>THROW</small><kbd>G</kbd></button></section><div class="joystick" id="joystick" aria-label="Touch movement joystick"><div class="joystick-knob"></div></div><p class="control-hint"><kbd>WASD</kbd> move <span>·</span> mouse look <span>·</span> <kbd>Q</kbd> spell <span>·</span> <kbd>E</kbd> interact <span>·</span> <kbd>Tab</kbd> bag &amp; map <span>·</span> <kbd>Esc</kbd> pause</p><div class="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div id="bag-root"></div></div><div id="drawer-root"></div><div id="modal-root"></div>`;
   bindUi();
   bindJoystick();
   updateHud();
@@ -216,9 +639,8 @@ function updateHud() {
       game.rules.roundTimeLimit - (game.time - game.roundStart),
     );
   document.querySelector("#hp-value").textContent = Math.ceil(p.hp);
-  document.querySelector("#health-fill").style.width =
-    `${(p.hp / p.maxHp) * 100}%`;
-  document.querySelector("#health-fill").classList.toggle("low", p.hp < 30);
+  // No bar: the number alone, turning warm red when you're low.
+  document.querySelector(".vitals-hp").classList.toggle("low", p.hp < 30);
   document.querySelector("#shield-text").textContent =
     p.bubble > 0 ? `+ ${Math.ceil(p.bubble)} BUBBLE` : "";
   document.querySelector("#bag-count").textContent =
@@ -605,9 +1027,10 @@ function result() {
   releaseMouse();
   craftOpen = false;
   document.querySelector("#drawer-root").innerHTML = "";
-  const win = game.winner === game.players[0].team;
+  const win = game.winner === game.players[0].team,
+    reward = game.status === "finished" ? rewardMatch(win) : null;
   document.querySelector("#modal-root").innerHTML =
-    `<div class="modal-shade"><section class="result-card"><span class="result-spark">${win ? "✦" : "→"}</span><span class="eyebrow">${game.status === "roundOver" ? `ROUND ${game.round} COMPLETE` : "HOUSE PARTY COMPLETE"}</span><h2>${game.result}</h2><p>${win ? "A little imagination goes a long way." : "Every good mess teaches you a new trick."}</p><div class="result-stats"><div><strong>${game.stats.broken}</strong><span>objects wrecked</span></div><div><strong>${game.stats.crafted}</strong><span>words crafted</span></div><div><strong>${Math.ceil(game.stats.damage)}</strong><span>damage dealt</span></div></div><button class="primary" data-action="${game.status === "roundOver" ? "next" : "start"}">${game.status === "roundOver" ? "NEXT ROUND" : "PLAY AGAIN"} →</button><button class="quiet" data-action="home">Back to the house party</button></section></div>`;
+    `<div class="modal-shade"><section class="result-card"><span class="result-spark">${win ? "✦" : "→"}</span><span class="eyebrow">${game.status === "roundOver" ? `ROUND ${game.round} COMPLETE` : "HOUSE PARTY COMPLETE"}</span><h2>${game.result}</h2><p>${win ? "A little imagination goes a long way." : "Every good mess teaches you a new trick."}</p><div class="result-stats"><div><strong>${game.stats.broken}</strong><span>objects wrecked</span></div><div><strong>${game.stats.crafted}</strong><span>words crafted</span></div><div><strong>${Math.ceil(game.stats.damage)}</strong><span>damage dealt</span></div></div>${reward ? `<div class="result-reward"><span class="coins">${COIN_ICON}<b>+${reward.coins}</b></span><span>Score <b>${reward.score}</b>${reward.best ? ` <em>New best!</em>` : ""}</span></div>` : ""}<button class="primary" data-action="${game.status === "roundOver" ? "next" : "start"}">${game.status === "roundOver" ? "NEXT ROUND" : "PLAY AGAIN"} →</button><button class="quiet" data-action="home">Back to the house party</button></section></div>`;
   bindUi();
 }
 function pause() {
@@ -634,82 +1057,6 @@ function how() {
   const close = () => layer.remove();
   layer.querySelector("#help-close").onclick = close;
   layer.querySelector("#help-done").onclick = close;
-}
-function closet() {
-  screen = "closet";
-  ui.innerHTML = `<main class="closet"><button class="quiet" data-action="home">← Back to the party</button><section class="closet-card"><span class="eyebrow">LOOK GOOD. MAKE MISCHIEF.</span><h1>Your little housemate.</h1><p>Pick the pieces. Find your colour. All style, zero stat changes.</p><div class="closet-controls"><label>Top<select id="outfit-top">${data.wardrobe.pieces
-    .filter((p) => p.slot === "Top")
-    .map(
-      (p) =>
-        `<option ${profile.pieces.Top === p.id ? "selected" : ""}>${p.id}</option>`,
-    )
-    .join(
-      "",
-    )}</select></label><label>Headwear<select id="outfit-head"><option value="">Bare head</option>${data.wardrobe.pieces
-    .filter((p) => p.slot === "Headwear")
-    .map(
-      (p) =>
-        `<option ${profile.pieces.Headwear === p.id ? "selected" : ""}>${p.id}</option>`,
-    )
-    .join(
-      "",
-    )}</select></label></div><span class="eyebrow">YOUR SIGNATURE COLOUR</span><div class="swatches">${data.wardrobe.palettes.Top.map((c) => `<button data-color="${c.id}" class="swatch ${profile.colours.Top === c.id ? "selected" : ""}" style="background:rgb(${c.rgb.map((n) => n * 255).join(",")})" title="${c.name}" aria-label="${c.name}"></button>`).join("")}</div><div class="accessories">${[
-    ["Glasses", "Face"],
-    ["Satchel", "Back"],
-    ["TBadge", "Badge"],
-  ]
-    .map(
-      ([id, slot]) =>
-        `<label><input type="checkbox" data-piece="${id}" data-slot="${slot}" ${profile.pieces[slot] === id ? "checked" : ""}>${id === "TBadge" ? "Letter badge" : id}</label>`,
-    )
-    .join(
-      "",
-    )}</div><label class="skin-select">Crafted gear style<select id="skin-choice">${["Classic", "Candy", "Arcade"].map((s) => `<option ${skin === s ? "selected" : ""}>${s}</option>`).join("")}</select></label><p class="fineprint">Original and deployed furniture keeps its Classic look. Gear wears your chosen style while held or flying.</p><button class="primary" data-action="home">THAT’S MY LOOK →</button></section></main>`;
-  bindUi();
-  const update = () => {
-    if (profile.pieces.Headwear === "Hood" && profile.pieces.Top !== "Hoodie")
-      profile.pieces.Top = "Hoodie";
-    saveProfile();
-    game.players[0].wardrobe = profile;
-    view.applyWardrobe(view.entities.get("p0").userData.avatar, profile);
-  };
-  document.querySelector("#outfit-top").onchange = (e) => {
-    profile.pieces.Top = e.target.value;
-    if (e.target.value !== "Hoodie" && profile.pieces.Headwear === "Hood")
-      delete profile.pieces.Headwear;
-    update();
-  };
-  document.querySelector("#outfit-head").onchange = (e) => {
-    if (e.target.value) profile.pieces.Headwear = e.target.value;
-    else delete profile.pieces.Headwear;
-    update();
-  };
-  document.querySelector("#skin-choice").onchange = (e) => {
-    skin = e.target.value;
-    saveProfile();
-  };
-  ui.querySelectorAll("[data-color]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        profile.colours.Top = b.dataset.color;
-        ui.querySelectorAll("[data-color]").forEach((n) =>
-          n.classList.toggle("selected", n === b),
-        );
-        update();
-      }),
-  );
-  ui.querySelectorAll("[data-piece]").forEach(
-    (b) =>
-      (b.onchange = () => {
-        if (b.checked) profile.pieces[b.dataset.slot] = b.dataset.piece;
-        else delete profile.pieces[b.dataset.slot];
-        update();
-      }),
-  );
-  game.players[0].x = -5;
-  game.players[0].z = -2;
-  game.players[0].yaw = Math.PI;
-  view.closet = true;
 }
 // Designs are separate documents. Matches always create fresh canonical houses.
 const workshopSessions = new Map();
@@ -769,6 +1116,7 @@ function loadWorkshopSession(id) {
   };
 }
 function openWorkshop(id = map) {
+  view.setLobby(null);
   releaseMouse();
   resetInputs();
   craftOpen = false;
@@ -1244,6 +1592,22 @@ const actions = {
   start,
   home,
   closet,
+  lobbyPlay: () => home("play"),
+  shop: () => home("shop"),
+  lobbyRecipes: () => home("recipes"),
+  leaderboard: () => home("leaderboard"),
+  modes: () => {
+    lobbyPicker = "mode";
+    home("play");
+  },
+  maps: () => {
+    lobbyPicker = "map";
+    home("play");
+  },
+  closePicker: () => {
+    lobbyPicker = null;
+    home("play");
+  },
   how,
   craft: () => drawer(),
   bag: () => setBag(!bagOpen),
@@ -1252,7 +1616,7 @@ const actions = {
   sound: () => {
     muted = !muted;
     saveProfile();
-    home();
+    home(lobbyTab);
   },
   next: () => {
     game.nextRound();
@@ -1289,17 +1653,6 @@ function bindUi() {
         actions[b.dataset.action]?.();
       }),
   );
-  ui.querySelectorAll("[data-mode]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        mode = b.dataset.mode;
-        home();
-      }),
-  );
-  ui.querySelector("#map-choice")?.addEventListener("change", (e) => {
-    map = e.target.value;
-    home();
-  });
   ui.querySelectorAll("[data-hold]").forEach((b) => {
     b.onpointerdown = (e) => {
       e.preventDefault();
@@ -1350,6 +1703,10 @@ function bindJoystick() {
 }
 window.addEventListener("keydown", (e) => {
   if (e.target.matches("input,select,textarea")) return;
+  if (screen === "home" && lobbyPicker && e.code === "Escape") {
+    e.preventDefault();
+    return actions.closePicker();
+  }
   if (screen === "workshop") {
     if ((e.ctrlKey || e.metaKey) && ["KeyZ", "KeyY"].includes(e.code)) {
       e.preventDefault();
@@ -1432,6 +1789,14 @@ window.addEventListener("keyup", (e) => {
   if (e.code === "Tab" && bagOpen) setBag(false);
 });
 window.addEventListener("blur", () => {
+  resetInputs();
+  if (screen === "game" && game.status === "playing" && !paused) pause();
+});
+// Touch devices play sideways. Turning one upright covers the game (see .rotate-hint),
+// so a running match pauses instead of carrying on unseen. Keep in sync with the CSS.
+const upright = matchMedia("(orientation: portrait) and (pointer: coarse)");
+upright.addEventListener("change", () => {
+  if (!upright.matches) return;
   resetInputs();
   if (screen === "game" && game.status === "playing" && !paused) pause();
 });
@@ -1600,9 +1965,14 @@ function animate(now) {
       hudAt = now;
     }
     view.update(game, dt);
+    placeLobbyTags();
   }
   requestAnimationFrame(animate);
 }
+// The lobby camera is framed for the screen's shape, so reframe on resize or rotation.
+window.addEventListener("resize", () => {
+  if (game && view && ["home", "closet"].includes(screen)) stageLobby(lobbyTab);
+});
 async function boot() {
   ui.innerHTML =
     '<div class="loading"><div class="loading-tile">W</div><span class="eyebrow">UNPACKING A LITTLE MAYHEM</span><h1>Making room for imagination.</h1><p id="load-progress">Opening the house…</p></div>';
@@ -1632,6 +2002,12 @@ async function boot() {
         skin = saved.skin;
       muted = !!saved?.muted;
     } catch {}
+    let savedProgress = null;
+    try {
+      savedProgress = JSON.parse(localStorage.getItem("wreckabulary.progress.v1"));
+    } catch {}
+    progress = loadProgress(savedProgress, { skin, colour: profile.colours?.Top });
+    saveProgress();
     view = new WorldView(document.querySelector("#world"), data);
     await view.init(
       (n) =>
