@@ -8,7 +8,7 @@ The project contains a Unity edition and a standalone HTML/Three.js edition. Uni
 
 ## Current game
 
-- **100 HP**, an **18-letter bag**, **two carried gear slots**, and **two deployed items per player**. Letters are loot; taking damage does not normally remove them. Elimination spills the bag.
+- **100 HP**, a **10-letter bag**, **two carried gear slots**, and **two deployed items per player**. Letters are loot; taking damage does not normally remove them. Elimination spills the bag.
 - **12 enabled recipes:** BALL, BAT, BED, BLADE, BOMB, FOAM, LAMP, MAT, PLATE, SOAP, SOFA and TABLE. Other supplied models can furnish rooms without becoming enabled recipes.
 - **Two connected maps:** Pinwheel House and Garden Courtyard. Four game modes plus a tutorial are selectable.
 - Supplied furniture, letter meshes, an animated modular avatar, cosmetic wardrobe and Classic/Candy/Arcade item skins are integrated in source. Touch controls, keyboard/mouse controls, and Unity couch/gamepad bindings share the gameplay commands.

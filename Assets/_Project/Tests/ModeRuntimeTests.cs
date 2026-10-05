@@ -51,7 +51,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(1, Session.Bindings.Count);
             Assert.AreEqual(3, joins.Players.Count(p => p.Binding is BotBinding));
             Assert.AreEqual(Phase.Countdown, RoundManager.Instance.Phase);
-            Assert.IsTrue(joins.Players.All(p => p.Health.Max == 100f && p.Inventory.Capacity == 18 && p.Inventory.Count == 0));
+            Assert.IsTrue(joins.Players.All(p => p.Health.Max == 100f && p.Inventory.Capacity == 10 && p.Inventory.Count == 0));
             Assert.AreNotEqual(joins.Players[0].Team, World.NearestOpponent(joins.Players[0], joins.Players[0].transform.position).Team);
         }
 

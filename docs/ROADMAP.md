@@ -6,7 +6,7 @@ The goal is a complete local house game: four modes with clear objectives and re
 
 | Area | Implemented in source |
 | --- | --- |
-| Shared rules | 100 HP, 18 letters, two gear slots, two deployed items, exact craft reservations and consumable accounting |
+| Shared rules | 100 HP, 10 letters, two gear slots, two deployed items, exact craft reservations and consumable accounting |
 | Recipes | Twelve enabled catalogue recipes with authored combat, use and placement data |
 | Maps | Pinwheel House and Garden Courtyard, with connected routes and shared objective data |
 | Modes | Dibs, Duos, Moving Day, Moving Out, plus tutorial; AI supports solo starts |

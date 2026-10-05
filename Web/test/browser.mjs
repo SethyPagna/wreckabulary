@@ -523,11 +523,11 @@ try {
   await phone.evaluate(() => {
     const g = window.wreckabulary.game,
       p = g.players[0];
-    g.mintTiles("A".repeat(18 - p.bag.length), p.x, p.z);
+    g.mintTiles("A".repeat(g.rules.maxLetters - p.bag.length), p.x, p.z);
     for (const tile of [...g.tiles]) g.collect(p, tile);
   });
   await phone.waitForFunction(
-    () => document.querySelectorAll("#letters .letter").length === 18,
+    () => document.querySelectorAll("#letters .letter").length === window.wreckabulary.game.rules.maxLetters,
   );
   const landscape = await phone.evaluate(() => {
     const selectors = [
@@ -592,7 +592,7 @@ try {
   assert.equal(landscape.scroll, false);
   await screenshot(phone, "game-mobile-landscape");
   record(
-    "Landscape touch controls, full 18-letter bag and health remain visible, reachable and separate.",
+    "Landscape touch controls, full 10-letter bag and health remain visible, reachable and separate.",
   );
   await workshopMobile(phone, { click, screenshot, record });
   await mobile.close();

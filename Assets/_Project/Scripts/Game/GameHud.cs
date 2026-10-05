@@ -29,8 +29,10 @@ namespace Wreckabulary
         readonly List<TouchStick> sticks = new();
         readonly Dictionary<TouchAction, (TouchActionButton button, TextMeshProUGUI label)> skillButtons = new();
         readonly Dictionary<string, Texture2D> itemIcons = new(StringComparer.Ordinal);
-        readonly TextMeshProUGUI[] tileLabels = new TextMeshProUGUI[18];
-        readonly Image[] tileFaces = new Image[18];
+        // The tray shows up to TrayTiles slots; the bag capacity from rules.json decides how many are visible.
+        const int TrayTiles = 20, TilesPerRow = 10;
+        readonly TextMeshProUGUI[] tileLabels = new TextMeshProUGUI[TrayTiles];
+        readonly Image[] tileFaces = new Image[TrayTiles];
         IReadOnlyList<PlayerController> players;
         Func<PlayerController, int> wins;
         int roundsToWin;
@@ -164,7 +166,7 @@ namespace Wreckabulary
             bagLabel.rectTransform.pivot = new Vector2(0.5f, 1f);
             for (int i = 0; i < tileLabels.Length; i++)
             {
-                var tile = Panel($"Letter {i + 1}", rt, new Vector2(0f, 1f), new Vector2(23f + (i % 9) * 56f, -48f - (i / 9) * 38f), new Vector2(48f, 32f), new Vector2(0f, 1f), Cream);
+                var tile = Panel($"Letter {i + 1}", rt, new Vector2(0f, 1f), new Vector2(23f + (i % TilesPerRow) * 51f, -48f - (i / TilesPerRow) * 38f), new Vector2(48f, 32f), new Vector2(0f, 1f), Cream);
                 tileFaces[i] = tile.GetComponent<Image>();
                 tileLabels[i] = Text("Letter", tile, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44f, 32f), 24f, Ink);
             }

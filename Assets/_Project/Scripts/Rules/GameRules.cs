@@ -17,7 +17,7 @@ namespace Wreckabulary.Rules
         public float SpawnProtectionSeconds = 2f;
 
         // Inventory (brief §5)
-        public int MaxLetters = 18;
+        public int MaxLetters = 10;
         public int MaxCarried = 2;
         public int MaxDeployed = 2;
         public string StarterLetters = "";

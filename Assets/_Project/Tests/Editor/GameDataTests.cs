@@ -55,7 +55,7 @@ namespace Wreckabulary.EditorTests
             Assert.IsEmpty(config.Validate());
             CollectionAssert.AreEquivalent(CoreTwelve, config.Items.Enabled.Select(i => i.Id), "the brief's 12 core items, and only them, are craftable");
             Assert.AreEqual(100f, config.Rules.Defaults.MaxHealth);
-            Assert.AreEqual(18, config.Rules.Defaults.MaxLetters);
+            Assert.AreEqual(10, config.Rules.Defaults.MaxLetters);
             Assert.AreEqual(2, config.Rules.Defaults.MaxCarried);
             Assert.AreEqual(2, config.Rules.Defaults.MaxDeployed);
             Assert.AreSame(config.Rules.Defaults, config.RulesFor("NoSuchMode"), "an unknown mode plays by the defaults");

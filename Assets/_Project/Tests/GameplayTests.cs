@@ -321,6 +321,8 @@ namespace Wreckabulary.Tests
         {
             var p = SpawnPlayer(0, Vector3.zero, out _);
             var foe = SpawnPlayer(1, new Vector3(3f, 0f, 0f), out _);
+            // Summon effects play sounds; without a listener Unity logs a warning that NoUnexpectedReceived rejects.
+            var listener = new GameObject("Test listener", typeof(AudioListener));
             yield return Frames(2);
 
             foreach (var entry in GameAssets.I.words.Words.Where(w => w.word.Length <= p.Inventory.Capacity))
@@ -335,6 +337,7 @@ namespace Wreckabulary.Tests
                 SummonedThing.ClearAll();
             }
             LogAssert.NoUnexpectedReceived();
+            Object.Destroy(listener);
         }
 
         [UnityTest]

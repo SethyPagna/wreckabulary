@@ -105,21 +105,21 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator CraftReservationCountsTowardsTheEighteenLetterLimitAndCancelsExactly()
+        public IEnumerator CraftReservationCountsTowardsTheTenLetterLimitAndCancelsExactly()
         {
             var player = Spawn();
             yield return null;
-            player.Inventory.Set("BLADEXXXXXXXXXXXXX");
-            Assert.AreEqual(18, player.Inventory.Count);
+            player.Inventory.Set("BLADEXXXXX");
+            Assert.AreEqual(10, player.Inventory.Count);
             Assert.IsTrue(player.Summoner.BeginCraft(GameAssets.I.words.Find("BLADE")));
-            Assert.AreEqual(13, player.Inventory.Count);
+            Assert.AreEqual(5, player.Inventory.Count);
             Assert.AreEqual(5, player.Inventory.ReservedCount);
-            Assert.AreEqual(18, player.Inventory.TotalCount);
+            Assert.AreEqual(10, player.Inventory.TotalCount);
             Assert.IsFalse(player.Inventory.TryAdd('Q'), "reserved letters occupy bag space");
             player.Summoner.CancelCraft();
             player.Summoner.CancelCraft();
             Assert.AreEqual(0, player.Inventory.ReservedCount);
-            Assert.AreEqual(Sorted("BLADEXXXXXXXXXXXXX"), Sorted(player.Inventory.Letters));
+            Assert.AreEqual(Sorted("BLADEXXXXX"), Sorted(player.Inventory.Letters));
         }
 
         [UnityTest]
@@ -174,12 +174,13 @@ namespace Wreckabulary.Tests
         {
             var player = Spawn();
             yield return null;
-            player.Inventory.Set("BATBLADEPLATE");
+            player.Inventory.Set("BATBLADE");
             Assert.IsTrue(player.Summoner.Summon("BAT"));
             var bat = player.Combat.Weapon;
             Assert.IsTrue(player.Summoner.Summon("BLADE"));
             var blade = player.Combat.Weapon;
             Assert.AreSame(bat, player.Combat.StoredGear);
+            player.Inventory.Set("PLATE"); // the 10-letter bag can't hold all three recipes at once
             Assert.IsFalse(player.Summoner.Summon("PLATE"));
             Assert.AreEqual(Sorted("PLATE"), Sorted(player.Inventory.Letters));
             Assert.IsTrue(player.Combat.SwitchGear());

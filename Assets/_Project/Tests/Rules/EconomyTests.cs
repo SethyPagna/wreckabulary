@@ -120,11 +120,11 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
-        public void TheBagHoldsEighteenLetters()
+        public void TheBagHoldsTenLetters()
         {
             var e = TestData.NewEconomy();
-            TestData.GiveLetters(e, 0, "ABCDEFGHIJKLMNOPQR");
-            Assert.AreEqual(18, e.Player(0).LetterCount);
+            TestData.GiveLetters(e, 0, "ABCDEFGHIJ");
+            Assert.AreEqual(10, e.Player(0).LetterCount);
             var extra = e.MintTiles("S").Tiles[0];
             Assert.AreEqual(Refusal.BagFull, e.CollectTile(0, extra.TileId).Refusal);
             Assert.IsTrue(e.Tiles.ContainsKey(extra.TileId), "the tile stays on the floor");
@@ -389,6 +389,7 @@ namespace Wreckabulary.Rules.Tests
             var e = TestData.NewEconomy("Duos", 4, new[] { 0, 1, 0, 1 });
             var rng = new Random(seed);
             var recipes = e.Catalogue.Enabled.Select(i => i.Id).ToArray();
+            var usable = e.Catalogue.Enabled.Where(i => i.Consumable && i.Use != null).Select(i => i.Id).ToArray();
             string[] furniture = { "BED", "SOFA", "TABLE", "LAMP", "CHAIR", "DESK", "SHELF", "PLANT", "CRATE", "BOX" };
             string[] skins = { "Classic", "Candy", "Arcade", "Gold", null };
             double now = 0;
@@ -422,11 +423,14 @@ namespace Wreckabulary.Rules.Tests
                 var me = e.Player(p);
                 var affordable = recipes.Where(r => me.Letters.Contains(e.Catalogue.Get(r).Letters)).ToList();
                 string recipe = affordable.Count > 0 && rng.Next(4) > 0 ? affordable[rng.Next(affordable.Count)] : recipes[rng.Next(recipes.Length)];
+                // A 10-letter bag clogs quickly, so usable consumables (FOAM) are rare; favour them when affordable.
+                var usableNow = affordable.Where(r => e.Catalogue.Get(r).Consumable && e.Catalogue.Get(r).Use != null).ToList();
+                if (usableNow.Count > 0 && rng.Next(2) == 0) recipe = usableNow[rng.Next(usableNow.Count)];
                 bool ok;
                 switch (op)
                 {
                     case "place": e.PlaceFurniture(furniture[rng.Next(furniture.Length)]); ok = true; break;
-                    case "spill": ok = e.MintTiles(recipes[rng.Next(recipes.Length)]).Count > 0; break;
+                    case "spill": ok = e.MintTiles(rng.Next(4) == 0 ? usable[rng.Next(usable.Length)] : recipes[rng.Next(recipes.Length)]).Count > 0; break;
                     case "collect":
                         var tileIds = e.Tiles.Keys.ToList();
                         ok = tileIds.Count > 0 && e.CollectTile(p, tileIds[rng.Next(tileIds.Count)]).Ok;
@@ -445,7 +449,7 @@ namespace Wreckabulary.Rules.Tests
                     case "break": ok = item != null && e.Break(item.Id).Count > 0; break;
                     case "transfer": ok = e.Transfer(p, other, slot).Ok; break;
                     case "give": ok = e.GiveLetter(p, other, (char)('A' + rng.Next(26))).Ok; break;
-                    case "toss": ok = e.TossLetter(p, (char)('A' + rng.Next(26))).Count > 0 || e.KnockLoose(p, 1).Count > 0; break;
+                    case "toss": ok = e.TossLetter(p, TossChoice(me, rng)).Count > 0 || e.KnockLoose(p, 1).Count > 0; break;
                     default:
                         ok = e.DropCarried(p).Ok;
                         if (rng.Next(200) == 0)
@@ -464,6 +468,13 @@ namespace Wreckabulary.Rules.Tests
             string tally = string.Join(", ", counts.OrderBy(kv => kv.Key).Select(kv => kv.Key + "=" + kv.Value));
             foreach (string op in new[] { "collect", "begin", "complete", "pickup", "throw", "deploy", "break", "consume", "transfer", "expire" })
                 Assert.GreaterOrEqual(counts.TryGetValue(op, out int n) ? n : 0, 3, $"the fuzz rarely managed a successful {op}, so it isn't testing much ({tally})");
+        }
+
+        /// <summary>Usually a letter the player holds (a 10-letter bag needs clearing out), sometimes any letter.</summary>
+        static char TossChoice(PlayerInventory me, Random rng)
+        {
+            string held = me.Letters.ToString();
+            return held.Length > 0 && rng.Next(4) > 0 ? held[rng.Next(held.Length)] : (char)('A' + rng.Next(26));
         }
 
         /// <summary>Whether <paramref name="op"/> in the random-play test has a chance of working on the item.</summary>

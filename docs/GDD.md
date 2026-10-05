@@ -20,7 +20,7 @@ The canonical values live in `Assets/_Project/Data/Config/rules.json` and `items
 | Rule | Current design |
 | --- | --- |
 | Health | 100 HP; letters are separate loot |
-| Loose bag | 18 letters, including the letters reserved by an active craft |
+| Loose bag | 10 letters, including the letters reserved by an active craft |
 | Gear | Two carried slots and two deployed items per player |
 | Starting bag | Empty under the standard rules |
 | Crafting | Reserve the exact letters immediately; channel for 0.6 seconds + 0.12 seconds per letter at 40% move speed |

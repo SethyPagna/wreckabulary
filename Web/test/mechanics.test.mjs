@@ -36,11 +36,11 @@ function finishAction(g, p) {
 }
 const balanced = (g) =>
   assert.equal(g.audit().balanced, true, JSON.stringify(g.audit()));
-test("canonical values: 100HP, 18-letter bag, zero letters lost per hit", () => {
+test("canonical values: 100HP, 10-letter bag, zero letters lost per hit", () => {
   const g = game(),
     p = g.players[0];
   assert.equal(p.hp, 100);
-  assert.equal(g.rules.maxLetters, 18);
+  assert.equal(g.rules.maxLetters, 10);
   assert.equal(g.rules.lettersDroppedPerHit, 0);
   give(g, p, "TABLE");
   g.time = 3;
@@ -54,7 +54,7 @@ test("mode overlays preserve the nested clear-out defaults", () => {
   assert.equal(r.clearOut.firstAt, 60);
   assert.equal(r.clearOut.interval, 40);
   assert.equal(r.clearOut.enabled, true);
-  assert.equal(r.maxLetters, 18);
+  assert.equal(r.maxLetters, 10);
   assert.equal(r.maxHealth, 100);
 });
 test("letter multiset requires duplicates and matching exact letters", () => {
@@ -65,15 +65,15 @@ test("letter multiset requires duplicates and matching exact letters", () => {
 test("bag limit includes reserved craft letters; excess tile stays in world", () => {
   const g = game(),
     p = g.players[0];
-  give(g, p, "BATTABLEFOAMMATSOAP");
-  assert.equal(p.bag.length, 18);
+  give(g, p, "BATTABLEFO");
+  assert.equal(p.bag.length, 10);
   g.craft(p, "BAT");
   const tile = { id: 999, char: "A", x: p.x, z: p.z };
   g.tiles.push(tile);
   g.minted++;
   assert.equal(g.collect(p, tile), false);
   assert.ok(g.tiles.includes(tile));
-  assert.equal(p.bag.length, 15);
+  assert.equal(p.bag.length, 7);
   balanced(g);
 });
 test("craft reserves, cancellation refunds, completion holds exact letters without duplication", () => {

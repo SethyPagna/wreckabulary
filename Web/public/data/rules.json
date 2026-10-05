@@ -3,7 +3,7 @@
  "defaults": {
   "maxHealth": 100,
   "spawnProtection": 2,
-  "maxLetters": 18,
+  "maxLetters": 10,
   "maxCarried": 2,
   "maxDeployed": 2,
   "starterLetters": "",
