@@ -10,6 +10,8 @@ namespace Wreckabulary
         public static CameraRig Instance { get; private set; }
 
         [SerializeField] float follow = 0.12f;
+        [SerializeField] float soloDistance = .5f;
+        [SerializeField] float soloFieldOfView = 40f;
 
         Vector3 basePosition, smooth;
         float shake;
@@ -69,12 +71,15 @@ namespace Wreckabulary
                 bool followLocal = localCount == 1;
                 var focus = followLocal ? localPlayer.transform.position : layoutCentre;
                 focus.y = 0f;
-                target = focus + new Vector3(0f, 30f, -22f);
+                // Solo play gets a closer perspective view along the same direction, so
+                // world-aligned controls and pointer aim read the same as the couch view.
+                target = focus + new Vector3(0f, 30f, -22f) * (followLocal ? soloDistance : 1f);
                 if (lens)
                 {
+                    lens.orthographic = !followLocal;
+                    if (followLocal) lens.fieldOfView = soloFieldOfView;
                     wholeHouseSize = Mathf.Max(layoutWidth / Mathf.Max(.5f, lens.aspect), layoutDepth * .85f) * .55f + 1.5f;
-                    lens.orthographicSize = Mathf.Lerp(lens.orthographicSize,
-                        followLocal ? Mathf.Min(wholeHouseSize, 8.5f) : wholeHouseSize,
+                    lens.orthographicSize = Mathf.Lerp(lens.orthographicSize, wholeHouseSize,
                         1f - Mathf.Exp(-3f * Time.unscaledDeltaTime));
                 }
             }

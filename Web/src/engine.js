@@ -111,7 +111,15 @@ export class Game {
     return this.seed / 4294967296;
   }
   emit(type, entity = {}, extra = {}) {
-    this.events.push({ type, x: entity.x ?? 0, z: entity.z ?? 0, ...extra });
+    // Player-centred events name their player so the view can animate the right avatar.
+    const player = this.players?.includes(entity) ? { player: entity.id } : {};
+    this.events.push({
+      type,
+      x: entity.x ?? 0,
+      z: entity.z ?? 0,
+      ...player,
+      ...extra,
+    });
   }
   setup() {
     const s = this.map.scale;

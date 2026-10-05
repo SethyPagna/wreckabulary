@@ -4,6 +4,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { MaterialPalette } from "./materials.js";
+import { AvatarAnimator } from "./animator.js";
 const ROOM_COLORS = {
   Garden: 0x92b78b,
   Playroom: 0xe1b970,
@@ -77,6 +78,7 @@ export class WorldView {
     this.entities = new Map();
     this.avatarModels = new Map();
     this.effects = [];
+    this.vfx = [];
     this.icons = new Map();
     this.loader = new GLTFLoader();
     this.world = new THREE.Group();
@@ -146,6 +148,10 @@ export class WorldView {
           ].includes(id),
         )
         .map(([id, a]) => [`env:${id}`, a]),
+      ...Object.entries(this.manifest.vfx ?? {}).map(([id, a]) => [
+        `vfx:${id}`,
+        a,
+      ]),
       [
         "avatar",
         {
@@ -307,6 +313,7 @@ export class WorldView {
     this.clear(this.dynamic);
     this.entities.clear();
     this.avatarModels.clear();
+    this.vfx = [];
     this.designEntities.clear();
     this.effects = [];
     const s = game.map.scale;
@@ -542,12 +549,15 @@ export class WorldView {
         group.add(avatar);
         this.applyWardrobe(avatar, p.wardrobe);
         const source = this.models.get("avatar");
-        const mixer = new THREE.AnimationMixer(avatar);
-        const clips = source.animations ?? [];
-        const actions = new Map(
-          clips.map((clip) => [clip.name, mixer.clipAction(clip)]),
-        );
-        this.avatarModels.set(p.id, { avatar, mixer, actions, current: null });
+        const animator = new AvatarAnimator(avatar, source.animations ?? []);
+        this.avatarModels.set(p.id, {
+          avatar,
+          animator,
+          mixer: animator.mixer,
+          get current() {
+            return animator.current;
+          },
+        });
       } else throw new Error("Avatar asset unavailable.");
       const ring = mesh(
         new THREE.RingGeometry(0.33, 0.4, 36),
@@ -765,41 +775,18 @@ export class WorldView {
       if (!group) continue;
       group.position.set(player.x, player.y, player.z);
       const avatar = group.userData.avatar;
-      avatar.rotation.y = player.yaw;
       group.userData.bubble.visible = player.bubble > 0;
       group.userData.ring.visible = player.state === "alive";
       group.userData.name.material.opacity =
         player.state === "eliminated" ? 0.3 : 1;
       avatar.visible = player.state !== "eliminated";
-      if (player.state === "downed") avatar.rotation.z = 0.95;
-      else avatar.rotation.z = 0;
       const anim = this.avatarModels.get(player.id);
       if (anim) {
-        const moving =
-          group.userData.last &&
-          Math.hypot(
-            player.x - group.userData.last.x,
-            player.z - group.userData.last.z,
-          ) > 0.002;
-        const pattern =
-          player.state === "downed"
-            ? /down|ko|fall/i
-            : game.time < player.attackingUntil
-              ? /attack|punch|swing/i
-              : game.time < player.jumpUntil
-                ? /jump/i
-                : moving
-                  ? /run|walk|move/i
-                  : /idle/i;
-        const name =
-          [...anim.actions.keys()].find((n) => pattern.test(n)) ??
-          [...anim.actions.keys()][0];
-        if (name && anim.current !== name) {
-          anim.actions.get(anim.current)?.fadeOut(0.12);
-          anim.actions.get(name).reset().fadeIn(0.12).play();
-          anim.current = name;
-        }
-        anim.mixer.update(dt);
+        const item =
+          game.items.find(
+            (i) => i.id === player.slots?.[player.slot] && i.state === "held",
+          ) ?? null;
+        anim.animator.update(dt, player, game, item);
       }
       group.userData.last = { x: player.x, z: player.z };
     }
@@ -849,6 +836,7 @@ export class WorldView {
           nodeScale =
             item.state === "carried" ? 1 : (item.definition?.heldScale ?? 0.5);
         node.scale.setScalar(nodeScale);
+        if (this.attachToHands(node, item, owner, nodeScale)) continue;
         node.position.set(
           owner.x +
             (item.state === "carried"
@@ -991,6 +979,8 @@ export class WorldView {
       node.position.set(pr.x, 0.07, pr.z);
       node.material.opacity = 0.4 + 0.4 * Math.sin(game.time * 12);
     }
+    this.lastGame = game;
+    this.updateVfx(dt);
     for (const fx of [...this.effects]) {
       fx.life -= dt;
       if (fx.life <= 0) {
@@ -1013,8 +1003,165 @@ export class WorldView {
     this.updateWorkshopSelection();
     this.renderer.render(this.scene, this.camera);
   }
+  // Held gear sits in the right grip bone and turns with the wrist; carried
+  // furniture sits between both grips. Returns false when the avatar has no rig.
+  attachToHands(node, item, owner, scale) {
+    const animator = this.avatarModels.get(owner.id)?.animator;
+    if (!animator || owner.state === "eliminated") return false;
+    const asset = this.manifest.items?.[item.word];
+    if (item.state === "carried") {
+      const mid = new THREE.Vector3();
+      if (!animator.carryPoint(mid)) return false;
+      const size = asset?.size ?? [0.6, 0.6, 0.6];
+      node.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), animator.yaw);
+      const forward = new THREE.Vector3(
+        Math.sin(animator.yaw),
+        0,
+        Math.cos(animator.yaw),
+      );
+      // Hands hold the near top edge, so the load hangs low in front of the
+      // body and the big head stays visible above it.
+      node.position.copy(mid).addScaledVector(forward, size[2] * scale * 0.5 + 0.05);
+      node.position.y = Math.max(owner.y ?? 0, mid.y - size[1] * scale * 0.9);
+      return true;
+    }
+    const shield =
+      item.definition?.family === "Shield" || !!item.definition?.shield;
+    if (shield && owner.block) {
+      // A raised guard stands upright in front of the chest, face forward,
+      // whichever hand the clip lifts.
+      const yaw = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        animator.yaw,
+      );
+      node.quaternion
+        .copy(yaw)
+        .multiply(
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
+        );
+      const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(yaw);
+      const offset = new THREE.Vector3(...(asset?.grip ?? [0, 0, 0]))
+        .multiplyScalar(scale)
+        .applyQuaternion(node.quaternion);
+      node.position
+        .set(owner.x, (owner.y ?? 0) + 0.55, owner.z)
+        .addScaledVector(forward, 0.32)
+        .sub(offset);
+      return true;
+    }
+    // Gear in its rest pose stands slightly forward of upright; shields face forward.
+    const base = new THREE.Quaternion().setFromEuler(
+      shield ? new THREE.Euler(-Math.PI / 2, 0, 0) : new THREE.Euler(0.35, 0, 0),
+    );
+    return animator.holdTransform(node, asset?.grip, scale, base);
+  }
+  spawnVfx(id, x, y, z, options = {}) {
+    const { life = 0.6, scale = 1, billboard = false, rise = 0 } = options;
+    const node = this.clone(`vfx:${id}`);
+    if (!node) return;
+    node.position.set(x, y, z);
+    node.scale.setScalar(0.01);
+    this.dynamic.add(node);
+    this.vfx.push({ node, life, max: life, scale, billboard, rise });
+  }
+  updateVfx(dt) {
+    for (const fx of [...this.vfx]) {
+      fx.life -= dt;
+      if (fx.life <= 0) {
+        this.removeObject(fx.node);
+        this.vfx.splice(this.vfx.indexOf(fx), 1);
+        continue;
+      }
+      const t = 1 - fx.life / fx.max;
+      // Pop in, hold, then shrink away; the shared asset materials stay untouched.
+      const envelope =
+        Math.min(t / 0.15, 1) * Math.min(fx.life / (fx.max * 0.35), 1);
+      fx.node.scale.setScalar(Math.max(0.01, fx.scale * envelope));
+      fx.node.position.y += fx.rise * dt;
+      if (fx.billboard) fx.node.quaternion.copy(this.camera.quaternion);
+      else fx.node.rotation.y += dt * 1.5;
+    }
+  }
+  animateEvent(e) {
+    const anim = this.avatarModels.get(e.player)?.animator;
+    if (!anim) return;
+    const p = this.lastGame?.players?.[e.player];
+    switch (e.type) {
+      case "swing": {
+        const item = p ? this.lastGame.held?.(p) : null;
+        const thrust =
+          e.word === "PUNCH" || item?.definition?.family === "MeleeThrust";
+        anim.trigger(thrust ? "thrust" : "swing");
+        break;
+      }
+      case "throw":
+        anim.trigger("throw");
+        break;
+      case "pickup":
+      case "equip":
+      case "carry":
+        anim.trigger("pickup");
+        break;
+      case "placeStart":
+        anim.trigger("place");
+        break;
+      case "useStart":
+        anim.trigger("drink");
+        break;
+      case "hit":
+        anim.trigger("hit");
+        break;
+      case "block":
+        anim.flinchOnly(3);
+        break;
+      case "craft":
+        anim.trigger("present");
+        break;
+    }
+  }
   handleEvents(events) {
     for (const e of events) {
+      if (e.player !== undefined) this.animateEvent(e);
+      if (e.type === "result" && e.win)
+        this.avatarModels.get(0)?.animator.trigger("celebrate");
+      const p =
+        e.player !== undefined ? this.lastGame?.players?.[e.player] : null;
+      if (e.type === "hit" && p)
+        this.spawnVfx("Impact_Star", p.x, (p.y ?? 0) + 1.0, p.z, {
+          life: 0.4,
+          scale: 1.4,
+          billboard: true,
+        });
+      else if (e.type === "craft" && p)
+        this.spawnVfx("Craft_Ring", p.x, (p.y ?? 0) + 0.05, p.z, {
+          life: 0.8,
+          scale: 1.6,
+        });
+      else if (e.type === "pickup")
+        this.spawnVfx("Pickup_Ring", e.x, 0.05, e.z, { life: 0.45 });
+      else if (e.type === "jump" && p)
+        this.spawnVfx("Jump_Arrow", p.x, 0.1, p.z, {
+          life: 0.4,
+          scale: 1.2,
+          billboard: true,
+          rise: 1.5,
+        });
+      else if (e.type === "buff" && p && e.word === "FOAM")
+        this.spawnVfx("Foam_Cloud", p.x, (p.y ?? 0) + 0.4, p.z, {
+          life: 1.2,
+          scale: 2.2,
+        });
+      else if (e.type === "break" || e.type === "furnitureHit")
+        this.spawnVfx("Wood_Splinter", e.x, 0.5, e.z, {
+          life: 0.5,
+          scale: 1.6,
+          rise: 1,
+        });
+      else if (e.type === "explosion")
+        this.spawnVfx("Bomb_Warning", e.x, 0.05, e.z, {
+          life: 0.5,
+          scale: (e.radius ?? 2) / 0.44,
+        });
       if (
         [
           "hit",
