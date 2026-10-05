@@ -29,8 +29,8 @@ namespace Wreckabulary
         readonly List<TouchStick> sticks = new();
         readonly Dictionary<TouchAction, (TouchActionButton button, TextMeshProUGUI label)> skillButtons = new();
         readonly Dictionary<string, Texture2D> itemIcons = new(StringComparer.Ordinal);
-        // The tray shows up to TrayTiles slots; the bag capacity from rules.json decides how many are visible.
-        const int TrayTiles = 20, TilesPerRow = 10;
+        // The tray is two rows of five (the 10-letter bag); the capacity from rules.json decides how many are visible.
+        const int TrayTiles = 10, TilesPerRow = 5;
         readonly TextMeshProUGUI[] tileLabels = new TextMeshProUGUI[TrayTiles];
         readonly Image[] tileFaces = new Image[TrayTiles];
         IReadOnlyList<PlayerController> players;
@@ -160,17 +160,17 @@ namespace Wreckabulary
 
         void BuildBag()
         {
-            var rt = Panel("Letter bag", safe, new Vector2(0.5f, 0f), new Vector2(0f, 20f), new Vector2(544f, 142f), new Vector2(0.5f, 0f), Dark);
+            var rt = Panel("Letter bag", safe, new Vector2(0.5f, 0f), new Vector2(0f, 20f), new Vector2(330f, 156f), new Vector2(0.5f, 0f), Dark);
             bagRoot = rt.gameObject;
-            bagLabel = Text("Bag count", rt, new Vector2(0.5f, 1f), new Vector2(0f, -14f), new Vector2(500f, 28f), 18f, Cream);
+            bagLabel = Text("Bag count", rt, new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(300f, 28f), 18f, Cream);
             bagLabel.rectTransform.pivot = new Vector2(0.5f, 1f);
             for (int i = 0; i < tileLabels.Length; i++)
             {
-                var tile = Panel($"Letter {i + 1}", rt, new Vector2(0f, 1f), new Vector2(23f + (i % TilesPerRow) * 51f, -48f - (i / TilesPerRow) * 38f), new Vector2(48f, 32f), new Vector2(0f, 1f), Cream);
+                var tile = Panel($"Letter {i + 1}", rt, new Vector2(0f, 1f), new Vector2(25f + (i % TilesPerRow) * 56f, -44f - (i / TilesPerRow) * 42f), new Vector2(52f, 36f), new Vector2(0f, 1f), Cream);
                 tileFaces[i] = tile.GetComponent<Image>();
-                tileLabels[i] = Text("Letter", tile, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44f, 32f), 24f, Ink);
+                tileLabels[i] = Text("Letter", tile, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(48f, 36f), 26f, Ink);
             }
-            heldLabel = Text("Gear", rt, new Vector2(0.5f, 0f), new Vector2(0f, 5f), new Vector2(500f, 24f), 15f, Mint);
+            heldLabel = Text("Gear", rt, new Vector2(0.5f, 0f), new Vector2(0f, 5f), new Vector2(300f, 24f), 15f, Mint);
             heldLabel.rectTransform.pivot = new Vector2(0.5f, 0f); bagRoot.SetActive(false);
             var hint = Text("Desktop controls", safe, new Vector2(0.5f, 0f), new Vector2(0f, 180f), new Vector2(1030f, 45f), 15f, Cream);
             hint.text = "WASD move  •  mouse aim  •  click smash  •  SPACE jump  •  SHIFT dash\nE grab/throw  •  hold Q craft  •  F place  •  TAB swap  •  hold R drop  •  right click block";

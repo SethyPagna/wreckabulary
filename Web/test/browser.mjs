@@ -128,6 +128,50 @@ try {
   }));
   assert.ok(Math.hypot(moved.x - before.x, moved.z - before.z) > 0.1);
   record("Keyboard movement advances a live player through the house.");
+  const hud = await page.evaluate(() => {
+    const box = (s) => document.querySelector(s).getBoundingClientRect(),
+      cells = [...document.querySelectorAll("#letters > *")].map(
+        (c) => c.getBoundingClientRect().top,
+      ),
+      side = box(".hud-side");
+    return {
+      actions: getComputedStyle(document.querySelector(".actions")).display,
+      cells: cells.length,
+      rows: new Set(cells.map(Math.round)).size,
+      timerUnderMap: box("#timer").top >= box("#minimap").bottom,
+      sideRight: innerWidth - side.right < 40,
+    };
+  });
+  assert.deepEqual(hud, {
+    actions: "none",
+    cells: 10,
+    rows: 2,
+    timerUnderMap: true,
+    sideRight: true,
+  });
+  await page.keyboard.down("Tab");
+  await page.waitForSelector(".bag-panel #bag-map .map-room");
+  const bag = await page.evaluate(() => {
+    const r = document.querySelector(".bag-panel").getBoundingClientRect();
+    return {
+      width: r.width / innerWidth,
+      height: r.height / innerHeight,
+      letters: document.querySelectorAll("#bag-letters > *").length,
+      hands: document.querySelectorAll("#bag-hands .bag-hand").length,
+      wearing: document.querySelectorAll("#bag-wear span").length > 0,
+      you: !!document.querySelector("#bag-map .map-player.you"),
+    };
+  });
+  assert.ok(bag.width >= 0.75 && bag.height >= 0.75, JSON.stringify(bag));
+  assert.deepEqual(
+    { letters: bag.letters, hands: bag.hands, wearing: bag.wearing, you: bag.you },
+    { letters: 10, hands: 2, wearing: true, you: true },
+  );
+  await page.keyboard.up("Tab");
+  assert.equal(await page.locator(".bag-panel").count(), 0);
+  record(
+    "Desktop HUD hides touch buttons, stacks timer under the map, shows a 5 x 2 bag, and Tab peeks a large bag and map panel.",
+  );
   // Place the test player beside real map furniture; damage still comes through the public controls.
   await page.evaluate(() => {
     const g = window.wreckabulary.game,

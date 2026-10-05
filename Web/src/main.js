@@ -23,6 +23,7 @@ let game,
   map = "pinwheel",
   screen = "loading",
   craftOpen = false,
+  bagOpen = false,
   paused = false,
   muted = false,
   last = performance.now(),
@@ -130,6 +131,7 @@ function resetInputs() {
   input.x = input.z = 0;
   input.aim = null;
   pointerAim = null;
+  if (bagOpen) setBag(false);
 }
 function start() {
   view.setWorkshop?.({ enabled: false, selectedId: null, ghost: null });
@@ -174,7 +176,7 @@ function home() {
 }
 function renderHud() {
   const m = MODES[game.mode];
-  ui.innerHTML = `<div class="hud"><header class="hud-top"><button class="brand-small" data-action="pause" aria-label="Pause game">W<span>!</span></button><div class="match-label"><span class="eyebrow">${m.tag}</span><strong>${m.title}</strong><span id="round-text"></span></div><div class="objective-top" id="objective-top"></div><div class="timer" id="timer">2:30</div><button class="quiet pause-button" data-action="pause" aria-label="Pause"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path fill="currentColor" d="M1 1h4v14H1zm8 0h4v14H9z"/></svg></button></header><div class="room-pill" id="room-pill">Bedroom</div><div class="minimap" id="minimap" aria-label="House map"></div><div class="status-message" id="status-message"></div><section class="vitals"><div class="player-name">YOU <span id="shield-text"></span></div><div class="hp-label"><strong id="hp-value">100</strong><span>HP</span></div><div class="health-track"><div id="health-fill"></div></div><div class="equipment"><button data-action="slot0" class="gear-slot" id="slot0"><kbd>1</kbd><span>Empty hand</span></button><button data-action="slot1" class="gear-slot" id="slot1"><kbd>2</kbd><span>Empty hand</span></button><button class="drop-button" data-action="drop" title="Drop equipped item (R)">${actionArt("drop", 20)}<span>Drop</span></button></div></section><section class="letter-tray"><div class="tray-header"><span>YOUR LETTERS</span><strong id="bag-count">0 / 10</strong><button class="link" data-action="craft">Recipes <kbd>Q</kbd></button></div><div id="letters"><p>Smash furniture to find your first word.</p></div><div id="craft-progress"></div></section><section class="actions"><button class="action small" data-hold="block" id="block-action">${actionArt("block")}<small>BLOCK</small><kbd>RMB</kbd></button><button class="action small" data-hold="interact" id="interact-action">${actionArt("interact")}<small>INTERACT</small><kbd>E</kbd></button><button class="action attack" data-hold="attack" id="attack-action"><span id="attack-icon">${actionArt("smash", 42)}</span><small id="attack-label">SMASH</small><kbd>LMB</kbd></button><button class="action small" data-action="jump" id="jump-action">${actionArt("jump")}<small>JUMP</small><kbd>Space</kbd></button><button class="action small" data-action="dodge" id="dodge-action">${actionArt("dodge")}<small>DODGE</small><kbd>Shift</kbd></button><button class="action craft-button" data-action="craft">${actionArt("craft", 34)}<small>SPELL</small><kbd>Q</kbd></button><button class="action small deploy-action" data-action="deploy">${actionArt("deploy")}<small>PLACE / USE</small><kbd>F</kbd></button><button class="action small throw-action" data-action="throw">${actionArt("throw")}<small>THROW</small><kbd>G</kbd></button></section><div class="joystick" id="joystick" aria-label="Touch movement joystick"><div class="joystick-knob"></div></div><p class="control-hint"><kbd>WASD</kbd> move <span>·</span> mouse aim <span>·</span> <kbd>Q</kbd> spell <span>·</span> <kbd>E</kbd> interact <span>·</span> <kbd>Esc</kbd> pause</p></div><div id="drawer-root"></div><div id="modal-root"></div>`;
+  ui.innerHTML = `<div class="hud"><header class="hud-top"><button class="brand-small" data-action="pause" aria-label="Pause game">W<span>!</span></button><div class="match-label"><span class="eyebrow">${m.tag}</span><strong>${m.title}</strong><span id="round-text"></span></div></header><aside class="hud-side"><div class="minimap" id="minimap" aria-label="House map"></div><div class="side-info"><div class="side-row"><div class="timer" id="timer">2:30</div><button class="quiet pause-button" data-action="pause" aria-label="Pause"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path fill="currentColor" d="M1 1h4v14H1zm8 0h4v14H9z"/></svg></button></div><div class="room-pill" id="room-pill">Bedroom</div><div class="objective-top" id="objective-top"></div></div></aside><div class="status-message" id="status-message"></div><section class="vitals"><div class="player-name">YOU <span id="shield-text"></span></div><div class="hp-label"><strong id="hp-value">100</strong><span>HP</span></div><div class="health-track"><div id="health-fill"></div></div><div class="equipment"><button data-action="slot0" class="gear-slot" id="slot0"><kbd>1</kbd><span>Empty hand</span></button><button data-action="slot1" class="gear-slot" id="slot1"><kbd>2</kbd><span>Empty hand</span></button><button class="drop-button" data-action="drop" title="Drop equipped item (R)">${actionArt("drop", 20)}<span>Drop</span></button></div></section><section class="letter-tray"><div class="tray-header"><span>YOUR LETTERS</span><strong id="bag-count">0 / 10</strong><button class="link" data-action="craft">Recipes <kbd>Q</kbd></button><button class="link bag-link" data-action="bag">Bag <kbd>Tab</kbd></button></div><div id="letters"></div><div id="craft-progress"></div></section><section class="actions"><button class="action small" data-hold="block" id="block-action">${actionArt("block")}<small>BLOCK</small><kbd>RMB</kbd></button><button class="action small" data-hold="interact" id="interact-action">${actionArt("interact")}<small>INTERACT</small><kbd>E</kbd></button><button class="action attack" data-hold="attack" id="attack-action"><span id="attack-icon">${actionArt("smash", 42)}</span><small id="attack-label">SMASH</small><kbd>LMB</kbd></button><button class="action small" data-action="jump" id="jump-action">${actionArt("jump")}<small>JUMP</small><kbd>Space</kbd></button><button class="action small" data-action="dodge" id="dodge-action">${actionArt("dodge")}<small>DODGE</small><kbd>Shift</kbd></button><button class="action craft-button" data-action="craft">${actionArt("craft", 34)}<small>SPELL</small><kbd>Q</kbd></button><button class="action small deploy-action" data-action="deploy">${actionArt("deploy")}<small>PLACE / USE</small><kbd>F</kbd></button><button class="action small throw-action" data-action="throw">${actionArt("throw")}<small>THROW</small><kbd>G</kbd></button></section><div class="joystick" id="joystick" aria-label="Touch movement joystick"><div class="joystick-knob"></div></div><p class="control-hint"><kbd>WASD</kbd> move <span>·</span> mouse aim <span>·</span> <kbd>Q</kbd> spell <span>·</span> <kbd>E</kbd> interact <span>·</span> <kbd>Tab</kbd> bag &amp; map <span>·</span> <kbd>Esc</kbd> pause</p><div id="bag-root"></div></div><div id="drawer-root"></div><div id="modal-root"></div>`;
   bindUi();
   bindJoystick();
   updateHud();
@@ -196,17 +198,13 @@ function updateHud() {
   document.querySelector("#bag-count").textContent =
     `${p.bag.length + (p.craft?.word.length ?? 0)} / ${game.rules.maxLetters}`;
   const letters = document.querySelector("#letters"),
-    bag = [...p.bag].sort().join("");
-  if (letters.dataset.bag !== bag) {
-    letters.dataset.bag = bag;
-    letters.innerHTML = bag
-      ? [...bag]
-          .map(
-            (c) =>
-              `<button class="letter" data-letter="${c}" title="Toss ${c} (free bag space)">${c}</button>`,
-          )
-          .join("")
-      : "<p>Smash furniture to find your first word.</p>";
+    bag = [...p.bag].sort().join(""),
+    reserved = p.craft?.word ?? "",
+    key = `${bag}|${reserved}|${game.rules.maxLetters}`;
+  if (letters.dataset.bag !== key) {
+    letters.dataset.bag = key;
+    letters.title = bag ? "" : "Smash furniture to find your first word.";
+    letters.innerHTML = bagCells(bag, reserved, true);
     letters.querySelectorAll("[data-letter]").forEach(
       (b) =>
         (b.onclick = () => {
@@ -307,26 +305,99 @@ function updateHud() {
   else status.innerHTML = "";
   updateMinimap();
   if (craftOpen) updateRecipes();
+  if (bagOpen) updateBag();
   if (
     ["roundOver", "finished"].includes(game.status) &&
     !document.querySelector(".result-card")
   )
     result();
 }
-function updateMinimap() {
-  const root = document.querySelector("#minimap"),
-    extent = game.extent;
+// The bag is a fixed grid: held letters, then letters reserved by a craft in
+// progress, then empty cells, so its size always reads at a glance.
+function bagCells(bag, reserved, tossable) {
+  const cells = [...bag].map((c) =>
+    tossable
+      ? `<button class="letter" data-letter="${c}" title="Toss ${c} (free bag space)">${c}</button>`
+      : `<span class="letter">${c}</span>`,
+  );
+  for (const c of reserved)
+    cells.push(`<span class="letter-cell reserved" title="Being spelled">${c}</span>`);
+  while (cells.length < game.rules.maxLetters)
+    cells.push(`<span class="letter-cell empty" aria-hidden="true"></span>`);
+  return cells.join("");
+}
+const WEAR_SLOTS = ["Headwear", "Face", "Top", "Gloves", "Bottoms", "Footwear", "Back", "Badge"];
+// Tab peek: letters, both hands, what you're wearing and the full house map.
+// The match keeps running underneath, so it closes the moment Tab is released.
+function setBag(open) {
+  bagOpen = open && screen === "game";
+  const root = document.querySelector("#bag-root");
+  if (!root) return;
+  root.innerHTML = bagOpen
+    ? `<section class="bag-panel" aria-label="Bag and map"><div class="bag-main"><header class="bag-head"><span class="eyebrow">YOUR BAG</span><button class="close" data-action="bag" aria-label="Close bag">×</button></header><div class="bag-block"><h3>Letters <strong id="bag-panel-count"></strong></h3><div class="bag-letters" id="bag-letters"></div></div><div class="bag-block"><h3>Hands</h3><div class="bag-hands" id="bag-hands"></div></div><div class="bag-block"><h3>Wearing</h3><div class="bag-wear" id="bag-wear"></div></div><div class="bag-block"><h3>Effects</h3><div class="bag-effects" id="bag-effects"></div></div><p class="bag-hint"><span class="desktop-only">Hold <kbd>Tab</kbd> to peek.</span> The house keeps moving while you look.</p></div><div class="bag-map-wrap"><div class="bag-map-title"><span class="eyebrow">THE HOUSE</span><strong id="bag-room"></strong></div><div class="bag-map" id="bag-map"></div></div></section>`
+    : "";
+  root.querySelectorAll("[data-action]").forEach(
+    (b) => (b.onclick = () => actions[b.dataset.action]()),
+  );
+  if (bagOpen) updateBag();
+}
+function updateBag() {
+  if (!bagOpen || !document.querySelector("#bag-letters")) return;
+  const p = game.players[0],
+    word = (w) => esc(w.replace(/([a-z])([A-Z])/g, "$1 $2"));
+  document.querySelector("#bag-panel-count").textContent =
+    `${p.bag.length + (p.craft?.word.length ?? 0)} / ${game.rules.maxLetters}`;
+  document.querySelector("#bag-letters").innerHTML = bagCells(
+    [...p.bag].sort().join(""),
+    p.craft?.word ?? "",
+    false,
+  );
+  document.querySelector("#bag-hands").innerHTML = [0, 1]
+    .map((slot) => {
+      const item = game.item(p.slots[slot]),
+        wear = item?.maxDurability
+          ? Math.max(0, item.durability / item.maxDurability)
+          : 0;
+      return `<div class="bag-hand ${p.slot === slot ? "active" : ""}"><kbd>${slot + 1}</kbd>${item ? `${iconHtml(item.word)}<strong>${item.word}</strong><div class="progress"><i style="width:${wear * 100}%"></i></div>` : `<span>Empty hand</span>`}</div>`;
+    })
+    .join("");
+  const pieces = p.wardrobe?.pieces ?? {};
+  document.querySelector("#bag-wear").innerHTML = WEAR_SLOTS.filter(
+    (s) => pieces[s],
+  )
+    .map(
+      (s) =>
+        `<span><small>${s}</small>${pieces[s] === "TBadge" ? "Letter badge" : word(pieces[s])}</span>`,
+    )
+    .join("");
+  const effects = [];
+  if (p.bubble > 0 && game.time < p.bubbleUntil)
+    effects.push(`Bubble +${Math.ceil(p.bubble)} · ${Math.ceil(p.bubbleUntil - game.time)}s`);
+  if (game.time < (p.speedUntil ?? 0))
+    effects.push(`Speed · ${Math.ceil(p.speedUntil - game.time)}s`);
+  if (p.carried !== null) effects.push(`Carrying ${game.item(p.carried)?.word ?? ""}`);
+  document.querySelector("#bag-effects").innerHTML = effects.length
+    ? effects.map((e) => `<span>${e}</span>`).join("")
+    : `<span class="none">Nothing active</span>`;
+  document.querySelector("#bag-room").textContent = word(
+    game.roomAt(p)?.name ?? "House",
+  );
+  updateMinimap(document.querySelector("#bag-map"), true);
+}
+function updateMinimap(root = document.querySelector("#minimap"), full = false) {
+  const extent = game.extent;
   root.innerHTML = `${game.house.rooms
     .map((r) => {
       const b = r.bounds,
-        state = game.roomStatus.get(r.name);
-      return `<div class="map-room ${state?.closed ? "closed" : state?.warning ? "warning" : ""}" style="left:${((b[0] + extent) / extent) * 50}%;top:${((b[1] + extent) / extent) * 50}%;width:${((b[2] - b[0]) / extent) * 50}%;height:${((b[3] - b[1]) / extent) * 50}%"><span>${r.name[0]}</span></div>`;
+        state = game.roomStatus.get(r.name),
+        here = game.roomAt(game.players[0]) === r;
+      return `<div class="map-room ${state?.closed ? "closed" : state?.warning ? "warning" : ""} ${here ? "here" : ""}" style="left:${((b[0] + extent) / extent) * 50}%;top:${((b[1] + extent) / extent) * 50}%;width:${((b[2] - b[0]) / extent) * 50}%;height:${((b[3] - b[1]) / extent) * 50}%"><span>${full ? esc(r.name.replace(/([a-z])([A-Z])/g, "$1 $2")) : r.name[0]}</span></div>`;
     })
     .join("")}${game.players
     .filter((p) => p.state !== "eliminated")
     .map(
       (p) =>
-        `<i class="map-player ${p.id === 0 ? "you" : ""}" style="left:${((p.x + extent) / extent) * 50}%;top:${((p.z + extent) / extent) * 50}%"></i>`,
+        `<i class="map-player ${p.id === 0 ? "you" : ""} ${p.state === "downed" ? "downed" : ""}" style="left:${((p.x + extent) / extent) * 50}%;top:${((p.z + extent) / extent) * 50}%">${full ? `<b>${p.id === 0 ? "You" : esc(p.name)}</b>` : ""}</i>`,
     )
     .join("")}${game.keepsakes
     .filter((k) => !k.collected)
@@ -417,7 +488,7 @@ function how() {
   const previous = screen;
   const layer = document.createElement("div");
   layer.className = "modal-shade help-shade";
-  layer.innerHTML = `<section class="help-card"><button class="close" id="help-close" aria-label="Close instructions">×</button><span class="eyebrow">A HOUSE FULL OF POSSIBILITIES</span><h2>Everything starts with a word.</h2><div class="how-steps"><div><b>01</b><strong>Break it.</strong><p>Smash original furniture. A TABLE breaks into T, A, B, L, E.</p></div><div><b>02</b><strong>Spell it.</strong><p>Walk over letters. Your bag holds 10. Use SPELL to craft any of the 12 enabled recipes.</p></div><div><b>03</b><strong>Bring it.</strong><p>Attack with gear, throw it, or place a tool. Reusable gear returns its letters when broken. Consumables spend them.</p></div></div><div class="key-table"><span><kbd>WASD / arrows</kbd> move</span><span><kbd>Mouse / touch</kbd> aim</span><span><kbd>LMB / J</kbd> smash / use</span><span><kbd>RMB / K</kbd> block with PLATE</span><span><kbd>Shift</kbd> dodge</span><span><kbd>Space</kbd> jump</span><span><kbd>Q / C</kbd> spell</span><span><kbd>Tab / 1 / 2</kbd> switch hand</span><span><kbd>E</kbd> pickup / hold to revive</span><span><kbd>F</kbd> place / use</span><span><kbd>G</kbd> throw gear</span><span><kbd>R</kbd> drop gear</span></div><p class="fineprint">Health is 100 HP. Hits never remove letters. Cosmetics change your look, never your stats. The Movers announce room closures before dealing hazard damage.</p><button class="primary" id="help-done">GOT IT. LET’S PLAY. →</button></section>`;
+  layer.innerHTML = `<section class="help-card"><button class="close" id="help-close" aria-label="Close instructions">×</button><span class="eyebrow">A HOUSE FULL OF POSSIBILITIES</span><h2>Everything starts with a word.</h2><div class="how-steps"><div><b>01</b><strong>Break it.</strong><p>Smash original furniture. A TABLE breaks into T, A, B, L, E.</p></div><div><b>02</b><strong>Spell it.</strong><p>Walk over letters. Your bag holds 10. Use SPELL to craft any of the 12 enabled recipes.</p></div><div><b>03</b><strong>Bring it.</strong><p>Attack with gear, throw it, or place a tool. Reusable gear returns its letters when broken. Consumables spend them.</p></div></div><div class="key-table"><span><kbd>WASD / arrows</kbd> move</span><span><kbd>Mouse / touch</kbd> aim</span><span><kbd>LMB / J</kbd> smash / use</span><span><kbd>RMB / K</kbd> block with PLATE</span><span><kbd>Shift</kbd> dodge</span><span><kbd>Space</kbd> jump</span><span><kbd>Q / C</kbd> spell</span><span><kbd>1 / 2</kbd> switch hand</span><span><kbd>Tab</kbd> hold for bag &amp; map</span><span><kbd>E</kbd> pickup / hold to revive</span><span><kbd>F</kbd> place / use</span><span><kbd>G</kbd> throw gear</span><span><kbd>R</kbd> drop gear</span></div><p class="fineprint">Health is 100 HP. Hits never remove letters. Cosmetics change your look, never your stats. The Movers announce room closures before dealing hazard damage.</p><button class="primary" id="help-done">GOT IT. LET’S PLAY. →</button></section>`;
   ui.append(layer);
   const close = () => layer.remove();
   layer.querySelector("#help-close").onclick = close;
@@ -1032,6 +1103,7 @@ const actions = {
   closet,
   how,
   craft: drawer,
+  bag: () => setBag(!bagOpen),
   pause,
   sound: () => {
     muted = !muted;
@@ -1176,8 +1248,11 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (e.code === "Tab") {
-    if (!craftOpen && !paused)
-      game.selectSlot(game.players[0], 1 - game.players[0].slot);
+    if (!craftOpen && !paused) setBag(true);
+    return;
+  }
+  if (e.code === "Escape" && bagOpen) {
+    setBag(false);
     return;
   }
   if (e.code === "Escape") {
@@ -1197,7 +1272,10 @@ window.addEventListener("keydown", (e) => {
   };
   if (keyActions[e.code]) actions[keyActions[e.code]]();
 });
-window.addEventListener("keyup", (e) => keys.delete(e.code));
+window.addEventListener("keyup", (e) => {
+  keys.delete(e.code);
+  if (e.code === "Tab" && bagOpen) setBag(false);
+});
 window.addEventListener("blur", () => {
   resetInputs();
   if (screen === "game" && game.status === "playing" && !paused) pause();

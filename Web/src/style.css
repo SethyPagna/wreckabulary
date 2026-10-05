@@ -2287,3 +2287,387 @@ kbd {
     min-height: 44px;
   }
 }
+
+/* Game HUD layout: one column under the map on the right (timer, room,
+   objective), a 5 x 2 letter bag, touch buttons only on touch screens, and a
+   Tab peek panel with the bag, hands, outfit and the whole house map. */
+.actions {
+  display: none;
+}
+.hud-side {
+  position: absolute;
+  top: 20px;
+  right: 25px;
+  width: 168px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  pointer-events: none;
+}
+.hud-side button {
+  pointer-events: auto;
+}
+.hud-side .minimap {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+.side-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.side-row {
+  display: flex;
+  gap: 6px;
+}
+.hud-side .timer {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 18px;
+  min-width: 0;
+}
+.hud-side .pause-button {
+  min-width: 40px;
+  padding: 6px 10px;
+}
+.hud-side .room-pill {
+  position: static;
+  text-align: center;
+  border-radius: 10px;
+}
+.hud-side .objective-top {
+  position: static;
+  margin: 0;
+  max-width: none;
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 10px;
+}
+.hud-side .objective-top:empty {
+  display: none;
+}
+.map-room.here {
+  background: #9ff8d34d;
+  border-color: #c9ffe9;
+}
+.map-player.downed {
+  background: #e7785e;
+}
+.map-player b {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 3px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 10px;
+  color: #fff3dd;
+  text-shadow: 0 1px 2px #0f2827;
+}
+.letter-tray {
+  width: auto;
+}
+#letters {
+  display: grid;
+  grid-template-columns: repeat(5, 30px);
+  justify-content: center;
+}
+#letters .letter,
+.letter-cell {
+  width: 30px;
+  height: 33px;
+}
+.letter-cell {
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  font-size: 18px;
+  font-weight: 900;
+}
+.letter-cell.empty {
+  border: 1.5px dashed #c9b28366;
+  background: #ead9b733;
+}
+.letter-cell.reserved {
+  background: #c8e6d8;
+  border: 1px solid #8fbfa9;
+  color: #2f6b5c;
+  opacity: 0.85;
+}
+.bag-link kbd {
+  margin-left: 3px;
+}
+.bag-panel {
+  position: absolute;
+  z-index: 30;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 80vw;
+  height: 80vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 18px;
+  padding: 20px;
+  border-radius: 20px;
+  background: #fff0dcf2;
+  box-shadow: 0 20px 60px #102d2c55;
+  pointer-events: auto;
+  animation: bag-in 0.12s ease-out;
+}
+@keyframes bag-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.98);
+  }
+}
+.bag-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  min-height: 0;
+}
+.bag-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.bag-block h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+}
+.bag-letters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 52px));
+  gap: 7px;
+}
+.bag-letters .letter,
+.bag-letters .letter-cell {
+  width: auto;
+  height: 56px;
+  font-size: 30px;
+  display: grid;
+  place-items: center;
+}
+.bag-hands {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.bag-hand {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 34px 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: #f6e4c2;
+  border: 2px solid transparent;
+  font-size: 12px;
+}
+.bag-hand.active {
+  border-color: #458f7d;
+}
+.bag-hand kbd {
+  grid-row: span 2;
+}
+.bag-hand img {
+  width: 34px;
+  height: 32px;
+  object-fit: contain;
+  grid-row: span 2;
+}
+.bag-hand .progress {
+  margin: 0;
+}
+.bag-hand > span {
+  grid-column: span 2;
+  color: #62736a;
+}
+.bag-wear,
+.bag-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bag-wear span,
+.bag-effects span {
+  padding: 6px 9px;
+  border-radius: 9px;
+  background: #f6e4c2;
+  font-size: 11px;
+  font-weight: 800;
+}
+.bag-wear small {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #62736a;
+}
+.bag-effects .none {
+  background: none;
+  color: #62736a;
+  padding-left: 0;
+}
+.bag-hint {
+  margin: auto 0 0;
+  font-size: 10px;
+  color: #62736a;
+}
+.bag-map-wrap {
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+}
+.bag-map-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.bag-map {
+  position: relative;
+  --side: min(100cqw, 100cqh - 34px);
+  width: var(--side);
+  height: var(--side);
+  align-self: center;
+  background: #193c3b;
+  border: 6px solid #f1dfbd;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.bag-map .map-room span {
+  font-size: 11px;
+  text-align: center;
+}
+.bag-map .map-player {
+  width: 10px;
+  height: 10px;
+}
+.bag-map .map-player.you {
+  width: 13px;
+  height: 13px;
+}
+.bag-map .map-keepsake {
+  font-size: 13px;
+}
+@media (pointer: coarse) {
+  .actions {
+    display: grid;
+  }
+  .desktop-only {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .hud-side {
+    top: 12px;
+    right: 13px;
+    width: 96px;
+    gap: 5px;
+  }
+  .hud-side .minimap {
+    border-width: 3px;
+  }
+  .hud-side .timer {
+    font-size: 13px;
+    padding: 6px;
+  }
+  .hud-side .pause-button {
+    min-width: 30px;
+    padding: 4px 6px;
+    font-size: 13px;
+  }
+  .hud-side .objective-top {
+    padding: 5px 7px;
+  }
+  .hud-side .room-pill {
+    padding: 4px 6px;
+  }
+  .status-message {
+    max-width: calc(100vw - 140px);
+  }
+  #letters {
+    grid-template-columns: repeat(5, 26px);
+  }
+  #letters .letter,
+  .letter-cell {
+    width: 26px;
+    height: 28px;
+    font-size: 16px;
+  }
+  .bag-panel {
+    width: 92vw;
+    height: 86vh;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(180px, 1fr);
+    overflow: auto;
+    padding: 14px;
+  }
+  .bag-letters .letter,
+  .bag-letters .letter-cell {
+    height: 44px;
+    font-size: 24px;
+  }
+}
+/* Short landscape screens (phones on their side, small laptops): the map sits
+   beside a compact info stack instead of above it. */
+@media (max-height: 600px) {
+  .hud-side {
+    top: 10px;
+    right: 13px;
+    width: 210px;
+    flex-direction: row-reverse;
+    align-items: flex-start;
+  }
+  .hud-side .minimap {
+    width: 84px;
+    flex: none;
+    border-width: 3px;
+  }
+  .side-info {
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+  }
+  .hud-side .timer {
+    font-size: 13px;
+    padding: 5px 6px;
+  }
+  .hud-side .pause-button {
+    min-width: 30px;
+    padding: 3px 6px;
+    font-size: 13px;
+  }
+  .hud-side .room-pill {
+    font-size: 8px;
+    padding: 4px 6px;
+  }
+  .hud-side .objective-top {
+    padding: 4px 7px;
+  }
+  .hud-side .objective-top > span:last-child:not(:first-child) {
+    display: none;
+  }
+  .bag-panel {
+    height: 88vh;
+    padding: 12px;
+    gap: 12px;
+  }
+  .bag-letters .letter,
+  .bag-letters .letter-cell {
+    height: 38px;
+    font-size: 22px;
+  }
+}
