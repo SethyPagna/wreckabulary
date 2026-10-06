@@ -258,6 +258,16 @@ namespace Wreckabulary.Tests
                 yield return SceneManager.LoadSceneAsync(Session.DibsScene);
                 yield return new WaitForSeconds(1.5f);
                 yield return CaptureFramed(Path.Combine(dir, $"map_{map}_tps.png"));
+                // The Tab bag over that view, with a few letters in it so a recipe lights up.
+                var hud = GameHud.Active;
+                if (hud && hud.LocalPlayer)
+                {
+                    hud.LocalPlayer.Inventory.Set("BALLSOAP");
+                    hud.transform.Find("Safe HUD/Letter bag/Bag link").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+                    yield return new WaitForSecondsRealtime(.3f);
+                    yield return CaptureFramed(Path.Combine(dir, $"map_{map}_bag.png"));
+                    hud.transform.Find("Safe HUD/Letter bag/Bag link").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+                }
                 // A house with an upstairs: also one overhead player downstairs, with the floors above lifted off.
                 if (GameConfig.Current.HouseFor(map).StoreyFloors().Count < 2) continue;
                 Session.Clear();

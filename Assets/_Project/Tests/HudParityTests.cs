@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -108,6 +110,7 @@ namespace Wreckabulary.Tests
             Assert.IsNotNull(safe.Find("Bag panel/House/Map area/Big map"));
             tray.Find("Bag link").GetComponent<Button>().onClick.Invoke();
             Assert.IsFalse(hud.BagOpen);
+            yield return TheBagIsTheWebsDarkGlass(hud, player);
 
             safe.Find("Brand").GetComponent<Button>().onClick.Invoke();
             Assert.IsTrue(hud.Paused);
@@ -131,6 +134,106 @@ namespace Wreckabulary.Tests
             StringAssert.DoesNotContain("block", keys, "Seven entries, like the web's bar.");
             Object.Destroy(hud.gameObject);
             Object.Destroy(player.gameObject);
+        }
+
+        /// <summary>
+        /// The web's Tab panel: a dark scrim to the screen's edges with the rest of the HUD stepped aside, the bag on
+        /// the left, a large square map in the middle and a recipe book whose ready words spell from a click.
+        /// </summary>
+        static IEnumerator TheBagIsTheWebsDarkGlass(GameHud hud, PlayerController player)
+        {
+            var safe = hud.transform.Find("Safe HUD");
+            var link = safe.Find("Letter bag/Bag link").GetComponent<Button>();
+            player.Inventory.Set("BALL");
+            link.onClick.Invoke();
+            yield return new WaitForSecondsRealtime(0.2f);
+            Assert.IsTrue(hud.BagOpen);
+
+            var backdrop = safe.Find("Bag panel/Backdrop").GetComponent<Image>();
+            var corners = new Vector3[4];
+            backdrop.rectTransform.GetWorldCorners(corners);
+            Assert.LessOrEqual(corners[0].x, 0.5f); Assert.LessOrEqual(corners[0].y, 0.5f);
+            Assert.GreaterOrEqual(corners[2].x, Screen.width - 0.5f); Assert.GreaterOrEqual(corners[2].y, Screen.height - 0.5f);
+            Assert.IsTrue(backdrop.raycastTarget, "Clicks on the scrim don't reach the game.");
+            var scrim = backdrop.sprite.texture;
+            Assert.AreEqual(.55f, scrim.GetPixel(64, 64).a, .02f, "The web's gradient: light in the middle...");
+            Assert.AreEqual(.85f, scrim.GetPixel(0, 0).a, .02f, "...and darker at the edges.");
+            Assert.AreEqual(1f, safe.Find("Bag panel").GetComponent<CanvasGroup>().alpha, 1e-3f, "Faded in.");
+
+            foreach (var part in new[] { "Side column", "Letter bag", "Vitals", "Desktop controls" })
+            {
+                var group = safe.Find(part).GetComponent<CanvasGroup>();
+                Assert.AreEqual(0f, group.alpha, part + " steps aside under the bag");
+                Assert.IsFalse(group.blocksRaycasts, part);
+            }
+            Assert.IsTrue(safe.Find("Brand").gameObject.activeInHierarchy, "The brand stays, as on the web.");
+
+            for (int i = 1; i <= 10; i++) Assert.IsNotNull(safe.Find($"Bag panel/Bag/Letters/Big letter {i}"), $"bag cell {i}");
+            Assert.IsNotNull(safe.Find("Bag panel/Bag/Hands/Bag hand 1/Open hand"), "An empty hand shows an open hand.");
+            var map = (RectTransform)safe.Find("Bag panel/House/Map area/Big map");
+            Assert.GreaterOrEqual(map.rect.width, 325f, "The house map is the panel's centrepiece.");
+            Assert.AreEqual(map.rect.width, map.rect.height, .5f, "and square");
+
+            var cards = safe.Find("Bag panel/Recipe book/View/Cards");
+            Assert.AreEqual(GameConfig.Current.Items.All.Count(i => i.Enabled), cards.childCount, "A card per recipe.");
+            var ball = cards.Find("BALL").GetComponent<Button>();
+            Assert.IsTrue(ball.interactable, "Holding B, A, L, L lights BALL up.");
+            Assert.IsTrue(cards.Find("BALL/Glow").GetComponent<Image>().enabled);
+            Assert.IsFalse(cards.Find("SOFA").GetComponent<Button>().interactable, "A word you can't spell isn't a button.");
+            ball.onClick.Invoke();
+            Assert.IsFalse(hud.BagOpen, "Spelling from the book closes the bag, so you see it made.");
+            Assert.IsTrue(player.Summoner.IsCrafting);
+            Assert.AreEqual("BALL", player.Summoner.CraftWord);
+            yield return null;
+            foreach (var part in new[] { "Side column", "Letter bag", "Vitals" })
+            {
+                var group = safe.Find(part).GetComponent<CanvasGroup>();
+                Assert.AreEqual(1f, group.alpha, part + " is back");
+                Assert.IsTrue(group.blocksRaycasts, part);
+            }
+            player.Summoner.CancelCraft();
+
+            link.onClick.Invoke();
+            Assert.IsTrue(hud.BagOpen);
+            safe.Find("Bag panel/Close bag").GetComponent<Button>().onClick.Invoke();
+            Assert.IsFalse(hud.BagOpen, "The x closes it.");
+        }
+
+        [UnityTest]
+        public IEnumerator RoundTitlesSitOnAPlaqueThatFitsThem()
+        {
+            var you = Spawn(TouchBinding.Shared);
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            TMPro.TextMeshProUGUI Line(string name)
+            {
+                var line = new GameObject(name, typeof(RectTransform)).AddComponent<TMPro.TextMeshProUGUI>();
+                line.transform.SetParent(hud.transform, false);
+                typeof(GameHud).GetField(name.ToLowerInvariant(), BindingFlags.Instance | BindingFlags.NonPublic).SetValue(hud, line);
+                return line;
+            }
+            var title = Line("Title"); var subtitle = Line("Subtitle");
+            yield return null;
+            var plaque = (RectTransform)hud.transform.Find("Title plaque");
+            Assert.IsNotNull(plaque);
+            Assert.AreSame(plaque, title.transform.parent, "The title sits on the plaque.");
+            Assert.AreSame(plaque, subtitle.transform.parent);
+            Assert.IsFalse(plaque.gameObject.activeSelf, "No words, no plaque.");
+
+            hud.SetTitle("ROUND 1", "Dibs on the living room");
+            Assert.IsTrue(plaque.gameObject.activeSelf);
+            Assert.GreaterOrEqual(plaque.sizeDelta.x, 720f);
+            Assert.GreaterOrEqual(plaque.sizeDelta.y, 120f);
+            var ink = plaque.GetComponent<Image>().color;
+            Assert.AreEqual("173B3C", ColorUtility.ToHtmlStringRGB(ink));
+            Assert.AreEqual(.85f, ink.a, .01f);
+            Assert.AreEqual(0f, title.outlineWidth, "A plaque, not an outline, makes it readable.");
+            float shortWidth = plaque.sizeDelta.x;
+            hud.SetTitle("SOMEBODY WITH A LONG NAME WINS THE ROUND", "3/5");
+            Assert.Greater(plaque.sizeDelta.x, shortWidth, "It grows with its words.");
+            hud.SetTitle("", "");
+            Assert.IsFalse(plaque.gameObject.activeSelf);
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
         }
 
         [UnityTest]

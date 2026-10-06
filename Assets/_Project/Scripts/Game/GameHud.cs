@@ -42,13 +42,23 @@ namespace Wreckabulary
         static readonly Color Slot = Hex(0xf7e5c8), SlotActive = Hex(0xdeedcf), Track = Hex(0x153c3c, .13f);
         static readonly Color Health = Hex(0x419681), Low = Hex(0xd16849), Faded = Hex(0x62736a);
         static readonly Color EmptyCell = Hex(0xead9b7, .35f), Reserved = Hex(0xc8e6d8), ReservedInk = Hex(0x2f6b5c);
-        static readonly Color MapBg = Hex(0x193c3b, .92f), MapEdge = Hex(0xf1dfbd), RoomFill = Hex(0xaaad82, .38f);
+        static readonly Color MapBg = Hex(0x193c3b, .85f), MapEdge = Hex(0xf1dfbd, .85f), RoomFill = Hex(0xaaad82, .38f);
+        static readonly Color RoomEdge = Hex(0xe4d6b2, .53f), RoomEdgeHere = Hex(0xc9ffe9);
         static readonly Color RoomHere = Hex(0x9ff8d3, .35f), RoomWarn = Hex(0xe79553), RoomClosed = Hex(0xd85c45, .65f);
         static readonly Color Mint = Hex(0xb7dfc8), Coral = Hex(0xe7785e), Dark = Hex(0x1a2a30, .94f);
         // Straight on the game, as on the web: light text with a dark edge, and glass hand slots.
         static readonly Color OnGame = Hex(0xfff7e8), LowHp = Hex(0xff8a6b), Shade = Hex(0x0b1f1f, .8f);
         static readonly Color Glass = Hex(0x1d2b2b, .28f), GlassActive = Hex(0x1d2b2b, .40f), GlassEdge = Hex(0xfff7e8, .85f), GlassIdle = Hex(0xffffff, .17f);
+        // The Tab bag is the web's dark glass (style.css .bag-panel): cream on a scrim, with glass cells, cards and chips.
+        static readonly Color BagInk = Hex(0xfff4e2), BagCell = Hex(0xffffff, .08f), BagCellEdge = Hex(0xffffff, .25f);
+        static readonly Color BagCard = Hex(0xffffff, .09f), BagCardActive = Hex(0xffffff, .15f), BagCardEdge = Hex(0xffffff, .24f);
+        static readonly Color Gold = Hex(0xffe7b8), GoldGlow = Hex(0xffd46a, .4f), TileGot = Hex(0xe8c48b), TileGotInk = Hex(0x3b2614);
+        static readonly Color TileMissing = Hex(0xffffff, .12f), TileMissingInk = Hex(0xffffff, .65f);
         static readonly string[] WearSlots = { "Headwear", "Face", "Top", "Gloves", "Bottoms", "Footwear", "Back", "Badge" };
+        // Bag layout in canvas units (the web's CSS pixels x 1.25 on a 1920 x 1080 canvas).
+        const float BagTop = 105f, BagSide = 35f, BagBottom = 35f, BagColumn = 375f, BookColumn = 413f, BagGap = 17.5f;
+        const float Chip = 52f, ChipGap = 10f;
+        const int ChipsPerRow = 6;
 
         readonly List<PlayerCard> cards = new();
         readonly List<RecipeView> recipes = new();
@@ -76,7 +86,7 @@ namespace Wreckabulary
         GameObject typewriterControls;
         TextMeshProUGUI typewriterChoice;
         TextMeshProUGUI matchTag, matchTitle, matchDetail, roomPill, objective, statusText;
-        TextMeshProUGUI aliveText, hintText, hpValue, shieldText, bagCount, bagPanelCount, wearText, effectsText, bagRoom, touchToggle;
+        TextMeshProUGUI aliveText, hintText, hpValue, shieldText, bagCount, bagPanelCount, touchToggle;
         TextMeshProUGUI craftStatus, buildLabel, playLabel;
         Image craftProgress;
         Button buildButton;
@@ -88,6 +98,18 @@ namespace Wreckabulary
         int lastWidth, lastHeight;
         float nextRefresh, resumeScale = 1f;
         bool bagPinned;
+        // The Tab bag's pieces: what it hides, its fade, its chips and the recipe book.
+        readonly List<CanvasGroup> bagHides = new();
+        readonly List<(GameObject root, RawImage icon)> wearChips = new();
+        readonly List<(GameObject root, RawImage icon, GameObject badge, TextMeshProUGUI seconds)> effectChips = new();
+        readonly List<BookCard> bookCards = new();
+        readonly List<char> spare = new();
+        readonly Dictionary<string, Texture2D> glyphs = new(StringComparer.Ordinal);
+        RectTransform bagColumn, bagLetters, bagHandsRow, bagWearRow, bagEffectsRow, bagMapFrame, bagMapShadow, bagBackdrop, pauseShade, titlePlaque;
+        CanvasGroup bagFade;
+        Sprite hairRing, circleRing, softSprite, lineBox;
+        float bagOpenedAt;
+        bool bagHidden;
         /// <summary>The on-screen buttons come up by themselves on the first real touch, until someone picks in the pause card.</summary>
         bool touchChosen;
         /// <summary>The key bar says "mouse look" in the third-person view and "mouse aim" under the overhead camera.</summary>
@@ -112,28 +134,36 @@ namespace Wreckabulary
         }
         sealed class LetterCell
         {
-            public Image face, edge;
+            public Image face, edge, ring;
             public TextMeshProUGUI letter;
         }
         sealed class HandView
         {
             public Image face, wear;
-            public Outline frame;
             public Image edge;
-            public RawImage icon;
+            public RawImage icon, empty;
             public TextMeshProUGUI label;
             public GameObject wearTrack;
         }
         sealed class MapView
         {
             public RectTransform content;
-            public readonly List<(RoomBox box, Image fill, TextMeshProUGUI name)> rooms = new();
-            public readonly List<(Image dot, TextMeshProUGUI name)> dots = new();
+            public readonly List<(RoomBox box, Image fill, Image edge)> rooms = new();
+            public readonly List<Image> dots = new();
             public readonly List<GameObject> stairs = new();
             public TextMeshProUGUI badge;
             public bool full;
             public HouseLayout layout;
             public int storey = -1;
+        }
+        /// <summary>A word in the bag's recipe book, with its letters marked as you hold them.</summary>
+        sealed class BookCard
+        {
+            public string word;
+            public Button button;
+            public Image face, edge, glow;
+            public Image[] tiles;
+            public TextMeshProUGUI[] letters;
         }
 
         static Color Hex(int rgb, float a = 1f) => new(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, a);
@@ -167,12 +197,22 @@ namespace Wreckabulary
             roundSprite = MakeShape(true);
             panelSprite = MakeShape(false);
             ringSprite = MakeShape(false, 3f);
+            hairRing = MakeShape(false, 1.6f);
+            circleRing = MakeShape(true, 2f);
+            softSprite = MakeSoft();
+            lineBox = MakeLineBox();
             safe = Rect("Safe HUD", UiCanvas.transform, Vector2.zero, Vector2.zero, Vector2.zero);
             safe.anchorMax = Vector2.one;
             safe.offsetMin = safe.offsetMax = Vector2.zero;
             StyleLegacyText();
             BuildTop(); BuildSide(); BuildStatus(); BuildVitals(); BuildTray(); BuildHint();
             BuildCraftDrawer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause(); BuildCrosshair();
+            // The web hides everything but the brand and match label behind its bag (style.css .hud.bag-open).
+            foreach (var part in new[] { side, tray, vitals, hint, status, (RectTransform)craftRoot.transform, (RectTransform)touchRoot.transform, (RectTransform)typewriterControls.transform }
+                .Concat(cards.Select(c => (RectTransform)c.root.transform)))
+                bagHides.Add(part.gameObject.AddComponent<CanvasGroup>());
+            // A countdown would show through the see-through map.
+            if (titlePlaque) bagHides.Add(titlePlaque.gameObject.AddComponent<CanvasGroup>());
             // A laptop's touchscreen alone doesn't bring the buttons up; a real touch does (R41).
             ShowTouchControls(Application.isMobilePlatform);
             ApplySafeArea();
@@ -183,12 +223,51 @@ namespace Wreckabulary
         void StyleLegacyText()
         {
             if (scoreboard) scoreboard.gameObject.SetActive(false);
-            if (title) { title.fontSize = 88f; title.raycastTarget = false; title.rectTransform.sizeDelta = new Vector2(1450f, 170f); }
-            if (title) { title.outlineWidth = .18f; title.outlineColor = Ink; }
-            if (subtitle) { subtitle.fontSize = 32f; subtitle.raycastTarget = false; subtitle.outlineWidth = .22f; subtitle.outlineColor = Ink; }
+            foreach (var line in new[] { title, subtitle })
+            {
+                if (!line) continue;
+                line.raycastTarget = false; line.outlineWidth = 0f; line.alignment = TextAlignmentOptions.Center;
+                line.textWrappingMode = TextWrappingModes.NoWrap; line.overflowMode = TextOverflowModes.Overflow;
+            }
+            if (title) { title.fontSize = 72f; title.color = Cream; }
+            if (subtitle) { subtitle.fontSize = 26f; subtitle.color = Hex(0xfff0d9, .82f); }
+            if (title) BuildTitlePlaque();
             // The objective lives in the side column now; the scene's checklist objects stay hidden.
             if (checklist) checklist.gameObject.SetActive(false);
             if (checklistPanel) checklistPanel.SetActive(false);
+        }
+
+        /// <summary>
+        /// Round titles sit on an ink plaque, so a countdown or a winner reads over a cream floor; the bare white title
+        /// with an outline didn't. The plaque fits its words and goes away with them.
+        /// </summary>
+        void BuildTitlePlaque()
+        {
+            var at = title.rectTransform;
+            titlePlaque = Panel("Title plaque", at.parent, at.anchorMin, at.anchoredPosition, new Vector2(720f, 120f), new Vector2(.5f, .5f), Hex(0x173b3c, .85f));
+            titlePlaque.SetSiblingIndex(at.GetSiblingIndex());
+            titlePlaque.GetComponent<Image>().pixelsPerUnitMultiplier = 11f / 24f;
+            void Line(TMP_Text line, float y, float height)
+            {
+                var rt = line.rectTransform;
+                rt.SetParent(titlePlaque, false);
+                rt.anchorMin = new Vector2(0f, y); rt.anchorMax = new Vector2(1f, y); rt.pivot = new Vector2(.5f, y);
+                rt.anchoredPosition = new Vector2(0f, y > .5f ? -8f : 14f); rt.sizeDelta = new Vector2(-60f, height);
+            }
+            Line(title, 1f, 100f);
+            if (subtitle) Line(subtitle, 0f, 40f);
+            FitTitlePlaque();
+        }
+
+        void FitTitlePlaque()
+        {
+            if (!titlePlaque) return;
+            string main = title.text ?? "", sub = subtitle ? subtitle.text ?? "" : "";
+            bool shown = main.Length > 0 || sub.Length > 0;
+            titlePlaque.gameObject.SetActive(shown);
+            if (!shown) return;
+            float width = Mathf.Max(main.Length > 0 ? title.GetPreferredValues(main).x : 0f, sub.Length > 0 ? subtitle.GetPreferredValues(sub).x : 0f) + 96f;
+            titlePlaque.sizeDelta = new Vector2(Mathf.Clamp(width, 720f, 1500f), 10f + (main.Length > 0 ? 110f : 0f) + (sub.Length > 0 ? 56f : 0f));
         }
 
         void BuildTop()
@@ -434,50 +513,195 @@ namespace Wreckabulary
             typewriterControls.SetActive(false);
         }
 
+        /// <summary>
+        /// The web's Tab panel, pictures not paragraphs: a dark glass scrim over the whole screen, your bag down the
+        /// left (letters, hands, what you wear, what's on you), the house map large in the middle and the recipe
+        /// book down the right. The match keeps running underneath.
+        /// </summary>
         void BuildBagPanel()
         {
-            var rt = Panel("Bag panel", safe, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), Hex(0xfff0dc, .96f));
-            rt.anchorMin = new Vector2(.1f, .1f); rt.anchorMax = new Vector2(.9f, .9f); rt.offsetMin = rt.offsetMax = Vector2.zero;
-            rt.GetComponent<Image>().raycastTarget = true;
+            var rt = Rect("Bag panel", safe, Vector2.zero, Vector2.zero, Vector2.zero);
+            rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
             bagPanel = rt.gameObject;
-            var left = Rect("Bag", rt, Vector2.zero, Vector2.zero, Vector2.zero);
-            left.anchorMin = Vector2.zero; left.anchorMax = new Vector2(.45f, 1f); left.offsetMin = new Vector2(30f, 26f); left.offsetMax = new Vector2(-10f, -26f);
-            Eyebrow("Your bag", left, new Vector2(0f, 0f), 15f);
-            Eyebrow("Letters", left, new Vector2(0f, -40f), 13f);
-            bagPanelCount = Text("Count", left, Vector2.one, new Vector2(0f, -40f), new Vector2(120f, 20f), 15f, Ink, TextAlignmentOptions.Right);
-            bagPanelCount.rectTransform.pivot = Vector2.one;
+            bagFade = bagPanel.AddComponent<CanvasGroup>();
+            // The scrim reaches past the safe area (ApplySafeArea) and catches clicks, so none lands in the game.
+            var scrim = CreateImage("Backdrop", rt, Vector2.zero, Vector2.zero, Vector2.zero, Color.white);
+            bagBackdrop = scrim.rectTransform; bagBackdrop.anchorMax = Vector2.one; bagBackdrop.offsetMin = bagBackdrop.offsetMax = Vector2.zero;
+            scrim.sprite = MakeScrim(); scrim.raycastTarget = true;
+
+            // Left: the bag, centred in the space under the close button.
+            bagColumn = Rect("Bag", rt, new Vector2(0f, .5f), new Vector2(BagSide, (BagBottom - BagTop) * .5f), new Vector2(BagColumn, 400f));
+            bagColumn.pivot = new Vector2(0f, .5f);
+            RectTransform Row(string label) { var row = Rect(label, bagColumn, new Vector2(0f, 1f), Vector2.zero, new Vector2(BagColumn, 0f)); row.pivot = new Vector2(0f, 1f); return row; }
+            bagLetters = Row("Letters");
+            GlyphImage("Bag glyph", bagLetters, new Vector2(0f, 1f), new Vector2(0f, -4f), 28f, "bag", BagInk);
             for (int i = 0; i < TrayTiles; i++)
-                bagCells[i] = MakeCell($"Big letter {i + 1}", left, new Vector2((i % TilesPerRow) * 84f, -68f - (i / TilesPerRow) * 88f), new Vector2(76f, 80f), 44f);
-            Eyebrow("Hands", left, new Vector2(0f, -258f), 13f);
+            {
+                var cell = bagCells[i] = MakeCell($"Big letter {i + 1}", bagLetters, new Vector2(40f + (i % TilesPerRow) * 62.5f, -(i / TilesPerRow) * 67.5f), new Vector2(55f, 60f), 33f);
+                cell.face.pixelsPerUnitMultiplier = cell.edge.pixelsPerUnitMultiplier = 11f / 6.25f;
+                cell.ring = CreateImage("Ring", cell.face.transform, Vector2.zero, Vector2.zero, Vector2.zero, BagCellEdge);
+                Stretch(cell.ring.rectTransform); cell.ring.sprite = hairRing; cell.ring.type = Image.Type.Sliced;
+                cell.ring.pixelsPerUnitMultiplier = cell.face.pixelsPerUnitMultiplier;
+            }
+            bagPanelCount = Text("Count", bagLetters, Vector2.one, new Vector2(0f, -133.5f), new Vector2(120f, 22f), 16f, Hex(0xfff4e2, .8f), TextAlignmentOptions.Right);
+            bagPanelCount.rectTransform.pivot = Vector2.one;
+            bagHandsRow = Row("Hands");
             for (int i = 0; i < 2; i++)
             {
                 int slot = i;
-                bagHands[i] = MakeHand($"Bag hand {i + 1}", left, new Vector2(i * 212f, 0f), new Vector2(204f, 84f), i, () => SelectHand(slot), true);
-                var hand = (RectTransform)bagHands[i].face.transform;
-                hand.anchorMin = hand.anchorMax = hand.pivot = new Vector2(0f, 1f); hand.anchoredPosition = new Vector2(i * 212f, -286f);
+                bagHands[i] = MakeBagHand($"Bag hand {i + 1}", bagHandsRow, new Vector2(i * 193.5f, 0f), i, () => SelectHand(slot));
             }
-            Eyebrow("Wearing", left, new Vector2(0f, -392f), 13f);
-            wearText = Text("Outfit", left, new Vector2(0f, 1f), new Vector2(0f, -418f), new Vector2(420f, 70f), 16f, Ink, TextAlignmentOptions.TopLeft);
-            wearText.rectTransform.pivot = new Vector2(0f, 1f); wearText.textWrappingMode = TextWrappingModes.Normal;
-            Eyebrow("Effects", left, new Vector2(0f, -498f), 13f);
-            effectsText = Text("Effects", left, new Vector2(0f, 1f), new Vector2(0f, -524f), new Vector2(420f, 50f), 16f, Ink, TextAlignmentOptions.TopLeft);
-            effectsText.rectTransform.pivot = new Vector2(0f, 1f); effectsText.textWrappingMode = TextWrappingModes.Normal;
-            var note = Text("Note", left, new Vector2(0f, 0f), Vector2.zero, new Vector2(440f, 22f), 13f, Faded, TextAlignmentOptions.BottomLeft);
-            note.text = "Hold Tab to peek. The house keeps moving while you look."; note.rectTransform.pivot = Vector2.zero;
+            bagWearRow = Row("Wearing");
+            foreach (var slot in WearSlots)
+            {
+                var chip = MakeChip(slot, bagWearRow);
+                wearChips.Add((chip.gameObject, GlyphImage("Glyph", chip, new Vector2(.5f, .5f), Vector2.zero, 28f, slot, BagInk)));
+            }
+            bagEffectsRow = Row("Effects");
+            foreach (var effect in new[] { "Effect 1", "Effect 2", "Effect 3" })
+            {
+                var chip = MakeChip(effect, bagEffectsRow);
+                var icon = GlyphImage("Glyph", chip, new Vector2(.5f, .5f), Vector2.zero, 28f, "bubble", BagInk);
+                var badge = Panel("Seconds", chip, new Vector2(1f, 0f), new Vector2(6f, -6f), new Vector2(26f, 20f), new Vector2(1f, 0f), Gold);
+                badge.GetComponent<Image>().pixelsPerUnitMultiplier = 11f / 10f;
+                var seconds = Text("Count", badge, new Vector2(.5f, .5f), Vector2.zero, new Vector2(26f, 20f), 12f, Hex(0x17393a));
+                effectChips.Add((chip.gameObject, icon, badge.gameObject, seconds));
+            }
 
-            var right = Rect("House", rt, Vector2.zero, Vector2.zero, Vector2.zero);
-            right.anchorMin = new Vector2(.45f, 0f); right.anchorMax = Vector2.one; right.offsetMin = new Vector2(16f, 26f); right.offsetMax = new Vector2(-30f, -26f);
-            Eyebrow("The house", right, Vector2.zero, 15f);
-            bagRoom = Text("Room", right, Vector2.one, new Vector2(-50f, 0f), new Vector2(300f, 26f), 22f, Ink, TextAlignmentOptions.Right);
-            bagRoom.rectTransform.pivot = Vector2.one;
-            MakeButton("Close bag", right, Vector2.one, new Vector2(0f, 2f), new Vector2(40f, 40f), "X", () => SetBagPinned(false), Slot);
-            var area = Rect("Map area", right, Vector2.zero, Vector2.zero, Vector2.zero);
-            area.anchorMin = Vector2.zero; area.anchorMax = Vector2.one; area.offsetMin = Vector2.zero; area.offsetMax = new Vector2(0f, -44f);
-            var frame = Panel("Big map", area, new Vector2(.5f, .5f), Vector2.zero, new Vector2(100f, 100f), new Vector2(.5f, .5f), MapEdge);
-            var fit = frame.gameObject.AddComponent<AspectRatioFitter>();
-            fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent; fit.aspectRatio = 1f;
-            bigMap = MakeMap(frame, true, 9f);
+            // Middle: the house map, as large as fits between the columns (sized in LayoutBag).
+            var house = Rect("House", rt, Vector2.zero, Vector2.zero, Vector2.zero);
+            Stretch(house);
+            var area = Rect("Map area", house, Vector2.zero, Vector2.zero, Vector2.zero);
+            Stretch(area);
+            var shadow = CreateImage("Map shadow", area, new Vector2(.5f, .5f), new Vector2(0f, -65f), Vector2.one * 100f, Hex(0x000000, .53f));
+            shadow.sprite = softSprite; shadow.type = Image.Type.Sliced; shadow.pixelsPerUnitMultiplier = 28f / 75f;
+            bagMapShadow = shadow.rectTransform;
+            bagMapFrame = Panel("Big map", area, new Vector2(.5f, .5f), new Vector2(0f, -35f), Vector2.one * 100f, new Vector2(.5f, .5f), MapEdge);
+            bagMapFrame.GetComponent<Image>().pixelsPerUnitMultiplier = 11f / 22f;
+            bigMap = MakeMap(bagMapFrame, true, 9f);
+
+            // Right: the recipe book, every word with the letters you hold marked; one you can spell lights up gold.
+            var book = Rect("Recipe book", rt, Vector2.one, Vector2.zero, Vector2.zero);
+            book.anchorMin = new Vector2(1f, 0f); book.pivot = Vector2.one;
+            book.offsetMin = new Vector2(-BagSide - BookColumn, BagBottom); book.offsetMax = new Vector2(-BagSide, -BagTop);
+            GlyphImage("Book glyph", book, new Vector2(0f, 1f), new Vector2(0f, -2f), 28f, "book", BagInk);
+            var view = Rect("View", book, Vector2.zero, Vector2.zero, Vector2.zero);
+            Stretch(view); view.offsetMax = new Vector2(0f, -40f);
+            view.gameObject.AddComponent<RectMask2D>();
+            view.gameObject.AddComponent<Image>().color = Color.clear;
+            var cardsRoot = Rect("Cards", view, new Vector2(.5f, 1f), Vector2.zero, Vector2.zero);
+            cardsRoot.anchorMin = new Vector2(0f, 1f); cardsRoot.anchorMax = Vector2.one; cardsRoot.pivot = new Vector2(.5f, 1f); cardsRoot.offsetMin = cardsRoot.offsetMax = Vector2.zero;
+            var grid = cardsRoot.gameObject.AddComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(127f, 130f); grid.spacing = new Vector2(10f, 10f); grid.padding = new RectOffset(4, 4, 4, 4);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount; grid.constraintCount = 3;
+            cardsRoot.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var scroll = view.gameObject.AddComponent<ScrollRect>();
+            scroll.viewport = view; scroll.content = cardsRoot; scroll.horizontal = false; scroll.movementType = ScrollRect.MovementType.Clamped; scroll.scrollSensitivity = 30f;
+            foreach (var item in GameConfig.Current.Items.All)
+                if (item.Enabled) bookCards.Add(MakeBookCard(item.Id, cardsRoot));
+
+            // Close, at the top in the middle, over everything.
+            var close = Panel("Close bag", rt, new Vector2(.5f, 1f), new Vector2(0f, -28f), new Vector2(40f, 40f), new Vector2(.5f, 1f), Hex(0xffffff, .12f), true);
+            close.GetComponent<Image>().raycastTarget = true;
+            close.gameObject.AddComponent<Button>().onClick.AddListener(() => SetBagPinned(false));
+            var edge = CreateImage("Edge", close, Vector2.zero, Vector2.zero, Vector2.zero, Hex(0xffffff, .25f));
+            Stretch(edge.rectTransform); edge.sprite = circleRing;
+            Text("Label", close, new Vector2(.5f, .5f), new Vector2(0f, 2f), new Vector2(40f, 40f), 30f, BagInk).text = "×";
             bagPanel.SetActive(false);
+        }
+
+        static void Stretch(RectTransform rt) { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero; }
+
+        /// <summary>A glass chip for something you wear or something on you.</summary>
+        RectTransform MakeChip(string label, RectTransform row)
+        {
+            var chip = Panel(label, row, new Vector2(0f, 1f), Vector2.zero, Vector2.one * Chip, new Vector2(0f, 1f), BagCard);
+            Edge(chip, BagCardEdge, 15f);
+            return chip;
+        }
+
+        /// <summary>A light edge round a glass shape, the web's 1px border.</summary>
+        Image Edge(RectTransform shape, Color colour, float radius)
+        {
+            var face = shape.GetComponent<Image>(); face.pixelsPerUnitMultiplier = 11f / radius;
+            var edge = CreateImage("Edge", shape, Vector2.zero, Vector2.zero, Vector2.zero, colour);
+            Stretch(edge.rectTransform); edge.sprite = hairRing; edge.type = Image.Type.Sliced; edge.pixelsPerUnitMultiplier = face.pixelsPerUnitMultiplier;
+            return edge;
+        }
+
+        /// <summary>A hand in the bag: a glass card with its key, the thing held (or an open hand) and its wear.</summary>
+        HandView MakeBagHand(string label, RectTransform parent, Vector2 position, int slot, Action onTap)
+        {
+            var size = new Vector2(181f, 145f);
+            var rt = Panel(label, parent, new Vector2(0f, 1f), position, size, new Vector2(0f, 1f), BagCard);
+            var view = new HandView { face = rt.GetComponent<Image>() };
+            view.face.raycastTarget = true;
+            rt.gameObject.AddComponent<Button>().onClick.AddListener(() => onTap());
+            view.edge = Edge(rt, BagCardEdge, 17.5f);
+            view.edge.sprite = MakeShape(false, 2.6f);
+            var key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(10f, -8f), new Vector2(24f, 20f), 15f, BagInk, TextAlignmentOptions.Left);
+            key.text = (slot + 1).ToString(); key.rectTransform.pivot = new Vector2(0f, 1f);
+            view.icon = Rect("Icon", rt, new Vector2(.5f, .5f), new Vector2(0f, 10f), new Vector2(78f, 78f)).gameObject.AddComponent<RawImage>();
+            view.icon.raycastTarget = false;
+            view.empty = GlyphImage("Open hand", rt, new Vector2(.5f, .5f), Vector2.zero, 42f, "hand", Hex(0xfff4e2, .45f));
+            view.label = Text("Word", rt, new Vector2(.5f, 0f), new Vector2(0f, 20f), new Vector2(size.x - 16f, 20f), 14f, BagInk);
+            view.label.rectTransform.pivot = new Vector2(.5f, 0f);
+            var track = Panel("Wear", rt, new Vector2(.5f, 0f), new Vector2(0f, 10f), new Vector2(size.x - 25f, 6f), new Vector2(.5f, 0f), Hex(0xffffff, .16f));
+            view.wear = Fill("Left", track, Health); view.wearTrack = track.gameObject;
+            return view;
+        }
+
+        BookCard MakeBookCard(string word, RectTransform parent)
+        {
+            var root = new GameObject(word, typeof(RectTransform)).GetComponent<RectTransform>();
+            root.SetParent(parent, false);
+            var card = new BookCard { word = word, tiles = new Image[word.Length], letters = new TextMeshProUGUI[word.Length] };
+            card.glow = CreateImage("Glow", root, Vector2.zero, Vector2.zero, Vector2.zero, GoldGlow);
+            Stretch(card.glow.rectTransform); card.glow.rectTransform.offsetMin = -Vector2.one * 19f; card.glow.rectTransform.offsetMax = Vector2.one * 19f;
+            card.glow.sprite = softSprite; card.glow.type = Image.Type.Sliced; card.glow.pixelsPerUnitMultiplier = 28f / 17.5f;
+            var face = Panel("Face", root, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), BagCard);
+            Stretch(face);
+            card.face = face.GetComponent<Image>(); card.face.raycastTarget = true;
+            card.edge = Edge(face, BagCardEdge, 15f);
+            card.button = root.gameObject.AddComponent<Button>();
+            card.button.targetGraphic = card.face;
+            var colours = card.button.colors; colours.disabledColor = Color.white; card.button.colors = colours;
+            card.button.onClick.AddListener(() => SpellFromBook(word));
+            var icon = Rect("Picture", root, new Vector2(.5f, 1f), new Vector2(0f, -12f), new Vector2(58f, 58f)).gameObject.AddComponent<RawImage>();
+            ((RectTransform)icon.transform).pivot = new Vector2(.5f, 1f); icon.raycastTarget = false;
+            icon.texture = itemIcons.TryGetValue(word, out var picture) ? picture : null; icon.enabled = icon.texture;
+            float tile = word.Length > 6 ? 13f : 16f, step = tile + 2.5f, x0 = -(word.Length * step - 2.5f) * .5f;
+            for (int i = 0; i < word.Length; i++)
+            {
+                var t = Panel($"Tile {i + 1}", root, new Vector2(.5f, 0f), new Vector2(x0 + i * step, 16f), new Vector2(tile, 20f), Vector2.zero, TileMissing);
+                card.tiles[i] = t.GetComponent<Image>(); card.tiles[i].pixelsPerUnitMultiplier = 11f / 3.75f;
+                card.letters[i] = Text("Letter", t, new Vector2(.5f, .5f), Vector2.zero, new Vector2(tile, 20f), 11f, TileMissingInk);
+                card.letters[i].text = word[i].ToString();
+            }
+            return card;
+        }
+
+        /// <summary>A recipe you hold the letters for spells straight from the book; the bag closes so you see it made.</summary>
+        void SpellFromBook(string word)
+        {
+            if (!LocalPlayer || Paused) return;
+            SetBagPinned(false);
+            LocalPlayer.Summoner.BeginCraft(new WordEntry { word = word });
+        }
+
+        RawImage GlyphImage(string label, Transform parent, Vector2 anchor, Vector2 position, float size, string glyph, Color colour)
+        {
+            var image = Rect(label, parent, anchor, position, Vector2.one * size).gameObject.AddComponent<RawImage>();
+            if (anchor == new Vector2(0f, 1f)) image.rectTransform.pivot = anchor;
+            image.texture = Glyph(glyph); image.color = colour; image.raycastTarget = false;
+            return image;
+        }
+
+        /// <summary>The web's line icons (main.js GLYPHS), drawn once to white PNGs and tinted here.</summary>
+        Texture2D Glyph(string name)
+        {
+            if (!glyphs.TryGetValue(name, out var texture)) glyphs[name] = texture = Resources.Load<Texture2D>("UI/Glyphs/" + name);
+            return texture;
         }
 
         void BuildPause()
@@ -485,7 +709,7 @@ namespace Wreckabulary
             var shade = Panel("Pause", safe, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), Hex(0x0f2827, .45f));
             shade.anchorMin = Vector2.zero; shade.anchorMax = Vector2.one; shade.offsetMin = shade.offsetMax = Vector2.zero;
             shade.GetComponent<Image>().raycastTarget = true;
-            pauseRoot = shade.gameObject;
+            pauseRoot = shade.gameObject; pauseShade = shade;
             var card = Panel("Pause card", shade, new Vector2(.5f, .5f), Vector2.zero, new Vector2(520f, 380f), new Vector2(.5f, .5f), Hex(0xfff0dc, .98f));
             Text("Heading", card, new Vector2(.5f, 1f), new Vector2(0f, -40f), new Vector2(460f, 60f), 46f, Ink).text = "Paused";
             Text("Note", card, new Vector2(.5f, 1f), new Vector2(0f, -92f), new Vector2(460f, 30f), 17f, Faded).text = "The house is holding its breath.";
@@ -603,6 +827,7 @@ namespace Wreckabulary
             bool aiming = rig && rig.isActiveAndEnabled && rig.IsThirdPerson && !NeedsPointer;
             if (crosshair && crosshair.activeSelf != aiming) crosshair.SetActive(aiming);
             if (hintText) SetHint(rig && rig.isActiveAndEnabled && rig.IsThirdPerson);
+            if (BagOpen && bagFade.alpha < 1f) bagFade.alpha = Mathf.Clamp01((Time.unscaledTime - bagOpenedAt) / .12f);
             if (Time.unscaledTime < nextRefresh) return;
             nextRefresh = Time.unscaledTime + .08f;
             FindLocalPlayer(); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshCraft(); RefreshSkills(); RefreshNavigation();
@@ -698,11 +923,19 @@ namespace Wreckabulary
             bool active = slot == combat.ActiveSlot;
             bool carrying = active && combat.IsHolding && !combat.Weapon;
             // The bag panel's slots sit on its paper; the HUD's are glass on the game with a light edge on the hand in use.
-            if (detail) { view.face.color = active ? SlotActive : Slot; view.frame.enabled = active; }
-            else { view.face.color = active ? GlassActive : Glass; view.edge.color = active ? GlassEdge : GlassIdle; }
             string word = gear ? gear.word : carrying ? "Carrying" : null;
-            view.label.text = word ?? "Empty hand";
-            view.label.color = detail ? word != null ? Ink : Faded : word != null ? OnGame : Hex(0xfff7e8, .7f);
+            if (detail)
+            {
+                // The bag's cards are glass with a gold edge on the hand in use, and an open hand when it's empty.
+                view.face.color = active ? BagCardActive : BagCard; view.edge.color = active ? Gold : BagCardEdge;
+                view.label.text = gear ? Spaced(gear.word) : ""; view.label.color = BagInk;
+                view.empty.enabled = !gear;
+            }
+            else
+            {
+                view.face.color = active ? GlassActive : Glass; view.edge.color = active ? GlassEdge : GlassIdle;
+                view.label.text = word ?? "Empty hand"; view.label.color = word != null ? OnGame : Hex(0xfff7e8, .7f);
+            }
             view.icon.texture = gear && itemIcons.TryGetValue(gear.word, out var texture) ? texture : null;
             view.icon.enabled = view.icon.texture;
             if (view.wearTrack)
@@ -733,8 +966,9 @@ namespace Wreckabulary
                 cell.face.transform.parent.gameObject.SetActive(i < inv.Capacity);
                 bool held = i < letters.Length, reserved = !held && i < letters.Length + inv.ReservedCount;
                 int r = i - letters.Length;
-                cell.face.color = held ? Tile : reserved ? Reserved : EmptyCell;
+                cell.face.color = held ? Tile : reserved ? Reserved : cell.ring ? BagCell : EmptyCell;
                 cell.edge.enabled = held;
+                if (cell.ring) cell.ring.enabled = !held && !reserved;
                 cell.letter.color = reserved ? ReservedInk : Ink;
                 cell.letter.text = held ? letters[i].ToString() : reserved && r < crafting.Length ? crafting[r].ToString() : "";
             }
@@ -743,40 +977,121 @@ namespace Wreckabulary
         {
             if (!bagPanel) return;
             bool open = WantsBag();
-            bagPanel.SetActive(open);
+            if (open != bagPanel.activeSelf)
+            {
+                bagPanel.SetActive(open);
+                if (open)
+                {
+                    // The web's bag-fade: 0.12 s in. Thumbs on the hidden sticks let go.
+                    bagOpenedAt = Time.unscaledTime; bagFade.alpha = 0f;
+                    TouchBinding.Shared.ReleaseAll();
+                    foreach (var stick in sticks) if (stick) stick.Release();
+                }
+            }
+            HideForBag(open);
             if (!open) return;
             bagPanel.transform.SetAsLastSibling();
             RefreshBagContents();
+        }
+
+        /// <summary>While the bag is open the rest of the HUD steps aside, as the web's does; the brand and match label stay.</summary>
+        void HideForBag(bool open)
+        {
+            if (bagHidden == open) return;
+            bagHidden = open;
+            foreach (var group in bagHides) { if (!group) continue; group.alpha = open ? 0f : 1f; group.blocksRaycasts = group.interactable = !open; }
+            ModeActions.Hidden = open;
         }
         void RefreshBagContents()
         {
             if (!LocalPlayer) return;
             var inv = LocalPlayer.Inventory;
-            bagPanelCount.text = $"{inv.TotalCount} / {inv.Capacity}";
+            bagPanelCount.text = $"{inv.TotalCount}/{inv.Capacity}";
             FillCells(bagCells, inv);
             for (int i = 0; i < 2; i++) ShowHand(bagHands[i], i, true);
+            // What you wear, a glyph per piece.
             var outfit = LocalPlayer.GetComponent<PlayerAppearance>()?.CurrentOutfit;
-            sb.Clear();
+            int worn = 0;
             if (outfit != null)
                 foreach (var slot in WearSlots)
                 {
-                    var piece = outfit.PieceIn(slot);
-                    if (string.IsNullOrEmpty(piece)) continue;
-                    sb.Append("<size=70%><color=#62736A>").Append(slot.ToUpperInvariant()).Append("</color></size> ")
-                      .Append(piece == "TBadge" ? "Letter badge" : Spaced(piece)).Append("     ");
+                    if (string.IsNullOrEmpty(outfit.PieceIn(slot))) continue;
+                    var (root, icon) = wearChips[worn++];
+                    root.SetActive(true); icon.texture = Glyph(slot);
                 }
-            wearText.text = sb.Length > 0 ? sb.ToString() : "<color=#62736A>Nothing special</color>";
-            sb.Clear();
+            for (int i = worn; i < wearChips.Count; i++) wearChips[i].root.SetActive(false);
+            // What's on you: a bubble and a speed boost count down; a carried thing shows its picture.
+            int effects = 0;
+            void Effect(Texture picture, Color tint, float seconds)
+            {
+                var (root, icon, badge, count) = effectChips[effects++];
+                root.SetActive(true); icon.texture = picture; icon.color = tint;
+                badge.SetActive(seconds > 0f); count.text = Mathf.CeilToInt(seconds).ToString();
+            }
             var health = LocalPlayer.Health;
-            if (health.Bubble > 0f) sb.Append("Bubble +").Append(Mathf.CeilToInt(health.Bubble)).Append("     ");
-            if (LocalPlayer.BoostLeft > 0f) sb.Append("Speed · ").Append(Mathf.CeilToInt(LocalPlayer.BoostLeft)).Append("s     ");
+            if (health.Bubble > 0f) Effect(Glyph("bubble"), Hex(0x9fe3ff), health.BubbleLeft);
+            if (LocalPlayer.BoostLeft > 0f) Effect(Glyph("speed"), Hex(0xb9ffb0), LocalPlayer.BoostLeft);
             var combat = LocalPlayer.Combat;
-            if (combat.IsHolding && !combat.Weapon) sb.Append("Carrying ").Append(Spaced(combat.Held.name.Replace("(Clone)", "").Trim()));
-            effectsText.text = sb.Length > 0 ? sb.ToString() : "<color=#62736A>Nothing active</color>";
-            var layout = Layout;
-            var room = layout != null ? RoomOf(layout, LocalPlayer) : null;
-            bagRoom.text = room != null ? Spaced(room) : "";
+            if (combat.IsHolding && !combat.Weapon)
+            {
+                var held = combat.Held.name.Replace("(Clone)", "").Trim().ToUpperInvariant();
+                bool pictured = itemIcons.TryGetValue(held, out var picture);
+                Effect(pictured ? picture : Glyph("carry"), pictured ? Color.white : BagInk, 0f);
+            }
+            for (int i = effects; i < effectChips.Count; i++) effectChips[i].root.SetActive(false);
+            RefreshBook(inv);
+            LayoutBag(worn, effects);
             UpdateMap(bigMap);
+        }
+
+        /// <summary>The web's letterCover: each letter of a word takes one matching letter from your bag.</summary>
+        void RefreshBook(LetterInventory inv)
+        {
+            bool free = LocalPlayer.CanAct && !LocalPlayer.Summoner.IsCrafting;
+            foreach (var card in bookCards)
+            {
+                spare.Clear(); spare.AddRange(inv.Letters);
+                bool all = true;
+                for (int i = 0; i < card.word.Length; i++)
+                {
+                    int at = spare.IndexOf(card.word[i]);
+                    bool got = at >= 0;
+                    if (got) spare.RemoveAt(at); else all = false;
+                    card.tiles[i].color = got ? TileGot : TileMissing;
+                    card.letters[i].color = got ? TileGotInk : TileMissingInk;
+                }
+                card.face.color = all ? Hex(0xffe7b8, .17f) : BagCard;
+                card.edge.color = all ? Gold : BagCardEdge;
+                card.glow.enabled = all;
+                card.button.interactable = all && free;
+            }
+        }
+
+        /// <summary>Stacks the bag's rows (chips wrap six to a row) and sizes the map to the room between the columns.</summary>
+        void LayoutBag(int worn, int effects)
+        {
+            float y = 0f;
+            static float Rows(int n) => n == 0 ? 0f : Mathf.Ceil(n / (float)ChipsPerRow) * (Chip + ChipGap) - ChipGap;
+            void Place(RectTransform row, float height)
+            {
+                row.gameObject.SetActive(height > 0f);
+                if (height <= 0f) return;
+                row.anchoredPosition = new Vector2(0f, -y); row.sizeDelta = new Vector2(BagColumn, height);
+                y += height + BagGap;
+            }
+            void Flow(int count, Func<int, GameObject> chip)
+            {
+                for (int i = 0; i < count; i++)
+                    ((RectTransform)chip(i).transform).anchoredPosition = new Vector2(i % ChipsPerRow * (Chip + ChipGap), -(i / ChipsPerRow) * (Chip + ChipGap));
+            }
+            Place(bagLetters, 155f); Place(bagHandsRow, 145f); Place(bagWearRow, Rows(worn)); Place(bagEffectsRow, Rows(effects));
+            Flow(worn, i => wearChips[i].root); Flow(effects, i => effectChips[i].root);
+            bagColumn.sizeDelta = new Vector2(BagColumn, Mathf.Max(0f, y - BagGap));
+            // The web's zoom: max(260px, min(62vh, 100vw - 720px)), a little below the middle.
+            var area = safe.rect;
+            float side = Mathf.Max(325f, Mathf.Min(area.height * .62f, area.width - 900f));
+            bagMapFrame.sizeDelta = Vector2.one * side;
+            bagMapShadow.sizeDelta = Vector2.one * (side + 2f * 31f * 75f / 28f);
         }
         void RefreshCraft()
         {
@@ -852,8 +1167,13 @@ namespace Wreckabulary
 
         MapView MakeMap(RectTransform frame, bool full, float border)
         {
+            // The frame is a ring, so the floor inside is the only thing over the game (the web's border, not a card).
+            var edge = frame.GetComponent<Image>();
+            float scale = edge.pixelsPerUnitMultiplier;
+            edge.sprite = MakeShape(false, border * scale);
             var bg = Panel("Floor", frame, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), MapBg);
             bg.anchorMin = Vector2.zero; bg.anchorMax = Vector2.one; bg.offsetMin = Vector2.one * border; bg.offsetMax = -Vector2.one * border;
+            bg.GetComponent<Image>().pixelsPerUnitMultiplier = 11f / Mathf.Max(1f, 11f / scale - border);
             bg.gameObject.AddComponent<RectMask2D>();
             return new MapView { content = bg, full = full };
         }
@@ -885,13 +1205,12 @@ namespace Wreckabulary
                     var rt = Panel(box.Name, map.content, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), RoomFill);
                     rt.anchorMin = At(box.MinX, box.MinZ); rt.anchorMax = At(box.MaxX, box.MaxZ); rt.offsetMin = rt.offsetMax = Vector2.zero;
                     var image = rt.GetComponent<Image>(); image.sprite = null;
-                    // A small inset lets the dark floor read as the walls between rooms.
-                    rt.offsetMin = Vector2.one * 2f; rt.offsetMax = -Vector2.one * 2f;
-                    var outline = rt.gameObject.AddComponent<Outline>(); outline.effectColor = Hex(0xe4d6b2, .7f); outline.effectDistance = new Vector2(1.5f, -1.5f);
-                    var label = Text("Name", rt, new Vector2(.5f, .5f), Vector2.zero, Vector2.zero, map.full ? 18f : 12f, Hex(0xead7b3));
+                    var line = CreateImage("Edge", rt, Vector2.zero, Vector2.zero, Vector2.zero, RoomEdge);
+                    Stretch(line.rectTransform); line.sprite = lineBox; line.type = Image.Type.Sliced; line.pixelsPerUnitMultiplier = .8f;
+                    var label = Text("Name", rt, new Vector2(.5f, .5f), Vector2.zero, Vector2.zero, map.full ? 19f : 12f, Hex(0xead7b3));
                     label.rectTransform.anchorMin = Vector2.zero; label.rectTransform.anchorMax = Vector2.one; label.rectTransform.offsetMin = label.rectTransform.offsetMax = Vector2.zero;
-                    label.text = map.full ? Spaced(box.Name) : Initial(layout, box.Name); label.textWrappingMode = TextWrappingModes.Normal;
-                    map.rooms.Add((box, image, label));
+                    label.text = Initial(layout, box.Name); label.textWrappingMode = TextWrappingModes.Normal;
+                    map.rooms.Add((box, image, line));
                 }
                 // Each flight of stairs shows on both floors it joins.
                 foreach (var s in layout.Stairs)
@@ -918,8 +1237,9 @@ namespace Wreckabulary
             }
             string here = LocalPlayer ? RoomOf(layout, LocalPlayer) : null;
             var schedule = clearOut && clearOut.Running ? clearOut.Schedule : null;
-            foreach (var (box, fill, _) in map.rooms)
+            foreach (var (box, fill, line) in map.rooms)
             {
+                line.color = box.Name == here ? RoomEdgeHere : RoomEdge;
                 var phase = schedule?.PhaseOf(box.Name, clearOut.Elapsed) ?? RoomPhase.Safe;
                 fill.color = phase == RoomPhase.Closed || phase == RoomPhase.Filling ? RoomClosed
                     : phase == RoomPhase.Warning ? Color.Lerp(RoomWarn, RoomFill, Mathf.PingPong(Time.unscaledTime * 1.4f, 1f))
@@ -930,25 +1250,18 @@ namespace Wreckabulary
             {
                 if (!p || p.IsEliminated) continue;
                 if (n == map.dots.Count)
-                {
-                    var dot = Panel("Player", map.content, Vector2.zero, Vector2.zero, Vector2.one * 10f, new Vector2(.5f, .5f), Cream, true).GetComponent<Image>();
-                    var name = Text("Name", dot.transform, new Vector2(.5f, 1f), new Vector2(0f, 4f), new Vector2(160f, 22f), 15f, Cream);
-                    name.rectTransform.pivot = new Vector2(.5f, 0f); name.outlineWidth = .25f; name.outlineColor = Ink;
-                    map.dots.Add((dot, name));
-                }
-                var (image, label) = map.dots[n++];
+                    map.dots.Add(Panel("Player", map.content, Vector2.zero, Vector2.zero, Vector2.one * 10f, new Vector2(.5f, .5f), Cream, true).GetComponent<Image>());
+                var image = map.dots[n++];
                 image.gameObject.SetActive(true);
                 bool you = p == LocalPlayer;
                 var rt = image.rectTransform;
                 rt.anchorMin = rt.anchorMax = At(p.transform.position.x, p.transform.position.z);
-                rt.sizeDelta = Vector2.one * (map.full ? (you ? 20f : 15f) : (you ? 12f : 8f));
+                rt.sizeDelta = Vector2.one * (map.full ? (you ? 20f : 14f) : (you ? 12f : 8f));
                 image.color = p.IsDowned ? Coral : you ? Hex(0x9ff8d3) : p.Color;
                 // Someone on another floor shows faintly where they are, above or below you.
                 if (storeyCount > 1 && StoreyOfPlayer(p) != storey) image.color = new Color(image.color.r, image.color.g, image.color.b, .4f);
-                label.gameObject.SetActive(map.full);
-                label.text = you ? "You" : p.Name;
             }
-            for (int i = n; i < map.dots.Count; i++) map.dots[i].dot.gameObject.SetActive(false);
+            for (int i = n; i < map.dots.Count; i++) map.dots[i].gameObject.SetActive(false);
         }
 
         // ---- Safe area and layout modes ----
@@ -960,6 +1273,11 @@ namespace Wreckabulary
             if (lastWidth <= 0 || lastHeight <= 0) return;
             safe.anchorMin = new Vector2(lastSafe.xMin / lastWidth, lastSafe.yMin / lastHeight); safe.anchorMax = new Vector2(lastSafe.xMax / lastWidth, lastSafe.yMax / lastHeight);
             safe.offsetMin = safe.offsetMax = Vector2.zero;
+            // The bag's scrim and the pause shade reach past the safe area to the screen's edges.
+            float safeWidth = Mathf.Max(1f, lastSafe.width), safeHeight = Mathf.Max(1f, lastSafe.height);
+            var coverMin = new Vector2(-lastSafe.xMin / safeWidth, -lastSafe.yMin / safeHeight);
+            var coverMax = new Vector2(1f + (lastWidth - lastSafe.xMax) / safeWidth, 1f + (lastHeight - lastSafe.yMax) / safeHeight);
+            foreach (var cover in new[] { bagBackdrop, pauseShade }) if (cover) { cover.anchorMin = coverMin; cover.anchorMax = coverMax; }
             bool portrait = lastWidth < lastHeight, touch = TouchControlsShown;
             // Touch screens keep the vitals above the move stick, as the browser's coarse-pointer layout does.
             if (vitals) vitals.anchoredPosition = new Vector2(39f, touch ? (portrait ? 420f : 250f) : 110f);
@@ -1000,6 +1318,7 @@ namespace Wreckabulary
         void OnDisable()
         {
             TouchBinding.Shared.ReleaseAll();
+            if (bagHidden) HideForBag(false);
             if (Active == this) Active = null;
         }
         void OnDestroy()
@@ -1011,7 +1330,14 @@ namespace Wreckabulary
 
         // ---- What the directors call ----
 
-        public void SetTitle(string text, string sub = "") { if (title) title.text = text; if (subtitle) subtitle.text = sub; }
+        public void SetTitle(string text, string sub = "")
+        {
+            // Countdowns set the same words every frame; only a change re-measures the plaque.
+            if (title && title.text == text && (!subtitle || subtitle.text == sub)) return;
+            if (title) title.text = text;
+            if (subtitle) subtitle.text = sub;
+            FitTitlePlaque();
+        }
         public void SetInstruction(string main, string hint = "")
         {
             string text = string.IsNullOrEmpty(hint) ? main : $"<b>{main}</b>\n<size=82%><color=#173B3CB3>{hint}</color></size>";
@@ -1050,11 +1376,6 @@ namespace Wreckabulary
 
         // ---- Builders ----
 
-        void Eyebrow(string label, RectTransform parent, Vector2 position, float size)
-        {
-            var text = Text(label, parent, new Vector2(0f, 1f), position, new Vector2(300f, 20f), size, Ink, TextAlignmentOptions.Left);
-            text.text = label.ToUpperInvariant(); text.characterSpacing = 8f; text.rectTransform.pivot = new Vector2(0f, 1f);
-        }
         LetterCell MakeCell(string label, RectTransform parent, Vector2 position, Vector2 size, float fontSize)
         {
             var holder = Rect(label, parent, new Vector2(0f, 1f), position, size); holder.pivot = new Vector2(0f, 1f);
@@ -1064,37 +1385,22 @@ namespace Wreckabulary
             letter.fontStyle = FontStyles.Bold;
             return new LetterCell { face = face, edge = edge, letter = letter };
         }
-        HandView MakeHand(string label, RectTransform parent, Vector2 position, Vector2 size, int slot, Action onTap, bool detail = false)
+        HandView MakeHand(string label, RectTransform parent, Vector2 position, Vector2 size, int slot, Action onTap)
         {
-            var rt = Panel(label, parent, Vector2.zero, position, size, Vector2.zero, detail ? Slot : Glass);
+            var rt = Panel(label, parent, Vector2.zero, position, size, Vector2.zero, Glass);
             var view = new HandView { face = rt.GetComponent<Image>() };
             view.face.raycastTarget = true;
             rt.gameObject.AddComponent<Button>().onClick.AddListener(() => onTap());
-            if (detail)
-            {
-                // The browser's 2px ink border on the hand in use.
-                view.frame = rt.gameObject.AddComponent<Outline>();
-                view.frame.effectColor = Ink; view.frame.effectDistance = new Vector2(3f, -3f);
-            }
-            else
-            {
-                // An outline effect would show through the glass, so the edge is a ring of its own.
-                view.edge = CreateImage("Edge", rt, Vector2.zero, Vector2.zero, Vector2.zero, GlassIdle);
-                view.edge.rectTransform.anchorMax = Vector2.one; view.edge.rectTransform.offsetMin = view.edge.rectTransform.offsetMax = Vector2.zero;
-                view.edge.sprite = ringSprite; view.edge.type = Image.Type.Sliced;
-            }
-            var key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(8f, -5f), new Vector2(20f, 18f), 12f, detail ? Ink : OnGame, TextAlignmentOptions.Left);
+            // An outline effect would show through the glass, so the edge is a ring of its own.
+            view.edge = CreateImage("Edge", rt, Vector2.zero, Vector2.zero, Vector2.zero, GlassIdle);
+            Stretch(view.edge.rectTransform); view.edge.sprite = ringSprite; view.edge.type = Image.Type.Sliced;
+            var key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(8f, -5f), new Vector2(20f, 18f), 12f, OnGame, TextAlignmentOptions.Left);
             key.text = (slot + 1).ToString(); key.rectTransform.pivot = new Vector2(0f, 1f);
             view.icon = Rect("Icon", rt, new Vector2(.5f, 1f), new Vector2(0f, -4f), new Vector2(54f, 50f)).gameObject.AddComponent<RawImage>();
             ((RectTransform)view.icon.transform).pivot = new Vector2(.5f, 1f); view.icon.raycastTarget = false;
-            view.label = Text("Word", rt, new Vector2(.5f, 0f), new Vector2(0f, detail ? 16f : 6f), new Vector2(size.x - 10f, 20f), detail ? 15f : 12f, Ink);
+            view.label = Text("Word", rt, new Vector2(.5f, 0f), new Vector2(0f, 6f), new Vector2(size.x - 10f, 20f), 12f, Ink);
             view.label.rectTransform.pivot = new Vector2(.5f, 0f);
-            if (!detail) { OnGameText(key); OnGameText(view.label); }
-            if (detail)
-            {
-                var track = Panel("Wear", rt, new Vector2(.5f, 0f), new Vector2(0f, 7f), new Vector2(size.x - 24f, 6f), new Vector2(.5f, 0f), Track);
-                view.wear = Fill("Left", track, Health); view.wearTrack = track.gameObject;
-            }
+            OnGameText(key); OnGameText(view.label);
             return view;
         }
         Sprite Icon(TouchAction action)
@@ -1125,6 +1431,53 @@ namespace Wreckabulary
             var sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 100f, 0, SpriteMeshType.FullRect, circle ? Vector4.zero : new Vector4(14f, 14f, 14f, 14f));
             ownedSprites.Add(sprite); ownedTextures.Add(texture); return sprite;
         }
+        /// <summary>A crisp one-texel box edge for the map's rooms, sliced so it stays a line at any size.</summary>
+        Sprite MakeLineBox()
+        {
+            const int size = 4;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "HUD line box", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color[size * size];
+            for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+                pixels[y * size + x] = new Color(1f, 1f, 1f, x == 0 || y == 0 || x == size - 1 || y == size - 1 ? 1f : 0f);
+            texture.SetPixels(pixels); texture.Apply(false, true);
+            var sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 100f, 0, SpriteMeshType.FullRect, Vector4.one);
+            ownedSprites.Add(sprite); ownedTextures.Add(texture); return sprite;
+        }
+
+        /// <summary>A soft rounded square for drop shadows and glows, sliced so its blur keeps its width at any size.</summary>
+        Sprite MakeSoft()
+        {
+            const int size = 64;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "HUD soft", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color[size * size];
+            for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+            {
+                float dx = Mathf.Max(Mathf.Abs(x - 31.5f) - 3.5f, 0f), dy = Mathf.Max(Mathf.Abs(y - 31.5f) - 3.5f, 0f);
+                float t = Mathf.Clamp01(Mathf.Sqrt(dx * dx + dy * dy) / 28f);
+                pixels[y * size + x] = new Color(1f, 1f, 1f, 1f - t * t * (3f - 2f * t));
+            }
+            texture.SetPixels(pixels); texture.Apply(false, true);
+            var sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 100f, 0, SpriteMeshType.FullRect, Vector4.one * 31f);
+            ownedSprites.Add(sprite); ownedTextures.Add(texture); return sprite;
+        }
+
+        /// <summary>The bag's scrim, the web's radial gradient: #10292B at .55 in the middle to #0B1D1F at .85 at the corners.</summary>
+        Sprite MakeScrim()
+        {
+            const int size = 128;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "Bag scrim", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color[size * size];
+            Color middle = Hex(0x10292b, .55f), corner = Hex(0x0b1d1f, .85f);
+            for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+            {
+                float dx = (x - 63.5f) / 63.5f, dy = (y - 63.5f) / 63.5f;
+                pixels[y * size + x] = Color.Lerp(middle, corner, Mathf.Clamp01(Mathf.Sqrt((dx * dx + dy * dy) * .5f)));
+            }
+            texture.SetPixels(pixels); texture.Apply(false);
+            var sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 100f);
+            ownedSprites.Add(sprite); ownedTextures.Add(texture); return sprite;
+        }
+
         RectTransform Rect(string label, Transform parent, Vector2 anchor, Vector2 position, Vector2 size)
         {
             var rt = new GameObject(label, typeof(RectTransform)).GetComponent<RectTransform>(); rt.SetParent(parent, false);

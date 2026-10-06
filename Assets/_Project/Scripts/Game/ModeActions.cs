@@ -9,8 +9,17 @@ namespace Wreckabulary
     public sealed class ModeActions : MonoBehaviour
     {
         GameObject panel;
+        Canvas canvas;
         TMP_Text label;
         static readonly System.Collections.Generic.List<ModeActions> all = new();
+        static bool hidden;
+
+        /// <summary>The Tab bag is open: the buttons stay where they are but aren't drawn or clickable.</summary>
+        public static bool Hidden
+        {
+            get => hidden;
+            set { hidden = value; foreach (var a in all) if (a && a.canvas) a.canvas.enabled = !value; }
+        }
 
         /// <summary>Start, retry or home buttons are on screen, so the pointer must be free to click them.</summary>
         public static bool AnyShown
@@ -23,7 +32,7 @@ namespace Wreckabulary
             }
         }
 
-        void OnEnable() => all.Add(this);
+        void OnEnable() { all.Add(this); if (canvas) canvas.enabled = !hidden; }
         void OnDisable() => all.Remove(this);
         public static ModeActions Create(Transform owner, string caption, Action play)
         {
@@ -33,6 +42,8 @@ namespace Wreckabulary
             canvas.transform.SetParent(component.transform, false);
             canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.GetComponent<Canvas>().sortingOrder = 30;
+            component.canvas = canvas.GetComponent<Canvas>();
+            component.canvas.enabled = !hidden;
             var scaler = canvas.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);

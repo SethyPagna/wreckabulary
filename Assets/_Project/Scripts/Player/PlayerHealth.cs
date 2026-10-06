@@ -41,6 +41,8 @@ namespace Wreckabulary
         public bool IsInvulnerable => Now < Model.InvulnerableUntil;
         /// <summary>Protection left in the ARMOR or FOAM bubble.</summary>
         public float Bubble => Now < Model.BubbleUntil ? Model.Bubble : 0f;
+        /// <summary>Seconds left on the bubble.</summary>
+        public float BubbleLeft => Bubble > 0f ? (float)(Model.BubbleUntil - Now) : 0f;
         /// <summary>Seconds a downed player has left before they bleed out.</summary>
         public float BleedOutLeft => IsDowned ? (float)Math.Max(0.0, Model.BleedOutAt - Now) : 0f;
 
