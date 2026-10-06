@@ -13,6 +13,9 @@ namespace Wreckabulary
 
         static string Key(InputAction action) => action.GetBindingDisplayString().ToUpperInvariant();
 
+        /// <summary>An action's key as a prompt writes it ("Q", "LMB"), for the settings' key caps.</summary>
+        public static string KeyOf(InputAction action) => Key(action);
+
         /// <summary>"Press SPACE, J, . or A to join".</summary>
         public static string Join(string verb) => Application.isMobilePlatform ? $"Tap PLAY to {verb}" : $"Press {Key(Desktop.Jump)}, J, . or A to {verb}";
 

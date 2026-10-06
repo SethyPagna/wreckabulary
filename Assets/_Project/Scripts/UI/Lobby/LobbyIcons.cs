@@ -26,6 +26,7 @@ namespace Wreckabulary
         static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
         static readonly Dictionary<(int, int), Sprite> slices = new Dictionary<(int, int), Sprite>();
         static readonly Dictionary<(int, int, int), Texture2D> bursts = new Dictionary<(int, int, int), Texture2D>();
+        static readonly Dictionary<(int, int, int), Texture2D> rays = new Dictionary<(int, int, int), Texture2D>();
 
         public static Sprite Get(string name)
         {
@@ -95,6 +96,44 @@ namespace Wreckabulary
             texture.SetPixels32(pixels);
             texture.Apply(true, true);
             bursts[key] = texture;
+            return texture;
+        }
+
+        /// <summary>
+        /// The web posters' rays (repeating-conic-gradient(at 50% 26%, #fff2 0 10deg, #0000 10deg 20deg)): white
+        /// wedges every 20 degrees from a point a quarter of the way down, on clear, in a rounded rect of this size
+        /// in UI pixels. Lay it over a poster's colour. Drawn at twice the size with mipmaps.
+        /// </summary>
+        public static Texture2D Rays(int width, int height, int radius)
+        {
+            var key = (width, height, radius);
+            if (rays.TryGetValue(key, out var cached) && cached) return cached;
+            const int Scale = 2;
+            const float Ray = 10f * Mathf.Deg2Rad;
+            int w = width * Scale, h = height * Scale;
+            var texture = new Texture2D(w, h, TextureFormat.RGBA32, true)
+            { name = $"Lobby rays {width}x{height}", filterMode = FilterMode.Trilinear, wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color32[w * h];
+            var middle = new Vector2(w / 2f, h / 2f);
+            var origin = new Vector2(w / 2f, h * .74f);
+            // The web's #fff2 as it is: over a bright poster, the alpha the panels need reads too strong.
+            const float strength = 0x22 / 255f;
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    var at = new Vector2(x + .5f, y + .5f);
+                    var p = at - origin;
+                    float r = p.magnitude;
+                    // Texels from the nearest ray edge, positive inside a ray, for one texel of soft edge.
+                    float a = Mathf.Repeat(Mathf.Atan2(p.x, p.y), 2f * Ray);
+                    float inside = a < Ray ? Mathf.Min(a, Ray - a) : -Mathf.Min(a - Ray, 2f * Ray - a);
+                    float ray = Mathf.Clamp01(.5f + inside * r);
+                    float shape = Mathf.Clamp01(.5f - Box(at, middle, middle, radius * Scale));
+                    pixels[y * w + x] = new Color(1f, 1f, 1f, strength * ray * shape);
+                }
+            texture.SetPixels32(pixels);
+            texture.Apply(true, true);
+            rays[key] = texture;
             return texture;
         }
 

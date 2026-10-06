@@ -19,11 +19,6 @@ namespace Wreckabulary
     public abstract class LobbyPage
     {
         protected static readonly string[] Finishes = { "Classic", "Candy", "Arcade" };
-        /// <summary>The hard drop under cards on a solid navy page, where a navy one wouldn't show.</summary>
-        protected static readonly Color Deep = LobbyKit.Hex(0x04052a);
-        /// <summary>The web's see-through white card on the royal panel, made solid: a uGUI shadow draws
-        /// under its card, so a see-through card would show its own drop through itself.</summary>
-        protected static readonly Color BoardIdle = LobbyKit.Hex(0x445eeb), BoardHover = LobbyKit.Hex(0x556ded);
         /// <summary>The width of the panel the loadout, career and shop share.</summary>
         public const float SideWidth = 860f;
 
@@ -132,16 +127,24 @@ namespace Wreckabulary
         }
 
         /// <summary>
-        /// A web poster for a mode or a map: its colour running light to dark, a navy edge and a hard
-        /// drop, lifting and leaning a little under the pointer. Put its content on its Body.
+        /// A web poster for a mode or a house: its colour running light to dark under white rays that fan out
+        /// from behind its art, a navy edge and a hard drop, lifting and leaning a little under the pointer. Put
+        /// its content on its Body; <paramref name="size"/> is the card's, for the rays.
         /// </summary>
-        protected static Button Poster(Transform parent, string name, Color colour, bool on, Action click)
+        protected static Button Poster(Transform parent, string name, Color colour, bool on, Action click, Vector2 size)
         {
             var button = LobbyKit.Button(parent, name, Color.Lerp(colour, Color.white, .3f), click, 20, LobbyKit.Navy, 4, 6,
                 Color.Lerp(colour, Color.black, .25f));
             var press = button.GetComponent<LobbyPress>();
             press.Lift = 5f; press.Tilt = 1f;
-            if (on) Chosen(button.Body(), 20);
+            var body = button.Body();
+            // Inside the edge, under everything else on the card.
+            var rays = LobbyKit.Rect(body, "Rays").Place(Vector2.zero, Vector2.one, new Vector2(4, 4), new Vector2(-4, -4));
+            rays.SetAsFirstSibling();
+            var raw = rays.gameObject.AddComponent<RawImage>();
+            raw.texture = LobbyIcons.Rays((int)size.x - 8, (int)size.y - 8, 16);
+            raw.raycastTarget = false;
+            if (on) Chosen(body, 20);
             return button;
         }
 
@@ -152,41 +155,6 @@ namespace Wreckabulary
             var check = LobbyKit.Rect(body, "Check").Pin(Vector2.one, new Vector2(12, 12), new Vector2(38, 38));
             LobbyKit.Face(check, LobbyKit.Sun, 19, LobbyKit.Navy, 4);
             LobbyKit.Icon(check, LobbyIcons.Check, LobbyKit.Navy).rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(8, 8), new Vector2(-8, -8));
-        }
-
-        /// <summary>The small navy tag at a poster's foot ("2 v 2", "Solo").</summary>
-        protected static void Tag(RectTransform body, string text)
-        {
-            var tag = LobbyKit.Row(body, "Foot", 0);
-            tag.GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(12, 12, 3, 3);
-            tag.Pin(Vector2.zero, new Vector2(16, 14), new Vector2(0, 30));
-            tag.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            tag.Paint(LobbyKit.Navy, 8).raycastTarget = false;
-            LobbyKit.Text(tag, LobbyKit.Upper(text), 15, LobbyKit.Cream, TextAlignmentOptions.Center, FontStyles.Bold).characterSpacing = 2;
-        }
-
-        /// <summary>A queue choice: a glass card with a light edge, or a sun slab with navy type when chosen.</summary>
-        protected static Button Board(Transform parent, string name, string title, string body, bool on, Action click)
-        {
-            var button = on
-                ? LobbyKit.Button(parent, name, LobbyKit.SunHi, click, 16, LobbyKit.Navy, 3, 5, LobbyKit.Sun2)
-                : LobbyKit.Button(parent, name, BoardIdle, click, 16, LobbyKit.ChipEdge, 2, 5);
-            var t = button.Body();
-            t.GetComponent<Shadow>().effectColor = Deep;
-            var press = button.GetComponent<LobbyPress>();
-            if (on) press.Lift = 0f;
-            else
-            {
-                var face = t.GetComponent<Image>();
-                press.Hot = hot => face.color = hot ? BoardHover : BoardIdle;
-            }
-            var head = LobbyKit.Display(t, title, 28, on ? LobbyKit.Navy : LobbyKit.Cream, TextAlignmentOptions.TopLeft);
-            head.characterSpacing = 1;
-            head.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(20, 0), new Vector2(-16, -16));
-            var text = Wrapped(t, body, 17, on ? LobbyKit.CardSub : LobbyKit.Muted);
-            text.overflowMode = TextOverflowModes.Ellipsis;
-            text.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(20, 12), new Vector2(-16, -54));
-            return button;
         }
 
         protected static string SkinOf(Outfit outfit) => outfit.ItemSkins.Values.FirstOrDefault() ?? Skin.Standard;
@@ -243,6 +211,13 @@ namespace Wreckabulary
 
         protected static string MapName(string id) =>
             id != null && GameConfig.Current.Houses.TryGetValue(id, out var house) ? house.Name : id ?? "";
+
+        /// <summary>A count as the lobby writes numbers: 1,234.</summary>
+        protected static string Number(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
+
+        /// <summary>When a match ended, as "6 Oct 14:32" in local time.</summary>
+        protected static string When(long endedAt) => endedAt <= 0 || endedAt > Career.LatestTime ? "-" :
+            DateTimeOffset.FromUnixTimeSeconds(endedAt).ToLocalTime().ToString("d MMM HH:mm", CultureInfo.InvariantCulture);
     }
 
     /// <summary>Just you in the map, the lobby notices, and the match dock: what GO will start, and GO.</summary>
@@ -275,13 +250,13 @@ namespace Wreckabulary
             dock.Pin(new Vector2(1, 0), Vector2.zero, new Vector2(DockWidth, 0));
             dock.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             var mode = LobbyKit.PickCard(dock, "CHANGE", LobbyKit.ModeColour(Menu.Mode), "Next up  ·  " + Capital(Menu.Queue),
-                LobbyMenu.ModeName(Menu.Mode), blocked ? "Not built yet  ·  online play" : Who(), () => Menu.Open(LobbyMenu.Play), 74);
+                LobbyMenu.ModeName(Menu.Mode), blocked ? "Not built yet  ·  online play" : Who(), () => Menu.OpenPlay("Mode " + Menu.Mode), 74);
             mode.Size(-1, 104);
             LobbyKit.ItemImage(mode.Body().Find("Art"), LobbyKit.ModeArt(Menu.Mode), 64, 10f);
             if (Menu.Mode != LobbyMenu.TutorialMode)
             {
                 var house = LobbyKit.PickCard(dock, "Change house", LobbyKit.Hot, "House", MapName(Menu.Map), null,
-                    () => Menu.Open(LobbyMenu.Play), 54);
+                    () => Menu.OpenPlay("Map " + Menu.Map), 54);
                 house.Size(-1, 80);
                 LobbyKit.Icon(house.Body().Find("Art"), LobbyIcons.Home, LobbyKit.Cream).rectTransform
                     .Place(Vector2.zero, Vector2.one, new Vector2(11, 11), new Vector2(-11, -11));
@@ -298,113 +273,266 @@ namespace Wreckabulary
             : Capital(LobbyMenu.Seats(Menu.Mode, Menu.PartySize));
     }
 
-    /// <summary>PRACTICE, MATCHMAKING or WORKSHOP, then a mode and a map, then GO back to the lobby.</summary>
+    /// <summary>
+    /// The web's mode and house pickers on one CS2-style page: the queue beside the title, PICK YOUR CHAOS (each
+    /// mode a poster), PICK A HOUSE (each house its plan), and what GO starts along the foot. GO goes back to the
+    /// lobby while the match starts.
+    /// </summary>
     public sealed class PlayPage : LobbyPage
     {
         public override string Id => LobbyMenu.Play;
+        /// <summary>The card a keyboard or controller lands on when the page next draws: the dock's CHANGE opens
+        /// the page on the mode, its house card on the house.</summary>
+        public string Aim;
 
-        static readonly (string id, string title, string body)[] Queues =
+        /// <summary>Five posters, then five houses, fill the panel on a 16:9 screen; a narrower one shrinks the rows.</summary>
+        static readonly Vector2 ModeSize = new Vector2(348, 330), HouseSize = new Vector2(346, 280);
+        static readonly Color ArtShadow = new Color(LobbyKit.Navy.r, LobbyKit.Navy.g, LobbyKit.Navy.b, .4f);
+        static readonly Color Tree = LobbyKit.Hex(0x2f9e3a);
+
+        static readonly (string id, string label)[] Queues =
         {
-            (LobbyMenu.Practice, "PRACTICE", "Every mode, with bots in the empty seats"),
-            (LobbyMenu.Matchmaking, "MATCHMAKING", "Friends and other players, once online play is built"),
-            (LobbyMenu.Workshop, "WORKSHOP", "Learn the controls or build a home"),
+            ("Queue " + LobbyMenu.Practice, "Practice"),
+            ("Queue " + LobbyMenu.Matchmaking, "Matchmaking"),
+            ("Queue " + LobbyMenu.Workshop, "Workshop"),
         };
+
+        /// <summary>A line on each house, as the web's house picker has them.</summary>
+        static readonly Dictionary<string, string> HouseLines = new Dictionary<string, string>
+        {
+            ["pinwheel"] = "Five cosy rooms. Eight sneaky shortcuts.",
+            ["courtyard"] = "A big garden, broad paths, and four cosy wings.",
+            ["flat"] = "A long hall, five rooms, no stairs.",
+            ["terrace"] = "Two storeys, one staircase, nowhere to hide.",
+            ["walkup"] = "Three floors: a cafe, a garage and four flats.",
+        };
+
+        static readonly (string mode, string title, string tag, string blurb) Tutorial =
+            (LobbyMenu.TutorialMode, LobbyMenu.ModeName(LobbyMenu.TutorialMode), "Practice", "A friendly room to try smashing, spelling and every skill.");
 
         protected override void Build()
         {
-            var body = Panel(Vector2.zero, Vector2.one, "Play", "Pick a queue, a mode and a map, then press GO.");
+            var body = Panel(Vector2.zero, Vector2.one, "Play", QueueLine(Menu.Queue));
+            // The queue sits beside the title, as CS2 lines its play types up along the top.
+            var queues = LobbyKit.Segmented(body.parent, "Queues", Queues, "Queue " + Menu.Queue, PickQueue, 52, 20);
+            queues.Place(Vector2.one, Vector2.one, new Vector2(-688, -78), new Vector2(-88, -26));
 
-            var queues = LobbyKit.Column(body, "Queues", 14);
-            queues.Place(Vector2.zero, new Vector2(0, 1), Vector2.zero, new Vector2(280, 0));
-            foreach (var (id, title, text) in Queues)
+            var column = LobbyKit.Column(body, "Choices", 8).Place(Vector2.zero, Vector2.one, new Vector2(0, 104), Vector2.zero);
+            LobbyKit.SectionLabel(column, "Pick your chaos");
+            var modes = ModesFor(Menu.Queue).ToList();
+            var posters = Centred(LobbyKit.FitRow(column, "Modes", ModeSize, 16, modes.Count));
+            Selectable chosen = null;
+            foreach (var (mode, title, tag, blurb) in modes)
             {
-                bool on = Menu.Queue == id;
-                var card = Board(queues, "Queue " + id, title, text, on, () => { Menu.Choose(queue: id); Refresh(); Reselect("Queue " + id); });
-                card.Size(-1, 128);
-                if (on) First = card;
+                var poster = ModePoster(posters, mode, title, tag, blurb, Menu.Mode == mode);
+                if (Menu.Mode == mode) chosen = poster;
             }
-
-            var main = LobbyKit.Rect(body, "Choices").Place(Vector2.zero, Vector2.one, new Vector2(312, 112), Vector2.zero);
-            var column = LobbyKit.Column(main, "Column", 10).Fill();
-            LobbyKit.Heading(column, "Mode");
-            var modes = LobbyKit.Row(column, "Modes", 16);
-            modes.Size(-1, 196);
-            foreach (var (mode, title, text, foot) in ModesFor(Menu.Queue, Menu.PartySize))
-                ModePoster(modes, mode, title, text, foot, Menu.Mode == mode);
-            if (Menu.Mode != LobbyMenu.TutorialMode)
+            LobbyKit.Rect(column, "Gap").Size(-1, 8);
+            if (Menu.Mode == LobbyMenu.TutorialMode)
             {
-                LobbyKit.Rect(column, "Gap").Size(-1, 8);
-                LobbyKit.Heading(column, "Map");
-                var maps = LobbyKit.FitRow(column, "Maps", new Vector2(260, 204), 18, GameConfig.Current.Houses.Count);
+                LobbyKit.SectionLabel(column, "Where you'll play");
+                TutorialRoom(column);
+            }
+            else
+            {
+                LobbyKit.SectionLabel(column, "Pick a house");
+                var houses = Centred(LobbyKit.FitRow(column, "Houses", HouseSize, 18, GameConfig.Current.Houses.Count));
                 int index = 0;
                 foreach (var house in GameConfig.Current.Houses)
-                    MapPoster(maps, house.Key, house.Value, Menu.Map == house.Key, index++);
+                    HouseCard(houses, house.Key, house.Value, index++);
             }
+            Footer(body);
 
-            var bar = LobbyKit.Rect(body, "Summary").Place(Vector2.zero, new Vector2(1, 0), new Vector2(312, 0), new Vector2(0, 92));
-            LobbyKit.Face(bar, LobbyKit.ChipFill, 18, LobbyKit.Line, 2);
-            string blocked = Menu.Blocked;
-            var summary = Wrapped(bar, blocked ?? Menu.Describe(), 22, blocked == null ? LobbyKit.Cream : LobbyKit.Muted);
-            summary.alignment = TextAlignmentOptions.MidlineLeft;
-            summary.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(24, 6), new Vector2(-290, -6));
-            var go = LobbyKit.Primary(bar, "GO", "GO", Menu.Go, 48, 30);
-            ((RectTransform)go.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-268, -36), new Vector2(-12, 36));
-            go.interactable = blocked == null;
+            First = chosen;
+            if (Aim != null)
+            {
+                var aimed = Root.GetComponentsInChildren<Selectable>().FirstOrDefault(s => s.name == Aim && s.IsInteractable());
+                if (aimed) First = aimed;
+                Aim = null;
+            }
         }
 
-        static IEnumerable<(string mode, string title, string body, string foot)> ModesFor(string queue, int humans)
+        void PickQueue(string id)
+        {
+            Menu.Choose(queue: id.Substring("Queue ".Length));
+            Refresh();
+            Reselect(id);
+        }
+
+        static string QueueLine(string queue) => queue == LobbyMenu.Matchmaking
+            ? "Friends and other players, once online play is built. Pick a mode and a house, then GO."
+            : queue == LobbyMenu.Workshop
+                ? "Learn the controls in the tutorial room, or build a home from the furniture you spell."
+                : "Every mode, with bots in the empty seats. Pick a mode and a house, then GO.";
+
+        /// <summary>The modes a queue offers, with the web's names, tags and lines. Matchmaking's tags say how the
+        /// seats split, since its partners are people.</summary>
+        static IEnumerable<(string mode, string title, string tag, string blurb)> ModesFor(string queue)
         {
             if (queue == LobbyMenu.Workshop)
             {
-                yield return (LobbyMenu.TutorialMode, "Play & learn", "No pressure, just wordplay. Smash, spell and craft step by step.", Capital(LobbyMenu.Seats(LobbyMenu.TutorialMode, humans)));
-                yield return (LobbyMenu.WorkshopMode, "Creative Workshop", "Build your cozy home from the furniture you spell.", "Solo");
+                yield return Tutorial;
+                yield return (LobbyMenu.WorkshopMode, LobbyMenu.ModeName(LobbyMenu.WorkshopMode), "Solo", "Build your cosy home from the furniture you spell, then walk round it.");
                 yield break;
             }
             bool online = queue == LobbyMenu.Matchmaking;
-            yield return ("Dibs", "Dibs", "A friendly scrap. Last roommate standing wins.", online ? "Free for all" : Capital(LobbyMenu.Seats("Dibs", humans)));
-            yield return ("Duos", "Duos", "Two teams, shared trouble. Revive your buddy.", online ? "2 v 2" : Capital(LobbyMenu.Seats("Duos", humans)));
-            yield return ("MovingDay", "Moving Day", "Spell the furniture and put everything in its room.", online ? "Co-op" : Capital(LobbyMenu.Seats("MovingDay", humans)));
-            yield return ("MovingOut", "Moving Out", "Rescue the keepsakes before the house clears out.", online ? "Co-op" : Capital(LobbyMenu.Seats("MovingOut", humans)));
-            if (online) yield return (LobbyMenu.RoomMode, "Private room", "Invite friends with a room code and pick the rules.", "Friends only");
+            yield return ("Dibs", LobbyMenu.ModeName("Dibs"), online ? "Free for all" : "House brawl", "Smash, spell, survive. First to three rounds wins.");
+            yield return ("Duos", LobbyMenu.ModeName("Duos"), online ? "2 v 2" : "2v2 · AI partner", "Watch each other’s backs. Hold interact to revive your buddy.");
+            yield return ("MovingOut", LobbyMenu.ModeName("MovingOut"), "Co-op", "Find every keepsake, then get the whole crew to the van before the house is packed.");
+            yield return ("MovingDay", LobbyMenu.ModeName("MovingDay"), "Co-op", "Spell the checklist furniture and place it in its marked room.");
+            if (online) yield return (LobbyMenu.RoomMode, LobbyMenu.ModeName(LobbyMenu.RoomMode), "Friends only", "Invite friends with a room code and pick the rules.");
+            else yield return Tutorial;
         }
 
-        void ModePoster(Transform parent, string mode, string title, string text, string foot, bool on)
+        /// <summary>A row of cards kept in the middle when it is narrower than the panel (the workshop's two).</summary>
+        static RectTransform Centred(RectTransform row)
         {
-            var card = Poster(parent, "Mode " + mode, LobbyKit.ModeColour(mode), on, () => { Menu.Choose(mode: mode); Refresh(); Reselect("Mode " + mode); });
-            card.Size(-1, -1, 1);
+            row.anchorMin = row.anchorMax = row.pivot = new Vector2(.5f, 1);
+            row.anchoredPosition = Vector2.zero;
+            return row;
+        }
+
+        Button ModePoster(Transform parent, string mode, string title, string tag, string blurb, bool on)
+        {
+            var card = Poster(parent, "Mode " + mode, LobbyKit.ModeColour(mode), on,
+                () => { Menu.Choose(mode: mode); Refresh(); Reselect("Mode " + mode); }, ModeSize);
             var body = card.Body();
-            var art = LobbyKit.ItemImage(body, LobbyKit.ModeArt(mode), 84, 8f);
-            if (art) art.rectTransform.Pin(new Vector2(1, 0), new Vector2(-6, 6), new Vector2(84, 84));
-            var head = LobbyKit.Display(body, title, 30, LobbyKit.Cream, TextAlignmentOptions.TopLeft, LobbyKit.Ink.Stroke);
-            head.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 0), new Vector2(-14, -14));
-            var line = Wrapped(body, text, 17, LobbyKit.Cream);
-            line.overflowMode = TextOverflowModes.Ellipsis;
-            line.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 70), new Vector2(-14, -54));
-            if (foot != null) Tag(body, foot);
+            // The web's art: big, up top, with a soft navy drop; it tips and grows under the pointer.
+            var art = LobbyKit.ItemImage(body, LobbyKit.ModeArt(mode), 136);
+            if (art)
+            {
+                art.rectTransform.Pin(new Vector2(.5f, 1), new Vector2(0, -14), new Vector2(136, 136));
+                LobbyKit.Drop(art.rectTransform, 6, ArtShadow);
+                Wiggle(card, art.rectTransform);
+            }
+            var words = Words(body, 16);
+            var head = LobbyKit.Display(words, title, 34, LobbyKit.Cream, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Stroke);
+            head.enableAutoSizing = true; head.fontSizeMin = 24; head.fontSizeMax = 34;
+            head.Size(-1, 42);
+            TagLine(words, tag);
+            Wrapped(words, blurb, 16, LobbyKit.Cream);
+            return card;
         }
 
-        void MapPoster(Transform parent, string id, HouseLayout layout, bool on, int index)
+        void HouseCard(Transform parent, string id, HouseLayout layout, int index)
         {
+            // The workshop builds homes only in the houses the web edition has too.
+            bool open = Menu.Mode != LobbyMenu.WorkshopMode || HomeDesigner.Supports(id);
             // The web alternates its house cards between hot and lime.
-            var card = Poster(parent, "Map " + id, index % 2 == 0 ? LobbyKit.Hot : LobbyKit.Lime, on,
-                () => { Menu.Choose(map: id); Refresh(); Reselect("Map " + id); });
+            var card = Poster(parent, "Map " + id, index % 2 == 0 ? LobbyKit.Hot : LobbyKit.Lime, Menu.Map == id,
+                () => { Menu.Choose(map: id); Refresh(); Reselect("Map " + id); }, HouseSize);
+            if (!open)
+            {
+                card.interactable = false;
+                card.gameObject.AddComponent<LobbyHint>().Text = "The workshop builds homes in " + string.Join(" and ",
+                    GameConfig.Current.Houses.Where(h => HomeDesigner.Supports(h.Key)).Select(h => h.Value.Name));
+            }
             var body = card.Body();
-            var plan = LobbyKit.Rect(body, "Plan").Place(Vector2.zero, Vector2.one, new Vector2(22, 54), new Vector2(-22, -18));
+            var art = LobbyKit.Rect(body, "Art").Place(new Vector2(0, 1), Vector2.one, new Vector2(18, -150), new Vector2(-18, -14));
+            var plan = LobbyKit.Rect(art, "Plan").Fill();
+            // The web's plans sit a little askew, as its posters' art does.
             plan.localRotation = Quaternion.Euler(0, 0, 4f);
-            FloorPlan(plan, layout, Color.white, new Vector2(216, 132));
-            var name = LobbyKit.Display(body, layout.Name, 26, LobbyKit.Cream, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Stroke);
+            FloorPlan(plan, layout, Color.white, new Vector2(HouseSize.x - 60, 128));
+            Wiggle(card, art);
+            var words = Words(body, 14);
+            var name = LobbyKit.Display(words, layout.Name, 30, LobbyKit.Cream, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Stroke);
             // A long name ("Walk-up Apartments") shrinks a little to fit the card rather than losing its end.
-            name.enableAutoSizing = true; name.fontSizeMin = 18; name.fontSizeMax = 26;
-            name.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 14), new Vector2(-14, 0));
+            name.enableAutoSizing = true; name.fontSizeMin = 22; name.fontSizeMax = 30;
+            name.Size(-1, 36);
+            TagLine(words, Facts(layout));
+            if (HouseLines.TryGetValue(id, out var line)) Wrapped(words, line, 15, LobbyKit.Cream);
         }
 
-        /// <summary>Draws a map's rooms from above to fit a box, like the web's plans: rooms with navy
-        /// walls, the garden green, halls and landings sun. A house with an upstairs shows its storeys side
-        /// by side, ground floor first, each labelled, with the stairs on both floors they join.</summary>
+        /// <summary>Play & learn has a room of its own, so the houses step aside for a word on it.</summary>
+        static void TutorialRoom(Transform parent)
+        {
+            var note = LobbyKit.Rect(parent, "Tutorial room").Size(-1, HouseSize.y);
+            LobbyKit.Face(note, LobbyKit.ChipFill, 20, LobbyKit.Line, 2);
+            var art = LobbyKit.ItemImage(note, LobbyKit.ModeArt(LobbyMenu.TutorialMode), 160, 8f);
+            if (art) art.rectTransform.Pin(new Vector2(0, .5f), new Vector2(48, 0), new Vector2(160, 160));
+            var title = LobbyKit.Display(note, "THE TUTORIAL ROOM", 36, LobbyKit.Sun, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Drop);
+            title.characterSpacing = 2;
+            title.rectTransform.Place(new Vector2(0, .5f), new Vector2(1, .5f), new Vector2(250, 8), new Vector2(-48, 64));
+            var text = Wrapped(note, "Play & learn has a house of its own, so there's no house to pick. Try smashing, spelling and every skill at your own pace.", 20, LobbyKit.Muted);
+            text.rectTransform.Place(new Vector2(0, .5f), new Vector2(1, .5f), new Vector2(250, -76), new Vector2(-48, -4));
+        }
+
+        /// <summary>What GO starts: the mode's art on its colour, the mode and house, who plays, and GO.</summary>
+        void Footer(RectTransform body)
+        {
+            var bar = LobbyKit.Rect(body, "Summary").Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 88));
+            LobbyKit.Face(bar, LobbyKit.ChipFill, 18, LobbyKit.Line, 2);
+            string blocked = Menu.Blocked;
+            var badge = LobbyKit.Rect(bar, "Badge").Pin(new Vector2(0, .5f), new Vector2(14, 0), new Vector2(64, 64));
+            LobbyKit.Face(badge, LobbyKit.ModeColour(Menu.Mode), 14, LobbyKit.Navy, 3);
+            LobbyKit.ItemImage(badge, LobbyKit.ModeArt(Menu.Mode), 52, 8f);
+            string where = Menu.Mode == LobbyMenu.TutorialMode ? "The tutorial room" : MapName(Menu.Map);
+            var title = LobbyKit.Display(bar, LobbyKit.Upper(LobbyMenu.ModeName(Menu.Mode) + "  ·  " + where), 28, LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
+            title.characterSpacing = 1;
+            title.enableAutoSizing = true; title.fontSizeMin = 20; title.fontSizeMax = 28;
+            title.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(94, 44), new Vector2(-300, -8));
+            string who = Menu.Mode == LobbyMenu.WorkshopMode ? "Build and test a home" : Capital(LobbyMenu.Seats(Menu.Mode, Menu.PartySize));
+            var detail = LobbyKit.Text(bar, blocked ?? who, 18, blocked == null ? LobbyKit.Muted : LobbyKit.Sun, TextAlignmentOptions.TopLeft, FontStyles.Bold);
+            detail.enableAutoSizing = true; detail.fontSizeMin = 14; detail.fontSizeMax = 18;
+            detail.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(94, 10), new Vector2(-300, -48));
+            var go = LobbyKit.Primary(bar, "GO", "GO", Menu.Go, 48, 30);
+            ((RectTransform)go.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-268, -34), new Vector2(-12, 34));
+            go.interactable = blocked == null;
+        }
+
+        /// <summary>A poster's words, stacked up from its foot as the web's poster column ends.</summary>
+        static RectTransform Words(RectTransform body, int pad)
+        {
+            var words = LobbyKit.Column(body, "Words", 6);
+            words.anchorMin = Vector2.zero; words.anchorMax = new Vector2(1, 0); words.pivot = new Vector2(.5f, 0);
+            words.offsetMin = new Vector2(pad, pad); words.offsetMax = new Vector2(-pad, pad);
+            words.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.LowerLeft;
+            words.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            return words;
+        }
+
+        /// <summary>The web's navy tag under a poster's name ("House brawl"), as wide as its words.</summary>
+        static void TagLine(Transform parent, string text)
+        {
+            var line = LobbyKit.Row(parent, "Tag", 0);
+            line.Size(-1, 26);
+            var pill = LobbyKit.Row(line, "Pill", 0);
+            pill.GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(11, 11, 0, 0);
+            pill.Paint(LobbyKit.Navy, 8).raycastTarget = false;
+            var label = LobbyKit.Text(pill, LobbyKit.Upper(text), 14, LobbyKit.Cream, TextAlignmentOptions.Center, FontStyles.Bold);
+            label.characterSpacing = 2;
+            // The pill is as wide as its words, so they never need an ellipsis.
+            label.overflowMode = TextOverflowModes.Overflow;
+        }
+
+        /// <summary>The web's art tips and grows under the pointer.</summary>
+        static void Wiggle(Button card, RectTransform art)
+        {
+            card.GetComponent<LobbyPress>().Hot = hot =>
+            {
+                art.localRotation = Quaternion.Euler(0, 0, hot ? 8f : 0f);
+                art.localScale = Vector3.one * (hot ? 1.1f : 1f);
+            };
+        }
+
+        /// <summary>"2 floors · 7 rooms": halls and landings aren't rooms.</summary>
+        static string Facts(HouseLayout layout)
+        {
+            int floors = layout.StoreyFloors().Count;
+            int rooms = layout.Rooms.Count(r => !IsPassage(r.Name));
+            return floors + (floors == 1 ? " floor · " : " floors · ") + rooms + (rooms == 1 ? " room" : " rooms");
+        }
+
+        static bool IsPassage(string room) => room.Contains("Hall") || room.Contains("Landing");
+
+        /// <summary>Draws a house from above to fit a box, as the web's plans do: white rooms sharing navy walls, the
+        /// garden green with a tree, halls and landings sun, and a wood dot where each player starts. A house with
+        /// an upstairs shows its storeys side by side, ground floor first, each under a navy label, with the
+        /// stairs on both floors they join.</summary>
         public static void FloorPlan(RectTransform box, HouseLayout layout, Color colour, Vector2 size)
         {
             if (layout.Rooms.Count == 0) return;
-            const float Gap = 10f, LabelHeight = 16f;
+            const float Gap = 12f, LabelHeight = 24f;
             float minX = layout.Rooms.Min(r => r.MinX), maxX = layout.Rooms.Max(r => r.MaxX);
             float minZ = layout.Rooms.Min(r => r.MinZ), maxZ = layout.Rooms.Max(r => r.MaxZ);
             int storeys = layout.StoreyFloors().Count;
@@ -420,24 +548,43 @@ namespace Wreckabulary
                 foreach (var room in layout.Rooms)
                 {
                     if (layout.StoreyOf(room) != storey) continue;
+                    // Neighbours overlap by two pixels, so a shared wall is no thicker than an outside one.
                     var rect = LobbyKit.Rect(box, room.Name).Pin(new Vector2(.5f, .5f), At((room.MinX + room.MaxX) * .5f, (room.MinZ + room.MaxZ) * .5f),
-                        new Vector2(room.MaxX - room.MinX, room.MaxZ - room.MinZ) * scale - new Vector2(3, 3));
-                    var fill = room.Name.Contains("Garden") ? LobbyKit.Lime
-                        : room.Name.Contains("Hall") || room.Name.Contains("Landing") ? LobbyKit.Sun : colour;
+                        new Vector2(room.MaxX - room.MinX, room.MaxZ - room.MinZ) * scale + new Vector2(2, 2));
+                    bool garden = room.Name.Contains("Garden");
+                    var fill = garden ? LobbyKit.Lime : IsPassage(room.Name) ? LobbyKit.Sun : colour;
                     rect.Paint(fill, 3).raycastTarget = false;
                     LobbyKit.Frame(rect, LobbyKit.Navy, 3, 3);
+                    if (garden)
+                    {
+                        float crown = Mathf.Min(rect.sizeDelta.x, rect.sizeDelta.y) * .42f;
+                        var tree = LobbyKit.Rect(rect, "Tree").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(crown, crown));
+                        LobbyKit.Face(tree, Tree, Mathf.RoundToInt(crown / 2f), LobbyKit.Navy, 3);
+                    }
+                }
+                if (storeys > 1)
+                    foreach (var s in layout.Stairs)
+                    {
+                        if (layout.StoreyOf(layout.Room(s.Lower)) != storey && layout.StoreyOf(layout.Room(s.Upper)) != storey) continue;
+                        var flight = LobbyKit.Rect(box, "Stairs").Pin(new Vector2(.5f, .5f), At((s.MinX + s.MaxX) * .5f, (s.MinZ + s.MaxZ) * .5f),
+                            new Vector2(s.MaxX - s.MinX, s.MaxZ - s.MinZ) * scale);
+                        flight.Paint(new Color(LobbyKit.Navy.r, LobbyKit.Navy.g, LobbyKit.Navy.b, .55f)).raycastTarget = false;
+                    }
+                foreach (var spawn in layout.Spawns)
+                {
+                    var room = layout.Room(spawn.Room);
+                    if (room == null || layout.StoreyOf(room) != storey) continue;
+                    var dot = LobbyKit.Rect(box, "Start").Pin(new Vector2(.5f, .5f), At(spawn.X, spawn.Z), new Vector2(11, 11));
+                    LobbyKit.Face(dot, LobbyKit.Wood, 6, LobbyKit.Cocoa, 2);
                 }
                 if (storeys == 1) continue;
-                foreach (var s in layout.Stairs)
-                {
-                    if (layout.StoreyOf(layout.Room(s.Lower)) != storey && layout.StoreyOf(layout.Room(s.Upper)) != storey) continue;
-                    var flight = LobbyKit.Rect(box, "Stairs").Pin(new Vector2(.5f, .5f), At((s.MinX + s.MaxX) * .5f, (s.MinZ + s.MaxZ) * .5f),
-                        new Vector2(s.MaxX - s.MinX, s.MaxZ - s.MinZ) * scale);
-                    flight.Paint(new Color(LobbyKit.Navy.r, LobbyKit.Navy.g, LobbyKit.Navy.b, .55f)).raycastTarget = false;
-                }
-                var name = LobbyKit.Display(box, layout.StoreyLabel(storey), 12, LobbyKit.Cream, TextAlignmentOptions.Center, LobbyKit.Ink.Stroke);
-                name.enableAutoSizing = true; name.fontSizeMin = 7; name.fontSizeMax = 12;
-                name.rectTransform.Pin(new Vector2(.5f, .5f), offset + new Vector2(0f, (planSize.y + label) * .5f), new Vector2(planSize.x + Gap, label));
+                var tag = LobbyKit.Rect(box, "Storey").Pin(new Vector2(.5f, .5f), offset + new Vector2(0f, (planSize.y + label) * .5f),
+                    new Vector2(Mathf.Min(planSize.x + Gap, 120f), label - 4f));
+                tag.Paint(LobbyKit.Navy, 7).raycastTarget = false;
+                var name = LobbyKit.Display(tag, layout.StoreyLabel(storey).Replace(" FLOOR", ""), 14, LobbyKit.Cream);
+                name.characterSpacing = 1;
+                name.enableAutoSizing = true; name.fontSizeMin = 12; name.fontSizeMax = 14;
+                name.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(4, 0), new Vector2(-4, 0));
             }
         }
     }
@@ -888,10 +1035,13 @@ namespace Wreckabulary
         };
     }
 
-    /// <summary>Your level, totals and recent matches.</summary>
+    /// <summary>
+    /// Your career: your level on a wood tile with your XP and what's still to go, four stat cards, and your
+    /// recent matches as cards (mode, house, when, result, score, what it earned). With none yet, a card sends
+    /// you to practice.
+    /// </summary>
     public sealed class CareerScreen : LobbyPage
     {
-        static readonly float[] Columns = { 0f, .19f, .41f, .54f, .66f, .76f, .85f, 1f };
         public override string Id => LobbyMenu.CareerPage;
         public override LobbyStage.Focus Focus => LobbyStage.Focus.Left;
 
@@ -899,81 +1049,127 @@ namespace Wreckabulary
         {
             var career = Menu.Career;
             var body = Side("Career", "Practice matches count. Online play will add ranked results.");
-            var column = LobbyKit.Column(body, "Column", 14).Fill();
+            var column = LobbyKit.Column(body, "Column", 16).Fill();
 
             var level = LobbyKit.Row(column, "Level", 22);
-            level.Size(-1, 96);
+            level.Size(-1, 112);
+            level.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             // Your level on a wood tile, like a letter from the game.
-            LobbyKit.LetterTile(level, career.Level.ToString(CultureInfo.InvariantCulture), 96).name = "Badge";
+            LobbyKit.LetterTile(level, career.Level.ToString(CultureInfo.InvariantCulture), 104).name = "Level tile";
             var info = LobbyKit.Rect(level, "Info");
-            info.Size(-1, -1, 1);
-            var name = LobbyKit.Display(info, career.Name, 32, LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
-            name.rectTransform.Place(new Vector2(0, .5f), Vector2.one, new Vector2(0, 4), Vector2.zero);
+            info.Size(-1, 112, 1);
+            var name = LobbyKit.Display(info, career.Name, 36, LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
+            name.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -46), Vector2.zero);
             int next = Career.XpToNext(career.Level);
-            var bar = LobbyKit.Rect(info, "XP bar").Place(new Vector2(0, .5f), new Vector2(1, .5f), new Vector2(0, -16), new Vector2(0, 0));
-            bar.Paint(LobbyKit.Line, 8).raycastTarget = false;
-            var fill = LobbyKit.Rect(bar, "Fill").Place(Vector2.zero, new Vector2(Mathf.Clamp01(career.XpIntoLevel / (float)next), 1)).Paint(Color.white, 8);
+            var bar = LobbyKit.Rect(info, "XP bar").Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -84), new Vector2(0, -54));
+            bar.Paint(LobbyKit.Track, 10).raycastTarget = false;
+            var fill = LobbyKit.Rect(bar, "Fill").Place(Vector2.zero, new Vector2(Mathf.Clamp01(career.XpIntoLevel / (float)next), 1)).Paint(Color.white, 10);
             fill.raycastTarget = false;
             LobbyKit.Gradient(fill, LobbyKit.SunHi, LobbyKit.Sun2);
-            LobbyKit.Frame(bar, LobbyKit.Navy, 8, 2);
-            var xp = LobbyKit.Text(info, $"Level {career.Level}  ·  {career.XpIntoLevel} / {next} XP to level {career.Level + 1}", 18, LobbyKit.Muted, TextAlignmentOptions.BottomLeft);
-            xp.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), new Vector2(0, 4), new Vector2(0, -22));
+            LobbyKit.Frame(bar, LobbyKit.Navy, 10, 2);
+            var xp = LobbyKit.Display(bar, Number(career.XpIntoLevel) + " / " + Number(next) + " XP", 18, LobbyKit.Cream,
+                TextAlignmentOptions.MidlineRight, LobbyKit.Ink.Stroke);
+            xp.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(12, 0), new Vector2(-14, 0));
+            // Overflow, not ellipsis: a line a little taller than its box would otherwise vanish.
+            var line = LobbyKit.Text(info, $"Level {career.Level}  ·  {Number(Mathf.Max(0, next - career.XpIntoLevel))} XP to level {career.Level + 1}",
+                18, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
+            line.name = "XP line";
+            line.overflowMode = TextOverflowModes.Overflow;
+            line.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -114), new Vector2(0, -90));
 
             var stats = LobbyKit.Row(column, "Stats", 14);
-            stats.Size(-1, 96);
-            Stat(stats, "Matches", career.Matches.ToString("N0", CultureInfo.InvariantCulture));
-            Stat(stats, "Wins", career.Wins.ToString("N0", CultureInfo.InvariantCulture));
-            Stat(stats, "Win rate", career.Matches == 0 ? "-" : Mathf.RoundToInt(100f * career.Wins / career.Matches) + "%");
-            Stat(stats, "Coins", career.Coins.ToString("N0", CultureInfo.InvariantCulture));
+            stats.Size(-1, 110);
+            Stat(stats, "Matches", Number(career.Matches), LobbyIcons.Play);
+            Stat(stats, "Wins", Number(career.Wins), LobbyIcons.Trophy);
+            Stat(stats, "Win rate", career.Matches == 0 ? "-" : Mathf.RoundToInt(100f * career.Wins / career.Matches) + "%", LobbyIcons.Badge);
+            Stat(stats, "Coins", Number(career.Coins), null);
 
-            LobbyKit.Rect(column, "Gap").Size(-1, 4);
-            LobbyKit.Heading(column, "Recent matches");
-            Row(column, new[] { "MODE", "MAP", "RESULT", "SCORE", "COINS", "XP", "WHEN" }, LobbyKit.Cyan, true, 0);
+            LobbyKit.SectionLabel(column, "Recent matches");
             if (career.History.Count == 0)
             {
-                Wrapped(column, "No matches yet. Pick PLAY, then Practice, to start one.", 20, LobbyKit.Muted, 40);
+                Empty(column);
                 return;
             }
             var holder = Grow(LobbyKit.Rect(column, "History"));
-            var list = LobbyKit.Scroll(holder, "Scroll", 2);
-            for (int i = 0; i < career.History.Count; i++)
-            {
-                var m = career.History[i];
-                Row(list, new[]
-                {
-                    LobbyMenu.ModeName(m.Mode), MapName(m.Map), m.Won ? "Won" : "Lost",
-                    m.Score.ToString("N0", CultureInfo.InvariantCulture), "+" + m.Coins, "+" + m.Xp, When(m.EndedAt),
-                }, m.Won ? LobbyKit.Cream : LobbyKit.Muted, false, i);
-            }
+            var list = LobbyKit.Scroll(holder, "Scroll", 10);
+            foreach (var match in career.History) Match(list, match);
         }
 
-        static string When(long endedAt) => endedAt <= 0 || endedAt > Career.LatestTime ? "-" :
-            DateTimeOffset.FromUnixTimeSeconds(endedAt).ToLocalTime().ToString("d MMM HH:mm", CultureInfo.InvariantCulture);
-
-        /// <summary>A white stat card: the number in navy display type over a small caption.</summary>
-        static void Stat(Transform parent, string title, string value)
+        /// <summary>A white stat card: a sun disc with the stat's glyph (a coin for coins), the number in navy
+        /// display type and a small caption.</summary>
+        static void Stat(Transform parent, string title, string value, string icon)
         {
             var tile = LobbyKit.Rect(parent, title);
             LobbyKit.Face(tile, Color.white, 16, LobbyKit.Navy, 3, 4);
             tile.Size(-1, -1, 1);
-            var v = LobbyKit.Display(tile, value, 36, LobbyKit.Navy, TextAlignmentOptions.TopLeft);
-            v.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 0), new Vector2(-12, -12));
-            var caption = LobbyKit.Caps(tile, title, 14, TextAlignmentOptions.BottomLeft);
+            var mark = LobbyKit.Rect(tile, "Mark").Pin(new Vector2(0, .5f), new Vector2(16, 0), new Vector2(52, 52));
+            if (icon == null) LobbyKit.Coin(mark, 52).Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(52, 52));
+            else
+            {
+                LobbyKit.Face(mark, LobbyKit.SunHi, 26, LobbyKit.Navy, 2, 0, LobbyKit.Sun2);
+                LobbyKit.Icon(mark, icon, LobbyKit.Navy).rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(13, 13), new Vector2(-13, -13));
+            }
+            var number = LobbyKit.Display(tile, value, 34, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
+            number.enableAutoSizing = true; number.fontSizeMin = 22; number.fontSizeMax = 34;
+            number.rectTransform.Place(new Vector2(0, .5f), Vector2.one, new Vector2(80, -6), new Vector2(-10, -8));
+            var caption = LobbyKit.Caps(tile, title, 13, TextAlignmentOptions.TopLeft);
             caption.color = LobbyKit.CardSub;
-            caption.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 14), new Vector2(-12, 0));
+            caption.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), new Vector2(80, 8), new Vector2(-8, -4));
         }
 
-        static void Row(Transform parent, string[] cells, Color colour, bool header, int index)
+        /// <summary>One finished match as a card: the mode's badge, its name over the house and when, then WON or
+        /// LOST, the score and what it earned.</summary>
+        static void Match(Transform list, MatchRecord match)
         {
-            var row = LobbyKit.Rect(parent, header ? "Header" : "Match");
-            row.Size(-1, header ? 30 : 42);
-            if (!header && index % 2 == 0) row.Paint(LobbyKit.Mist(.06f), 10).raycastTarget = false;
-            for (int i = 0; i < cells.Length; i++)
+            var card = LobbyKit.Row(list, "Match", 14);
+            card.Size(-1, 72);
+            var layout = card.GetComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(10, 18, 0, 0);
+            layout.childForceExpandHeight = false;
+            LobbyKit.Face(card, LobbyKit.Card, 14, LobbyKit.Line, 2);
+            var colour = LobbyKit.ModeColour(match.Mode);
+            var badge = LobbyKit.Rect(card, "Mode");
+            badge.Size(52, 52);
+            LobbyKit.Face(badge, Color.Lerp(colour, Color.white, .25f), 12, LobbyKit.Navy, 2, 0, Color.Lerp(colour, Color.black, .2f));
+            LobbyKit.ItemImage(badge, LobbyKit.ModeArt(match.Mode), 44, 6f);
+            var words = LobbyKit.Rect(card, "Words");
+            words.Size(-1, 56, 1);
+            var title = LobbyKit.Display(words, LobbyMenu.ModeName(match.Mode), 24, LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
+            title.rectTransform.Place(new Vector2(0, .45f), Vector2.one, Vector2.zero, Vector2.zero);
+            var detail = LobbyKit.Text(words, MapName(match.Map) + "  ·  " + When(match.EndedAt), 15, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
+            detail.rectTransform.Place(Vector2.zero, new Vector2(1, .45f), Vector2.zero, new Vector2(0, -2));
+            var result = LobbyKit.Rect(card, "Result");
+            result.Size(84, 32);
+            if (match.Won) LobbyKit.Face(result, LobbyKit.LimeHi, 16, LobbyKit.Navy, 2, 0, LobbyKit.LimeLo);
+            else LobbyKit.Face(result, LobbyKit.Card, 16, LobbyKit.Line, 2);
+            LobbyKit.Display(result, match.Won ? "WON" : "LOST", 18, match.Won ? LobbyKit.Navy : LobbyKit.Muted).rectTransform.Fill();
+            LobbyKit.Display(card, Number(match.Score), 28, LobbyKit.Sun, TextAlignmentOptions.MidlineRight).Size(110, 40);
+            LobbyKit.Text(card, $"+{Number(match.Coins)} coins  ·  +{Number(match.Xp)} XP", 15, LobbyKit.Muted,
+                TextAlignmentOptions.MidlineRight).Size(200, 30);
+        }
+
+        /// <summary>No matches yet: a card that says how to get one, and a button to practice.</summary>
+        void Empty(Transform column)
+        {
+            var card = LobbyKit.Rect(column, "No matches");
+            card.Size(-1, 220);
+            LobbyKit.Face(card, LobbyKit.Card, 18, LobbyKit.Line, 2);
+            var art = LobbyKit.ItemImage(card, "BOX", 112, 8f);
+            if (art) art.rectTransform.Pin(new Vector2(0, .5f), new Vector2(30, 0), new Vector2(112, 112));
+            var title = LobbyKit.Display(card, "No matches yet", 34, LobbyKit.Sun, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Stroke);
+            title.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(172, -78), new Vector2(-24, -26));
+            var line = Wrapped(card, "Practice fills the empty seats with bots. Every match you finish lands here.", 19, LobbyKit.Muted);
+            line.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(172, -136), new Vector2(-24, -84));
+            var go = LobbyKit.Button(card, "Play practice", LobbyKit.SunHi, () =>
             {
-                var align = i >= 3 ? TextAlignmentOptions.MidlineRight : TextAlignmentOptions.MidlineLeft;
-                var cell = header ? LobbyKit.Caps(row, cells[i], 14, align) : LobbyKit.Text(row, cells[i], 19, colour, align);
-                cell.rectTransform.Place(new Vector2(Columns[i], 0), new Vector2(Columns[i + 1], 1), new Vector2(12, 0), new Vector2(-12, 0));
-            }
+                Menu.Choose(queue: LobbyMenu.Practice);
+                Menu.Open(LobbyMenu.Play);
+            }, 12, LobbyKit.Navy, 3, 4, LobbyKit.Sun2);
+            var label = LobbyKit.Display(go.Body(), "PLAY PRACTICE", 22, LobbyKit.Navy);
+            label.characterSpacing = 2;
+            label.rectTransform.Fill();
+            ((RectTransform)go.transform).Pin(Vector2.zero, new Vector2(172, 26), new Vector2(250, 54));
+            First = go;
         }
     }
 
@@ -1132,138 +1328,441 @@ namespace Wreckabulary
         }
     }
 
-    /// <summary>The leaderboard: your best score in each mode on this PC.</summary>
+    /// <summary>
+    /// The web's leaderboards: a side panel with a chip for each mode, the board as podium rows (gold, silver and
+    /// bronze, then white with wood rank tiles), and your best along the foot. Until there's an online board it
+    /// shows your best matches on this PC, and says so.
+    /// </summary>
     public sealed class TrophyPage : LobbyPage
     {
-        static readonly Color GoldFrom = LobbyKit.Hex(0xffe14d), GoldTo = LobbyKit.Hex(0xfff7c2);
-        static readonly Color RankHi = LobbyKit.Hex(0xfff4a8), RankLo = LobbyKit.Hex(0xe09a00);
+        // The web's podium: each place's row, left to right, and its rank tile, top to bottom.
+        static readonly (Color from, Color to, Color hi, Color lo)[] Podium =
+        {
+            (LobbyKit.Hex(0xffe14d), LobbyKit.Hex(0xfff7c2), LobbyKit.Hex(0xfff4a8), LobbyKit.Hex(0xe09a00)),
+            (LobbyKit.Hex(0xd9e2f2), LobbyKit.Hex(0xf7f9fd), LobbyKit.Hex(0xffffff), LobbyKit.Hex(0x8f9cb0)),
+            (LobbyKit.Hex(0xffbf8a), LobbyKit.Hex(0xffeedf), LobbyKit.Hex(0xffd5ad), LobbyKit.Hex(0xb4601f)),
+        };
+        const int Places = 5;
+        string board;
 
         public override string Id => LobbyMenu.Trophy;
-        public override bool Modal => true;
+        public override LobbyStage.Focus Focus => LobbyStage.Focus.Left;
+        public override float PanelWidth => 700f;
+
+        /// <summary>Opens on the board for the mode you've picked.</summary>
+        public override void Opened() => board = null;
 
         protected override void Build()
         {
             var career = Menu.Career;
-            var body = Panel(new Vector2(.14f, 0), new Vector2(.86f, 1), "Leaderboard",
-                "Your best score in each mode. Online leaderboards arrive with online play.");
-            // Padding leaves room for the outline round your rows.
-            var column = LobbyKit.Column(body, "Column", 14, 6).Fill();
-            foreach (string mode in LobbyMenu.Modes)
-            {
-                bool played = career.Bests.TryGetValue(mode, out int best);
-                var row = LobbyKit.Row(column, "Best " + mode, 18, 14);
-                row.Size(-1, 88);
-                if (played)
-                {
-                    // The web's first place: a gold row, ringed in hot orange because it's yours.
-                    LobbyKit.Face(row, GoldFrom, 14, LobbyKit.Navy, 3, 3, GoldTo).GetComponent<LobbyGradient>().Set(GoldFrom, GoldTo, true);
-                    LobbyKit.Frame(row, LobbyKit.Hot, 14, 3, "You", 4);
-                }
-                else
-                {
-                    row.Paint(LobbyKit.Card, 14).raycastTarget = false;
-                    LobbyKit.Frame(row, LobbyKit.Line, 14, 2);
-                }
-                var rank = LobbyKit.Rect(row, "Rank");
-                rank.Size(60, 60);
-                if (played) LobbyKit.Face(rank, RankHi, 12, LobbyKit.Navy, 3, 0, RankLo);
-                else rank.Paint(LobbyKit.Card, 12).raycastTarget = false;
-                LobbyKit.Display(rank, played ? "1" : "-", 34, played ? LobbyKit.Navy : LobbyKit.Faded).rectTransform.Fill();
-                var who = LobbyKit.Rect(row, "Who");
-                who.Size(-1, -1, 1);
-                var title = LobbyKit.Display(who, LobbyMenu.ModeName(mode), 28, played ? LobbyKit.Navy : LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
-                // Ellipsis drops a line that is taller than its box, so the title box reaches above the row's middle.
-                title.rectTransform.Place(new Vector2(0, .5f), Vector2.one, new Vector2(0, -2), new Vector2(0, 14));
-                var by = LobbyKit.Text(who, played ? "#1  ·  " + career.Name + "  ·  level " + career.Level : "Not played yet", 17,
-                    played ? LobbyKit.CardSub : LobbyKit.Faded, TextAlignmentOptions.TopLeft);
-                by.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), Vector2.zero, new Vector2(0, -2));
-                LobbyKit.Display(row, played ? best.ToString("N0", CultureInfo.InvariantCulture) : "-", 40,
-                    played ? LobbyKit.Navy : LobbyKit.Faded, TextAlignmentOptions.MidlineRight).Size(220, -1);
-            }
+            if (!LobbyMenu.Modes.Contains(board)) board = LobbyMenu.Modes.Contains(Menu.Mode) ? Menu.Mode : LobbyMenu.Modes[0];
+            var body = Side("Leaderboards", "Best single-match score in each mode.");
+            // Padding leaves room for the ring round your row.
+            var column = LobbyKit.Column(body, "Column", 10, 6).Fill();
+            var chips = LobbyKit.Row(column, "Boards", 10);
+            chips.Size(-1, 96);
+            chips.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+            foreach (string mode in LobbyMenu.Modes) Chip(chips, mode);
+            LobbyKit.Rect(column, "Gap").Size(-1, 4);
 
-            // The web's board-best bar.
-            var bar = LobbyKit.Row(column, "Board best", 14, 14);
-            bar.Size(-1, 64);
-            bar.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            var rows = Rows(career, board);
+            Note(column, "Online boards arrive with online play. Showing this PC.");
+            if (rows.Count == 0) Note(column, "No scores yet. Be the first!");
+            for (int i = 0; i < rows.Count; i++) Entry(column, i + 1, rows[i].score, career.Name, rows[i].detail, i == 0);
+            Grow(LobbyKit.Rect(column, "Space"));
+
+            var bar = LobbyKit.Row(column, "Your best", 12);
+            bar.Size(-1, 68);
+            var layout = bar.GetComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(20, 22, 0, 0);
+            layout.childForceExpandHeight = false;
             LobbyKit.Face(bar, LobbyKit.Navy, 14, LobbyKit.Line, 2);
-            LobbyKit.Icon(bar, LobbyIcons.Trophy, LobbyKit.Sun).Size(32, 32);
-            LobbyKit.Text(bar, $"{career.Matches} matches  ·  {career.Wins} wins  ·  level {career.Level}", 19, LobbyKit.Muted,
-                TextAlignmentOptions.MidlineLeft).Size(-1, 30, 1);
-            LobbyKit.Caps(bar, "Board best", 14, TextAlignmentOptions.MidlineRight).Size(150, 30);
-            string top = career.Bests.Count > 0 ? career.Bests.Values.Max().ToString("N0", CultureInfo.InvariantCulture) : "-";
-            LobbyKit.Display(bar, top, 30, LobbyKit.Sun, TextAlignmentOptions.MidlineRight).Size(140, 40);
+            LobbyKit.Icon(bar, LobbyIcons.Trophy, LobbyKit.Sun).Size(30, 30);
+            LobbyKit.Text(bar, "Your best", 20, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft, FontStyles.Bold).Size(-1, 30, 1);
+            LobbyKit.Display(bar, career.Bests.TryGetValue(board, out int best) ? Number(best) : "-", 32, LobbyKit.Sun,
+                TextAlignmentOptions.MidlineRight).Size(200, 40);
+        }
+
+        /// <summary>Your best few matches in a mode, best first. Your all-time best leads when it has left the history.</summary>
+        static List<(int score, string detail)> Rows(Career career, string mode)
+        {
+            var rows = career.History.Where(m => m.Mode == mode).OrderByDescending(m => m.Score)
+                .Select(m => (score: m.Score, detail: MapName(m.Map) + "  ·  " + When(m.EndedAt))).ToList();
+            if (career.Bests.TryGetValue(mode, out int best) && (rows.Count == 0 || best > rows[0].score)) rows.Insert(0, (best, "All-time best"));
+            return rows.Take(Places).ToList();
+        }
+
+        /// <summary>A mode's chip: its art over its name, in the mode's colour and tipped a little while its board shows.</summary>
+        void Chip(Transform row, string mode)
+        {
+            bool on = mode == board;
+            string name = "Board " + mode;
+            var button = on ? LobbyKit.Button(row, name, LobbyKit.ModeColour(mode), () => Pick(mode), 12, LobbyKit.Navy, 3, 4)
+                : LobbyKit.Button(row, name, LobbyKit.Card, () => Pick(mode), 12, LobbyKit.Line, 2);
+            button.Size(-1, -1, 1);
+            var press = button.GetComponent<LobbyPress>();
+            press.Lift = 2f;
+            if (on) press.Lean = 2f;
+            var body = button.Body();
+            var art = LobbyKit.ItemImage(body, LobbyKit.ModeArt(mode), 50);
+            if (art) art.rectTransform.Pin(new Vector2(.5f, 1), new Vector2(0, -6), new Vector2(50, 50));
+            var label = LobbyKit.Display(body, LobbyMenu.ModeName(mode), 17, LobbyKit.Cream, TextAlignmentOptions.Center,
+                on ? LobbyKit.Ink.Stroke : LobbyKit.Ink.Plain);
+            label.enableAutoSizing = true; label.fontSizeMin = 12; label.fontSizeMax = 17;
+            label.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(6, 8), new Vector2(-6, 34));
+            if (on) First = button;
+        }
+
+        void Pick(string mode)
+        {
+            board = mode;
+            Refresh();
+            Reselect("Board " + mode);
+        }
+
+        /// <summary>One place on the board: podium colours for the top three, a wood rank tile below them, and a hot
+        /// ring round the row that's yours.</summary>
+        static void Entry(Transform column, int rank, int score, string name, string detail, bool you)
+        {
+            var row = LobbyKit.Row(column, "Rank " + rank, 14);
+            row.Size(-1, 64);
+            var layout = row.GetComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(8, 18, 0, 0);
+            layout.childForceExpandHeight = false;
+            var tile = LobbyKit.Rect(row, "Rank");
+            tile.Size(48, 48);
+            bool podium = rank <= Podium.Length;
+            if (podium)
+            {
+                var (from, to, hi, lo) = Podium[rank - 1];
+                LobbyKit.Face(row, from, 14, LobbyKit.Navy, 3, 3, to).GetComponent<LobbyGradient>().Set(from, to, true);
+                LobbyKit.Face(tile, hi, 12, LobbyKit.Navy, 2, 0, lo);
+            }
+            else
+            {
+                LobbyKit.Face(row, Color.white, 14, LobbyKit.Hex(0x0b0e45, .25f), 2);
+                LobbyKit.Face(tile, LobbyKit.WoodHi, 12, LobbyKit.Cocoa, 2, 3, LobbyKit.WoodLo, dropColour: LobbyKit.Cocoa);
+            }
+            if (you) LobbyKit.Frame(row, LobbyKit.Hot, 14, 3, "You", 4);
+            LobbyKit.Display(tile, rank.ToString(CultureInfo.InvariantCulture), 26, podium ? LobbyKit.Navy : LobbyKit.WoodInk).rectTransform.Fill();
+            var who = LobbyKit.Rect(row, "Who");
+            who.Size(-1, 56, 1);
+            var title = LobbyKit.Display(who, name, 24, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
+            title.rectTransform.Place(new Vector2(0, .45f), Vector2.one, Vector2.zero, Vector2.zero);
+            var sub = LobbyKit.Text(who, detail, 15, LobbyKit.CardSub, TextAlignmentOptions.TopLeft);
+            sub.rectTransform.Place(Vector2.zero, new Vector2(1, .45f), Vector2.zero, new Vector2(0, -2));
+            LobbyKit.Display(row, Number(score), 30, LobbyKit.Navy, TextAlignmentOptions.MidlineRight).Size(160, 40);
+        }
+
+        /// <summary>The web's board note: a see-through strip of white text.</summary>
+        static void Note(Transform column, string text)
+        {
+            var note = LobbyKit.Rect(column, "Note");
+            note.Size(-1, 48);
+            note.Paint(LobbyKit.Card, 10).raycastTarget = false;
+            LobbyKit.Text(note, text, 17, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).rectTransform
+                .Place(Vector2.zero, Vector2.one, new Vector2(16, 0), new Vector2(-12, 0));
         }
     }
 
-    /// <summary>Profile, sound, display and the controls, in one place instead of icons in the bar.</summary>
+    /// <summary>
+    /// Settings in four tabs down the left: general (your name and sound), graphics (display mode, resolution, a
+    /// quality preset and the options it sets, frame cap, v-sync), the controls as key caps beside their controller
+    /// buttons, and how to play. Each row says what it does. A new display asks to be kept and goes back by itself after ten seconds.
+    /// </summary>
     public sealed class SettingsPage : LobbyPage
     {
+        static readonly (string id, string title)[] Tabs =
+            { ("general", "General"), ("graphics", "Graphics"), ("controls", "Controls"), ("how", "How to play") };
+        static readonly (string id, string label)[] DisplayModes =
+            { ("borderless", "Borderless"), ("fullscreen", "Full screen"), ("windowed", "Windowed") };
+        const float KeepFor = 10f, PadWidth = 150f;
+
         public override string Id => LobbyMenu.Settings;
         public override bool Modal => true;
 
-        // Unity switches full screen at the end of the frame, so the redraw straight after a click
-        // would still read the old state; it shows what was asked for instead.
-        bool? fullScreenAsked;
+        string tab = "general";
+        // Unity changes the display at the end of the frame, so the redraw straight after a click would still read
+        // the old one; it shows what was asked for instead.
+        (FullScreenMode mode, int width, int height)? asked;
+        // The display to go back to unless the new one is kept. Its timer sits on the menu, so it runs out with the
+        // page closed too.
+        (FullScreenMode mode, int width, int height)? revertTo;
+        LobbyCountdown timer;
+
+        /// <summary>Shows one tab (general, graphics, controls or how).</summary>
+        public void ShowTab(string id)
+        {
+            tab = id;
+            Refresh();
+        }
 
         protected override void Build()
         {
             var body = Panel(new Vector2(.12f, 0), new Vector2(.88f, 1), "Settings");
-            var list = LobbyKit.Scroll(body, "Scroll", 8);
-            LobbyKit.Heading(list, "Profile");
-            NameField(Setting(list, "Name"));
-            LobbyKit.Heading(list, "Audio");
-            Toggle(Setting(list, "Sound"), "Sound", !GameFeedback.Muted, on => GameFeedback.Muted = !on);
-            Stepper(Setting(list, "Volume"), "Volume", Mathf.RoundToInt(AudioListener.volume * 100) + "%", step =>
+            var side = LobbyKit.Column(body, "Tabs", 10);
+            side.Place(Vector2.zero, new Vector2(0, 1), Vector2.zero, new Vector2(230, 0));
+            foreach (var (id, title) in Tabs)
+            {
+                string name = "Settings tab " + id;
+                var chip = LobbyKit.Chip(side, LobbyKit.Upper(title), tab == id, () => ShowTab(id));
+                chip.onClick.AddListener(() => Reselect(name));
+                chip.name = name;
+                chip.Size(-1, 58);
+                if (tab == id) First = chip;
+            }
+            var page = LobbyKit.Rect(body, "Tab " + tab).Place(Vector2.zero, Vector2.one, new Vector2(254, 0), Vector2.zero);
+            if (tab == "how") HowToPlay(page);
+            else
+            {
+                var holder = LobbyKit.Rect(page, "List").Fill();
+                if (revertTo.HasValue) holder.offsetMin = new Vector2(0, 92);
+                var list = LobbyKit.Scroll(holder, "Scroll", 8);
+                switch (tab)
+                {
+                    case "graphics": Graphics(list); break;
+                    case "controls": Controls(list); break;
+                    default: General(list); break;
+                }
+            }
+            if (revertTo.HasValue) KeepBar(page);
+        }
+
+        void General(Transform list)
+        {
+            NameField(Setting(list, "Name", "Shows over your head and on the boards."));
+            Toggle(Setting(list, "Sound", "Every sound in the game."), "Sound", !GameFeedback.Muted, on => GameFeedback.Muted = !on);
+            Stepper(Setting(list, "Volume", "Ten steps, from silent to full."), "Volume", Mathf.RoundToInt(AudioListener.volume * 100) + "%", step =>
             {
                 AudioListener.volume = Mathf.Clamp01(Mathf.Round(AudioListener.volume * 10f + step) / 10f);
                 PlayerPrefs.SetFloat(LobbyMenu.VolumeKey, AudioListener.volume);
                 PlayerPrefs.Save();
             });
-            LobbyKit.Heading(list, "Display");
-            bool fullScreen = fullScreenAsked ?? Screen.fullScreen;
-            fullScreenAsked = null;
-            Toggle(Setting(list, "Full screen"), "Full screen", fullScreen, on => { Screen.fullScreen = on; fullScreenAsked = on; });
-            var names = QualitySettings.names;
-            int quality = QualitySettings.GetQualityLevel();
-            Stepper(Setting(list, "Quality"), "Quality", names.Length > 0 ? names[quality] : "-", step =>
+        }
+
+        void Graphics(Transform list)
+        {
+            if (!Application.isMobilePlatform)
             {
-                if (names.Length == 0) return;
-                // Each quality level carries its own v-sync; keep the player's choice instead.
-                int vsync = QualitySettings.vSyncCount;
-                QualitySettings.SetQualityLevel((quality + step + names.Length) % names.Length, true);
-                QualitySettings.vSyncCount = vsync;
-            });
-            Toggle(Setting(list, "V-sync"), "V-sync", QualitySettings.vSyncCount > 0, on =>
+                var display = asked ?? Current;
+                asked = null;
+                Choose(Setting(list, "Display mode", "Borderless switches apps fastest."), "Display", DisplayModes,
+                    DisplayId(display.mode), id => Show(DisplayMode(id), display.width, display.height), 520);
+                var sizes = Sizes(display);
+                int at = Mathf.Max(0, sizes.FindIndex(s => s.width == display.width && s.height == display.height));
+                Stepper(Setting(list, "Resolution", "The window's size, or the screen's."), "Resolution", display.width + " x " + display.height, step =>
+                {
+                    var size = sizes[Mathf.Clamp(at + step, 0, sizes.Count - 1)];
+                    Show(display.mode, size.width, size.height);
+                });
+            }
+            string preset = GraphicsOptions.Preset;
+            Choose(Setting(list, "Quality preset", preset == GraphicsOptions.Custom ? "Custom: your own mix below." : "Sets the four options below."),
+                "Preset", GraphicsOptions.Presets.Select(p => (p, p)).ToList(), preset, GraphicsOptions.UsePreset, 520);
+            Stepper(Setting(list, "Render scale", "Over 100% is sharper, under is faster."), "Render scale",
+                Mathf.RoundToInt(GraphicsOptions.RenderScale * 100) + "%",
+                step => GraphicsOptions.SetRenderScale(GraphicsOptions.RenderScale + step * GraphicsOptions.ScaleStep));
+            Choose(Setting(list, "Anti-aliasing", "Smooths edges. MSAA is the sharpest."), "AA",
+                GraphicsOptions.Smoothings.Select(s => (s, s.StartsWith("MSAA") ? "MSAA " + s.Substring(4) + "x" : s)).ToList(),
+                GraphicsOptions.Smoothing, GraphicsOptions.SetSmoothing, 620);
+            Choose(Setting(list, "Shadows", "Sharper, and reaching farther, as they go up."), "Shadows",
+                GraphicsOptions.ShadowLevels.Select(s => (s, s)).ToList(), GraphicsOptions.Shadows, GraphicsOptions.SetShadows, 560);
+            Choose(Setting(list, "Frame cap", "With v-sync on, your screen sets the pace."), "Cap",
+                GraphicsOptions.FrameCaps.Select(c => (c.ToString(CultureInfo.InvariantCulture), c == 0 ? "None" : c.ToString(CultureInfo.InvariantCulture))).ToList(),
+                GraphicsOptions.FrameCap.ToString(CultureInfo.InvariantCulture), id => GraphicsOptions.SetFrameCap(int.Parse(id, CultureInfo.InvariantCulture)), 520);
+            Toggle(Setting(list, "V-sync", "Stops tearing, for a little delay."), "V-sync", QualitySettings.vSyncCount > 0, on =>
             {
                 QualitySettings.vSyncCount = on ? 1 : 0;
                 PlayerPrefs.SetInt(LobbyMenu.VsyncKey, on ? 1 : 0);
                 PlayerPrefs.Save();
             });
-            LobbyKit.Heading(list, "Controls");
-            foreach (var (what, keys) in new[]
+            var reset = LobbyKit.Pill(Setting(list, "Defaults", "High, no frame cap, v-sync off."), "Reset graphics", "Reset", 20, () =>
             {
-                ("Move", ControlHints.Move), ("Smash, throw, place", ControlHints.Attack), ("Pick up and revive", ControlHints.Grab),
-                ("Spell and craft", ControlHints.Spell), ("Jump", ControlHints.Jump), ("Dodge", ControlHints.Dodge),
-                ("Block", ControlHints.Block), ("Drop", ControlHints.Drop), ("Swap hands", ControlHints.Swap),
+                GraphicsOptions.ResetToDefaults();
+                QualitySettings.vSyncCount = 0;
+                PlayerPrefs.DeleteKey(LobbyMenu.VsyncKey);
+                PlayerPrefs.Save();
+                Refresh();
+                Reselect("Reset graphics");
+            });
+            reset.Size(180, 46);
+        }
+
+        /// <summary>The controls as key caps, with each one's controller button in a column of its own.</summary>
+        void Controls(Transform list)
+        {
+            if (Application.isMobilePlatform)
+            {
+                foreach (var (what, how) in new[]
+                {
+                    ("Move", ControlHints.Move), ("Smash, throw, place", ControlHints.Attack), ("Pick up and revive", ControlHints.Grab),
+                    ("Spell and craft", ControlHints.Spell), ("Jump", ControlHints.Jump), ("Dodge", ControlHints.Dodge),
+                    ("Block", ControlHints.Block), ("Drop", ControlHints.Drop), ("Swap hands", ControlHints.Swap),
+                })
+                    LobbyKit.Text(Setting(list, what), how, 19, LobbyKit.Muted, TextAlignmentOptions.MidlineRight).Size(-1, 30, 1);
+                return;
+            }
+            var keys = DesktopBinding.Shared;
+            var heads = LobbyKit.Rect(list, "Columns");
+            heads.Size(-1, 24);
+            LobbyKit.Caps(heads, "Keyboard and mouse", 13, TextAlignmentOptions.BottomRight).rectTransform
+                .Place(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(-(12 + PadWidth + 22), 0));
+            LobbyKit.Caps(heads, "Controller", 13, TextAlignmentOptions.BottomRight).rectTransform
+                .Place(new Vector2(1, 0), Vector2.one, new Vector2(-(12 + PadWidth), 0), new Vector2(-12, 0));
+            foreach (var (what, caps, pad) in new[]
+            {
+                ("Move", new[] { "WASD" }, "Left stick"),
+                ("Look and aim", new[] { "MOUSE" }, "Right stick"),
+                ("Smash, throw, place", new[] { ControlHints.KeyOf(keys.Attack) }, "X"),
+                ("Block with a shield", new[] { ControlHints.KeyOf(keys.Block) }, "LT"),
+                ("Jump", new[] { ControlHints.KeyOf(keys.Jump) }, "A"),
+                ("Dodge", new[] { ControlHints.KeyOf(keys.Dodge) }, "B"),
+                ("Spell a word", new[] { ControlHints.KeyOf(keys.Spell) }, "Hold Y"),
+                ("Switch hands", new[] { ControlHints.KeyOf(keys.Hand1), ControlHints.KeyOf(keys.Hand2) }, "R3"),
+                ("Bag and map (hold)", new[] { ControlHints.KeyOf(keys.Bag) }, (string)null),
+                ("Pick up, hold to revive", new[] { ControlHints.KeyOf(keys.Interact) }, "RT"),
+                ("Drop gear (hold)", new[] { ControlHints.KeyOf(keys.Drop) }, "Hold LB"),
+                ("Pause", new[] { ControlHints.KeyOf(keys.Pause) }, "Start"),
             })
             {
-                var text = LobbyKit.Text(Setting(list, what), keys, 19, LobbyKit.Muted, TextAlignmentOptions.MidlineRight);
-                text.Size(-1, -1, 1);
+                var controls = Setting(list, what);
+                foreach (string cap in caps) Cap(controls, cap, false);
+                LobbyKit.Rect(controls, "Gap").Size(14, 10);
+                if (pad != null) Cap(controls, pad, true);
+                else LobbyKit.Rect(controls, "No pad").Size(PadWidth, 10);
+            }
+            Wrapped(list, ControlHints.Players + ".", 17, LobbyKit.Muted, 48);
+        }
+
+        /// <summary>A key cap (white, navy edge) or a controller button (navy, cyan edge, all one width).</summary>
+        static void Cap(Transform parent, string text, bool pad)
+        {
+            var cap = LobbyKit.Rect(parent, (pad ? "Pad " : "Key ") + text);
+            if (pad) LobbyKit.Face(cap, LobbyKit.Navy2, 20, LobbyKit.Cyan, 2, 3);
+            else LobbyKit.Face(cap, Color.white, 8, LobbyKit.Navy, 2, 3);
+            cap.Size(pad ? PadWidth : Mathf.Max(44f, 24f + 12f * text.Length), 40);
+            LobbyKit.Display(cap, text, 19, pad ? LobbyKit.Cyan : LobbyKit.Navy).rectTransform
+                .Place(Vector2.zero, Vector2.one, new Vector2(6, 0), new Vector2(-6, 0));
+        }
+
+        /// <summary>The web's how-to-play: three steps with this game's numbers and keys, the keys at a glance, the
+        /// rules worth knowing, and a way straight to a match.</summary>
+        void HowToPlay(RectTransform page)
+        {
+            var column = LobbyKit.Column(page, "How", 14).Fill();
+            var kicker = LobbyKit.Caps(column, "A house full of possibilities", 14, TextAlignmentOptions.BottomLeft);
+            kicker.color = LobbyKit.Cyan;
+            kicker.Size(-1, 20);
+            LobbyKit.Display(column, "Everything starts with a word.", 36, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Stroke).Size(-1, 46);
+            var steps = LobbyKit.Row(column, "Steps", 14);
+            steps.Size(-1, 200);
+            steps.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+            var rules = GameConfig.Current.Rules.Defaults;
+            int recipes = GameConfig.Current.Items.Enabled.Count();
+            bool phone = Application.isMobilePlatform;
+            var keys = DesktopBinding.Shared;
+            string spell = phone ? "CRAFT" : ControlHints.KeyOf(keys.Spell);
+            string swing = phone ? "SMASH" : ControlHints.KeyOf(keys.Attack);
+            Step(steps, "01", "Break it.", "HAMMER", "Smash the house's own furniture. A TABLE breaks into T, A, B, L and E.");
+            Step(steps, "02", "Spell it.", "BOOK", $"Walk over letters; your bag holds {rules.MaxLetters}. Press {spell} to craft any of the {recipes} recipes.");
+            Step(steps, "03", "Bring it.", "BAT", $"Press {swing} to swing gear, throw it or set down a tool. Then wreck the place.");
+            if (!phone) KeyBox(column, keys);
+            Wrapped(column, $"Health is {Mathf.RoundToInt(rules.MaxHealth)} HP. Your looks never change your stats.", 17, LobbyKit.Muted, 26);
+            var go = LobbyKit.Button(column, "Got it", LobbyKit.SunHi, () => Menu.Open(LobbyMenu.Play), 14, LobbyKit.Navy, 4, 6, LobbyKit.Sun2);
+            go.Size(-1, 64);
+            var label = LobbyKit.Display(go.Body(), "GOT IT. LET'S PLAY", 26, LobbyKit.Navy);
+            label.characterSpacing = 3;
+            label.rectTransform.Fill();
+        }
+
+        /// <summary>A step card: its number, a piece of item art tipped in the corner, its title and a line that
+        /// shrinks rather than clips when the card is narrow.</summary>
+        static void Step(Transform row, string number, string title, string art, string text)
+        {
+            var card = LobbyKit.Rect(row, "Step " + number);
+            card.Size(-1, -1, 1);
+            LobbyKit.Face(card, LobbyKit.Card, 18, LobbyKit.Line, 2);
+            var image = LobbyKit.ItemImage(card, art, 68, -10f);
+            if (image) image.rectTransform.Pin(Vector2.one, new Vector2(-14, -10), new Vector2(68, 68));
+            LobbyKit.Display(card, number, 44, LobbyKit.Sun, TextAlignmentOptions.TopLeft, LobbyKit.Ink.Stroke).rectTransform
+                .Place(new Vector2(0, 1), Vector2.one, new Vector2(20, -66), new Vector2(-16, -12));
+            LobbyKit.Display(card, title, 28, LobbyKit.Cream, TextAlignmentOptions.TopLeft).rectTransform
+                .Place(new Vector2(0, 1), Vector2.one, new Vector2(20, -106), new Vector2(-16, -68));
+            var body = Wrapped(card, text, 17, LobbyKit.Muted);
+            body.enableAutoSizing = true; body.fontSizeMin = 13; body.fontSizeMax = 17;
+            body.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(20, 12), new Vector2(-16, -110));
+        }
+
+        /// <summary>The keys at a glance, as on the web: two columns of key caps and what each does.</summary>
+        static void KeyBox(Transform column, DesktopBinding keys)
+        {
+            var box = LobbyKit.Row(column, "Keys", 24, 16);
+            box.Size(-1, 242);
+            var layout = box.GetComponent<HorizontalLayoutGroup>();
+            layout.childForceExpandWidth = true;
+            layout.childAlignment = TextAnchor.UpperLeft;
+            LobbyKit.Face(box, LobbyKit.Track, 16, LobbyKit.Line, 2);
+            var entries = new[]
+            {
+                (new[] { "WASD" }, "move"), (new[] { "MOUSE" }, "aim"),
+                (new[] { ControlHints.KeyOf(keys.Attack) }, "smash, throw, place"), (new[] { ControlHints.KeyOf(keys.Block) }, "block with a shield"),
+                (new[] { ControlHints.KeyOf(keys.Dodge) }, "dodge"), (new[] { ControlHints.KeyOf(keys.Jump) }, "jump"),
+                (new[] { ControlHints.KeyOf(keys.Spell) }, "spell"), (new[] { ControlHints.KeyOf(keys.Hand1), ControlHints.KeyOf(keys.Hand2) }, "switch hand"),
+                (new[] { ControlHints.KeyOf(keys.Bag) }, "hold for bag and map"), (new[] { ControlHints.KeyOf(keys.Interact) }, "pick up, hold to revive"),
+                (new[] { ControlHints.KeyOf(keys.Drop) }, "hold to drop gear"), (new[] { ControlHints.KeyOf(keys.Pause) }, "pause"),
+            };
+            for (int side = 0; side < 2; side++)
+            {
+                var list = LobbyKit.Column(box, side == 0 ? "Left keys" : "Right keys", 6);
+                list.Size(-1, -1, 1);
+                for (int i = side; i < entries.Length; i += 2)
+                {
+                    var (caps, what) = entries[i];
+                    var line = LobbyKit.Row(list, what, 8);
+                    line.Size(-1, 30);
+                    line.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+                    foreach (string cap in caps) LobbyKit.Kbd(line, cap);
+                    LobbyKit.Text(line, what, 17, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).Size(-1, 28, 1);
+                }
             }
         }
 
-        static RectTransform Setting(Transform list, string label)
+        /// <summary>A row: its name over a line on what it does on the left, its controls on the right.</summary>
+        static RectTransform Setting(Transform list, string label, string help = null)
         {
             var row = LobbyKit.Rect(list, label);
-            row.Size(-1, 58);
+            row.Size(-1, help == null ? 60 : 80);
             row.Paint(LobbyKit.Card, 14).raycastTarget = false;
-            var text = LobbyKit.Display(row, label, 24, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            // The name over its help line, centred; on a narrow screen (4:3) the help wraps onto a second line.
+            var words = LobbyKit.Column(row, "Words", 0);
+            words.Place(Vector2.zero, new Vector2(.42f, 1), new Vector2(20, 4), new Vector2(-8, -4));
+            words.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
+            var text = LobbyKit.Display(words, label, 24, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
             text.characterSpacing = 1;
-            text.rectTransform.Place(Vector2.zero, new Vector2(.32f, 1), new Vector2(20, 0), Vector2.zero);
+            text.Size(-1, 30);
+            if (help != null) LobbyKit.Text(words, help, 15, LobbyKit.Muted, TextAlignmentOptions.TopLeft).textWrappingMode = TextWrappingModes.Normal;
             var controls = LobbyKit.Row(row, "Controls", 8);
-            controls.Place(new Vector2(.32f, 0), Vector2.one, new Vector2(0, 7), new Vector2(-10, -7));
-            controls.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleRight;
+            controls.Place(new Vector2(.42f, 0), Vector2.one, new Vector2(0, 8), new Vector2(-12, -8));
+            var layout = controls.GetComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleRight;
+            // Each control keeps its own height, centred in the row.
+            layout.childForceExpandHeight = false;
             return controls;
+        }
+
+        /// <summary>A segmented choice whose buttons are named "prefix id"; a pick redraws and keeps the controller on it.</summary>
+        void Choose(RectTransform controls, string prefix, IReadOnlyList<(string id, string label)> choices, string picked, Action<string> pick, float width)
+        {
+            var named = choices.Select(c => (prefix + " " + c.id, c.label)).ToList();
+            var track = LobbyKit.Segmented(controls, prefix, named, prefix + " " + picked, name =>
+            {
+                pick(name.Substring(prefix.Length + 1));
+                Refresh();
+                Reselect(name);
+            });
+            track.Size(width, 48);
+            // On a narrow screen the choices give up width (their names shrink to fit) before the row's name does.
+            track.GetComponent<LayoutElement>().minWidth = Mathf.Min(width, 64f * choices.Count);
         }
 
         void Toggle(RectTransform controls, string name, bool value, Action<bool> set)
@@ -1273,15 +1772,14 @@ namespace Wreckabulary
                 string id = name + (option ? " on" : " off");
                 var chip = LobbyKit.Chip(controls, option ? "ON" : "OFF", value == option, () => { set(option); Refresh(); Reselect(id); });
                 chip.name = id;
-                chip.Size(96, -1);
-                if (!First) First = chip;
+                chip.Size(96, 46);
             }
         }
 
         void Stepper(RectTransform controls, string name, string value, Action<int> step)
         {
             Round(controls, name + " less", true, () => { step(-1); Refresh(); Reselect(name + " less"); });
-            LobbyKit.Display(controls, value, 24, LobbyKit.Sun, TextAlignmentOptions.Center).Size(200, -1);
+            LobbyKit.Display(controls, value, 24, LobbyKit.Sun, TextAlignmentOptions.Center).Size(200, 40);
             Round(controls, name + " more", false, () => { step(1); Refresh(); Reselect(name + " more"); });
         }
 
@@ -1297,12 +1795,95 @@ namespace Wreckabulary
             button.GetComponent<LobbyPress>().Hot = hot => face.color = hot ? LobbyKit.Sun : Color.white;
         }
 
+        static (FullScreenMode mode, int width, int height) Current => (Screen.fullScreenMode, Screen.width, Screen.height);
+
+        static string DisplayId(FullScreenMode mode) => mode switch
+        {
+            FullScreenMode.ExclusiveFullScreen => "fullscreen",
+            FullScreenMode.Windowed or FullScreenMode.MaximizedWindow => "windowed",
+            _ => "borderless",
+        };
+
+        static FullScreenMode DisplayMode(string id) => id switch
+        {
+            "fullscreen" => FullScreenMode.ExclusiveFullScreen,
+            "windowed" => FullScreenMode.Windowed,
+            _ => FullScreenMode.FullScreenWindow,
+        };
+
+        /// <summary>The screen's resolutions, smallest first, with the current size among them.</summary>
+        static List<(int width, int height)> Sizes((FullScreenMode mode, int width, int height) now) =>
+            Screen.resolutions.Select(r => (width: r.width, height: r.height)).Append((now.width, now.height)).Distinct()
+                .OrderBy(s => s.width * s.height).ThenBy(s => s.width).ToList();
+
+        /// <summary>Changes the display and starts the clock that puts the old one back unless it's kept.</summary>
+        void Show(FullScreenMode mode, int width, int height)
+        {
+            var now = Current;
+            if (!revertTo.HasValue && now.mode == mode && now.width == width && now.height == height) return;
+            revertTo ??= now;
+            asked = (mode, width, height);
+            Screen.SetResolution(width, height, mode);
+            if (!timer) timer = Menu.gameObject.AddComponent<LobbyCountdown>();
+            timer.Ends = Time.unscaledTime + KeepFor;
+            timer.Done = Revert;
+        }
+
+        void Keep()
+        {
+            revertTo = null;
+            Stop();
+            Refresh();
+            Reselect("Settings tab " + tab);
+        }
+
+        void Revert()
+        {
+            if (revertTo is { } back)
+            {
+                asked = back;
+                Screen.SetResolution(back.width, back.height, back.mode);
+            }
+            revertTo = null;
+            Stop();
+            if (Root && Root.gameObject.activeSelf)
+            {
+                Refresh();
+                Reselect("Settings tab " + tab);
+            }
+            else asked = null;
+        }
+
+        void Stop()
+        {
+            if (timer) UnityEngine.Object.Destroy(timer);
+            timer = null;
+        }
+
+        /// <summary>The bar under a new display: how long until it goes back, KEEP and REVERT.</summary>
+        void KeepBar(RectTransform page)
+        {
+            var bar = LobbyKit.Row(page, "Keep display", 12);
+            bar.Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 80));
+            var layout = bar.GetComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(22, 14, 0, 0);
+            layout.childForceExpandHeight = false;
+            LobbyKit.Face(bar, LobbyKit.Navy, 16, LobbyKit.Sun, 3);
+            var words = LobbyKit.Text(bar, "Keep this display?", 20, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            words.Size(-1, 40, 1);
+            var keep = LobbyKit.Button(bar, "Keep display", LobbyKit.SunHi, Keep, 12, LobbyKit.Navy, 3, 4, LobbyKit.Sun2);
+            LobbyKit.Display(keep.Body(), "KEEP", 22, LobbyKit.Navy).rectTransform.Fill();
+            keep.Size(150, 52);
+            LobbyKit.Pill(bar, "Revert display", "Revert", 22, Revert).Size(150, 52);
+            if (timer) timer.Show(words, seconds => $"Keep this display? It goes back in {seconds} s.");
+        }
+
         void NameField(RectTransform controls)
         {
             var holder = LobbyKit.Rect(controls, "Name field");
             // Built inactive so the field finds its text when it first wakes up.
             holder.gameObject.SetActive(false);
-            holder.Size(340, -1);
+            holder.Size(360, 46);
             holder.Paint(Color.white, 10);
             LobbyKit.Frame(holder, LobbyKit.Navy, 10, 3);
             var area = LobbyKit.Rect(holder, "Text area").Place(Vector2.zero, Vector2.one, new Vector2(14, 2), new Vector2(-14, -2));

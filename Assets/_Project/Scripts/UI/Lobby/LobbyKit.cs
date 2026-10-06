@@ -364,6 +364,8 @@ namespace Wreckabulary
             "MovingOut" => Hex(0x6fa957),
             "MovingDay" => Hex(0x9471dc),
             "Tutorial" => Hex(0xf2b230),
+            "Workshop" => Hex(0x22b8a5),
+            "Room" => Hex(0xff3d9e),
             _ => Sun,
         };
 
@@ -375,6 +377,7 @@ namespace Wreckabulary
             "MovingDay" => "SOFA",
             "Tutorial" => "BOOK",
             "Workshop" => "HAMMER",
+            "Room" => "CAKE",
             _ => "BOX",
         };
 

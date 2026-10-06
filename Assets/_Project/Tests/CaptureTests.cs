@@ -193,6 +193,25 @@ namespace Wreckabulary.Tests
             Session.Clear();
         }
 
+        static Rules.Career SampleCareer()
+        {
+            var career = new Rules.Career { Name = "Roomie" };
+            long at = 1759750000;
+            foreach (var (mode, map, won, score) in new[]
+            {
+                ("Dibs", "pinwheel", true, 920), ("Duos", "flat", false, 410), ("MovingOut", "terrace", true, 660),
+                ("Dibs", "courtyard", false, 380), ("MovingDay", "walkup", true, 540), ("Dibs", "terrace", true, 610),
+            })
+            {
+                career.Record(new Rules.MatchRecord
+                {
+                    Mode = mode, Map = map, Won = won, Score = score, Coins = score / 10 + (won ? 20 : 5), Xp = score / 2 + (won ? 60 : 25), EndedAt = at,
+                });
+                at += 5400;
+            }
+            return career;
+        }
+
         IEnumerator CaptureLobbySequence()
         {
             string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
@@ -200,7 +219,16 @@ namespace Wreckabulary.Tests
             Directory.CreateDirectory(dir);
             TryLights();
             Session.Clear();
+            // A career with matches, so the career and leaderboard show their cards. The lobby reads it in Start,
+            // the frame after the scene loads; the real one goes back straight after.
+            string realCareer = PlayerPrefs.HasKey(MatchTally.CareerKey) ? PlayerPrefs.GetString(MatchTally.CareerKey) : null;
+            PlayerPrefs.SetString(MatchTally.CareerKey, SampleCareer().Serialize());
             yield return SceneManager.LoadSceneAsync(Session.HubScene);
+            yield return null;
+            yield return null;
+            if (realCareer != null) PlayerPrefs.SetString(MatchTally.CareerKey, realCareer);
+            else PlayerPrefs.DeleteKey(MatchTally.CareerKey);
+            PlayerPrefs.Save();
             yield return new WaitForSeconds(0.5f);
             var menu = LobbyMenu.Instance;
             var pages = new[]
@@ -215,6 +243,22 @@ namespace Wreckabulary.Tests
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"lobby_{i + 1}_{pages[i].Item2}.png"));
             }
+            // Settings' other tabs, and the quit box over the lobby.
+            menu.Open(LobbyMenu.Settings);
+            var settings = menu.Page<SettingsPage>();
+            foreach (string tab in new[] { "graphics", "controls", "how" })
+            {
+                settings.ShowTab(tab);
+                yield return new WaitForSeconds(.5f);
+                yield return CaptureFramed(Path.Combine(dir, $"lobby_7_settings_{tab}.png"));
+            }
+            settings.ShowTab("general");
+            menu.Open(LobbyMenu.Home);
+            var quit = menu.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "Quit");
+            quit.onClick.Invoke();
+            yield return new WaitForSeconds(.5f);
+            yield return CaptureFramed(Path.Combine(dir, "lobby_7_quit.png"));
+            menu.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "STAY").onClick.Invoke();
             // The recipe book's second tab, and the shop opened on one offer from the locker (no purchase, so the
             // real prefs stay as they were).
             menu.Open(LobbyMenu.Loadout);

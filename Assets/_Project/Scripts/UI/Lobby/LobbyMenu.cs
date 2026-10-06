@@ -30,7 +30,7 @@ namespace Wreckabulary
         public const string TutorialMode = "Tutorial", WorkshopMode = "Workshop", RoomMode = "Room";
         public const string VolumeKey = "wv.volume", VsyncKey = "wv.vsync";
         /// <summary>Practice modes, in the order the PLAY page shows them.</summary>
-        public static readonly string[] Modes = { "Dibs", "Duos", "MovingDay", "MovingOut" };
+        public static readonly string[] Modes = { "Dibs", "Duos", "MovingOut", "MovingDay" };
         /// <summary>Seconds between GO and the match loading; tests shorten it.</summary>
         public static float StartDelay = 3f;
         /// <summary>Seats in a couch party, you included.</summary>
@@ -507,6 +507,13 @@ namespace Wreckabulary
             if (pages[Shop] is ShopPage shop) shop.Spotlight(offerId);
         }
 
+        /// <summary>Opens PLAY on one of its cards (the dock's mode or house), with a keyboard or controller on it.</summary>
+        public void OpenPlay(string card)
+        {
+            if (pages[Play] is PlayPage play) play.Aim = card;
+            Open(Play);
+        }
+
         /// <summary>The page of a type, for tests and the pages that open each other.</summary>
         public T Page<T>() where T : LobbyPage => pages.Values.OfType<T>().FirstOrDefault();
 
@@ -598,7 +605,10 @@ namespace Wreckabulary
             if (queue != null) Queue = queue;
             if (mode != null) Mode = mode;
             if (Queue == Workshop && Mode != TutorialMode && Mode != WorkshopMode) Mode = TutorialMode;
-            if (Queue != Workshop && !Modes.Contains(Mode) && !(Queue == Matchmaking && Mode == RoomMode)) Mode = Modes[0];
+            if (Queue != Workshop && !Modes.Contains(Mode) && !(Queue == Matchmaking && Mode == RoomMode) && !(Queue == Practice && Mode == TutorialMode))
+                Mode = Modes[0];
+            // The workshop builds homes only in the houses the web edition has too, so it takes you to one.
+            if (Mode == WorkshopMode && !HomeDesigner.Supports(map ?? Map)) map = HomeDesigner.Supports(Map) ? null : "pinwheel";
             Session.LobbyQueue = Queue;
             Session.LobbyMode = Mode;
             if (map != null && map != Map)
@@ -655,17 +665,20 @@ namespace Wreckabulary
         public string Describe()
         {
             if (Mode == TutorialMode) return "Play & learn · the tutorial room";
-            if (Mode == WorkshopMode) return "Creative Workshop · " + GameConfig.Current.HouseFor(Map).Name;
+            if (Mode == WorkshopMode) return ModeName(WorkshopMode) + " · " + GameConfig.Current.HouseFor(Map).Name;
             if (Queue == Matchmaking) return ModeName(Mode) + " · " + GameConfig.Current.HouseFor(Map).Name + " · online";
             return ModeName(Mode) + " · " + GameConfig.Current.HouseFor(Map).Name + " · " + Seats(Mode, PartySize);
         }
 
+        /// <summary>A mode's name, as the web's posters give it.</summary>
         public static string ModeName(string mode) => mode switch
         {
-            "MovingDay" => "Moving Day",
-            "MovingOut" => "Moving Out",
+            "Dibs" => "Dibs!",
+            "Duos" => "Double trouble",
+            "MovingOut" => "The great escape",
+            "MovingDay" => "Moving day",
             "Tutorial" => "Play & learn",
-            "Workshop" => "Creative Workshop",
+            "Workshop" => "Creative workshop",
             "Room" => "Private room",
             _ => mode,
         };
@@ -792,17 +805,29 @@ namespace Wreckabulary
             shade.Paint(LobbyKit.Shade);
             // A click beside the box means stay.
             shade.gameObject.AddComponent<LobbyShade>().Clicked = CloseQuit;
-            var box = LobbyKit.Rect(shade, "Box").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(600, 260));
+            var box = LobbyKit.Rect(shade, "Box").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(640, 300));
             LobbyKit.PanelFace(box, 28, 5, 8).raycastTarget = true;
-            var title = LobbyKit.Display(box, "Leave Wreckabulary?", 40, LobbyKit.Sun, TextAlignmentOptions.Center, LobbyKit.Ink.Drop);
-            title.rectTransform.Place(new Vector2(0, .52f), Vector2.one, new Vector2(20, 0), new Vector2(-20, -10));
+            var title = LobbyKit.Display(box, "LEAVE THE HOUSE PARTY?", 40, LobbyKit.Sun, TextAlignmentOptions.Center, LobbyKit.Ink.Drop);
+            title.characterSpacing = 2;
+            title.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(64, -98), new Vector2(-64, -34));
+            var saved = LobbyKit.Text(box, "Your looks, coins and career are saved.", 20, LobbyKit.Muted, TextAlignmentOptions.Center);
+            saved.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(30, -138), new Vector2(-30, -104));
+            // The corner X means stay, as a click beside the box does.
+            var close = LobbyKit.IconButton(box, LobbyIcons.Close, "Stay", CloseQuit);
+            close.name = "Close quit";
+            ((RectTransform)close.transform).Pin(Vector2.one, new Vector2(-18, -18), new Vector2(44, 44));
             var quit = LobbyKit.Danger(box, "QUIT GAME", 26, Application.Quit);
-            ((RectTransform)quit.transform).Place(new Vector2(.06f, .14f), new Vector2(.48f, .42f));
-            var stay = LobbyKit.Pill(box, "STAY", "Stay", 26, CloseQuit);
-            ((RectTransform)stay.transform).Place(new Vector2(.52f, .14f), new Vector2(.94f, .42f));
+            ((RectTransform)quit.transform).Pin(new Vector2(.5f, 0), new Vector2(-140, 36), new Vector2(256, 72));
+            // Staying is the safe choice, so it wears the sun.
+            var stay = LobbyKit.Button(box, "STAY", LobbyKit.SunHi, CloseQuit, 14, LobbyKit.Navy, 4, 6, LobbyKit.Sun2);
+            var word = LobbyKit.Display(stay.Body(), "STAY", 30, LobbyKit.Navy);
+            word.characterSpacing = 3;
+            word.rectTransform.Fill();
+            ((RectTransform)stay.transform).Pin(new Vector2(.5f, 0), new Vector2(140, 36), new Vector2(256, 72));
             // A keyboard or controller stays inside the dialog; the shade stops clicks behind it.
             quit.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = stay };
-            stay.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = quit };
+            stay.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = quit, selectOnUp = close };
+            close.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnDown = stay };
             if (EventSystem.current) EventSystem.current.SetSelectedGameObject(stay.gameObject);
         }
 
