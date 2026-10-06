@@ -215,6 +215,17 @@ namespace Wreckabulary.Tests
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"lobby_{i + 1}_{pages[i].Item2}.png"));
             }
+            // The recipe book's second tab, and the shop opened on one offer from the locker (no purchase, so the
+            // real prefs stay as they were).
+            menu.Open(LobbyMenu.Loadout);
+            var loadout = menu.Page<LoadoutPage>();
+            loadout.ShowRecipes(true);
+            yield return new WaitForSeconds(1f);
+            yield return CaptureFramed(Path.Combine(dir, "lobby_3b_recipes.png"));
+            loadout.ShowRecipes(false);
+            menu.OpenShop("colour:grape");
+            yield return new WaitForSeconds(1f);
+            yield return CaptureFramed(Path.Combine(dir, "lobby_5b_shop_spotlight.png"));
             // A couch player in the party panel, opened from its chip.
             var couch = new KeyboardBinding(KeyboardBinding.Side.Right);
             menu.Join(couch);

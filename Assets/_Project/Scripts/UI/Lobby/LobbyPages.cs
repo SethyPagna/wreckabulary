@@ -33,6 +33,8 @@ namespace Wreckabulary
         public virtual bool ShowFeed => false;
         /// <summary>A centred page: a click in the empty space round its panel closes it.</summary>
         public virtual bool Modal => false;
+        /// <summary>How wide a side page's panel is; the stage stands you in the middle of the room left of it.</summary>
+        public virtual float PanelWidth => SideWidth;
         public RectTransform Root { get; private set; }
         /// <summary>Where a keyboard or controller starts on this page.</summary>
         public Selectable First { get; protected set; }
@@ -52,6 +54,10 @@ namespace Wreckabulary
             if (Id == LobbyMenu.Home) return;
             LobbyPop.On(Root).Play(Focus == LobbyStage.Focus.Left ? new Vector2(24, 0) : new Vector2(0, -16));
         }
+
+        /// <summary>Called when the page opens from another one, before it draws: where it forgets what it
+        /// showed last time.</summary>
+        public virtual void Opened() { }
 
         /// <summary>Redraws the page from the menu's current state.</summary>
         public void Refresh()
@@ -101,11 +107,11 @@ namespace Wreckabulary
             return LobbyKit.Rect(panel, "Body").Place(Vector2.zero, Vector2.one, new Vector2(32, 28), new Vector2(-32, -top));
         }
 
-        /// <summary>The panel the loadout, career and shop share: docked right at a fixed width, so you stand on the left.</summary>
+        /// <summary>The panel the loadout, career and shop use: docked right at the page's width, so you stand on the left.</summary>
         protected RectTransform Side(string title, string subtitle = null)
         {
             var body = Panel(new Vector2(1, 0), Vector2.one, title, subtitle);
-            ((RectTransform)body.parent).offsetMin = new Vector2(-SideWidth, 0);
+            ((RectTransform)body.parent).offsetMin = new Vector2(-PanelWidth, 0);
             return body;
         }
 
@@ -191,6 +197,45 @@ namespace Wreckabulary
             var next = outfit.Clone();
             foreach (var item in GameConfig.Current.Items.Enabled) next.ItemSkins[item.Id] = skin;
             return next;
+        }
+
+        /// <summary>Each finish's colours, as the web's skin art paints them.</summary>
+        protected static (Color from, Color to) FinishPaint(string skin) => skin switch
+        {
+            "Candy" => (LobbyKit.Hex(0xff7ac8), LobbyKit.Hex(0x7fe3ff)),
+            "Arcade" => (LobbyKit.Hex(0x3a1fd1), LobbyKit.Hex(0x00e0c6)),
+            _ => (LobbyKit.WoodHi, LobbyKit.WoodLo),
+        };
+
+        /// <summary>A gear style's art: a disc in its colours with a BAT on it, centred in its parent.</summary>
+        protected static RectTransform FinishDisc(Transform parent, string skin, float size)
+        {
+            var (from, to) = FinishPaint(skin);
+            var disc = LobbyKit.Rect(parent, "Finish").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(size, size));
+            LobbyKit.Face(disc, from, Mathf.RoundToInt(size / 2f), LobbyKit.Navy, 3, 0, to);
+            LobbyKit.ItemImage(disc, "BAT", size * .95f, 20f);
+            return disc;
+        }
+
+        /// <summary>A colour's paint blob: lit from above, in a navy rim, with a shine.</summary>
+        protected static RectTransform Blob(Transform parent, Color colour, float size)
+        {
+            var blob = LobbyKit.Rect(parent, "Swatch").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(size, size));
+            LobbyKit.Face(blob, Color.Lerp(colour, Color.white, .2f), Mathf.RoundToInt(size / 2f), LobbyKit.Navy, 3, 0,
+                Color.Lerp(colour, Color.black, .18f));
+            var shine = LobbyKit.Rect(blob, "Shine").Pin(new Vector2(.32f, .72f), Vector2.zero, new Vector2(size * .22f, size * .16f));
+            shine.Paint(new Color(1f, 1f, 1f, .7f), Mathf.Max(1, Mathf.RoundToInt(size * .08f))).raycastTarget = false;
+            return blob;
+        }
+
+        /// <summary>The web's shop art behind an item: a rounded sunburst with a navy edge. Give the rect this
+        /// size, so its corners stay round.</summary>
+        protected static void Burst(RectTransform rect, int width, int height, int radius)
+        {
+            var raw = rect.gameObject.AddComponent<RawImage>();
+            raw.texture = LobbyIcons.Sunburst(width, height, radius);
+            raw.raycastTarget = false;
+            LobbyKit.Frame(rect, LobbyKit.Navy, radius, 2);
         }
 
         protected static string Capital(string text) =>
@@ -397,29 +442,47 @@ namespace Wreckabulary
         }
     }
 
-    /// <summary>The locker (what you wear and the finish on your gear) and every recipe you can spell.</summary>
+    /// <summary>
+    /// The web's locker (Web/src/main.js): a narrow panel on the right, so you watch yourself change beside it.
+    /// What you wear in pickers, the colour of each worn part, the extras as cards, the crafted gear style and
+    /// THAT'S MY LOOK, all on one page with nothing to open first. Its second tab is the recipe book.
+    /// </summary>
     public sealed class LoadoutPage : LobbyPage
     {
-        public const string FinishSlot = "Finish";
-        static readonly Color CocoaSoft = new Color(LobbyKit.Cocoa.r, LobbyKit.Cocoa.g, LobbyKit.Cocoa.b, .75f);
+        /// <summary>The web locker's 540 plus room for our panel's edge and drop.</summary>
+        public const float Width = 600f;
         public override string Id => LobbyMenu.Loadout;
         public override LobbyStage.Focus Focus => LobbyStage.Focus.Left;
+        public override float PanelWidth => Width;
         public bool ShowingRecipes { get; private set; }
-        public string Slot { get; private set; } = "Top";
+        /// <summary>The worn part the swatches colour.</summary>
+        public string Part { get; private set; } = "Top";
+        /// <summary>The recipe a click pinned to the detail strip; null shows the first.</summary>
+        public string Pinned { get; private set; }
+
+        RectTransform lockerList, detail;
+        float scrolled;
+        string trying, previewing;
+
+        public override void Opened()
+        {
+            scrolled = 0f;
+            lockerList = null;
+        }
 
         protected override void Build()
         {
-            var body = Side("Loadout");
-            var tabs = LobbyKit.Row((RectTransform)body.parent, "Tabs", 10);
+            // A choice redraws the page; the locker stays where it was scrolled.
+            if (lockerList) scrolled = lockerList.anchoredPosition.y;
+            lockerList = detail = null;
+            trying = previewing = null;
+            int words = GameConfig.Current.Items.Enabled.Count();
+            var body = Side("Loadout", ShowingRecipes ? $"{words} words to spell. In a match, press Q and type one." : "All style. Zero stats.");
+            var tabs = LobbyKit.Segmented(body.parent, "Tabs", new[] { ("LOCKER", "Locker"), ("RECIPES", "Recipes") },
+                ShowingRecipes ? "RECIPES" : "LOCKER", id => ShowRecipes(id == "RECIPES"));
             // Left of the page's close button (48 wide, 20 in from the corner).
-            tabs.Place(Vector2.one, Vector2.one, new Vector2(-440, -82), new Vector2(-84, -26));
-            var row = tabs.GetComponent<HorizontalLayoutGroup>();
-            row.childAlignment = TextAnchor.MiddleRight;
-            row.childForceExpandHeight = false;
-            var locker = LobbyKit.Tab(tabs, "LOCKER", null, () => ShowRecipes(false), 170, 48, 22);
-            locker.On = !ShowingRecipes;
-            LobbyKit.Tab(tabs, "RECIPES", null, () => ShowRecipes(true), 170, 48, 22).On = ShowingRecipes;
-            if (ShowingRecipes) { First = locker.Button; Recipes(body); }
+            tabs.Place(Vector2.one, Vector2.one, new Vector2(-84 - 240, -74), new Vector2(-84, -26));
+            if (ShowingRecipes) Recipes(body);
             else Locker(body);
         }
 
@@ -430,122 +493,218 @@ namespace Wreckabulary
             Reselect(on ? "RECIPES" : "LOCKER");
         }
 
-        public void Pick(string slot)
-        {
-            Slot = slot;
-            Refresh();
-            Reselect("Slot " + slot);
-        }
-
         void Locker(RectTransform body)
         {
             var wardrobe = GameConfig.Current.Wardrobe;
             var outfit = Menu.Outfit;
-            var slots = LobbyKit.Column(body, "Slots", 8);
-            slots.Place(Vector2.zero, new Vector2(0, 1), Vector2.zero, new Vector2(236, 0));
-            foreach (string slot in wardrobe.Slots.Append(FinishSlot))
+            var done = LobbyKit.Confirm(body, "Done", "That's my look", Menu.Close);
+            ((RectTransform)done.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(0, 6), new Vector2(0, 66));
+            var view = LobbyKit.Rect(body, "Locker").Place(Vector2.zero, Vector2.one, new Vector2(0, 84), Vector2.zero);
+            lockerList = LobbyKit.Scroll(view, "Scroll", 18);
+            // Room inside the mask for rings, drops and cards that lift.
+            lockerList.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(4, 4, 6, 10);
+            lockerList.anchoredPosition = new Vector2(0, scrolled);
+
+            // What you wear, where there is a choice to make (the web's Top and Headwear selects).
+            var pickers = LobbyKit.Row(lockerList, "Outfit", 16);
+            pickers.Size(-1, 84);
+            pickers.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+            foreach (string slot in wardrobe.Slots.Where(s => wardrobe.PiecesFor(s).Count() > 1))
             {
-                string worn = slot == FinishSlot ? SkinOf(outfit) : outfit.PieceIn(slot) ?? "None";
-                var colour = slot == FinishSlot || outfit.PieceIn(slot) == null ? null : wardrobe.ColourFor(outfit, slot);
-                string title = slot == FinishSlot ? "Item finish" : slot;
-                var tile = SlotTile(slots, "Slot " + slot, title, colour != null ? worn + " · " + colour.Name : worn, Slot == slot, () => Pick(slot));
-                tile.Size(-1, 64);
-                if (Slot == slot) First = tile;
+                var column = LobbyKit.Column(pickers, slot, 8);
+                column.Size(-1, -1, 1);
+                LobbyKit.SectionLabel(column, slot);
+                var choices = wardrobe.PiecesFor(slot).Select(p => (p.Id, p.Id)).ToList();
+                if (!wardrobe.RequiredSlots.Contains(slot)) choices.Add(("No " + slot, "None"));
+                string worn = outfit.PieceIn(slot) ?? "No " + slot;
+                var picker = LobbyKit.Segmented(column, "Pick " + slot, choices, worn, id => PutOn(slot, id, id));
+                if (!First) First = picker.GetComponentsInChildren<Button>().FirstOrDefault(b => b.name == worn);
             }
-            var detail = LobbyKit.Column(body, "Detail", 10);
-            detail.Place(Vector2.zero, Vector2.one, new Vector2(266, 0), Vector2.zero);
-            if (Slot == FinishSlot) Finish(detail);
-            else Styles(detail, Slot);
+
+            // Each worn part's colour: pick the part, then a swatch.
+            var colour = LobbyKit.Column(lockerList, "Colour", 8);
+            LobbyKit.SectionLabel(colour, "Colour");
+            var parts = Parts(outfit);
+            if (!parts.Contains(Part)) Part = parts.Contains("Top") ? "Top" : parts.FirstOrDefault();
+            var chips = LobbyKit.Grid(colour, "Parts", new Vector2(124, 40), 8);
+            foreach (string slot in parts) PartChip(chips, slot, wardrobe.ColourFor(outfit, slot));
+            if (Part != null) Colours(colour, Part);
+
+            // The extras: one piece each, on or off (the web's checkbox cards).
+            var extras = wardrobe.Slots.Where(s => !wardrobe.RequiredSlots.Contains(s) && wardrobe.PiecesFor(s).Count() == 1).ToList();
+            if (extras.Count > 0)
+            {
+                var section = LobbyKit.Column(lockerList, "Extras", 8);
+                LobbyKit.SectionLabel(section, "Extras");
+                var cards = LobbyKit.Row(section, "Cards", 12);
+                cards.Size(-1, 84);
+                cards.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+                foreach (string slot in extras)
+                {
+                    var piece = wardrobe.PiecesFor(slot).First();
+                    bool on = outfit.PieceIn(slot) == piece.Id;
+                    LobbyKit.ToggleCard(cards, "Extra " + slot, ExtraIcon(slot), ExtraName(piece.Id), on,
+                        () => PutOn(slot, on ? "No " + slot : piece.Id, "Extra " + slot)).Size(-1, -1, 1);
+                }
+            }
+
+            // The finish on what you craft (the web's crafted gear style select), as three cards.
+            var gear = LobbyKit.Column(lockerList, "Gear", 8);
+            LobbyKit.SectionLabel(gear, "Crafted gear style");
+            var styles = LobbyKit.Row(gear, "Styles", 12);
+            styles.Size(-1, 80);
+            styles.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+            string wornSkin = SkinOf(outfit);
+            foreach (string skin in Finishes) FinishCard(styles, skin, wornSkin == skin);
         }
 
-        /// <summary>The web's wood select: a honey slab with a cocoa edge and a chevron, ringed in sun when open.</summary>
-        static Button SlotTile(Transform parent, string name, string title, string sub, bool on, Action click)
+        /// <summary>The worn parts with a colour of their own: not the hood (it matches the top) or the badge.</summary>
+        static List<string> Parts(Outfit outfit)
         {
-            var button = LobbyKit.Button(parent, name, LobbyKit.WoodHi, click, 12, LobbyKit.Cocoa, 3, 3, LobbyKit.WoodLo);
-            var t = button.Body();
-            if (on) LobbyKit.Ring(t, LobbyKit.Sun, 12, 4);
-            var head = LobbyKit.Display(t, title, 22, LobbyKit.Cocoa, TextAlignmentOptions.BottomLeft);
-            head.rectTransform.Place(new Vector2(0, .5f), Vector2.one, new Vector2(16, -2), new Vector2(-36, -4));
-            var line = LobbyKit.Text(t, sub, 16, CocoaSoft, TextAlignmentOptions.TopLeft);
-            line.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), new Vector2(16, 6), new Vector2(-36, -2));
-            LobbyKit.Icon(t, LobbyIcons.Chevron, LobbyKit.Cocoa).rectTransform.Pin(new Vector2(1, .5f), new Vector2(-12, 0), new Vector2(18, 18));
-            return button;
+            var wardrobe = GameConfig.Current.Wardrobe;
+            return wardrobe.Slots.Where(slot =>
+            {
+                var piece = wardrobe.Piece(outfit.PieceIn(slot) ?? "");
+                return piece != null && piece.TintMaterial != null && piece.ColourFrom == null && wardrobe.Palettes.ContainsKey(slot);
+            }).ToList();
         }
 
-        void Styles(RectTransform detail, string slot)
+        string PartName(string slot) => Menu.Outfit.PieceIn(slot) ?? slot;
+
+        static string ExtraIcon(string slot) => slot switch
+        {
+            "Face" => LobbyIcons.Glasses,
+            "Back" => LobbyIcons.Satchel,
+            "Badge" => LobbyIcons.Badge,
+            _ => LobbyIcons.Plus,
+        };
+
+        static string ExtraName(string piece) => piece == "TBadge" ? "Letter badge" : piece;
+
+        /// <summary>A part to colour: its colour in a dot and its name, a sun slab while its swatches show.</summary>
+        void PartChip(Transform parent, string slot, Colourway colour)
+        {
+            bool on = Part == slot;
+            var button = on
+                ? LobbyKit.Button(parent, "Part " + slot, LobbyKit.SunHi, () => PickPart(slot), 10, LobbyKit.Navy, 3, 3, LobbyKit.Sun2)
+                : LobbyKit.Button(parent, "Part " + slot, LobbyKit.Card, () => PickPart(slot), 10, LobbyKit.ChipEdge, 2);
+            var press = button.GetComponent<LobbyPress>();
+            if (on) press.Lift = 0f;
+            var row = LobbyKit.Row(button.Body(), "Content", 8);
+            row.Fill();
+            var layout = row.GetComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(9, 8, 0, 0);
+            layout.childForceExpandHeight = false;
+            var dot = LobbyKit.Rect(row, "Dot");
+            dot.Size(20, 20);
+            if (colour != null) LobbyKit.Face(dot, new Color(colour.R, colour.G, colour.B), 10, LobbyKit.Navy, 2);
+            var name = LobbyKit.Display(row, PartName(slot), 17, on ? LobbyKit.Navy : LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            name.enableAutoSizing = true; name.fontSizeMin = 12; name.fontSizeMax = 17;
+            name.Size(-1, 28, 1);
+            if (colour != null) button.gameObject.AddComponent<LobbyHint>().Text = PartName(slot) + " · " + colour.Name;
+        }
+
+        public void PickPart(string slot)
+        {
+            Part = slot;
+            Refresh();
+            Reselect("Part " + slot);
+        }
+
+        /// <summary>A part's swatches. Only top colours are sold: the rest of those wait in a row of their own,
+        /// each with a coin on it, beside a way into the shop.</summary>
+        void Colours(RectTransform section, string slot)
         {
             var wardrobe = GameConfig.Current.Wardrobe;
             var outfit = Menu.Outfit;
-            LobbyKit.Heading(detail, slot + " · style");
-            var choices = wardrobe.Choices(outfit, slot);
-            var chips = LobbyKit.Grid(detail, "Styles", new Vector2(170, 52), 12);
-            foreach (string id in choices)
-            {
-                string label = id ?? "None";
-                LobbyKit.Chip(chips, label, outfit.PieceIn(slot) == id, () =>
-                {
-                    var next = wardrobe.Wear(Menu.Outfit, slot, id);
-                    if (next != null) Menu.Wear(next);
-                    Refresh();
-                    Reselect(label);
-                });
-            }
-            if (choices.Count == 1 && wardrobe.RequiredSlots.Contains(slot))
-                Wrapped(detail, "Every look wears these. Pick a colour below.", 18, LobbyKit.Muted, 30);
-            var piece = wardrobe.Piece(outfit.PieceIn(slot) ?? "");
-            if (piece == null) return;
-            if (piece.ColourFrom != null)
-            {
-                Wrapped(detail, $"The {piece.Id.ToLowerInvariant()} matches your {piece.ColourFrom.ToLowerInvariant()} colour.", 18, LobbyKit.Muted, 30);
-                return;
-            }
-            if (piece.TintMaterial == null || !wardrobe.Palettes.TryGetValue(slot, out var palette)) return;
-            LobbyKit.Rect(detail, "Gap").Size(-1, 6);
-            LobbyKit.Heading(detail, slot + " · colour");
+            var palette = wardrobe.Palettes[slot];
             var current = wardrobe.ColourFor(outfit, slot);
-            // Room for a chosen swatch's ring and bigger size without touching its neighbours.
-            var swatches = LobbyKit.Grid(detail, "Colours", new Vector2(60, 60), 14);
-            foreach (var colour in palette)
-                Swatch(swatches, slot, colour, current?.Id == colour.Id, slot == "Top" && !Menu.Career.Owns("colour", colour.Id));
-            if (current != null)
-                Wrapped(detail, "Wearing " + current.Name + (slot == "Top" ? ". More top colours are in the shop." : "."), 18, LobbyKit.Muted, 30);
+            bool sold = slot == "Top";
+            var swatches = LobbyKit.Grid(section, "Colours", new Vector2(40, 40), 12);
+            swatches.GetComponent<GridLayoutGroup>().padding = new RectOffset(4, 4, 8, 8);
+            foreach (var way in palette.Where(c => !sold || Menu.Career.Owns("colour", c.Id)))
+                Swatch(swatches, slot, way, current?.Id == way.Id);
+            var locked = sold ? palette.Where(c => !Menu.Career.Owns("colour", c.Id)).ToList() : new List<Colourway>();
+            if (locked.Count > 0)
+            {
+                var shop = LobbyKit.Row(section, "In the shop", 8);
+                shop.Size(-1, 40);
+                var layout = shop.GetComponent<HorizontalLayoutGroup>();
+                layout.childForceExpandHeight = false;
+                layout.padding = new RectOffset(4, 0, 0, 0);
+                LobbyKit.Caps(shop, "In the shop", 13).Size(-1, 20);
+                foreach (var way in locked) ShopSwatch(shop, way);
+                LobbyKit.Rect(shop, "Gap").Size(0, 10, 1);
+                LobbyKit.Pill(shop, "Open shop", "Shop", 16, () => Menu.OpenShop("colour:" + locked[0].Id)).Size(84, 34);
+            }
+            var matching = outfit.Pieces.Values.Select(wardrobe.Piece).Where(p => p != null && p.ColourFrom == slot)
+                .Select(p => p.Id.ToLowerInvariant() + " matches");
+            string caption = string.Join("  ·  ", new[] { PartName(slot), current?.Name }.Where(s => s != null).Concat(matching));
+            LobbyKit.Text(section, caption, 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 22);
         }
 
-        /// <summary>The web's colour swatch: a navy-rimmed blob with a shine, greyed with a lock when it's in the shop.</summary>
-        void Swatch(Transform parent, string slot, Colourway colour, bool on, bool locked)
+        /// <summary>The web's colour swatch: a navy-rimmed blob with a shine, bigger and sun-ringed when worn.
+        /// Pointing at one tries it on.</summary>
+        void Swatch(Transform parent, string slot, Colourway colour, bool on)
         {
-            var button = LobbyKit.Button(parent, "Colour " + colour.Id, LobbyKit.Navy, () => PickColour(slot, colour, locked), 24, null, 0, 3);
-            var body = button.Body();
-            var shade = new Color(colour.R, colour.G, colour.B);
-            if (locked)
-            {
-                float grey = shade.grayscale;
-                shade = Color.Lerp(new Color(grey, grey, grey), shade, .4f) * .85f;
-                shade.a = 1f;
-            }
-            var fill = LobbyKit.Rect(body, "Fill").Place(Vector2.zero, Vector2.one, new Vector2(3, 3), new Vector2(-3, -3));
-            fill.Paint(shade, 21).raycastTarget = false;
-            LobbyKit.Rect(fill, "Shine").Pin(new Vector2(.32f, .72f), Vector2.zero, new Vector2(12, 10)).Paint(new Color(1f, 1f, 1f, .67f), 5).raycastTarget = false;
-            if (locked)
-            {
-                var glyph = LobbyKit.Icon(fill, LobbyIcons.Lock, LobbyKit.Cream);
-                glyph.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(14, 14), new Vector2(-14, -14));
-                LobbyKit.Drop(glyph.rectTransform, 2, LobbyKit.Navy);
-            }
+            var button = LobbyKit.Button(parent, "Colour " + colour.Id, LobbyKit.Navy, () => PickColour(slot, colour), 20, null, 0, 3);
+            SwatchFill(button.Body(), colour, 17);
             var press = button.GetComponent<LobbyPress>();
             press.HoverScale = 1.12f; press.Tilt = 8f;
-            if (on) { press.Scale = 1.14f; LobbyKit.Ring(body, LobbyKit.Sun, 24, 4); }
-            button.gameObject.AddComponent<LobbyHint>().Text = colour.Name + (locked ? " · in the shop" : "");
+            if (on) { press.Scale = 1.14f; LobbyKit.Ring(button.Body(), LobbyKit.Sun, 20, 4); }
+            press.Hot = hot => TryOn(slot, colour, hot);
+            button.gameObject.AddComponent<LobbyHint>().Text = colour.Name;
         }
 
-        void PickColour(string slot, Colourway colour, bool locked)
+        /// <summary>A top colour still in the shop: smaller, with a coin on it. A click opens the shop on it.</summary>
+        void ShopSwatch(Transform parent, Colourway colour)
         {
-            if (locked)
+            var offer = Career.Shop.FirstOrDefault(o => o.Kind == "colour" && o.Value == colour.Id);
+            var button = LobbyKit.Button(parent, "Colour " + colour.Id, LobbyKit.Navy, () => ToShop(colour), 16, null, 0, 2);
+            button.Size(32, 32);
+            SwatchFill(button.Body(), colour, 13);
+            LobbyKit.Coin(button.Body(), 16).Pin(new Vector2(1, 0), new Vector2(5, -5), new Vector2(16, 16));
+            var press = button.GetComponent<LobbyPress>();
+            press.HoverScale = 1.12f; press.Tilt = 8f;
+            press.Hot = hot => TryOn("Top", colour, hot);
+            button.gameObject.AddComponent<LobbyHint>().Text = colour.Name + (offer != null ? $" · {offer.Price} coins" : " · in the shop");
+        }
+
+        static void SwatchFill(RectTransform body, Colourway colour, int radius)
+        {
+            var fill = LobbyKit.Rect(body, "Fill").Place(Vector2.zero, Vector2.one, new Vector2(3, 3), new Vector2(-3, -3));
+            fill.Paint(new Color(colour.R, colour.G, colour.B), radius).raycastTarget = false;
+            var shine = LobbyKit.Rect(fill, "Shine").Pin(new Vector2(.32f, .72f), Vector2.zero, new Vector2(radius * .55f, radius * .42f));
+            shine.Paint(new Color(1f, 1f, 1f, .67f), Mathf.Max(1, Mathf.RoundToInt(radius * .25f))).raycastTarget = false;
+        }
+
+        /// <summary>Shows a colour on you while it's pointed at, and what you wear again after.</summary>
+        void TryOn(string slot, Colourway colour, bool hot)
+        {
+            string key = slot + ":" + colour.Id;
+            if (hot)
             {
-                Menu.Post(colour.Name + " is in the shop.");
-                Menu.Open(LobbyMenu.Shop);
-                return;
+                trying = key;
+                var preview = Menu.Outfit.Clone();
+                preview.Colours[slot] = colour.Id;
+                Menu.Stage.Dress(preview);
             }
+            // Only the swatch being tried: the next one may already have taken over this frame.
+            else if (trying == key)
+            {
+                trying = null;
+                Menu.Stage.Dress(Menu.Outfit);
+            }
+        }
+
+        void ToShop(Colourway colour)
+        {
+            Menu.Post(colour.Name + " is in the shop.");
+            Menu.OpenShop("colour:" + colour.Id);
+        }
+
+        void PickColour(string slot, Colourway colour)
+        {
             var next = Menu.Outfit.Clone();
             next.Colours[slot] = colour.Id;
             Menu.Wear(next);
@@ -553,63 +712,162 @@ namespace Wreckabulary
             Reselect("Colour " + colour.Id);
         }
 
-        void Finish(RectTransform detail)
+        /// <summary>Wears a piece, or takes a slot off ("No " + slot), first putting on what the piece needs: the
+        /// hood brings the hoodie, as on the web. Anything that no longer fits comes off.</summary>
+        public void PutOn(string slot, string choice, string reselect)
         {
-            LobbyKit.Heading(detail, "Item finish");
-            Wrapped(detail, "How the gear you craft looks in your hands. It never changes what the gear does.", 18, LobbyKit.Muted, 54);
-            var chips = LobbyKit.Grid(detail, "Finishes", new Vector2(170, 52), 12);
-            string worn = SkinOf(Menu.Outfit);
-            foreach (string skin in Finishes)
+            var wardrobe = GameConfig.Current.Wardrobe;
+            string id = choice == "No " + slot ? null : choice;
+            var next = Menu.Outfit;
+            foreach (string need in wardrobe.Piece(id ?? "")?.Requires ?? new List<string>())
             {
-                bool owned = Menu.Career.Owns("skin", skin);
-                var offer = Career.Shop.FirstOrDefault(o => o.Kind == "skin" && o.Value == skin);
-                string label = owned || offer == null ? skin : skin + " · " + offer.Price;
-                LobbyKit.Chip(chips, label, worn == skin, () =>
-                {
-                    if (!owned) { Menu.Post(skin + " gear is in the shop."); Menu.Open(LobbyMenu.Shop); return; }
-                    Menu.Wear(WithFinish(Menu.Outfit, skin));
-                    Refresh();
-                    Reselect(label);
-                }, !owned);
+                var needed = wardrobe.Piece(need);
+                if (needed != null && next.PieceIn(needed.Slot) != need) next = wardrobe.Wear(next, needed.Slot, need) ?? next;
             }
+            next = wardrobe.Wear(next, slot, id);
+            if (next == null)
+            {
+                Menu.Post("That doesn't go with what you're wearing.");
+                return;
+            }
+            Menu.Wear(next);
+            Refresh();
+            Reselect(reselect);
+        }
+
+        /// <summary>A gear style: its disc, its name, and WEARING, OWNED or its price.</summary>
+        void FinishCard(Transform parent, string skin, bool worn)
+        {
+            bool owned = Menu.Career.Owns("skin", skin);
+            var offer = Career.Shop.FirstOrDefault(o => o.Kind == "skin" && o.Value == skin);
+            var card = LobbyKit.Button(parent, "Finish " + skin, Color.white, () => PickFinish(skin, owned), 14, LobbyKit.Navy, 3, 4);
+            card.Size(-1, -1, 1);
+            var press = card.GetComponent<LobbyPress>();
+            press.Lift = 3f; press.Tilt = 1f;
+            var body = card.Body();
+            if (worn) LobbyKit.Ring(body, LobbyKit.Sun, 14, 4);
+            FinishDisc(body, skin, 52).Pin(new Vector2(0, .5f), new Vector2(12, 0), new Vector2(52, 52));
+            var name = LobbyKit.Display(body, skin, 20, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
+            name.enableAutoSizing = true; name.fontSizeMin = 14; name.fontSizeMax = 20;
+            name.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(74, 38), new Vector2(-8, -10));
+            var state = LobbyKit.Row(body, "State", 4);
+            state.Place(Vector2.zero, new Vector2(1, 0), new Vector2(74, 12), new Vector2(-8, 36));
+            state.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            if (worn || owned || offer == null)
+            {
+                var label = LobbyKit.Text(state, worn ? "WEARING" : "OWNED", 12, worn ? LobbyKit.Owned : LobbyKit.CardSub,
+                    TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
+                label.characterSpacing = 1;
+                label.Size(-1, 20);
+            }
+            else
+            {
+                LobbyKit.Coin(state, 18);
+                LobbyKit.Display(state, offer.Price.ToString("N0", CultureInfo.InvariantCulture), 17, LobbyKit.Navy,
+                    TextAlignmentOptions.MidlineLeft).Size(-1, 22);
+            }
+        }
+
+        void PickFinish(string skin, bool owned)
+        {
+            if (!owned)
+            {
+                Menu.Post(skin + " gear is in the shop.");
+                Menu.OpenShop("skin:" + skin);
+                return;
+            }
+            Menu.Wear(WithFinish(Menu.Outfit, skin));
+            Refresh();
+            Reselect("Finish " + skin);
+        }
+
+        ItemDefinition Shown()
+        {
+            var items = GameConfig.Current.Items.Enabled.ToList();
+            return items.FirstOrDefault(i => i.Id == Pinned) ?? items.FirstOrDefault();
         }
 
         void Recipes(RectTransform body)
         {
-            var intro = Wrapped(body, "Smash furniture for letters, then spell one of these words to craft it.", 19, LobbyKit.Muted);
-            intro.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -32), Vector2.zero);
-            var view = LobbyKit.Rect(body, "Recipes").Place(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0, -44));
+            var shown = Shown();
+            detail = LobbyKit.Rect(body, "Recipe detail").Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 196));
+            var view = LobbyKit.Rect(body, "Recipes").Place(Vector2.zero, Vector2.one, new Vector2(0, 212), Vector2.zero);
             var list = LobbyKit.Scroll(view, "Scroll", 0);
             // Room inside the mask for a card that lifts and its drop.
             list.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(4, 4, 8, 12);
-            var grid = LobbyKit.Grid(list, "Grid", new Vector2(196, 196), 14);
-            foreach (var item in GameConfig.Current.Items.Enabled) Recipe(grid, item);
+            var grid = LobbyKit.Grid(list, "Grid", new Vector2(122, 118), 12);
+            foreach (var item in GameConfig.Current.Items.Enabled) RecipeCard(grid, item, item == shown);
+            Detail(shown);
         }
 
-        /// <summary>The web's recipe card: white with a navy edge, the item, its word in wood tiles and a line about it.</summary>
-        static void Recipe(Transform parent, ItemDefinition item)
+        /// <summary>The web's recipe card: white with a navy edge, the item over its word in wood tiles. Pointing
+        /// at one shows it in the strip below; a click keeps it there.</summary>
+        void RecipeCard(Transform parent, ItemDefinition item, bool on)
         {
-            var card = LobbyKit.Rect(parent, "Recipe " + item.Id);
-            // A still, invisible hit box, so the card can lift under the pointer like the web's.
-            card.Paint(Color.clear);
-            var body = LobbyKit.Rect(card, "Body").Fill();
-            LobbyKit.Face(body, Color.white, 16, LobbyKit.Navy, 3, 4);
-            var press = card.gameObject.AddComponent<LobbyPress>();
-            press.Body = body; press.Drop = body.GetComponent<Shadow>(); press.DropRest = 4f;
-            press.Lift = 4f; press.Tilt = 2f; press.Sink = 0f;
-            var icon = LobbyKit.ItemImage(body, item.Id, 80);
-            if (icon) icon.rectTransform.Pin(new Vector2(.5f, 1), new Vector2(0, -14), new Vector2(80, 80));
+            var card = LobbyKit.Button(parent, "Recipe " + item.Id, Color.white, () => PinRecipe(item.Id), 14, LobbyKit.Navy, 3, 4);
+            var press = card.GetComponent<LobbyPress>();
+            press.Lift = 4f; press.Tilt = 2f;
+            var body = card.Body();
+            if (on)
+            {
+                LobbyKit.Ring(body, LobbyKit.Sun, 14, 4);
+                First = card;
+            }
+            var icon = LobbyKit.ItemImage(body, item.Id, 64);
+            if (icon) icon.rectTransform.Pin(new Vector2(.5f, 1), new Vector2(0, -10), new Vector2(64, 64));
             string word = item.Id;
-            float tile = Mathf.Min(26f, (180f - 3f * (word.Length - 1)) / word.Length);
-            var letters = LobbyKit.Row(body, "Letters", 3);
-            letters.Place(Vector2.zero, new Vector2(1, 0), new Vector2(8, 52), new Vector2(-8, 52 + tile + 4));
+            float tile = Mathf.Min(24f, (112f - 2f * (word.Length - 1)) / word.Length);
+            var letters = LobbyKit.Row(body, "Letters", 2);
+            letters.Place(Vector2.zero, new Vector2(1, 0), new Vector2(4, 12), new Vector2(-4, 12 + tile + 4));
             var row = letters.GetComponent<HorizontalLayoutGroup>();
             row.childAlignment = TextAnchor.MiddleCenter;
             row.childForceExpandHeight = false;
             foreach (char letter in word) LobbyKit.LetterTile(letters, letter, tile);
-            var blurb = Wrapped(body, Blurb(item.Family), 15, LobbyKit.CardSub);
-            blurb.alignment = TextAlignmentOptions.Top;
-            blurb.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(10, 8), new Vector2(-10, 46));
+            press.Hot = hot =>
+            {
+                if (hot) { previewing = item.Id; Detail(item); }
+                else if (previewing == item.Id) { previewing = null; Detail(Shown()); }
+            };
+        }
+
+        public void PinRecipe(string id)
+        {
+            Pinned = id;
+            Refresh();
+            Reselect("Recipe " + id);
+        }
+
+        /// <summary>The strip under the recipe book: the item big on a sunburst, its word, what it does and how to
+        /// spell it in a match.</summary>
+        void Detail(ItemDefinition item)
+        {
+            if (!detail || item == null) return;
+            LobbyKit.Clear(detail);
+            var strip = LobbyKit.Rect(detail, "Strip").Fill();
+            LobbyKit.Face(strip, LobbyKit.Track, 18);
+            var art = LobbyKit.Rect(strip, "Art").Pin(new Vector2(0, .5f), new Vector2(16, 0), new Vector2(150, 150));
+            Burst(art, 150, 150, 16);
+            LobbyKit.ItemImage(art, item.Id, 118);
+            var words = LobbyKit.Column(strip, "Words", 10);
+            words.Place(Vector2.zero, Vector2.one, new Vector2(184, 16), new Vector2(-16, -16));
+            words.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
+            var tiles = LobbyKit.Row(words, "Word", 5);
+            tiles.Size(-1, 44);
+            tiles.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            string word = item.Id;
+            float size = Mathf.Min(38f, (320f - 5f * (word.Length - 1)) / word.Length);
+            for (int i = 0; i < word.Length; i++) LobbyKit.LetterTile(tiles, word[i], size, (i - (word.Length - 1) / 2f) * 2f);
+            var blurb = LobbyKit.Display(words, Blurb(item.Family), 22, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            blurb.name = "Blurb";
+            blurb.enableAutoSizing = true; blurb.fontSizeMin = 15; blurb.fontSizeMax = 22;
+            blurb.Size(-1, 30);
+            var how = LobbyKit.Row(words, "How", 6);
+            how.Size(-1, 30);
+            how.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            LobbyKit.Text(how, "Press", 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 28);
+            LobbyKit.Kbd(how, "Q");
+            LobbyKit.Text(how, "and type it, then", 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 28);
+            LobbyKit.Kbd(how, "ENTER");
         }
 
         /// <summary>One line per handling family, the same as the web edition's recipe book.</summary>
@@ -719,130 +977,122 @@ namespace Wreckabulary
         }
     }
 
-    /// <summary>The cart: cosmetic finishes and top colours, bought with coins from matches.</summary>
+    /// <summary>
+    /// The web's item shop: big cards on sunbursts in the wide side panel, in two shelves (gear styles, then top
+    /// colours), bought with coins from matches. A click on a card tries it on; its price tag buys it, then WEAR
+    /// puts it on. Opened from the locker, it rings the offer you came for.
+    /// </summary>
     public sealed class ShopPage : LobbyPage
     {
-        string note;
+        static readonly Vector2 Card = new Vector2(248, 276);
+        string note, spotlight;
 
         public override string Id => LobbyMenu.Shop;
         public override LobbyStage.Focus Focus => LobbyStage.Focus.Left;
+        /// <summary>The offer the shop was opened on, ringed in cyan; null when it was opened from the bar.</summary>
+        public string Spotlit => spotlight;
 
-        /// <summary>Each finish's colours, as the web's skin art paints them.</summary>
-        static (Color from, Color to) FinishPaint(string skin) => skin switch
+        public override void Opened()
         {
-            "Candy" => (LobbyKit.Hex(0xff7ac8), LobbyKit.Hex(0x7fe3ff)),
-            "Arcade" => (LobbyKit.Hex(0x3a1fd1), LobbyKit.Hex(0x00e0c6)),
-            _ => (LobbyKit.WoodHi, LobbyKit.WoodLo),
-        };
+            note = null;
+            spotlight = null;
+        }
+
+        /// <summary>Rings one offer and puts a keyboard or controller on what buys it.</summary>
+        public void Spotlight(string offerId)
+        {
+            spotlight = offerId;
+            Refresh();
+            if (First && EventSystem.current) EventSystem.current.SetSelectedGameObject(First.gameObject);
+        }
 
         protected override void Build()
         {
-            var body = Side("Shop", "Looks only. Nothing here changes health, damage or speed.");
-            var column = LobbyKit.Column(body, "Column", 12).Fill();
-            var wallet = LobbyKit.Row(column, "Wallet", 14);
-            wallet.Size(-1, 50);
-            wallet.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
-            var chip = LobbyKit.Row(wallet, "Coin chip", 10);
-            var chipLayout = chip.GetComponent<HorizontalLayoutGroup>();
-            chipLayout.padding = new RectOffset(10, 18, 5, 5);
-            chipLayout.childForceExpandHeight = false;
-            LobbyKit.Face(chip, LobbyKit.ChipFill, 10, LobbyKit.ChipEdge, 2);
-            chip.Size(-1, 48);
-            LobbyKit.Coin(chip, 32);
-            LobbyKit.Display(chip, Menu.Career.Coins.ToString("N0", CultureInfo.InvariantCulture), 26, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft).Size(-1, 36);
-            LobbyKit.Text(wallet, note ?? "Finish matches to earn more.", 19, note != null ? LobbyKit.Sun : LobbyKit.Muted,
-                TextAlignmentOptions.MidlineLeft).Size(-1, 36, 1);
-
-            LobbyKit.Heading(column, "Item finishes");
-            var finishes = LobbyKit.Grid(column, "Finishes", new Vector2(270, 172), 12);
+            var body = Side("Item shop", "Looks only. Never stats.");
+            var foot = LobbyKit.Row(body, "Footer", 10);
+            foot.Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 34));
+            foot.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            LobbyKit.Coin(foot, 24);
+            LobbyKit.Text(foot, note ?? "Click a card to try it on. Earn coins in matches.", 17, note != null ? LobbyKit.Sun : LobbyKit.Muted,
+                TextAlignmentOptions.MidlineLeft).Size(-1, 30, 1);
+            var view = LobbyKit.Rect(body, "Offers").Place(Vector2.zero, Vector2.one, new Vector2(0, 46), Vector2.zero);
+            var list = LobbyKit.Scroll(view, "Scroll", 10);
+            // Room inside the mask for rings, drops and cards that lift.
+            list.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(4, 4, 8, 12);
+            LobbyKit.SectionLabel(list, "Gear styles");
+            var finishes = LobbyKit.Grid(list, "Finishes", Card, 16);
             foreach (var offer in Career.Shop.Where(o => o.Kind == "skin")) Offer(finishes, offer);
-            LobbyKit.Heading(column, "Top colours");
-            var colours = LobbyKit.Grid(column, "Colours", new Vector2(270, 172), 12);
+            LobbyKit.SectionLabel(list, "Top colours");
+            var colours = LobbyKit.Grid(list, "Colours", Card, 16);
             foreach (var offer in Career.Shop.Where(o => o.Kind == "colour")) Offer(colours, offer);
-            Wrapped(column, "Click a colour to try it on.", 18, LobbyKit.Muted, 30);
         }
 
-        /// <summary>The web's shop card: white with a navy edge, the art in a wood well, the name and a price tag.</summary>
+        /// <summary>The web's shop card: white with a navy edge, the art on a sunburst, the name and what it is,
+        /// and its price tag, WEAR or WEARING.</summary>
         void Offer(Transform parent, ShopOffer offer)
         {
             bool owned = Menu.Career.Owns(offer.Kind, offer.Value);
             bool worn = offer.Kind == "skin" ? SkinOf(Menu.Outfit) == offer.Value : Menu.Outfit.ColourOf("Top") == offer.Value;
             var colourway = offer.Kind == "colour" ? GameConfig.Current.Wardrobe.Colour("Top", offer.Value) : null;
-            var card = LobbyKit.Button(parent, "Offer " + offer.Id, Color.white, () => TryOn(colourway), 18, LobbyKit.Navy, 3, 5);
+            var card = LobbyKit.Button(parent, "Offer " + offer.Id, Color.white, () => TryOn(colourway), 16, LobbyKit.Navy, 3, 5);
             var press = card.GetComponent<LobbyPress>();
             press.Lift = 4f; press.Tilt = 1f;
             var t = card.Body();
-            if (worn) LobbyKit.Ring(t, LobbyKit.Sun, 18, 5);
-            var well = LobbyKit.Rect(t, "Art").Pin(new Vector2(0, 1), new Vector2(14, -14), new Vector2(76, 76));
-            LobbyKit.Face(well, LobbyKit.WoodHi, 12, null, 0, 0, LobbyKit.WoodLo);
-            if (colourway != null) Blob(well, new Color(colourway.R, colourway.G, colourway.B));
-            else FinishDisc(well, offer.Value);
-            var name = LobbyKit.Display(t, LobbyKit.Upper(offer.Name), 22, LobbyKit.Navy, TextAlignmentOptions.TopLeft);
-            name.enableAutoSizing = true; name.fontSizeMin = 14; name.fontSizeMax = 22;
-            name.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(104, -46), new Vector2(-12, -16));
-            var kind = LobbyKit.Text(t, offer.Kind == "skin" ? "Item finish" : "Top colour", 15, LobbyKit.CardSub, TextAlignmentOptions.TopLeft);
-            kind.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(104, -72), new Vector2(-12, -48));
-            var action = worn ? Stamp(t, offer) : owned ? WearChip(t, offer) : PriceTag(t, offer);
+            if (worn) LobbyKit.Ring(t, LobbyKit.Sun, 16, 5);
+            else if (offer.Id == spotlight) LobbyKit.Ring(t, LobbyKit.Cyan, 16, 5);
+            var art = LobbyKit.Rect(t, "Art").Place(new Vector2(0, 1), Vector2.one, new Vector2(10, -138), new Vector2(-10, -10));
+            Burst(art, (int)Card.x - 20, 128, 14);
+            if (colourway != null) Blob(art, new Color(colourway.R, colourway.G, colourway.B), 100);
+            else FinishDisc(art, offer.Value, 108);
+            if (owned && !worn) OwnedMark(art);
+            var name = LobbyKit.Display(t, LobbyKit.Upper(offer.Name), 24, LobbyKit.Navy);
+            name.characterSpacing = 1;
+            name.enableAutoSizing = true; name.fontSizeMin = 16; name.fontSizeMax = 24;
+            name.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(10, -176), new Vector2(-10, -146));
+            // What the colour goes on, as the web says it: "Hoodie colour" while you wear the hoodie.
+            string kindText = offer.Kind == "skin" ? "Crafted gear style" : (Menu.Outfit.PieceIn("Top") ?? "Top") + " colour";
+            var kind = LobbyKit.Text(t, kindText, 16, LobbyKit.CardSub, TextAlignmentOptions.Center, FontStyles.Bold);
+            kind.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(10, -200), new Vector2(-10, -176));
+            var action = worn ? Stamp(t, offer) : owned ? WearChip(t, offer)
+                : LobbyKit.PriceTag(t, "Buy " + offer.Id, offer.Price, Menu.Career.Coins < offer.Price, () => Buy(offer), 22);
             action.interactable = !worn;
-            ((RectTransform)action.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(14, 14), new Vector2(-14, 60));
-            if (!First && !worn) First = action;
+            ((RectTransform)action.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(44, 16), new Vector2(-44, 60));
+            // A controller starts on the offer the shop was opened for, or else on the first thing to buy or wear.
+            if (!worn && (offer.Id == spotlight || !First)) First = action;
         }
 
-        /// <summary>A colour offer's paint blob: the colour in a navy rim, with a shine.</summary>
-        static void Blob(RectTransform well, Color colour)
+        /// <summary>The web's owned stamp on an offer's art: green type in a green outline, turned a little.</summary>
+        static void OwnedMark(RectTransform art)
         {
-            var blob = LobbyKit.Rect(well, "Swatch").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(46, 46));
-            LobbyKit.Face(blob, colour, 23, LobbyKit.Navy, 3);
-            LobbyKit.Rect(blob, "Shine").Pin(new Vector2(.32f, .72f), Vector2.zero, new Vector2(10, 8)).Paint(new Color(1f, 1f, 1f, .67f), 4).raycastTarget = false;
+            var stamp = LobbyKit.Rect(art, "Owned").Pin(Vector2.one, new Vector2(-8, -8), new Vector2(92, 28));
+            stamp.localRotation = Quaternion.Euler(0, 0, -6f);
+            stamp.Paint(Color.white, 6).raycastTarget = false;
+            LobbyKit.Frame(stamp, LobbyKit.Owned, 6, 2);
+            var label = LobbyKit.Display(stamp, "OWNED", 17, LobbyKit.Owned);
+            label.characterSpacing = 2;
+            label.rectTransform.Fill();
         }
 
-        /// <summary>A finish offer's art: a disc in the finish's colours with a BAT on it.</summary>
-        static void FinishDisc(RectTransform well, string skin)
-        {
-            var (from, to) = FinishPaint(skin);
-            var disc = LobbyKit.Rect(well, "Finish").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(56, 56));
-            LobbyKit.Face(disc, from, 28, LobbyKit.Navy, 3, 0, to);
-            LobbyKit.ItemImage(disc, "BAT", 42, 20f);
-        }
-
-        /// <summary>The web's price tag: a sun slab with a coin and the price. Short of coins it greys
-        /// but still answers, so the shop can say why.</summary>
-        Button PriceTag(RectTransform card, ShopOffer offer)
-        {
-            bool poor = Menu.Career.Coins < offer.Price;
-            var button = LobbyKit.Button(card, "Buy " + offer.Id, poor ? LobbyKit.Short : LobbyKit.Sun, () => Buy(offer), 10, LobbyKit.Navy, 3, 3);
-            button.GetComponent<LobbyPress>().Tilt = 2f;
-            var content = LobbyKit.Row(button.Body(), "Content", 8);
-            content.Fill();
-            var layout = content.GetComponent<HorizontalLayoutGroup>();
-            layout.childAlignment = TextAnchor.MiddleCenter;
-            layout.childForceExpandHeight = false;
-            var ink = poor ? new Color(LobbyKit.Navy.r, LobbyKit.Navy.g, LobbyKit.Navy.b, .5f) : LobbyKit.Navy;
-            LobbyKit.Display(content, "BUY", 22, ink).Size(-1, 30);
-            LobbyKit.Coin(content, 26);
-            LobbyKit.Display(content, offer.Price.ToString("N0", CultureInfo.InvariantCulture), 22, ink).Size(-1, 30);
-            return button;
-        }
-
+        /// <summary>WEAR on something you own: a lime slab, like the locker's confirm.</summary>
         Button WearChip(RectTransform card, ShopOffer offer)
         {
-            var button = LobbyKit.Button(card, "Wear " + offer.Id, Color.white, () => Wear(offer), 10, LobbyKit.Navy, 3, 3);
-            LobbyKit.Display(button.Body(), "WEAR", 22, LobbyKit.Navy).rectTransform.Fill();
-            var face = button.FaceOf();
-            button.GetComponent<LobbyPress>().Hot = hot => face.color = hot ? LobbyKit.Sun : Color.white;
+            var button = LobbyKit.Button(card, "Wear " + offer.Id, LobbyKit.LimeHi, () => Wear(offer), 10, LobbyKit.Navy, 2, 3, LobbyKit.LimeLo);
+            var label = LobbyKit.Display(button.Body(), "WEAR", 22, LobbyKit.Navy);
+            label.characterSpacing = 2;
+            label.rectTransform.Fill();
             return button;
         }
 
-        /// <summary>The web's owned stamp: green outline and type, turned a little, and never faded.</summary>
+        /// <summary>The web's worn stamp: green outline and type, turned a little, and never faded.</summary>
         static Button Stamp(RectTransform card, ShopOffer offer)
         {
             var button = LobbyKit.Button(card, "Wearing " + offer.Id, Color.clear, null, -1);
             button.GetComponent<LobbyPress>().FadeOff = false;
-            var stamp = LobbyKit.Rect(button.Body(), "Stamp").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(150, 38));
-            stamp.localRotation = Quaternion.Euler(0, 0, 8f);
+            var stamp = LobbyKit.Rect(button.Body(), "Stamp").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(140, 38));
+            stamp.localRotation = Quaternion.Euler(0, 0, 6f);
             LobbyKit.Frame(stamp, LobbyKit.Owned, 8, 3);
             var label = LobbyKit.Display(stamp, "WEARING", 20, LobbyKit.Owned);
-            label.characterSpacing = 4;
+            label.characterSpacing = 3;
             label.rectTransform.Fill();
             return button;
         }

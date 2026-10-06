@@ -31,7 +31,8 @@ namespace Wreckabulary
         /// the hub's teal and never blue (user, 6 Oct 2026).</summary>
         public static readonly Color SkyTop = LobbyKit.Hex(0x2b1736);
         static readonly Color SkyMiddle = LobbyKit.Hex(0x6b3f6e), SkyLow = LobbyKit.Hex(0xf2b57a);
-        /// <summary>Where you stand across the screen while a side page fills the right, from 0 (left) to 1.</summary>
+        /// <summary>Where you stand across the screen while a side page of unknown width fills the right, from 0
+        /// (left) to 1.</summary>
         public const float SideAt = .3f;
         /// <summary>Above the default look volume (GraphicsOptions.Look), so the lobby grade wins while it shows.</summary>
         public const int LookPriority = 10;
@@ -52,7 +53,7 @@ namespace Wreckabulary
         Vector3 savedPosition; Quaternion savedRotation; bool savedOrtho; float savedFov, savedNear;
         CameraClearFlags savedClear; Color savedBackground;
         Vector3 spot, toCamera;
-        float yaw, targetYaw, side, targetSide;
+        float yaw, targetYaw, side, targetSide, panel;
 
         public string Map { get; private set; }
         public Transform Avatar => avatarRoot;
@@ -173,7 +174,19 @@ namespace Wreckabulary
         /// than half a turn in one frame still spins the way it was dragged.</summary>
         public void Turn(float degrees) => targetYaw += degrees;
 
-        public void Frame(Focus focus) => targetSide = focus == Focus.Left ? 1f : 0f;
+        /// <summary>Frames you for a page: centred, or in the middle of the room left of a side page.
+        /// <paramref name="panel"/> is how much of the right the page covers, in screen heights (the lobby canvas
+        /// scales with the height); 0 stands you at <see cref="SideAt"/>.</summary>
+        public void Frame(Focus focus, float panel = 0f)
+        {
+            targetSide = focus == Focus.Left ? 1f : 0f;
+            if (focus == Focus.Left) this.panel = panel;
+        }
+
+        /// <summary>Where you stand beside a side page covering <paramref name="panel"/> screen heights on the
+        /// right of a screen this wide for its height, from 0 (left) to 1.</summary>
+        public static float StandAt(float panel, float aspect) =>
+            panel > 0f && aspect > 0f ? Mathf.Clamp(.5f - panel / (2f * aspect), .15f, .45f) : SideAt;
 
         /// <summary>Takes the main camera for the lobby view; <see cref="Release"/> gives it back.</summary>
         public void TakeCamera()
@@ -318,10 +331,11 @@ namespace Wreckabulary
             Aim(key, KeyFrom);
             Aim(rim, RimFrom);
             if (!cameraTaken || !cam) return;
-            // Slide the camera sideways so you stand at SideAt across the screen while a side page fills the right.
+            // Slide the camera sideways so you stand in the room left of a side page. Worked out each frame from
+            // the screen's shape, so a resized window keeps you clear of the panel.
             var right = Vector3.Cross(Vector3.up, -toCamera.normalized);
             float halfWidth = Mathf.Tan(cam.fieldOfView * .5f * Mathf.Deg2Rad) * cam.aspect;
-            var shift = right * side * ((1f - 2f * SideAt) * toCamera.magnitude * halfWidth);
+            var shift = right * side * ((1f - 2f * StandAt(panel, cam.aspect)) * toCamera.magnitude * halfWidth);
             var eye = spot + toCamera + Vector3.up * EyeHeight + shift;
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(spot + Vector3.up * LookHeight + shift - eye));
         }

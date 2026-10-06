@@ -36,6 +36,9 @@ namespace Wreckabulary
         /// <summary>Seats in a couch party, you included.</summary>
         public const int PartyMax = 4;
         const float BarHeight = 76f, Gutter = 26f, PartyWidth = 380f, FeedWidth = 420f;
+        /// <summary>The canvas is always this tall (it scales with the screen's height), so its units are
+        /// fractions of the screen's height.</summary>
+        const float ReferenceHeight = 1080f;
         /// <summary>Seconds a lobby notice stays up, and its fade at the end.</summary>
         public const float MessageLife = 8f, MessageFade = .4f;
         /// <summary>Notices showing at once.</summary>
@@ -200,7 +203,7 @@ namespace Wreckabulary
             canvas.sortingOrder = 100;
             var scaler = gameObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
+            scaler.referenceResolution = new Vector2(1920, ReferenceHeight);
             // PC first: keep the bar the same height on wide screens and let width grow.
             scaler.matchWidthOrHeight = 1f;
             gameObject.AddComponent<GraphicRaycaster>();
@@ -478,9 +481,10 @@ namespace Wreckabulary
             if (bottomScrim) bottomScrim.SetActive(id == Home);
             // Drops any colour being tried on in the shop.
             Stage.Dress(Outfit);
+            if (moved) page.Opened();
             page.Refresh();
             if (moved) page.Pop();
-            Stage.Frame(page.Focus);
+            Stage.Frame(page.Focus, (Gutter + page.PanelWidth) / ReferenceHeight);
             feed.gameObject.SetActive(page.ShowFeed);
             foreach (var kv in tabs) kv.Value.On = kv.Key == id;
             var first = page.First;
@@ -494,6 +498,17 @@ namespace Wreckabulary
             if (id == Current && id != Home) Close();
             else Open(id);
         }
+
+        /// <summary>Opens the shop on one offer (the locker's coin swatches and gear styles you don't own yet):
+        /// it rings that card and puts a keyboard or controller on what buys it.</summary>
+        public void OpenShop(string offerId)
+        {
+            Open(Shop);
+            if (pages[Shop] is ShopPage shop) shop.Spotlight(offerId);
+        }
+
+        /// <summary>The page of a type, for tests and the pages that open each other.</summary>
+        public T Page<T>() where T : LobbyPage => pages.Values.OfType<T>().FirstOrDefault();
 
         /// <summary>Closes the open page (its X, Esc or B, a second click on its button): back home, with
         /// a keyboard or controller on the button that opens it rather than on GO.</summary>

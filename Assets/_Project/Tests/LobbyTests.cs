@@ -117,6 +117,17 @@ namespace Wreckabulary.Tests
 
         static GameObject Selected => EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
 
+        /// <summary>Every label under a page fits in its box: none ends in an ellipsis.</summary>
+        static void AssertNoEllipsis(Transform root, string where)
+        {
+            Canvas.ForceUpdateCanvases();
+            foreach (var text in root.GetComponentsInChildren<TMPro.TMP_Text>())
+            {
+                text.ForceMeshUpdate();
+                Assert.IsFalse(text.isTextTruncated, $"\"{text.text}\" fits without an ellipsis in {where}");
+            }
+        }
+
         /// <summary>A pad press that the lobby reads on the next frame, as from a real controller.</summary>
         IEnumerator Press(GamepadButton button)
         {
@@ -753,7 +764,7 @@ namespace Wreckabulary.Tests
             var menu = LobbyMenu.Instance;
             Click("LOADOUT");
             yield return null;
-            Click("Slot Top");
+            Click("Part Top");
             yield return null;
             Click("Colour mint");
             yield return null;
@@ -778,6 +789,119 @@ namespace Wreckabulary.Tests
             yield return null;
             Assert.AreEqual(380, menu.Career.Coins, "Arcade costs 400");
             Assert.IsFalse(menu.Career.Owns("skin", "Arcade"));
+        }
+
+        [UnityTest]
+        public IEnumerator TheLockerIsTheWebsOnePagePanel()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Click("LOADOUT");
+            yield return new WaitForSeconds(1f);
+            Canvas.ForceUpdateCanvases();
+            var loadout = menu.Page<LoadoutPage>();
+            var panel = loadout.Root.GetComponentsInChildren<RectTransform>().First(r => r.name == "Panel");
+            Assert.AreEqual(LoadoutPage.Width, panel.rect.width, 1f, "the web's narrow locker, not the career page's width");
+            // What you wear, each worn part's colour, the extras, the gear style and the confirm, all at once.
+            foreach (string name in new[] { "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear", "Part Top", "Part Bottoms", "Colour tomato",
+                "Extra Face", "Extra Back", "Extra Badge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
+                Find(name);
+            Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Slot ")),
+                "no list of slots to open first (user, 6 Oct 2026: too messy and content heavy)");
+            var corners = new Vector3[4];
+            panel.GetWorldCorners(corners);
+            var cam = menu.Stage.Camera;
+            Assert.Less(cam.WorldToViewportPoint(menu.Stage.Spot).x * cam.pixelWidth, corners[0].x, "you stand in the room left of the panel");
+            AssertNoEllipsis(loadout.Root, "the locker");
+
+            Click("RECIPES");
+            yield return null;
+            Assert.IsTrue(loadout.ShowingRecipes);
+            AssertNoEllipsis(loadout.Root, "the recipe book");
+            Click("LOCKER");
+            yield return null;
+            Click("Done");
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, "THAT'S MY LOOK closes the locker");
+        }
+
+        [UnityTest]
+        public IEnumerator LockerExtrasHoodAndPartColours()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Click("LOADOUT");
+            yield return null;
+            Assert.IsNull(menu.Outfit.PieceIn("Face"), "no glasses to start");
+            Click("Extra Face");
+            yield return null;
+            Assert.AreEqual("Glasses", menu.Outfit.PieceIn("Face"), "the card puts the glasses on");
+            Assert.AreEqual("Glasses", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).PieceIn("Face"), "saved");
+            Assert.AreSame(Find("Extra Face").gameObject, Selected, "a keyboard or controller stays on the card");
+            Click("Extra Face");
+            yield return null;
+            Assert.IsNull(menu.Outfit.PieceIn("Face"), "a second click takes them off");
+
+            Assert.AreEqual("Hood", menu.Outfit.PieceIn("Headwear"));
+            Click("Crewneck");
+            yield return null;
+            Assert.AreEqual("Crewneck", menu.Outfit.PieceIn("Top"));
+            Assert.IsNull(menu.Outfit.PieceIn("Headwear"), "the hood only fits the hoodie, so it comes off");
+            Click("Hood");
+            yield return null;
+            Assert.AreEqual("Hood", menu.Outfit.PieceIn("Headwear"));
+            Assert.AreEqual("Hoodie", menu.Outfit.PieceIn("Top"), "and the hood brings the hoodie back, as on the web");
+
+            Click("Part Bottoms");
+            yield return null;
+            Click("Colour navy");
+            yield return null;
+            Assert.AreEqual("navy", menu.Outfit.ColourOf("Bottoms"));
+            Assert.AreEqual("tomato", menu.Outfit.ColourOf("Top"), "only the part picked changes");
+
+            Click("Finish Arcade");
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Shop, menu.Current, "a gear style you don't own opens the shop");
+            var shop = menu.Page<ShopPage>();
+            Assert.AreEqual("skin:Arcade", shop.Spotlit, "on that style");
+            Assert.AreSame(Find("Buy skin:Arcade").gameObject, Selected, "with a keyboard or controller on what buys it");
+            AssertNoEllipsis(shop.Root, "the shop");
+        }
+
+        [UnityTest]
+        public IEnumerator TheShopScrollsToTheOfferYouCameFor()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            menu.OpenShop("colour:charcoal");
+            yield return null;
+            yield return null;
+            var buy = Find("Buy colour:charcoal");
+            Assert.AreSame(buy.gameObject, Selected, "a keyboard or controller lands on what buys it");
+            var list = buy.GetComponentInParent<ScrollRect>();
+            Assert.Greater(list.content.anchoredPosition.y, 0f, "the last shelf is below the fold, so the list scrolls down to it");
+            var bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(list.viewport, buy.transform);
+            Assert.GreaterOrEqual(bounds.min.y, list.viewport.rect.yMin - .5f, "and shows it whole");
+            Assert.LessOrEqual(bounds.max.y, list.viewport.rect.yMax + .5f);
+        }
+
+        [UnityTest]
+        public IEnumerator RecipeDetailFollowsTheCardYouPick()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Click("LOADOUT");
+            yield return null;
+            Click("RECIPES");
+            yield return null;
+            var item = GameConfig.Current.Items.Enabled.Last();
+            Click("Recipe " + item.Id);
+            yield return null;
+            Assert.AreEqual(item.Id, menu.Page<LoadoutPage>().Pinned);
+            var detail = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Recipe detail");
+            Assert.IsTrue(detail.GetComponentsInChildren<RawImage>().Any(r => r.name == "Art " + item.Id), "the strip shows the card you picked");
+            Assert.AreEqual(LoadoutPage.Blurb(item.Family), detail.GetComponentsInChildren<TMPro.TMP_Text>().Single(t => t.name == "Blurb").text);
+            Assert.AreSame(Find("Recipe " + item.Id).gameObject, Selected, "a keyboard or controller stays on the card");
         }
 
         [UnityTest]

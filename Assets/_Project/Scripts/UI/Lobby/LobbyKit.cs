@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -63,6 +65,12 @@ namespace Wreckabulary
         /// <summary>Behind a centred page or a dialog: the web's 60% navy, as it looks over the map.</summary>
         public static readonly Color Shade = Web(0x04052a, .6f);
         public const int TabRadius = 7;
+        /// <summary>The web's sunken track on a panel (a segmented picker, the recipe strip): navy at 45%.</summary>
+        public static readonly Color Track = Web(0x0b0e45, .45f);
+        /// <summary>The web's lime confirm slab, top to bottom (THAT'S MY LOOK, WEAR).</summary>
+        public static readonly Color LimeHi = Hex(0xa6f56b), LimeLo = Hex(0x4cbf1d);
+        /// <summary>An extras card that's on: the web's cream.</summary>
+        public static readonly Color Picked = Hex(0xfff4b8);
 
         public enum Edge { Top, Right, Bottom }
 
@@ -636,6 +644,7 @@ namespace Wreckabulary
             scroll.horizontal = false; scroll.movementType = ScrollRect.MovementType.Clamped;
             scroll.scrollSensitivity = 40f;
             scroll.viewport = view; scroll.content = content;
+            view.gameObject.AddComponent<LobbyScrollFollow>();
             return content;
         }
 
@@ -651,6 +660,121 @@ namespace Wreckabulary
             label.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(8, 0), new Vector2(-8, 0));
             if (on) button.GetComponent<LobbyPress>().Lift = 0f;
             return button;
+        }
+
+        /// <summary>A label over a group of choices: cyan Lilita capitals, smaller than a heading.</summary>
+        public static TextMeshProUGUI SectionLabel(Transform parent, string text)
+        {
+            var label = Display(parent, Upper(text), 20, Cyan, TextAlignmentOptions.BottomLeft);
+            label.characterSpacing = 2;
+            label.Size(-1, 28);
+            return label;
+        }
+
+        /// <summary>
+        /// Choices side by side in a sunken navy track, the picked one a sun slab with a navy edge (the locker's
+        /// pickers, in place of the web's wood selects, so every choice shows at once). Each choice is a button
+        /// named by its id; the others turn royal under the pointer.
+        /// </summary>
+        public static RectTransform Segmented(Transform parent, string name, IReadOnlyList<(string id, string label)> choices, string picked,
+            Action<string> pick, float height = 48, float size = 18)
+        {
+            var track = Row(parent, name, 4, 4);
+            track.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+            Face(track, Track, 14);
+            track.Size(-1, height);
+            foreach (var (id, label) in choices)
+            {
+                bool on = id == picked;
+                var button = on ? Button(track, id, SunHi, () => pick(id), 10, Navy, 3, 3, Sun2) : Button(track, id, Color.clear, () => pick(id), 10);
+                button.Size(-1, -1, 1);
+                var text = Display(button.Body(), Upper(label), size, on ? Navy : Cream);
+                text.characterSpacing = 1;
+                text.enableAutoSizing = true; text.fontSizeMin = 12; text.fontSizeMax = size;
+                text.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(6, 0), new Vector2(-6, 0));
+                var press = button.GetComponent<LobbyPress>();
+                if (on) press.Lift = 0f;
+                else
+                {
+                    var face = button.FaceOf();
+                    press.Hot = hot => face.color = hot ? TabHover : Color.clear;
+                }
+            }
+            return track;
+        }
+
+        /// <summary>The web's extras card: white with a navy edge, a glyph over a name and a tick box. An extra
+        /// that's on turns cream, leans a little and fills its box with a sun tick.</summary>
+        public static Button ToggleCard(Transform parent, string name, string icon, string label, bool on, Action click)
+        {
+            var button = Button(parent, name, on ? Picked : Color.white, click, 14, Navy, 3, 4);
+            var press = button.GetComponent<LobbyPress>();
+            press.Lift = 3f; press.Tilt = 1f;
+            if (on) press.Lean = 1.5f;
+            var body = button.Body();
+            Icon(body, icon, Navy).rectTransform.Pin(new Vector2(.5f, 1), new Vector2(0, -12), new Vector2(34, 34));
+            var text = Display(body, label, 17, Navy);
+            text.enableAutoSizing = true; text.fontSizeMin = 12; text.fontSizeMax = 17;
+            text.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(8, 8), new Vector2(-8, 34));
+            var box = Rect(body, "Tick").Pin(Vector2.one, new Vector2(-8, -8), new Vector2(22, 22));
+            Face(box, on ? Sun : Color.white, 6, Navy, 2);
+            if (on) Icon(box, LobbyIcons.Check, Navy).rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(2, 2), new Vector2(-2, -2));
+            return button;
+        }
+
+        /// <summary>The web's lime confirm slab (THAT'S MY LOOK): a lime gradient with a navy edge, a deep drop,
+        /// a shine along the top and a tick after the words.</summary>
+        public static Button Confirm(Transform parent, string name, string text, Action click)
+        {
+            var button = Button(parent, name, LimeHi, click, 16, Navy, 3, 5, LimeLo);
+            var press = button.GetComponent<LobbyPress>();
+            press.Sink = 3f; press.DropPressed = 2f;
+            var body = button.Body();
+            var shine = Rect(body, "Shine").Place(new Vector2(0, 1), Vector2.one, new Vector2(16, -13), new Vector2(-16, -8));
+            shine.Paint(new Color(1f, 1f, 1f, .45f), 2).raycastTarget = false;
+            var content = Row(body, "Content", 10);
+            content.Fill();
+            var layout = content.GetComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childForceExpandHeight = false;
+            var label = Display(content, Upper(text), 24, Navy);
+            label.characterSpacing = 2;
+            label.Size(-1, 34);
+            Icon(content, LobbyIcons.Check, Navy).Size(24, 24);
+            return button;
+        }
+
+        /// <summary>The web's price tag: a white slab with a navy edge, a coin and the price, sun under the
+        /// pointer. Short of coins it greys but still answers, so the shop can say why.</summary>
+        public static Button PriceTag(Transform parent, string name, int price, bool poor, Action click, float size = 18)
+        {
+            var button = Button(parent, name, poor ? Short : Color.white, click, 10, Navy, 2, 3);
+            var press = button.GetComponent<LobbyPress>();
+            press.Tilt = 2f;
+            var content = Row(button.Body(), "Content", 6);
+            content.Fill();
+            var layout = content.GetComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childForceExpandHeight = false;
+            Coin(content, size + 4);
+            var ink = poor ? new Color(Navy.r, Navy.g, Navy.b, .5f) : Navy;
+            Display(content, price.ToString("N0", CultureInfo.InvariantCulture), size, ink).Size(-1, size + 8);
+            if (!poor)
+            {
+                var face = button.FaceOf();
+                press.Hot = hot => face.color = hot ? Sun : Color.white;
+            }
+            return button;
+        }
+
+        /// <summary>A key cap, as the web writes keys in its hints: white with a navy edge and a short drop.</summary>
+        public static RectTransform Kbd(Transform parent, string key)
+        {
+            var cap = Rect(parent, "Key " + key);
+            Face(cap, Color.white, 6, Navy, 2, 2);
+            cap.Size(Mathf.Max(30f, 16f + 11f * key.Length), 28);
+            Display(cap, key, 15, Navy).rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(4, 0), new Vector2(-4, 0));
+            return cap;
         }
 
         public static void Clear(Transform root)

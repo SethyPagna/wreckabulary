@@ -20,6 +20,8 @@ namespace Wreckabulary
         public RectTransform Body;
         /// <summary>Tilt is in uGUI degrees (anticlockwise), so the web's rotate(-2deg) is +2 here.</summary>
         public float Lift = 2f, Sink = 2f, Tilt, Scale = 1f, HoverScale = 1f;
+        /// <summary>A resting lean in uGUI degrees, under any tilt (an extras card that's on).</summary>
+        public float Lean;
         /// <summary>The body's hard shadow, its resting depth and its depth while pressed.</summary>
         public Shadow Drop;
         public float DropRest, DropPressed = 1f;
@@ -83,7 +85,7 @@ namespace Wreckabulary
             wasPressed = null;
             if (!Body) return;
             Body.anchoredPosition = Vector2.zero;
-            Body.localRotation = Quaternion.identity;
+            Body.localRotation = Quaternion.Euler(0, 0, Lean);
             Body.localScale = Vector3.one * Scale;
             SetDrop(DropRest);
         }
@@ -110,7 +112,7 @@ namespace Wreckabulary
             var position = Vector2.Lerp(Body.anchoredPosition, new Vector2(0f, y), k);
             if ((position - new Vector2(0f, y)).sqrMagnitude < .0004f) position = new Vector2(0f, y);
             Body.anchoredPosition = position;
-            float tilt = hot && !down ? Tilt : 0f;
+            float tilt = (hot && !down ? Tilt : 0f) + Lean;
             Body.localRotation = Quaternion.Slerp(Body.localRotation, Quaternion.Euler(0, 0, tilt), k);
             float scale = Scale * (hot && !down ? HoverScale : 1f);
             Body.localScale = Vector3.Lerp(Body.localScale, Vector3.one * scale, k);

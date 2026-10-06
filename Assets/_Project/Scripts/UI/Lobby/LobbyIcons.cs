@@ -16,14 +16,16 @@ namespace Wreckabulary
         public const string Home = "home", Settings = "settings", Power = "power", Trophy = "trophy",
             Cart = "cart", Coin = "coin", Close = "close", Turn = "turn", Play = "play", Locker = "locker",
             Badge = "badge", Lock = "lock", Check = "check", Arrow = "arrow", CoinW = "coin-w", Chevron = "chevron",
-            Party = "party", Plus = "plus";
+            Party = "party", Plus = "plus", Glasses = "glasses", Satchel = "satchel";
         public static readonly string[] All =
-            { Home, Settings, Power, Trophy, Cart, Coin, Close, Turn, Play, Locker, Badge, Lock, Check, Arrow, CoinW, Chevron, Party, Plus };
+            { Home, Settings, Power, Trophy, Cart, Coin, Close, Turn, Play, Locker, Badge, Lock, Check, Arrow, CoinW, Chevron, Party, Plus,
+              Glasses, Satchel };
         const int Size = 128;
         /// <summary>The web's stroke width 2.3 on its 24-unit grid, as a half width in [-1, 1].</summary>
         const float Half = 2.3f / 24f;
         static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
         static readonly Dictionary<(int, int), Sprite> slices = new Dictionary<(int, int), Sprite>();
+        static readonly Dictionary<(int, int, int), Texture2D> bursts = new Dictionary<(int, int, int), Texture2D>();
 
         public static Sprite Get(string name)
         {
@@ -58,6 +60,43 @@ namespace Wreckabulary
 
         /// <summary>Just the edge of RoundedSprite: a ring this many UI pixels wide, inside the shape.</summary>
         public static Sprite FrameSprite(int radius, int width) => Slice(radius, width);
+
+        /// <summary>
+        /// The web's shop art behind an item: a royal-to-cyan glow with paler rays every 18 degrees, in a rounded
+        /// rect of this size in UI pixels. Drawn at twice the size with mipmaps, so it stays smooth on any screen.
+        /// </summary>
+        public static Texture2D Sunburst(int width, int height, int radius)
+        {
+            var key = (width, height, radius);
+            if (bursts.TryGetValue(key, out var cached) && cached) return cached;
+            const int Scale = 2;
+            const float Ray = 9f * Mathf.Deg2Rad;
+            int w = width * Scale, h = height * Scale;
+            var texture = new Texture2D(w, h, TextureFormat.RGBA32, true)
+            { name = $"Lobby sunburst {width}x{height}", filterMode = FilterMode.Trilinear, wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color32[w * h];
+            var middle = new Vector2(w / 2f, h / 2f);
+            float far = middle.magnitude;
+            Color inner = LobbyKit.Hex(0x6ee9ff), outer = LobbyKit.Hex(0x2a5cff);
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    var at = new Vector2(x + .5f, y + .5f);
+                    var p = at - middle;
+                    float r = p.magnitude;
+                    var colour = Color.Lerp(inner, outer, r / far);
+                    // Texels from the nearest ray edge, positive inside a ray, for one texel of soft edge.
+                    float a = Mathf.Repeat(Mathf.Atan2(p.y, p.x), 2f * Ray);
+                    float inside = a < Ray ? Mathf.Min(a, Ray - a) : -Mathf.Min(a - Ray, 2f * Ray - a);
+                    colour = Color.Lerp(colour, Color.white, .267f * Mathf.Clamp01(.5f + inside * r));
+                    colour.a = Mathf.Clamp01(.5f - Box(at, middle, middle, radius * Scale));
+                    pixels[y * w + x] = colour;
+                }
+            texture.SetPixels32(pixels);
+            texture.Apply(true, true);
+            bursts[key] = texture;
+            return texture;
+        }
 
         static Sprite Slice(int radius, int width)
         {
@@ -160,6 +199,16 @@ namespace Wreckabulary
                         Mathf.Min(Mathf.Abs(Circle(p, G(17, 9), 2.5f / 12f)), Arc(p, G(16.5f, 19f), 5f / 12f, -6f, 90f)) - Half);
                 case Plus:
                     return p => Lines(p, G(12, 6), G(12, 18)).Min(Lines(p, G(6, 12), G(18, 12))) - Half;
+                case Glasses:
+                    // The web's extras glyph: two lenses, the bridge and the arms.
+                    return p => Mathf.Abs(Circle(p, G(7, 13), 3.5f / 12f)).Min(Mathf.Abs(Circle(p, G(17, 13), 3.5f / 12f)))
+                        .Min(Lines(p, G(10.5f, 13), G(13.5f, 13))).Min(Lines(p, G(3.5f, 12), G(2.5f, 9))).Min(Lines(p, G(20.5f, 12), G(21.5f, 9))) - Half;
+                case Satchel:
+                    // The bag, its handle and flap line, and a filled clasp.
+                    return p => Union(Mathf.Abs(Box(p, G(12, 14.75f), new Vector2(7.5f / 12f, 4.75f / 12f), 0f))
+                            .Min(Lines(p, G(8, 10), G(8, 8))).Min(Arc(p, G(12, 8), 4f / 12f, 0f, 180f)).Min(Lines(p, G(16, 8), G(16, 10)))
+                            .Min(Lines(p, G(4.5f, 13.5f), G(19.5f, 13.5f))) - Half,
+                        Box(p, G(12, 13.75f), new Vector2(1.5f / 12f, 1.25f / 12f), .6f / 12f));
                 default:
                     throw new ArgumentException("No lobby icon called " + name, nameof(name));
             }
