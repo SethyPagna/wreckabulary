@@ -21,7 +21,10 @@ namespace Wreckabulary
             transform.position = player.Body.position + Vector3.up * height;
             Popup.Billboard(transform);
 
-            SetIfChanged(lettersText, LettersLine(), ref lastLetters);
+            // In third person your own letters sit right in front of the camera; the HUD shows them instead.
+            var rig = CameraRig.Instance;
+            bool own = rig && rig.isActiveAndEnabled && rig.Target == player;
+            SetIfChanged(lettersText, own ? "" : LettersLine(), ref lastLetters);
             SetIfChanged(wheelText, player.Summoner.IsSpelling ? WheelLines() : ContextLine(), ref lastWheel);
         }
 

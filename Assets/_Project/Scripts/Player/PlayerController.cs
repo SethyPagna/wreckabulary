@@ -57,6 +57,14 @@ namespace Wreckabulary
         public Summoner Summoner { get; private set; }
 
         public Vector3 Facing { get; private set; } = Vector3.forward;
+        /// <summary>
+        /// The third-person camera follows this player: look turns the view and the body together, and WASD
+        /// moves where the camera looks, as in the browser edition. Set by <see cref="CameraRig"/>.
+        /// </summary>
+        public bool ShooterView { get; set; }
+        /// <summary>The third-person look in radians: yaw turns right from +z, pitch looks down.</summary>
+        public float LookYaw { get; set; }
+        public float LookPitch { get; set; } = ShoulderView.DefaultPitch;
         /// <summary>Down or wrecked: can't act, can't be targeted.</summary>
         public bool IsKnockedOut => Health && !Health.IsAlive;
         public bool IsDowned => Health && Health.IsDowned;
@@ -142,11 +150,32 @@ namespace Wreckabulary
                 Binding.Read(ref Commands);
                 if (Binding is not TouchBinding && TouchBinding.Shared.IsOverlayFor(Binding.Id))
                     TouchBinding.Shared.Merge(ref Commands);
+                if (ShooterView) ApplyLook();
             }
             // Physics steps on its own clock, so hold on to a press until a step can act on it.
             if (Commands.jump) jumpWantedUntil = Time.time + pressBuffer;
             if (Commands.dodge) dodgeWantedUntil = Time.time + pressBuffer;
             AnimateRig();
+        }
+
+        /// <summary>
+        /// Turns the view by this frame's look, then WASD and the body with it, in the same frame, so the
+        /// body always faces the crosshair (web engine.js).
+        /// </summary>
+        void ApplyLook()
+        {
+            LookYaw = Mathf.Repeat(LookYaw + Commands.lookDelta.x + Mathf.PI, Mathf.PI * 2f) - Mathf.PI;
+            LookPitch = Mathf.Clamp(LookPitch + Commands.lookDelta.y, ShoulderView.MinPitch, ShoulderView.MaxPitch);
+            Commands.move = ShoulderView.CameraRelative(Commands.move, LookYaw);
+            if (!IsEliminated && !IsHeld && !IsReviving && Time.time >= autoWalkUntil)
+                Facing = new Vector3(Mathf.Sin(LookYaw), 0f, Mathf.Cos(LookYaw));
+        }
+
+        /// <summary>Looks the way you face, a little down: on joining the view and after a respawn.</summary>
+        public void ResetLook()
+        {
+            LookYaw = Mathf.Atan2(Facing.x, Facing.z);
+            LookPitch = ShoulderView.DefaultPitch;
         }
 
         void FixedUpdate()
@@ -187,7 +216,10 @@ namespace Wreckabulary
             var shield = Health ? Health.RaisedShield : null;
             float speed = moveSpeed * MoveScale * (Time.time < boostUntil ? boost : 1f) * (IsDowned ? crawlSpeed : 1f)
                         * (shield != null ? shield.MoveSpeedMultiplier : 1f);
-            float accel = acceleration
+            // rules.json: speed builds at groundAccel while you steer and bleeds off at groundFriction once you let go.
+            var rules = Health ? Health.Rules : null;
+            float rate = rules == null ? acceleration : input.sqrMagnitude > 0.0001f ? rules.GroundAccel : rules.GroundFriction;
+            float accel = rate
                         * (IsStaggered || Time.time < slideUntil ? 0.1f : 1f)
                         * (Time.time < slipperyUntil ? 0.1f : 1f)
                         * (Grounded ? 1f : 0.35f);
@@ -229,6 +261,8 @@ namespace Wreckabulary
         Vector3 AimDirection()
         {
             if (!CanAct || IsReviving || Time.time < autoWalkUntil) return Vector3.zero;
+            // The third-person view aims where the body faces; looking up or down moves only the camera.
+            if (ShooterView) return Facing;
             var look = Commands.look;
             if (look.sqrMagnitude > 0.01f) return new Vector3(look.x, 0f, look.y);
             if (!Commands.aimAtPointer) return Vector3.zero;
@@ -381,6 +415,7 @@ namespace Wreckabulary
             lastJumpAt = float.NegativeInfinity;
             MoveScale = 1f;
             FaceTowards(-position);
+            ResetLook();
         }
 
         public void PlayPunch()

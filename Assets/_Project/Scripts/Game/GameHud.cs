@@ -28,6 +28,13 @@ namespace Wreckabulary
         /// <summary>The Tab bag and map panel is showing.</summary>
         public bool BagOpen => bagPanel && bagPanel.activeSelf;
         public bool Paused => pauseRoot && pauseRoot.activeSelf;
+        /// <summary>The HUD of the scene being played (one per match scene).</summary>
+        public static GameHud Active { get; private set; }
+        /// <summary>Something on screen wants the mouse pointer, so the third-person view lets the cursor go.</summary>
+        public bool NeedsPointer => pointerFreed || Paused || BagOpen || (craftRoot && craftRoot.activeSelf) || (typewriter && typewriter.User) || ModeActions.AnyShown;
+        /// <summary>Losing the window pauses a match, as on the web. Batch runs have no window; tests set this.</summary>
+        public static bool? PauseOnFocusLossOverride;
+        static bool PauseOnFocusLoss => PauseOnFocusLossOverride ?? !Application.isBatchMode;
 
         // The browser edition's palette (Web/src/style.css).
         static readonly Color Ink = Hex(0x173b3c), Cream = Hex(0xfff0d9), Paper = Hex(0xfff0dc, .92f);
@@ -62,7 +69,7 @@ namespace Wreckabulary
         ClearOutController clearOut;
         RoundManager rounds;
         RectTransform safe, side, status, vitals, tray, hint;
-        GameObject touchRoot, craftRoot, desktopHints, bagPanel, pauseRoot;
+        GameObject touchRoot, craftRoot, desktopHints, bagPanel, pauseRoot, crosshair;
         GameObject typewriterControls, homeButton;
         TextMeshProUGUI typewriterChoice;
         TextMeshProUGUI matchTag, matchTitle, matchDetail, roomPill, objective, statusText;
@@ -78,6 +85,8 @@ namespace Wreckabulary
         int lastWidth, lastHeight;
         float nextRefresh, resumeScale = 1f;
         bool bagPinned;
+        /// <summary>Esc in the Hub (which never pauses) lets the cursor go until a click back on the game.</summary>
+        bool pointerFreed;
         string checklistText = "";
 
         sealed class PlayerCard
@@ -154,7 +163,7 @@ namespace Wreckabulary
             safe.offsetMin = safe.offsetMax = Vector2.zero;
             StyleLegacyText();
             BuildTop(); BuildSide(); BuildStatus(); BuildVitals(); BuildTray(); BuildHint();
-            BuildCraftDrawer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause();
+            BuildCraftDrawer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause(); BuildCrosshair();
             ShowTouchControls(Application.isMobilePlatform || Touchscreen.current != null);
             ApplySafeArea();
         }
@@ -280,6 +289,31 @@ namespace Wreckabulary
                 + dot + "<b>Tab</b> bag & map" + dot + "<b>Esc</b> pause";
             hint.sizeDelta = new Vector2(text.GetPreferredValues(text.text).x + 36f, 44f);
             desktopHints = hint.gameObject;
+        }
+
+        /// <summary>The web's crosshair: four light ticks round the screen's centre, shown in the third-person view.</summary>
+        void BuildCrosshair()
+        {
+            var root = Rect("Crosshair", UiCanvas.transform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(22f, 22f));
+            // Under every HUD panel, and never in the way of a click.
+            root.SetAsFirstSibling();
+            void Tick(string label, Vector2 at, Vector2 size)
+            {
+                var tick = CreateImage(label, root, Vector2.zero, at, size, Hex(0xfff8e8));
+                tick.rectTransform.pivot = Vector2.zero;
+                var outline = tick.gameObject.AddComponent<Outline>();
+                outline.effectColor = Hex(0x10292b, .8f);
+                outline.effectDistance = new Vector2(1f, -1f);
+                var shadow = tick.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0f, 0f, 0f, .56f);
+                shadow.effectDistance = new Vector2(0f, -1.5f);
+            }
+            Tick("Top", new Vector2(10f, 16f), new Vector2(2f, 6f));
+            Tick("Bottom", new Vector2(10f, 0f), new Vector2(2f, 6f));
+            Tick("Left", new Vector2(0f, 10f), new Vector2(6f, 2f));
+            Tick("Right", new Vector2(16f, 10f), new Vector2(6f, 2f));
+            crosshair = root.gameObject;
+            crosshair.SetActive(false);
         }
 
         void BuildCraftDrawer()
@@ -492,13 +526,18 @@ namespace Wreckabulary
         {
             if (!safe) return;
             // Esc closes the open thing first, as in the browser edition, then pauses.
+            bool hub = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == Session.HubScene;
             if (DesktopBinding.Shared.Pause.WasPressedThisFrame())
             {
                 if (Paused) SetPaused(false);
                 else if (bagPinned) SetBagPinned(false);
                 else if (craftRoot.activeSelf) CancelCraft();
-                else if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != Session.HubScene && !(typewriter && typewriter.User)) SetPaused(true);
+                else if (hub) pointerFreed = CursorPolicy.Locked;
+                else if (!(typewriter && typewriter.User)) SetPaused(true);
             }
+            else if (pointerFreed && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame
+                && !(EventSystem.current && EventSystem.current.IsPointerOverGameObject()))
+                pointerFreed = false;
             // The round-end slow motion restores time on its own realtime clock; a pause outlasts it.
             if (Paused && Time.timeScale != 0f) { resumeScale = Time.timeScale; Time.timeScale = 0f; }
             if (BagOpen != WantsBag()) RefreshBagPanel();
@@ -506,10 +545,15 @@ namespace Wreckabulary
 
         bool WantsBag() => LocalPlayer && !Paused && (bagPinned || (LocalPlayer.Binding is DesktopBinding && DesktopBinding.Shared.Bag.IsPressed()));
 
+        void OnEnable() => Active = this;
+
         void LateUpdate()
         {
             if (!safe) return;
             if (Screen.width != lastWidth || Screen.height != lastHeight || Screen.safeArea != lastSafe) ApplySafeArea();
+            var rig = CameraRig.Instance;
+            bool aiming = rig && rig.isActiveAndEnabled && rig.IsThirdPerson && !NeedsPointer;
+            if (crosshair && crosshair.activeSelf != aiming) crosshair.SetActive(aiming);
             if (Time.unscaledTime < nextRefresh) return;
             nextRefresh = Time.unscaledTime + .08f;
             FindLocalPlayer(); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshCraft(); RefreshSkills(); RefreshNavigation();
@@ -896,8 +940,15 @@ namespace Wreckabulary
         {
             if (focused) return; TouchBinding.Shared.ReleaseAll();
             foreach (var stick in sticks) if (stick) stick.Release(); if (LocalPlayer) LocalPlayer.Summoner.Close();
+            // Alt-tabbing out of a match pauses it and lets the mouse go; a click on Resume takes it back.
+            if (PauseOnFocusLoss && safe && LocalPlayer && UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != Session.HubScene)
+                SetPaused(true);
         }
-        void OnDisable() => TouchBinding.Shared.ReleaseAll();
+        void OnDisable()
+        {
+            TouchBinding.Shared.ReleaseAll();
+            if (Active == this) Active = null;
+        }
         void OnDestroy()
         {
             if (Paused) Time.timeScale = resumeScale;

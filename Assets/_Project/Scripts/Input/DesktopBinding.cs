@@ -27,7 +27,7 @@ namespace Wreckabulary
         }
 
         public readonly InputActionMap Map = new("Desktop");
-        public readonly InputAction Move, Attack, Block, Jump, Dodge, Interact, Spell, Drop, Hand1, Hand2, Bag, Pause, Up, Down, Start, Point;
+        public readonly InputAction Move, Attack, Block, Jump, Dodge, Interact, Spell, Drop, Hand1, Hand2, Bag, Pause, Up, Down, Start, Point, Look;
         HoldToFire dropHold;
         readonly List<RaycastResult> uiHits = new();
         PointerEventData uiPointer;
@@ -55,6 +55,7 @@ namespace Wreckabulary
             Down = Button("Down", "<Keyboard>/s", "<Mouse>/scroll/down");
             Start = Button("Start", "<Keyboard>/enter");
             Point = Map.AddAction("Point", InputActionType.PassThrough, "<Mouse>/position", expectedControlLayout: "Vector2");
+            Look = Map.AddAction("Look", InputActionType.PassThrough, "<Mouse>/delta", expectedControlLayout: "Vector2");
             Map.Enable();
         }
 
@@ -66,6 +67,8 @@ namespace Wreckabulary
         }
 
         public override string Id => "keyboard-mouse";
+        public override bool CanLook => true;
+        public override bool ReadsMouse => true;
 
         public override void Read(ref PlayerCommands c)
         {
@@ -84,6 +87,15 @@ namespace Wreckabulary
             c.up = Up.WasPressedThisFrame();
             c.down = Down.WasPressedThisFrame();
             c.start = Start.WasPressedThisFrame();
+
+            // A captured cursor turns the third-person view (Unity's delta is positive upwards) and sits
+            // in the middle of the screen, where no menu is: every click goes to the game.
+            if (Cursor.lockState == CursorLockMode.Locked)
+            {
+                var delta = Look.ReadValue<Vector2>();
+                c.lookDelta = new Vector2(delta.x, -delta.y) * ShoulderView.MouseSensitivity;
+                return;
+            }
 
             // Clicking a menu or an on-screen skill must never also punch into the world.
             bool overUi = EventSystem.current && EventSystem.current.IsPointerOverGameObject();

@@ -8,7 +8,10 @@ namespace Wreckabulary
     public sealed class HomeTourDirector : MonoBehaviour
     {
         public PlayerController Player { get; private set; }
+        /// <summary>A mouse or a controller turns the view: the tour follows the roommate from behind, as in matches.</summary>
+        public bool ThirdPerson { get; private set; }
         Camera lens;
+        readonly ShoulderView view = new();
         public void Begin(HouseLayout house, InputBinding binding, Camera camera)
         {
             lens = camera;
@@ -23,11 +26,21 @@ namespace Wreckabulary
             var spawn = house.Spawns[0];
             Player.Respawn(new Vector3(spawn.X, house.Room(spawn.Room).FloorY + .08f, spawn.Z));
             Player.Frozen = false;
+            ThirdPerson = Player.Binding.CanLook;
+            if (ThirdPerson) { Player.ShooterView = true; Player.ResetLook(); view.Snap(); }
             if (lens) lens.rect = new Rect(0f,0f,1f,1f);
         }
+        void OnDisable() { if (ThirdPerson) CursorPolicy.Apply(false); }
         void LateUpdate()
         {
             if (!Player || !lens) return;
+            if (ThirdPerson)
+            {
+                view.Place(lens, Player.transform.position, Player.LookYaw, Player.LookPitch, Time.unscaledDeltaTime);
+                // The tour owns the cursor while it runs; Esc or START ends it and gives the pointer back.
+                CursorPolicy.Apply(CursorPolicy.WantsLock(Player.Binding.ReadsMouse, false, Application.isFocused));
+                return;
+            }
             var centre = Player.transform.position; centre.y = 0f;
             lens.orthographic = true;
             // Keep the roommate readable on phones, including a narrow portrait viewport.
@@ -41,6 +54,8 @@ namespace Wreckabulary
             readonly InputBinding source;
             public TourBinding(InputBinding source) { this.source = source ?? DesktopBinding.Shared; }
             public override string Id => "home-tour:" + source.Id;
+            public override bool CanLook => source.CanLook;
+            public override bool ReadsMouse => source.ReadsMouse;
             public override void Read(ref PlayerCommands c)
             {
                 var original = default(PlayerCommands); source.Read(ref original);
@@ -49,7 +64,7 @@ namespace Wreckabulary
                 if (source is not TouchBinding && TouchBinding.Shared.IsOverlayFor(source.Id))
                     TouchBinding.Shared.Merge(ref original);
                 // Movement/aim/jump only. Even a craft, attack or grab input cannot start a gameplay action.
-                c.move = original.move; c.look = original.look; c.jump = original.jump;
+                c.move = original.move; c.look = original.look; c.lookDelta = original.lookDelta; c.jump = original.jump;
                 c.pointer = original.pointer; c.aimAtPointer = original.aimAtPointer;
             }
             public override bool JoinPressed() => false;

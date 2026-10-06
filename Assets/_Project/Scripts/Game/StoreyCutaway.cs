@@ -97,7 +97,10 @@ namespace Wreckabulary
 
             lifted.Clear();
             liftedAreas.Clear();
-            foreach (var p in locals)
+            // Behind the player in third person, nothing upstairs lies between the camera and anyone; the
+            // storeys above stay off, an open top as in the browser edition.
+            bool overhead = !CameraRig.Instance || !CameraRig.Instance.isActiveAndEnabled || !CameraRig.Instance.IsThirdPerson;
+            if (overhead) foreach (var p in locals)
             {
                 var at = p.transform.position;
                 for (int above = storeyOf[p] + 1; above <= top; above++)
@@ -119,7 +122,7 @@ namespace Wreckabulary
             // The tall end of a flight hides whoever stands just past it on the same floor, so it comes off for them.
             bool InTheWay(Renderer r, int storey)
             {
-                if (!flightParts.TryGetValue(r, out var b)) return false;
+                if (!overhead || !flightParts.TryGetValue(r, out var b)) return false;
                 var piece = Rect.MinMaxRect(b.min.x, b.min.z, b.max.x, b.max.z);
                 foreach (var p in locals)
                 {

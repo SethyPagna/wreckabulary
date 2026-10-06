@@ -43,10 +43,27 @@ namespace Wreckabulary.Tests
             var binding=HomeTourDirector.CreateBinding(TouchBinding.Shared); var commands=default(PlayerCommands); binding.Read(ref commands);
             Assert.AreEqual(Vector2.up,commands.move); Assert.IsTrue(commands.jump); AssertPeaceful(commands);
         }
+        [Test] public void TheTourLooksWithItsSource()
+        {
+            var source=new LookingBinding(); var binding=HomeTourDirector.CreateBinding(source); var commands=default(PlayerCommands);
+            binding.Read(ref commands);
+            Assert.IsTrue(binding.CanLook); Assert.IsTrue(binding.ReadsMouse);
+            Assert.AreEqual(new Vector2(.1f,-.05f),commands.lookDelta);
+            Assert.IsFalse(HomeTourDirector.CreateBinding(new FullBinding()).CanLook,"a source that can't look keeps the overhead tour");
+        }
         static void AssertPeaceful(PlayerCommands c)
         {
             Assert.IsFalse(c.attack || c.grab || c.grabHeld || c.blockHeld || c.dodge || c.drop || c.swap);
             Assert.IsFalse(c.spellDown || c.spellHeld || c.spellUp || c.up || c.down || c.start);
+        }
+        sealed class LookingBinding : InputBinding
+        {
+            public override string Id=>"test-look";
+            public override bool CanLook=>true;
+            public override bool ReadsMouse=>true;
+            public override void Read(ref PlayerCommands c)=>c.lookDelta=new Vector2(.1f,-.05f);
+            public override bool JoinPressed()=>false;
+            public override bool StartPressed()=>false;
         }
         sealed class FullBinding : InputBinding
         {

@@ -13,6 +13,8 @@ namespace Wreckabulary
     {
         [SerializeField] Transform furnitureRoot;
         Transform geometry;
+        /// <summary>The scene's wall sign, kept on the two original houses until the walls stand tall.</summary>
+        GameObject sign;
         readonly List<Smashable> originals = new();
         public HouseLayout Layout { get; private set; }
         public IReadOnlyList<Smashable> Originals => originals;
@@ -23,8 +25,9 @@ namespace Wreckabulary
             var oldRoom = GameObject.Find("Room");
             if (oldRoom) oldRoom.SetActive(false);
             // The scene's wall sign floats over the two original houses; on other maps their walls cut it short.
-            var sign = Session.MapId is "pinwheel" or "courtyard" ? null : GameObject.Find("Sign");
-            if (sign) sign.SetActive(false);
+            var found = GameObject.Find("Sign");
+            if (Session.MapId is "pinwheel" or "courtyard") sign = found;
+            else if (found) found.SetActive(false);
             if (furnitureRoot) furnitureRoot.gameObject.SetActive(false);
             geometry = CreateGeometry(Layout, Session.MapId, transform);
             // With an upstairs, the floors above you would hide you from the overhead camera.
@@ -63,6 +66,22 @@ namespace Wreckabulary
                 var prop = FurnitureCatalog.Spawn(f.Word, new Vector3(f.X, Layout.Room(f.Room).FloorY + f.Y, f.Z), f.Yaw, furnitureRoot);
                 originals.Add(prop);
             }
+        }
+
+        /// <summary>
+        /// Full-height walls for a third-person camera, low ones for the overhead view. At eye level the
+        /// standing sign would block the view, so it goes while the walls are tall (web renderer.js).
+        /// </summary>
+        public void SetTallWalls(bool tall)
+        {
+            if (sign) sign.SetActive(!tall);
+            SetTallWalls(geometry, tall);
+        }
+
+        public static void SetTallWalls(Transform geometry, bool tall)
+        {
+            if (!geometry) return;
+            foreach (var wall in geometry.GetComponentsInChildren<TallWall>(true)) wall.Apply(tall);
         }
 
         /// <summary>The geometry's group for a storey (0 is the ground floor).</summary>
@@ -200,11 +219,19 @@ namespace Wreckabulary
                     float length = cuts[i + 1] - cuts[i];
                     var wall = Block("Wall", storeys[edge.Storey], edge.Vertical ? new Vector3(edge.Fixed, edge.FloorY + .55f, mid) : new Vector3(mid, edge.FloorY + .55f, edge.Fixed),
                         edge.Vertical ? new Vector3(.2f, 1.1f, length) : new Vector3(length, 1.1f, .2f), new Color(.66f, .7f, .65f));
-                    var collider = wall.GetComponent<BoxCollider>();
-                    collider.size = new Vector3(1f, height / 1.1f, 1f);
-                    collider.center = new Vector3(0f, (height * .5f - .55f) / 1.1f, 0f);
+                    var tall = wall.AddComponent<TallWall>();
+                    tall.FloorY = edge.FloorY;
+                    tall.Height = height;
+                    // Outside on either side, or a garden there: an exterior wall.
+                    tall.Outside = edge.Vertical
+                        ? Outdoors(edge.Storey, edge.Fixed - .1f, mid) || Outdoors(edge.Storey, edge.Fixed + .1f, mid)
+                        : Outdoors(edge.Storey, mid, edge.Fixed - .1f) || Outdoors(edge.Storey, mid, edge.Fixed + .1f);
+                    tall.Apply(false);
                 }
             }
+
+            bool Outdoors(int storey, float x, float z) => !Layout.Rooms.Any(r => r.Name != "Garden" && Layout.StoreyOf(r) == storey
+                && x > r.MinX && x < r.MaxX && z > r.MinZ && z < r.MaxZ);
 
             /// <summary>
             /// A flight from the lower room to the one above: an unseen solid ramp to walk on, steps to look at,

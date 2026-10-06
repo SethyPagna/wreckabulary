@@ -96,6 +96,28 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(p.IsDodging);
         }
 
+        // ---- Walking ----
+
+        [UnityTest]
+        public IEnumerator SpeedBuildsAndBleedsAtTheRulesRates()
+        {
+            var p = SpawnPlayer(0, Vector3.zero, out var input);
+            var rules = Match.Rules.Clone();
+            rules.GroundAccel = 4f;
+            rules.GroundFriction = 2f;
+            p.Health.UseRules(rules);
+            yield return Frames(5);
+
+            input.Next.move = Vector2.up;
+            yield return new WaitForSeconds(.5f);
+            float built = p.Body.linearVelocity.z;
+            Assert.AreEqual(2f, built, .4f, "groundAccel: 4 m/s² for half a second");
+
+            input.Next.move = Vector2.zero;
+            yield return new WaitForSeconds(.5f);
+            Assert.AreEqual(built - 1f, p.Body.linearVelocity.z, .4f, "groundFriction: 2 m/s² once you let go");
+        }
+
         // ---- Dodge ----
 
         [UnityTest]

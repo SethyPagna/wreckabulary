@@ -311,7 +311,7 @@ namespace Wreckabulary
                 tour = new GameObject("Peaceful home tour").AddComponent<HomeTourDirector>(); tour.transform.SetParent(transform,false);
                 TouchBinding.Shared.ReleaseAll(); TouchBinding.Shared.Enabled = true;
                 TouchBinding.Shared.OverlayDesktop = true; TouchBinding.Shared.OverlayBindingId = tourBinding.Id;
-                tour.Begin(stage.House,tourBinding,lens);
+                tour.Begin(stage.House,tourBinding,lens); stage.SetTallWalls(tour.ThirdPerson);
                 header.gameObject.SetActive(false); dock.gameObject.SetActive(false); tourBar.gameObject.SetActive(true);
                 touchControls.gameObject.SetActive(Application.isMobilePlatform || Touchscreen.current != null || tourBinding is TouchBinding);
                 tourTitle.text = "YOUR SAVED HOME\nMove freely · Back or START returns";
@@ -324,6 +324,7 @@ namespace Wreckabulary
         void EndTour()
         {
             if (tour) { tour.gameObject.SetActive(false); Destroy(tour.gameObject); tour = null; }
+            if (stage) stage.SetTallWalls(false);
             TouchBinding.Shared.ReleaseAll(); RestoreTouch();
             touchControls.gameObject.SetActive(false); tourBar.gameObject.SetActive(false); header.gameObject.SetActive(true); dock.gameObject.SetActive(true);
             if (!stage.Show(history.Current,out var error)) SetStatus(error);

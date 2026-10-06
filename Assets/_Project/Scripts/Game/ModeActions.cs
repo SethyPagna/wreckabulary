@@ -10,6 +10,21 @@ namespace Wreckabulary
     {
         GameObject panel;
         TMP_Text label;
+        static readonly System.Collections.Generic.List<ModeActions> all = new();
+
+        /// <summary>Start, retry or home buttons are on screen, so the pointer must be free to click them.</summary>
+        public static bool AnyShown
+        {
+            get
+            {
+                foreach (var a in all)
+                    if (a && a.panel && a.panel.activeInHierarchy) return true;
+                return false;
+            }
+        }
+
+        void OnEnable() => all.Add(this);
+        void OnDisable() => all.Remove(this);
         public static ModeActions Create(Transform owner, string caption, Action play)
         {
             var component = new GameObject("Mode actions").AddComponent<ModeActions>();

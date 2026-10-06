@@ -133,6 +133,12 @@ namespace Wreckabulary.Tests
             inputs[1].Next.spellUp = true;
             yield return new WaitForSeconds(0.6f);
             Capture(Path.Combine(dir, "3_bees.png"));
+
+            // The same fight as one person with a mouse or a controller sees it: from behind P1.
+            CameraRig.Instance.Follow(World.Players[0]);
+            yield return new WaitForSeconds(0.8f);
+            yield return CaptureFramed(Path.Combine(dir, "4_third_person.png"));
+            CameraRig.Instance.Follow(null);
         }
 
         IEnumerator CaptureHubAndTutorialSequence()
@@ -244,15 +250,20 @@ namespace Wreckabulary.Tests
                 yield return SceneManager.LoadSceneAsync(Session.DibsScene);
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"map_{map}.png"));
-                // A house with an upstairs: also one player alone downstairs, with the floors above lifted off.
-                if (GameConfig.Current.HouseFor(map).StoreyFloors().Count < 2) continue;
+                // One player alone: in a house with an upstairs, downstairs with the floors above lifted off;
+                // then on every map, followed from behind as a person with a mouse or a controller sees it.
                 Session.Clear();
                 Session.SelectMap(map);
                 Match.ModeOverride = "Dibs";
                 Session.Remember(new ScriptedBinding());
                 yield return SceneManager.LoadSceneAsync(Session.DibsScene);
                 yield return new WaitForSeconds(1.5f);
-                yield return CaptureFramed(Path.Combine(dir, $"map_{map}_solo.png"));
+                if (GameConfig.Current.HouseFor(map).StoreyFloors().Count >= 2)
+                    yield return CaptureFramed(Path.Combine(dir, $"map_{map}_solo.png"));
+                CameraRig.Instance.Follow(World.Players[0]);
+                yield return new WaitForSeconds(1f);
+                yield return CaptureFramed(Path.Combine(dir, $"map_{map}_tps.png"));
+                CameraRig.Instance.Follow(null);
             }
             Session.Clear();
         }

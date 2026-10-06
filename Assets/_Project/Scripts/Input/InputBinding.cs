@@ -29,6 +29,11 @@ namespace Wreckabulary
         /// <summary>Mouse aim: when set, the player turns to face <see cref="pointer"/>, a screen position.</summary>
         public bool aimAtPointer;
         public Vector2 pointer;
+        /// <summary>
+        /// Third-person look for this frame, in radians: x turns right, y looks down. The mouse fills it while
+        /// the cursor is captured, the right stick at a steady rate.
+        /// </summary>
+        public Vector2 lookDelta;
     }
 
     /// <summary>One player's input source: keyboard and mouse, a gamepad, half a keyboard, or a script in tests.</summary>
@@ -38,6 +43,10 @@ namespace Wreckabulary
         public const float DropHoldSeconds = 0.25f;
 
         public abstract string Id { get; }
+        /// <summary>Turns the third-person view (mouse or right stick). Without it a lone player keeps the overhead view.</summary>
+        public virtual bool CanLook => false;
+        /// <summary>Looks with the mouse, so the third-person view captures the cursor.</summary>
+        public virtual bool ReadsMouse => false;
         public abstract void Read(ref PlayerCommands c);
         public abstract bool JoinPressed();
         public abstract bool StartPressed();
@@ -163,7 +172,11 @@ namespace Wreckabulary
 
         public GamepadBinding(Gamepad pad) => Pad = pad;
 
+        /// <summary>Right-stick look at full tilt, in radians a second (the web has no pad code; a default).</summary>
+        public const float LookYawSpeed = 3f, LookPitchSpeed = 2f;
+
         public override string Id => $"gamepad-{Pad.deviceId}";
+        public override bool CanLook => true;
 
         public override void Read(ref PlayerCommands c)
         {
@@ -174,6 +187,7 @@ namespace Wreckabulary
             c.move = Vector2.ClampMagnitude(stick + Pad.dpad.ReadValue(), 1f);
             var look = Pad.rightStick.ReadValue();
             c.look = look.magnitude < 0.3f ? Vector2.zero : look;
+            c.lookDelta = new Vector2(c.look.x * LookYawSpeed, -c.look.y * LookPitchSpeed) * Time.deltaTime;
 
             c.grab = Pad.rightTrigger.wasPressedThisFrame;
             c.grabHeld = Pad.rightTrigger.isPressed;
@@ -218,6 +232,7 @@ namespace Wreckabulary
             Next.swap = false;
             Next.slot = 0;
             Next.spellDown = Next.spellUp = Next.up = Next.down = Next.start = false;
+            Next.lookDelta = Vector2.zero;
         }
 
         public override bool JoinPressed() => false;

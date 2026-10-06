@@ -14,6 +14,8 @@ namespace Wreckabulary
         string map;
         LineRenderer selection;
         public HouseLayout House => house;
+        /// <summary>Full-height walls for the tour's third-person camera, low ones for designing.</summary>
+        public void SetTallWalls(bool tall) => RoomBuilder.SetTallWalls(geometry, tall);
 
         public bool Show(HomeLayout layout, out string error)
         {
