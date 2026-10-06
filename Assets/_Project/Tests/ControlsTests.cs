@@ -38,6 +38,11 @@ namespace Wreckabulary.Tests
             return p;
         }
 
+        static IEnumerator Updates(int n)
+        {
+            for (int i = 0; i < n; i++) yield return null;
+        }
+
         static IEnumerator Frames(int n)
         {
             for (int i = 0; i < n; i++) yield return new WaitForFixedUpdate();
@@ -426,6 +431,71 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("<Keyboard>/d", Path(d.Move, 4));
             Assert.IsTrue(d.Map.enabled);
             StringAssert.StartsWith("Press SPACE", ControlHints.Join("join"));
+            // Left click throws and places, as in the browser edition: no F (place) or G (throw) key.
+            foreach (var action in d.Map.actions)
+                foreach (var binding in action.bindings)
+                    Assert.IsFalse(binding.path is "<Keyboard>/f" or "<Keyboard>/g", action.name + " is bound to " + binding.path);
+            Assert.AreEqual("Hold R, ' or Numpad6, or LB", ControlHints.Drop);
+        }
+
+        // ---- Left click does what the held thing is for ----
+
+        static HeldWeapon Craft(PlayerController p, string word)
+        {
+            p.Inventory.Set(word);
+            Assert.IsTrue(p.Summoner.Summon(word), word + " is crafted into the hand");
+            Assert.IsNotNull(p.Combat.Weapon, word + " is in hand");
+            return p.Combat.Weapon;
+        }
+
+        [UnityTest]
+        public IEnumerator AttackPlacesToolsTableIncluded()
+        {
+            var words = new[] { "TABLE", "BED" };
+            for (int i = 0; i < words.Length; i++)
+            {
+                var p = SpawnPlayer(i, new Vector3(i * 8f, 0f, 0f), out var input);
+                yield return Frames(3);
+                p.FaceTowards(Vector3.forward);
+                Craft(p, words[i]);
+                input.Next.attack = true;
+                yield return TestScenes.WaitUntil(() => DeployedGear.CountFor(p) == 1, 3f, words[i] + " placed by the attack button");
+                Assert.IsFalse(p.Combat.Weapon, words[i] + " left the hand");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator InteractPicksUpAPropBesideGearAndAttackThrowsIt()
+        {
+            var p = SpawnPlayer(0, Vector3.zero, out var input);
+            yield return Frames(3);
+            p.FaceTowards(Vector3.forward);
+            var bat = Craft(p, "BAT");
+            var chair = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            chair.name = "Test chair";
+            chair.transform.position = new Vector3(0f, 0.25f, 0.9f);
+            chair.transform.localScale = Vector3.one * 0.5f;
+            var body = chair.AddComponent<Rigidbody>();
+            body.mass = 2f;
+            int thrown = 0;
+            p.Combat.Thrown += _ => thrown++;
+            yield return Frames(3);
+
+            input.Next.grab = true;
+            yield return Updates(3);
+            Assert.AreEqual(0, thrown, "E never throws");
+            Assert.AreEqual(body, p.Combat.Held, "the prop is picked up");
+            Assert.AreEqual(bat, p.Combat.StoredGear, "the BAT moves to the other hand instead of being lost");
+
+            input.Next.grab = true;
+            yield return Updates(3);
+            Assert.AreEqual(body, p.Combat.Held, "E again while carrying does nothing");
+
+            input.Next.attack = true;
+            yield return Updates(3);
+            Assert.AreEqual(1, thrown, "the attack button throws what's carried");
+            Assert.IsFalse(p.Combat.IsHolding);
+            Assert.AreEqual(bat, p.Combat.StoredGear, "the BAT is still there for later");
         }
     }
 }

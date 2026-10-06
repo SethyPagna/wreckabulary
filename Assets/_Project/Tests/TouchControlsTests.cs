@@ -132,20 +132,21 @@ namespace Wreckabulary.Tests
         }
 
         [Test]
-        public void PlaceAndSwapHaveMatchingDesktopAndScriptedEdges()
+        public void SwapHasMatchingDesktopAndScriptedEdges()
         {
-            Assert.AreEqual("<Keyboard>/f", DesktopBinding.Shared.Deploy.bindings[0].path);
+            // Left click places and throws, as in the browser edition, so there is no separate place key.
+            Assert.IsNull(DesktopBinding.Shared.Map.FindAction("Place"));
             // Same keys as the browser edition: 1 and 2 pick a hand, Tab peeks at the bag, Esc pauses.
             Assert.AreEqual("<Keyboard>/1", DesktopBinding.Shared.Hand1.bindings[0].path);
             Assert.AreEqual("<Keyboard>/2", DesktopBinding.Shared.Hand2.bindings[0].path);
             Assert.AreEqual("<Keyboard>/tab", DesktopBinding.Shared.Bag.bindings[0].path);
             Assert.AreEqual("<Keyboard>/escape", DesktopBinding.Shared.Pause.bindings[0].path);
-            var scripted = new ScriptedBinding { Next = new PlayerCommands { deploy = true, swap = true, slot = 2 } };
+            var scripted = new ScriptedBinding { Next = new PlayerCommands { attack = true, swap = true, slot = 2 } };
             var command = default(PlayerCommands);
             scripted.Read(ref command);
-            Assert.IsTrue(command.deploy && command.swap && command.slot == 2);
+            Assert.IsTrue(command.attack && command.swap && command.slot == 2);
             scripted.Read(ref command);
-            Assert.IsFalse(command.deploy || command.swap || command.slot != 0);
+            Assert.IsFalse(command.attack || command.swap || command.slot != 0);
         }
 
         [Test]

@@ -45,7 +45,7 @@ namespace Wreckabulary.Tests
         }
         static void AssertPeaceful(PlayerCommands c)
         {
-            Assert.IsFalse(c.attack || c.grab || c.grabHeld || c.blockHeld || c.dodge || c.drop || c.deploy || c.swap);
+            Assert.IsFalse(c.attack || c.grab || c.grabHeld || c.blockHeld || c.dodge || c.drop || c.swap);
             Assert.IsFalse(c.spellDown || c.spellHeld || c.spellUp || c.up || c.down || c.start);
         }
         sealed class FullBinding : InputBinding
@@ -54,7 +54,7 @@ namespace Wreckabulary.Tests
             public override void Read(ref PlayerCommands c)
             {
                 c.move=new Vector2(.25f,.5f); c.look=new Vector2(.5f,0); c.pointer=new Vector2(30,40); c.aimAtPointer=true;
-                c.attack=c.grab=c.grabHeld=c.blockHeld=c.jump=c.dodge=c.drop=c.deploy=c.swap=true;
+                c.attack=c.grab=c.grabHeld=c.blockHeld=c.jump=c.dodge=c.drop=c.swap=true;
                 c.spellDown=c.spellHeld=c.spellUp=c.up=c.down=c.start=true;
             }
             public override bool JoinPressed()=>true;

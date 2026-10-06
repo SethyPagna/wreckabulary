@@ -727,9 +727,9 @@ namespace Wreckabulary
             LobbyKit.Heading(list, "Controls");
             foreach (var (what, keys) in new[]
             {
-                ("Move", ControlHints.Move), ("Smash", ControlHints.Attack), ("Grab and throw", ControlHints.Grab),
+                ("Move", ControlHints.Move), ("Smash, throw, place", ControlHints.Attack), ("Pick up and revive", ControlHints.Grab),
                 ("Spell and craft", ControlHints.Spell), ("Jump", ControlHints.Jump), ("Dodge", ControlHints.Dodge),
-                ("Block", ControlHints.Block), ("Place", ControlHints.Place), ("Swap hands", ControlHints.Swap),
+                ("Block", ControlHints.Block), ("Drop", ControlHints.Drop), ("Swap hands", ControlHints.Swap),
             })
             {
                 var text = LobbyKit.Text(Setting(list, what), keys, 19, LobbyKit.Muted, TextAlignmentOptions.MidlineRight);

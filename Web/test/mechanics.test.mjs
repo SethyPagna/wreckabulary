@@ -746,3 +746,94 @@ test("craft waits through melee recovery, and releasing a weapon cancels that ch
   assert.equal(p.meleeUntil, 0);
   balanced(g);
 });
+test("attack does what the held thing is for: throw, use, place or swing", () => {
+  const expected = {
+    BALL: "throw",
+    BOMB: "throw",
+    FOAM: "useStart",
+    BED: "placeStart",
+    MAT: "placeStart",
+    SOAP: "placeStart",
+    SOFA: "placeStart",
+    TABLE: "placeStart",
+    BAT: "swing",
+    BLADE: "swing",
+    LAMP: "swing",
+  };
+  for (const [word, event] of Object.entries(expected)) {
+    const g = game(),
+      p = g.players[0];
+    craft(g, p, word);
+    g.time = 4;
+    g.events.length = 0;
+    assert.equal(g.attack(p), true, word);
+    const mine = g.events.filter((e) => e.player === 0).map((e) => e.type);
+    assert.ok(mine.includes(event), `${word} should ${event}, got ${mine}`);
+    finishAction(g, p);
+    balanced(g);
+  }
+});
+test("holding attack after a throw doesn't punch until the button is let go", () => {
+  const g = game(),
+    p = g.players[0];
+  g.players.slice(1).forEach((q) => (q.ai = false));
+  craft(g, p, "BALL");
+  g.time = 4;
+  g.events.length = 0;
+  for (let n = 0; n < 40; n++) g.tick(0.025, { attack: true });
+  const mine = () => g.events.filter((e) => e.player === 0).map((e) => e.type);
+  assert.deepEqual(
+    mine().filter((t) => t === "throw" || t === "swing"),
+    ["throw"],
+    "one throw, then nothing while held",
+  );
+  g.tick(0.025, {});
+  g.tick(0.025, { attack: true });
+  assert.ok(mine().includes("swing"), "a fresh press punches");
+  balanced(g);
+});
+test("a refused place is reported once while attack is held", () => {
+  const g = game(),
+    p = g.players[0];
+  g.players.slice(1).forEach((q) => (q.ai = false));
+  craft(g, p, "BED");
+  assert.equal(g.deploy(p), null);
+  finishAction(g, p);
+  craft(g, p, "MAT");
+  assert.equal(g.deploy(p), null);
+  finishAction(g, p);
+  craft(g, p, "SOAP");
+  g.time = Math.max(g.time, 4);
+  g.events.length = 0;
+  for (let n = 0; n < 20; n++) g.tick(0.025, { attack: true });
+  const refused = g.events.filter((e) => e.type === "refused" && e.player === 0);
+  assert.equal(refused.length, 1);
+  assert.match(refused[0].message, /Two tools/);
+  assert.equal(g.held(p).word, "SOAP");
+  balanced(g);
+});
+test("Moving Day: attack places a checklist word only where it lands in its room", () => {
+  const g = game("MovingDay"),
+    p = g.players[0];
+  g.players.slice(1).forEach((q) => (q.ai = false));
+  const goal = g.objectives.find((o) => o.word === "LAMP"),
+    away = g.house.rooms.find((r) => r.name !== goal.room);
+  craft(g, p, "LAMP");
+  g.time = Math.max(g.time, 4);
+  p.x = (away.bounds[0] + away.bounds[2]) / 2;
+  p.z = (away.bounds[1] + away.bounds[3]) / 2;
+  p.facing = { x: 0, z: 1 };
+  assert.equal(g.placesObjective(p, g.held(p)), false);
+  g.events.length = 0;
+  g.attack(p);
+  assert.ok(g.events.some((e) => e.type === "swing" && e.player === 0), "elsewhere it is still a lamp to swing");
+  assert.equal(goal.done, false);
+  g.time = p.attackAt;
+  p.x = goal.x;
+  p.z = goal.z;
+  assert.equal(g.placesObjective(p, g.held(p)), true);
+  g.attack(p);
+  finishAction(g, p);
+  assert.equal(goal.done, true);
+  balanced(g);
+});

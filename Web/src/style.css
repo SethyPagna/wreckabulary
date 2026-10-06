@@ -822,13 +822,9 @@ button:active {
   grid-column: 3;
   grid-row: 2;
 }
-.actions .deploy-action {
+.actions .drop-action {
   grid-column: 1;
   grid-row: 2;
-}
-.actions .throw-action {
-  grid-column: 1;
-  grid-row: 3;
 }
 .action.disabled {
   opacity: 0.45;

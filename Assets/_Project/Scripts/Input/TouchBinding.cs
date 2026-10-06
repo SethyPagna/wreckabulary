@@ -2,6 +2,7 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
+    /// <summary>Deploy has no button any more (the attack button places); it keeps its slot because the HUD picks icons by number.</summary>
     public enum TouchAction { Attack, Dodge, Jump, Craft, Block, Grab, Deploy, Drop, Swap, Start, Up, Down }
 
     /// <summary>
@@ -65,7 +66,6 @@ namespace Wreckabulary
             c.grab = pressed[(int)TouchAction.Grab];
             c.grabHeld = held[(int)TouchAction.Grab];
             c.blockHeld = held[(int)TouchAction.Block];
-            c.deploy = pressed[(int)TouchAction.Deploy];
             c.swap = pressed[(int)TouchAction.Swap];
             c.drop = dropHold.Update(held[(int)TouchAction.Drop], Time.unscaledTime);
             c.spellDown = craftDown;
@@ -96,7 +96,6 @@ namespace Wreckabulary
             c.grabHeld |= touch.grabHeld;
             c.blockHeld |= touch.blockHeld;
             c.drop |= touch.drop;
-            c.deploy |= touch.deploy;
             c.swap |= touch.swap;
             c.spellDown |= touch.spellDown;
             c.spellHeld |= touch.spellHeld;

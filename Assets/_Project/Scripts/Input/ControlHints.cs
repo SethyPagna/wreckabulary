@@ -25,7 +25,9 @@ namespace Wreckabulary
         // The left keyboard half dodges on Left Shift too.
         public static string Dodge => Application.isMobilePlatform ? "DASH button" : $"{Key(Desktop.Dodge)}, Right Ctrl or B";
         public static string Block => Application.isMobilePlatform ? "Hold BLOCK with a shield" : $"{Key(Desktop.Block)}, L, ; or LT";
-        public static string Place => Application.isMobilePlatform ? "PLACE button" : $"{Key(Desktop.Deploy)}, I, Numpad7 or RB";
+        // The left keyboard half drops on R too, so a rebind only adds a key.
+        public static string Drop => Application.isMobilePlatform ? "Hold DROP button" :
+            Key(Desktop.Drop) == "R" ? "Hold R, ' or Numpad6, or LB" : $"Hold {Key(Desktop.Drop)}, R (left keys), ' or Numpad6, or LB";
         public static string Swap => Application.isMobilePlatform ? "Tap a hand slot" : $"{Key(Desktop.Hand1)} / {Key(Desktop.Hand2)}, Tab (left keys), Numpad8 or right-stick press";
         public static string Move => Application.isMobilePlatform ? "Left stick to move, right stick to aim" : "WASD, arrow keys or the left stick";
     }

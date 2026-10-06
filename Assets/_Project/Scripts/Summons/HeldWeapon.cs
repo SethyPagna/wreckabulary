@@ -123,8 +123,9 @@ namespace Wreckabulary
             {
                 if (definition.Use != null) { StartCoroutine(ConsumeAfterChannel(user, owner)); return; }
                 if (definition.Thrown != null) { user.Throw(); return; }
-                if (definition.Melee != null) { StartCoroutine(MeleeAfterWindup(user, owner)); return; }
+                // Placing comes before swinging, so gear that can do both (TABLE) is put down.
                 if (definition.Deploy != null) { user.DeployHeld(); return; }
+                if (definition.Melee != null) { StartCoroutine(MeleeAfterWindup(user, owner)); return; }
                 return;
             }
             if (ranged)

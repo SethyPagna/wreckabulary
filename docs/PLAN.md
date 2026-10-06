@@ -24,7 +24,7 @@ Wreckabulary is a warm, tactile third-person house game for 1–4 players.
 | --- | --- | --- |
 | C1 | **The next slice is the house game.** Brawl and Co-op Jobs come first. The Photograph Room is kept as a later Home Studio experiment; it is neither cancelled nor merged into the house game. | Creator, 5 Oct |
 | C2 | **The bag holds 10 loose letters**, down from 18. Each player also has 2 carried items and 2 deployed items, and starts with 100 HP. Matches start with an empty bag. | Creator, 5 Oct (10); D-plan (the rest) |
-| C3 | **One unified handling map**, set out in section 6. E is the contextual hand. Hold right mouse to aim, then left mouse to throw. Q opens the typed composer. | Master plan section 6; creator, 5 Oct |
+| C3 | **One unified handling map**, set out in section 6. E is the contextual hand (pick up, revive). Left mouse does what the held thing is for: swing, throw, place or use. Right mouse guards. Q opens the typed composer. | Master plan section 6; creator, 5 Oct; left mouse throws and places in both editions, creator, 6 Oct |
 | C4 | **The world stays live while typing.** Typing takes the movement keys, but physics, momentum and knockback continue and the camera can still look around. After you confirm, the build channel runs at 40% movement. Nothing freezes. | Master plan; Revision 2 |
 | C5 | **Health, not letters, is the life bar.** Health is 100 HP, with downed, revive and bleed-out in team modes. | Earlier decision |
 | C6 | **Unity 6 is the main native edition.** It lives in the `SethyPagna/wreckabulary` fork and is PC first, Android later. The browser edition (Three.js, `Web/`) shares the JSON data and stays playable, but has its own tests. | Earlier decisions |
@@ -34,7 +34,7 @@ Wreckabulary is a warm, tactile third-person house game for 1–4 players.
 
 **Disclosed defaults.** The creator can overturn any of these.
 - The local couch game keeps the shared couch camera.
-- The 2c-1b gamepad layout remains, re-aligned to C3: A jump, X primary, B dodge, RT hand/revive, LT aim/guard, Y compose.
+- The 2c-1b gamepad layout remains, re-aligned to C3: A jump, X primary, B dodge, RT hand/revive, LT guard, Y compose. X also throws and places, like left mouse.
 - Typing a word uses the keyboard. Gamepads choose the word from a known-word list.
 - VACUUM needs an authored source of the letters C, U, U and V in the house; see section 4.
 
@@ -125,9 +125,9 @@ Wreckabulary is a warm, tactile third-person house game for 1–4 players.
 | Action | Key |
 | --- | --- |
 | Move / look | WASD / mouse |
-| Primary (use the item; smash furniture bare-handed) | Left mouse; hold it to charge |
-| Aim or guard | Hold right mouse. With a throwable item: left press, hold and release throws; release right mouse first, or press Esc, to cancel. With a PLATE: guard. |
-| Hand (contextual) | E: tap to store the letter you're looking at, grip, pick up or set down; hold to revive. Hold E to place, turn the wheel to rotate, left mouse to confirm, right mouse or Esc to cancel. |
+| Primary: what the held thing is for | Left mouse. Gear swings (BAT, BLADE, LAMP); BALL, BOMB and carried props are thrown; tools are placed (BED, MAT, SOAP, SOFA, TABLE); FOAM is used; empty hands punch. One press does one throw, place or use. There is no separate throw or place key (6 Oct: F and G removed in both editions). |
+| Guard | Hold right mouse with a PLATE. |
+| Hand (contextual) | E: tap to store the letter you're looking at, grip or pick up; hold to revive. It never throws. |
 | Compose | Q opens the typed composer. Enter confirms. Tab switches New/Rewrite (Home Studio). |
 | Carried slots | 1 / 2, or the mouse wheel outside placement |
 | Bag peek | Tab, outside the composer |
@@ -187,7 +187,7 @@ Each milestone closes only for a named edition and commit, with recorded evidenc
 | --- | --- | --- |
 | **P0 Baseline and plan** | This plan. Capacity 18 → 10 in data, code, UI and tests in both editions. The Unity HUD tray follows the data limit. | Rules harness, Unity EditMode and browser mechanics tests pass with 10. |
 | **P1 Motion and presentation** | Browser: all 17 clips, crossfades, hand-bone attachment, posture layer, downed fix, VFX loaded. Unity: crossfades, the clips it doesn't use yet, the posture layer, and a closer perspective camera for solo play. Unity grips keep their authored socket orientation, which the BAT attachment tests require, and an over-the-shoulder view needs camera-relative controls, so it moves to P2. | Captures from four angles plus in-game. No sliding feet. The item stays in the hand. |
-| **P2 Unified controls** | The section 6 map in both editions: typed Q composer in Unity, E store/grip/place, RMB aim with LMB throw, 1/2, Tab peek, wheel rotate, Esc pause menu; an optional over-the-shoulder solo camera with camera-relative movement. | Unity input tests and browser flows. No stray attack after a modal closes. |
+| **P2 Unified controls** | The section 6 map in both editions: typed Q composer in Unity, E store/grip, LMB swing/throw/place/use, RMB guard, 1/2, Tab peek, wheel rotate, Esc pause menu; an optional over-the-shoulder solo camera with camera-relative movement. | Unity input tests and browser flows. No stray attack after a modal closes. |
 | **P3 Material journey** (was 2c-2) | Smash, exact tile release, deliberate E pickup, reserve and channel, cancel, refund and spill; capacity 10, 2 carried, 2 deployed; the interaction room (Revision 2 stage 1). | Normal, interrupted and failed paths. Each tile's identity balances. |
 | **P4 The polished eight** (was 2c-3) | BAT, BLADE, BALL, PLATE, BED, SOAP, FOAM and VACUUM to the section 4 contracts, with their models. VACUUM is modelled with Higgsfield. | Per-tool tests and a capture of each tool in use. |
 | **P5 Playable slice** | Dibs end to end (start, craft, fight, result, retry), then Duos, Moving Day and Moving Out. | An uninterrupted match plus a failed and recovered one, in a named edition. |

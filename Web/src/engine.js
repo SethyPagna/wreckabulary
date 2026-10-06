@@ -399,6 +399,15 @@ export class Game {
         p.z <= r.bounds[3],
     );
   }
+  /** Moving Day: the held word is still on the checklist and would land in its room. */
+  placesObjective(p, item) {
+    if (this.mode !== "MovingDay" || !item) return false;
+    const spot = { x: p.x + p.facing.x * 1.6, z: p.z + p.facing.z * 1.6 },
+      room = this.roomAt(spot)?.name;
+    return this.objectives.some(
+      (o) => !o.done && o.word === item.word && o.room === room,
+    );
+  }
   mintTiles(word, x, z, mint = true) {
     if (mint) this.minted += word.length;
     for (const char of word) {
@@ -670,22 +679,20 @@ export class Game {
       this.time < p.stunUntil
     )
       return false;
+    // Attack does what the held thing is for: throw it, use it, place it, or swing it.
+    // Anything but a swing spends the press, so holding the button doesn't punch next.
     const item = this.held(p),
       def = item?.origin === "map" ? null : item?.definition;
-    if (item?.origin === "map") {
-      this.throw(p);
+    if (item?.origin === "map" || def?.use || def?.thrown) {
+      p.pressSpent = true;
+      if (def?.use) this.use(p);
+      else this.throw(p);
       return true;
     }
-    if (def?.use) {
-      this.use(p);
-      return true;
-    }
-    if (def?.thrown) {
-      this.throw(p);
-      return true;
-    }
-    if (def?.deploy && !def?.melee) {
-      this.deploy(p);
+    if (def?.deploy || this.placesObjective(p, item)) {
+      p.pressSpent = true;
+      const error = this.deploy(p);
+      if (error) this.emit("refused", p, { message: error });
       return true;
     }
     const stats = def?.melee ?? this.rules.unarmed;
@@ -1516,6 +1523,7 @@ export class Game {
     }
     const p = this.players[0];
     p.motion = { x: input.x ?? 0, z: input.z ?? 0 };
+    if (!input.attack) p.pressSpent = false;
     if (p.state === "alive") {
       // Shoulder camera: the body always faces where the camera looks, like a shooter.
       if (Number.isFinite(input.yaw)) {
@@ -1527,7 +1535,7 @@ export class Game {
         p.yaw = Math.atan2(p.facing.x, p.facing.z);
       }
       p.block = !!input.block && !!this.held(p)?.definition?.shield;
-      if (input.attack) this.attack(p);
+      if (input.attack && !p.pressSpent) this.attack(p);
       if (input.dodge) this.dodge(p);
       if (input.jump) this.jump(p);
       if (input.interact) this.interact(p, dt);

@@ -114,6 +114,12 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(safe.Find("Desktop controls").gameObject.activeSelf);
             Assert.IsNull(safe.Find("Touch controls/SWAP"), "Touch players tap a hand slot instead of a swap button.");
             Assert.IsNotNull(safe.Find("Touch controls/SPELL"));
+            Assert.IsNotNull(safe.Find("Touch controls/HOLD DROP"));
+            // SMASH throws and places too, so there is no PLACE button (its name has a "/", so Find can't look it up).
+            foreach (Transform child in safe.Find("Touch controls"))
+                Assert.IsFalse(child.name.StartsWith("PLACE"), "No separate place button: " + child.name);
+            StringAssert.Contains("smash, throw, place", safe.Find("Desktop controls/Keys").GetComponent<TMPro.TMP_Text>().text);
+            StringAssert.DoesNotContain("<b>F</b>", safe.Find("Desktop controls/Keys").GetComponent<TMPro.TMP_Text>().text);
             Object.Destroy(hud.gameObject);
             Object.Destroy(player.gameObject);
         }

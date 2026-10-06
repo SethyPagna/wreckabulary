@@ -89,14 +89,13 @@ The verification script prepares data/art libraries and runs EditMode and PlayMo
 | Action | Unity desktop | Browser desktop |
 | --- | --- | --- |
 | Move / aim | WASD / mouse | WASD or arrows / mouse; movement follows the camera |
-| Attack / use held gear | Left mouse button | Left mouse button or J |
+| Do what the held thing is for: swing gear, throw a BALL, BOMB or carried prop, place a tool, use FOAM; punch empty-handed | Left mouse button | Left mouse button or J |
 | Block with PLATE | Hold right mouse button | Hold right mouse button or K |
-| Interact / revive | E; hold beside a downed teammate | E; hold beside a downed teammate |
+| Pick up / revive | E; hold beside a downed teammate | E; hold beside a downed teammate |
 | Spell | Hold Q, choose with W/S or wheel, release to start crafting | Q or C opens recipes; select a card to start crafting |
-| Swap gear | Tab | Tab, or 1/2 for a specific slot |
-| Place a tool | F | F |
+| Pick a hand | 1 / 2 | 1 / 2 |
+| Bag and house map | Hold Tab | Hold Tab |
 | Drop | Hold R briefly | R |
-| Throw what's held | E; BALL/BOMB also throw when used | G |
 | Jump / dodge | Space / Left Shift | Space / Shift |
 | Start / return | Enter / Esc or HOME | On-screen start / Esc pauses; HOME returns |
 

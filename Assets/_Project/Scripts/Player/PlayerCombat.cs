@@ -103,9 +103,8 @@ namespace Wreckabulary
             if (c.drop) Drop();
             if (c.swap) SwitchGear();
             if (c.slot > 0) SelectSlot(c.slot - 1);
-            if (c.deploy) DeployHeld();
-            if (c.grab) GrabOrThrow();
-            // No swinging from behind a raised (or rising) shield.
+            if (c.grab) GrabOrRevive();
+            // Attack also throws and places (see Attack). No swinging from behind a raised (or rising) shield.
             if (c.attack && raiseStartedAt < 0f) Attack();
         }
 
@@ -191,6 +190,7 @@ namespace Wreckabulary
 
         // ---- Attacking ----
 
+        /// <summary>Does what the held thing is for: gear is used, thrown, placed or swung (<see cref="HeldWeapon.Use"/>), a carried prop is thrown, and empty hands punch.</summary>
         public void Attack()
         {
             if (!controller.CanAct || controller.IsDodging || IsChanneling || IsReviving || raiseStartedAt >= 0f
@@ -198,7 +198,9 @@ namespace Wreckabulary
             if (Weapon && Weapon.Shield == null)
             {
                 nextAttack = Time.time + Weapon.Cooldown;
-                controller.PlayPunch();
+                // Only a swing sounds like one; a throw cues itself, and placing or using has its own pose.
+                var job = Weapon.Definition;
+                if (job == null || (job.Use == null && job.Thrown == null && job.Deploy == null)) controller.PlayPunch();
                 Weapon.Use(this);
                 return;
             }
@@ -314,11 +316,14 @@ namespace Wreckabulary
 
         // ---- Grabbing ----
 
-        /// <summary>Throws what's held. Empty-handed, a downed teammate in reach comes first, then the nearest thing to pick up.</summary>
-        void GrabOrThrow()
+        /// <summary>
+        /// A downed teammate in reach comes first, then the nearest thing to pick up. Carrying a prop or a player,
+        /// it does nothing: attack throws it and drop sets it down.
+        /// </summary>
+        void GrabOrRevive()
         {
-            if (held) Throw();
-            else if (!TryRevive()) TryGrab();
+            if (held && !Weapon) return;
+            if (!TryRevive()) TryGrab();
         }
 
         public bool TryGrab()
@@ -345,6 +350,15 @@ namespace Wreckabulary
             }
             if (!best) return false;
             if (best.TryGetComponent(out HeldWeapon pickedGear)) return TryEquip(pickedGear);
+            if (Weapon)
+            {
+                // A prop needs a free hand: the gear goes to the other one, as when equipping, or there's no room.
+                if (storedGear) return false;
+                storedGear = Weapon;
+                ClearHeld();
+                storedGear.gameObject.SetActive(false);
+                ActiveSlot = 1 - ActiveSlot;
+            }
             Pick(best);
             return true;
         }
@@ -477,7 +491,13 @@ namespace Wreckabulary
             var item = gear ? gear.Definition : null;
             if (!controller.CanAct || controller.IsDodging || IsReviving || IsChanneling || (controller.Summoner && (controller.Summoner.IsCrafting || controller.Summoner.IsSpelling))
                 || item == null || (item.Deploy == null && !(item.Thrown != null && item.Thrown.FuseSeconds > 0f))) return false;
-            if (DeployedGear.CountFor(controller) >= controller.Health.Rules.MaxDeployed) return false;
+            int limit = controller.Health.Rules.MaxDeployed;
+            if (DeployedGear.CountFor(controller) >= limit)
+            {
+                // There is no separate place key any more, so say why the click did nothing.
+                Popup.Show($"{limit} ALREADY PLACED", controller.OverheadPosition + Vector3.up * 0.4f, Color.white, 2.5f);
+                return false;
+            }
             StartCoroutine(PlaceAfterChannel(gear));
             return true;
         }

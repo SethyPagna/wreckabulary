@@ -362,8 +362,26 @@ try {
     undefined,
     { timeout: 15000, polling: 100 },
   );
+  // F and G no longer place or throw; the attack button (left click or J) places it.
   await page.keyboard.press("KeyF");
+  await page.keyboard.press("KeyG");
+  assert.equal(
+    await page.evaluate(
+      () =>
+        window.wreckabulary.game.held(window.wreckabulary.game.players[0])
+          ?.word,
+    ),
+    "LAMP",
+  );
+  await page.waitForFunction(
+    () => document.querySelector("#attack-label").textContent === "PLACE",
+    undefined,
+    { timeout: 5000, polling: 100 },
+  );
+  await page.keyboard.down("KeyJ");
   await page.waitForSelector(".result-card");
+  await page.keyboard.up("KeyJ");
+  record("Moving Day: F and G do nothing; the attack button places the checklist LAMP.");
   assert.equal(await page.evaluate(() => window.wreckabulary.game.winner), 0);
   await screenshot(page, "moving-day-complete");
   await click(page, ".result-card [data-action=start]");

@@ -49,7 +49,7 @@ namespace Wreckabulary
                 new() { text = "Pick up the letters", hint = "Walk over B, A and T", done = () => batSummoned || joins.Players.Any(p => Has(p, "BAT")) },
                 new() { text = "Spell BAT", hint = $"Hold spell ({ControlHints.Spell}), then let go to summon", done = () => batSummoned },
                 new() { text = "Whack the dummy", hint = $"Attack with your BAT ({ControlHints.Attack})", enter = EnsureDummy, done = () => dummyHits > 0 },
-                new() { text = "Throw the CHAIR", hint = $"Grab it ({ControlHints.Grab}), then press grab again to throw", enter = EnsureChair, done = () => thrown },
+                new() { text = "Throw the CHAIR", hint = $"Grab it ({ControlHints.Grab}), then throw it ({ControlHints.Attack})", enter = EnsureChair, done = () => thrown },
                 new()
                 {
                     text = "Knock out the dummy", hint = "Keep hitting it until its health runs out",

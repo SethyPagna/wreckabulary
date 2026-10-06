@@ -8,16 +8,15 @@ namespace Wreckabulary
     public struct PlayerCommands
     {
         public Vector2 move;
-        /// <summary>Interact: grab or throw on the press. Kept held, it revives a downed teammate.</summary>
+        /// <summary>Interact: pick up on the press. Kept held, it revives a downed teammate.</summary>
         public bool grab, grabHeld;
+        /// <summary>Does what the held thing is for: swing gear, throw a carried prop or thrown item, place a tool, use a consumable. Punches empty-handed.</summary>
         public bool attack;
         public bool jump, dodge;
         /// <summary>Raises a held PLATE while down.</summary>
         public bool blockHeld;
         /// <summary>Lets go of what's held. Bindings fire it only after a short hold, so a tap can't lose an item.</summary>
         public bool drop;
-        /// <summary>Places deployed furniture or activates a utility at the aimed location.</summary>
-        public bool deploy;
         /// <summary>Switches the two carried gear slots.</summary>
         public bool swap;
         /// <summary>1 or 2 uses that hand (keys 1 and 2, or a tap on the slot); 0 leaves the hands alone.</summary>
@@ -71,8 +70,8 @@ namespace Wreckabulary
 
     /// <summary>
     /// Two players can share a keyboard (the couch layout; one player alone uses <see cref="DesktopBinding"/>).
-    /// Left: WASD move, Space grab, J attack, K spell (W/S choose), U jump, Left Shift dodge, L block, hold R to drop.
-    /// Right: arrows move, . or Numpad1 grab, / or Numpad2 attack, Right Shift or Numpad3 spell,
+    /// Left: WASD move, Space grab, J attack (also throws and places), K spell (W/S choose), U jump, Left Shift dodge, L block, hold R to drop.
+    /// Right: arrows move, . or Numpad1 grab, / or Numpad2 attack (also throws and places), Right Shift or Numpad3 spell,
     /// comma or Numpad0 jump, Right Ctrl or Numpad5 dodge, ; or Numpad4 block, hold ' or Numpad6 to drop.
     /// </summary>
     public class KeyboardBinding : InputBinding
@@ -104,7 +103,6 @@ namespace Wreckabulary
                 c.dodge = kb.leftShiftKey.wasPressedThisFrame;
                 c.blockHeld = kb.lKey.isPressed;
                 c.drop = dropHold.Update(kb.rKey.isPressed, Time.unscaledTime);
-                c.deploy = kb.iKey.wasPressedThisFrame;
                 c.swap = kb.tabKey.wasPressedThisFrame;
                 c.spellHeld = kb.kKey.isPressed;
                 c.spellDown = kb.kKey.wasPressedThisFrame;
@@ -123,7 +121,6 @@ namespace Wreckabulary
                 c.dodge = kb.rightCtrlKey.wasPressedThisFrame || kb.numpad5Key.wasPressedThisFrame;
                 c.blockHeld = kb.semicolonKey.isPressed || kb.numpad4Key.isPressed;
                 c.drop = dropHold.Update(kb.quoteKey.isPressed || kb.numpad6Key.isPressed, Time.unscaledTime);
-                c.deploy = kb.numpad7Key.wasPressedThisFrame;
                 c.swap = kb.numpad8Key.wasPressedThisFrame;
                 c.spellHeld = kb.rightShiftKey.isPressed || kb.numpad3Key.isPressed;
                 c.spellDown = kb.rightShiftKey.wasPressedThisFrame || kb.numpad3Key.wasPressedThisFrame;
@@ -155,7 +152,7 @@ namespace Wreckabulary
     }
 
     /// <summary>
-    /// Left stick move, right stick aim, A jump, X attack, B dodge, RT grab (hold to revive), LT block,
+    /// Left stick move, right stick aim, A jump, X attack (also throws and places), B dodge, RT grab (hold to revive), LT block,
     /// hold Y to spell (stick or d-pad up/down to choose), hold LB to drop.
     /// </summary>
     public class GamepadBinding : InputBinding
@@ -185,7 +182,6 @@ namespace Wreckabulary
             c.dodge = Pad.buttonEast.wasPressedThisFrame;
             c.blockHeld = Pad.leftTrigger.isPressed;
             c.drop = dropHold.Update(Pad.leftShoulder.isPressed, Time.unscaledTime);
-            c.deploy = Pad.rightShoulder.wasPressedThisFrame;
             c.swap = Pad.rightStickButton.wasPressedThisFrame;
             c.spellHeld = Pad.buttonNorth.isPressed;
             c.spellDown = Pad.buttonNorth.wasPressedThisFrame;
@@ -219,7 +215,7 @@ namespace Wreckabulary
         {
             c = Next;
             Next.grab = Next.attack = Next.jump = Next.dodge = Next.drop = false;
-            Next.deploy = Next.swap = false;
+            Next.swap = false;
             Next.slot = 0;
             Next.spellDown = Next.spellUp = Next.up = Next.down = Next.start = false;
         }

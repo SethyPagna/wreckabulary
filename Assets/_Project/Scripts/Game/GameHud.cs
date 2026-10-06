@@ -272,8 +272,8 @@ namespace Wreckabulary
             var text = Text("Keys", hint, new Vector2(0f, .5f), new Vector2(18f, 0f), new Vector2(1070f, 40f), 14f, Cream, TextAlignmentOptions.Left);
             text.rectTransform.pivot = new Vector2(0f, .5f);
             const string dot = "  <alpha=#77>·<alpha=#FF>  ";
-            text.text = "<b>WASD</b> move" + dot + "mouse aim" + dot + "<b>Click</b> smash" + dot + "<b>Right click</b> block" + dot + "<b>Shift</b> dodge"
-                + dot + "<b>Space</b> jump" + dot + "<b>Q</b> spell" + dot + "<b>E</b> interact" + dot + "<b>F</b> place" + dot + "<b>1 / 2</b> hands"
+            text.text = "<b>WASD</b> move" + dot + "mouse aim" + dot + "<b>Click</b> smash, throw, place" + dot + "<b>Right click</b> block" + dot + "<b>Shift</b> dodge"
+                + dot + "<b>Space</b> jump" + dot + "<b>Q</b> spell" + dot + "<b>E</b> interact" + dot + "<b>Hold R</b> drop" + dot + "<b>1 / 2</b> hands"
                 + dot + "<b>Tab</b> bag & map" + dot + "<b>Esc</b> pause";
             hint.sizeDelta = new Vector2(text.GetPreferredValues(text.text).x + 36f, 44f);
             desktopHints = hint.gameObject;
@@ -318,7 +318,6 @@ namespace Wreckabulary
             AddSkill(rt, TouchAction.Block, "BLOCK", new Vector2(-384f, 270f), 89f, Cream);
             AddSkill(rt, TouchAction.Grab, "INTERACT", new Vector2(-384f, 161f), 89f, Cream);
             AddSkill(rt, TouchAction.Craft, "SPELL", new Vector2(-503f, 270f), 89f, Mint);
-            AddSkill(rt, TouchAction.Deploy, "PLACE / USE", new Vector2(-503f, 161f), 89f, Cream);
             AddSkill(rt, TouchAction.Drop, "HOLD DROP", new Vector2(-384f, 51f), 76f, Cream);
             playLabel = MakeButton("Play or Ready", rt, new Vector2(.5f, 1f), new Vector2(0f, -185f), new Vector2(200f, 50f), "PLAY", JoinOrReady).GetComponentInChildren<TextMeshProUGUI>();
             playRect = (RectTransform)playLabel.transform.parent;
@@ -721,8 +720,9 @@ namespace Wreckabulary
                 bool available = pair.Key switch
                 {
                     TouchAction.Block => free && weapon && weapon.Shield != null,
-                    TouchAction.Deploy => free && weapon && weapon.Definition?.Deploy != null,
                     TouchAction.Drop => free && combat.IsHolding,
+                    // Carrying a prop, grab does nothing: SMASH throws it and DROP sets it down.
+                    TouchAction.Grab => free && !(combat.IsHolding && !weapon),
                     TouchAction.Dodge => canAct && LocalPlayer.Health.CanDodge,
                     TouchAction.Jump => canAct,
                     TouchAction.Craft => canAct && (LocalPlayer.Summoner.IsCrafting || LocalPlayer.Summoner.IsSpelling || !combat.IsChanneling),
@@ -730,10 +730,14 @@ namespace Wreckabulary
                 };
                 pair.Value.button.SetAvailable(available);
             }
-            skillButtons[TouchAction.Grab].label.text = combat.IsReviving ? "REVIVING" : combat.IsHolding ? "THROW" : combat.DownedTeammateNearby() ? "HOLD REVIVE" : "INTERACT";
+            skillButtons[TouchAction.Grab].label.text = combat.IsReviving ? "REVIVING" : combat.DownedTeammateNearby() ? "HOLD REVIVE" : "INTERACT";
             skillButtons[TouchAction.Craft].label.text = LocalPlayer.Summoner.IsCrafting || LocalPlayer.Summoner.IsSpelling ? "CANCEL" : "SPELL";
-            skillButtons[TouchAction.Attack].label.text = weapon && weapon.Definition != null ? weapon.Definition.Family switch
-            { HandlingFamily.Thrown => "THROW", HandlingFamily.Ranged => "FIRE", HandlingFamily.Heal or HandlingFamily.Buff => "USE", _ => "SMASH" } : "SMASH";
+            // The attack button does the held thing's job, in HeldWeapon.Use's order.
+            var job = weapon && weapon.Shield == null ? weapon.Definition : null;
+            skillButtons[TouchAction.Attack].label.text = combat.IsHolding && !weapon ? "THROW"
+                : job == null ? "SMASH"
+                : job.Use != null ? "USE" : job.Thrown != null ? "THROW" : job.Deploy != null ? "PLACE"
+                : job.Family == HandlingFamily.Ranged ? "FIRE" : "SMASH";
         }
         void RefreshNavigation()
         {
