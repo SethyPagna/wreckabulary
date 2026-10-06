@@ -63,7 +63,6 @@ namespace Wreckabulary.Rules.Tests
         public void DuosClosesAStartRoomOfEachTeamFirst(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
-            // Seats take the spawns in join order, and Duos splits them 0, 1, 0, 1.
             var teams = Teams.Assign(house.Spawns.Count, 2);
             var closing = house.ClearOutOrders["Duos"].Where(room => house.Spawns.Any(s => s.Room == room))
                 .Select(room => teams[house.Spawns.FindIndex(s => s.Room == room)]).Take(2).ToArray();
@@ -114,7 +113,6 @@ namespace Wreckabulary.Rules.Tests
             var second = walkup.Stairs.Single(s => s.Lower == "Landing1");
             Assert.AreEqual("Landing1", first.Upper);
             Assert.AreEqual("Landing2", second.Upper);
-            // The second flight starts beside the top of the first and climbs back the other way, with a walkway between them.
             Assert.AreEqual(first.ToZ, second.FromZ, .01f);
             Assert.Less((first.ToZ - first.FromZ) * (second.ToZ - second.FromZ), 0f, "the flights run opposite ways");
             Assert.GreaterOrEqual(first.MinX - second.MaxX, 1.2f, "room to walk between the flights");

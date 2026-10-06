@@ -392,7 +392,6 @@ async function fit(page) {
   });
 }
 export async function workshopMobile(phone, { click, screenshot, record }) {
-  // Phones play sideways only, so the workshop is checked in landscape.
   await phone.setViewportSize({ width: 844, height: 390 });
   await click(phone, "[data-action=pause]");
   await click(phone, ".result-card [data-action=home]");

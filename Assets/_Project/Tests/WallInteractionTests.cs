@@ -6,7 +6,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>Reach queries must respect actual generated walls while keeping doorways usable.</summary>
     public class WallInteractionTests
     {
         [UnitySetUp]
@@ -55,7 +54,6 @@ namespace Wreckabulary.Tests
 
         static void Place(Smashable prop, Vector3 at)
         {
-            // Immediate queries also use Collider.ClosestPoint, which needs the Transform pose.
             prop.transform.position = at;
             prop.GetComponent<Rigidbody>().position = at;
         }

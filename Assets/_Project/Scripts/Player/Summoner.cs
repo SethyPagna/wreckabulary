@@ -4,7 +4,6 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>Choose an allowed recipe, reserve its letters, then channel the mode's craft time.</summary>
     [RequireComponent(typeof(LetterInventory))]
     public class Summoner : MonoBehaviour
     {
@@ -25,9 +24,7 @@ namespace Wreckabulary
         public WordEntry SelectedWord => Selected >= 0 && Selected < Ready.Count ? Ready[Selected] : null;
         public event Action<string> Summoned;
         public IReadOnlyList<WordEntry> WordsOverride { get; set; }
-        /// <summary>Explicit objective IDs placed as furniture. Null keeps legacy Furniture-only override fixtures.</summary>
         public IReadOnlyCollection<string> ChecklistPlacementWords { get; set; }
-        /// <summary>The player types the word into the HUD's composer, so Update leaves the hold-and-release pick alone.</summary>
         public bool Typed { get; set; }
         IReadOnlyList<WordEntry> Words => WordsOverride ?? (database ? database : GameAssets.I.words).Words;
 
@@ -119,10 +116,8 @@ namespace Wreckabulary
             return null;
         }
 
-        /// <summary>The recipe a typed word names, or null.</summary>
         public WordEntry Recipe(string word) => ResolveRecipe(new WordEntry { word = word });
 
-        /// <summary>Some recipe starts with these letters (the composer says "Keep going…").</summary>
         public bool StartsRecipe(string prefix)
         {
             if (string.IsNullOrEmpty(prefix)) return false;

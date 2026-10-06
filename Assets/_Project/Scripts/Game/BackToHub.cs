@@ -3,10 +3,6 @@ using UnityEngine.InputSystem;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// A gamepad's Select/View button goes back to the house. Esc opens the HUD's pause card instead
-    /// (Home is on it, as in the browser edition); only a scene without a HUD lets Esc go straight home.
-    /// </summary>
     public class BackToHub : MonoBehaviour
     {
         GameHud hud;

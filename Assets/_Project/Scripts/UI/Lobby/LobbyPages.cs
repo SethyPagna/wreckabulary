@@ -10,28 +10,17 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// One lobby page. Only one shows at a time, and each redraws itself from the menu's state.
-    /// Pages wear the web lobby's look (LobbyKit): royal panels with sun titles, posters for modes and
-    /// maps, wood tiles, cards with navy edges and hard drops. Rotations are in uGUI degrees,
-    /// which turn the other way from CSS: the web's rotate(-8deg) is +8 here.
-    /// </summary>
     public abstract class LobbyPage
     {
         protected static readonly string[] Finishes = { "Classic", "Candy", "Arcade" };
-        /// <summary>The width of the panel the loadout, career and shop share.</summary>
         public const float SideWidth = 860f;
 
         public abstract string Id { get; }
         public virtual LobbyStage.Focus Focus => LobbyStage.Focus.Centre;
-        /// <summary>True when the lobby messages show beside this page.</summary>
         public virtual bool ShowFeed => false;
-        /// <summary>A centred page: a click in the empty space round its panel closes it.</summary>
         public virtual bool Modal => false;
-        /// <summary>How wide a side page's panel is; the stage stands you in the middle of the room left of it.</summary>
         public virtual float PanelWidth => SideWidth;
         public RectTransform Root { get; private set; }
-        /// <summary>Where a keyboard or controller starts on this page.</summary>
         public Selectable First { get; protected set; }
         protected LobbyMenu Menu { get; private set; }
 
@@ -42,26 +31,20 @@ namespace Wreckabulary
             Root.gameObject.SetActive(false);
         }
 
-        /// <summary>The page's entrance when it opens: side pages slide in from the right, the others rise a
-        /// little, both fading in. Home just appears.</summary>
         public void Pop()
         {
             if (Id == LobbyMenu.Home) return;
             LobbyPop.On(Root).Play(Focus == LobbyStage.Focus.Left ? new Vector2(24, 0) : new Vector2(0, -16));
         }
 
-        /// <summary>Called when the page opens from another one, before it draws: where it forgets what it
-        /// showed last time.</summary>
         public virtual void Opened() { }
 
-        /// <summary>Redraws the page from the menu's current state.</summary>
         public void Refresh()
         {
             LobbyKit.Clear(Root);
             First = null;
             if (Modal)
             {
-                // Under the panel: clicks on the panel never reach it.
                 var shade = LobbyKit.Rect(Root, "Shade").Fill();
                 shade.Paint(LobbyKit.Shade);
                 shade.gameObject.AddComponent<LobbyShade>().Clicked = Menu.Close;
@@ -71,7 +54,6 @@ namespace Wreckabulary
 
         protected abstract void Build();
 
-        /// <summary>Keeps the keyboard or controller on the same control after a redraw.</summary>
         protected void Reselect(string name)
         {
             if (!EventSystem.current) return;
@@ -79,17 +61,13 @@ namespace Wreckabulary
             if (target) EventSystem.current.SetSelectedGameObject(target.gameObject);
         }
 
-        /// <summary>A web panel: the royal face with a navy edge and a hard navy drop, its title in sun capitals.
-        /// Returns the body to fill.</summary>
         protected RectTransform Panel(Vector2 min, Vector2 max, string title, string subtitle = null)
         {
             var panel = LobbyKit.Rect(Root, "Panel").Place(min, max);
-            // Solid, so neither the map nor its own drop shows through; a click on it stays there instead of turning you.
             LobbyKit.PanelFace(panel, 28, 5, 8).raycastTarget = true;
             var head = LobbyKit.Display(panel, LobbyKit.Upper(title), 43, LobbyKit.Sun, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Drop);
             head.characterSpacing = 2;
             head.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(34, -84), new Vector2(-88, -20));
-            // Every page closes from its own corner too, not only from the bar.
             var close = LobbyKit.IconButton(panel, LobbyIcons.Close, "Close page", Menu.Close);
             ((RectTransform)close.transform).Pin(Vector2.one, new Vector2(-20, -20), new Vector2(48, 48));
             float top = 100;
@@ -102,7 +80,6 @@ namespace Wreckabulary
             return LobbyKit.Rect(panel, "Body").Place(Vector2.zero, Vector2.one, new Vector2(32, 28), new Vector2(-32, -top));
         }
 
-        /// <summary>The panel the loadout, career and shop use: docked right at the page's width, so you stand on the left.</summary>
         protected RectTransform Side(string title, string subtitle = null)
         {
             var body = Panel(new Vector2(1, 0), Vector2.one, title, subtitle);
@@ -118,7 +95,6 @@ namespace Wreckabulary
             return label;
         }
 
-        /// <summary>Lets a layout child take the height left over.</summary>
         protected static RectTransform Grow(RectTransform rect)
         {
             if (!rect.TryGetComponent(out LayoutElement element)) element = rect.gameObject.AddComponent<LayoutElement>();
@@ -126,11 +102,6 @@ namespace Wreckabulary
             return rect;
         }
 
-        /// <summary>
-        /// A web poster for a mode or a house: its colour running light to dark under white rays that fan out
-        /// from behind its art, a navy edge and a hard drop, lifting and leaning a little under the pointer. Put
-        /// its content on its Body; <paramref name="size"/> is the card's, for the rays.
-        /// </summary>
         protected static Button Poster(Transform parent, string name, Color colour, bool on, Action click, Vector2 size)
         {
             var button = LobbyKit.Button(parent, name, Color.Lerp(colour, Color.white, .3f), click, 20, LobbyKit.Navy, 4, 6,
@@ -138,7 +109,6 @@ namespace Wreckabulary
             var press = button.GetComponent<LobbyPress>();
             press.Lift = 5f; press.Tilt = 1f;
             var body = button.Body();
-            // Inside the edge, under everything else on the card.
             var rays = LobbyKit.Rect(body, "Rays").Place(Vector2.zero, Vector2.one, new Vector2(4, 4), new Vector2(-4, -4));
             rays.SetAsFirstSibling();
             var raw = rays.gameObject.AddComponent<RawImage>();
@@ -148,7 +118,6 @@ namespace Wreckabulary
             return button;
         }
 
-        /// <summary>The web's chosen mark: a sun ring just outside the card and a check on its corner.</summary>
         protected static void Chosen(RectTransform body, int radius)
         {
             LobbyKit.Ring(body, LobbyKit.Sun, radius, 5);
@@ -159,7 +128,6 @@ namespace Wreckabulary
 
         protected static string SkinOf(Outfit outfit) => outfit.ItemSkins.Values.FirstOrDefault() ?? Skin.Standard;
 
-        /// <summary>The same finish on every craftable item.</summary>
         public static Outfit WithFinish(Outfit outfit, string skin)
         {
             var next = outfit.Clone();
@@ -167,7 +135,6 @@ namespace Wreckabulary
             return next;
         }
 
-        /// <summary>Each finish's colours, as the web's skin art paints them.</summary>
         protected static (Color from, Color to) FinishPaint(string skin) => skin switch
         {
             "Candy" => (LobbyKit.Hex(0xff7ac8), LobbyKit.Hex(0x7fe3ff)),
@@ -175,7 +142,6 @@ namespace Wreckabulary
             _ => (LobbyKit.WoodHi, LobbyKit.WoodLo),
         };
 
-        /// <summary>A gear style's art: a disc in its colours with a BAT on it, centred in its parent.</summary>
         protected static RectTransform FinishDisc(Transform parent, string skin, float size)
         {
             var (from, to) = FinishPaint(skin);
@@ -185,7 +151,6 @@ namespace Wreckabulary
             return disc;
         }
 
-        /// <summary>A colour's paint blob: lit from above, in a navy rim, with a shine.</summary>
         protected static RectTransform Blob(Transform parent, Color colour, float size)
         {
             var blob = LobbyKit.Rect(parent, "Swatch").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(size, size));
@@ -196,8 +161,6 @@ namespace Wreckabulary
             return blob;
         }
 
-        /// <summary>The web's shop art behind an item: a rounded sunburst with a navy edge. Give the rect this
-        /// size, so its corners stay round.</summary>
         protected static void Burst(RectTransform rect, int width, int height, int radius)
         {
             var raw = rect.gameObject.AddComponent<RawImage>();
@@ -212,25 +175,20 @@ namespace Wreckabulary
         protected static string MapName(string id) =>
             id != null && GameConfig.Current.Houses.TryGetValue(id, out var house) ? house.Name : id ?? "";
 
-        /// <summary>A count as the lobby writes numbers: 1,234.</summary>
         protected static string Number(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
 
-        /// <summary>When a match ended, as "6 Oct 14:32" in local time.</summary>
         protected static string When(long endedAt) => endedAt <= 0 || endedAt > Career.LatestTime ? "-" :
             DateTimeOffset.FromUnixTimeSeconds(endedAt).ToLocalTime().ToString("d MMM HH:mm", CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Just you in the map, the lobby notices, and the match dock: what GO will start, and GO.</summary>
     public sealed class HomePage : LobbyPage
     {
         public override string Id => LobbyMenu.Home;
         public override bool ShowFeed => true;
-        /// <summary>The web's match dock width.</summary>
         public const float DockWidth = 456f;
 
         protected override void Build()
         {
-            // Says what the open view does until you have done it once; no box, so it never reads as a button.
             if (!PlayerPrefs.HasKey(LobbyMenu.TurnHintKey))
             {
                 var hint = LobbyKit.Row(Root, "Turn hint", 8, 0);
@@ -241,10 +199,8 @@ namespace Wreckabulary
                 LobbyKit.Icon(hint, LobbyIcons.Turn, LobbyKit.Cyan).Size(26, 26);
                 LobbyKit.Display(hint, "Drag to turn", 22, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Stroke).Size(-1, 30);
             }
-            // While a match starts, the countdown under the tabs takes over.
             if (Menu.Starting) return;
 
-            // The web's match dock, bottom right: the mode (a click changes it), the house, and a big GO.
             bool blocked = Menu.Blocked != null;
             var dock = LobbyKit.Column(Root, "Next match", 12);
             dock.Pin(new Vector2(1, 0), Vector2.zero, new Vector2(DockWidth, 0));
@@ -267,25 +223,16 @@ namespace Wreckabulary
             First = blocked ? mode : go;
         }
 
-        /// <summary>Who plays, or what the workshop modes are for.</summary>
         string Who() => Menu.Mode == LobbyMenu.TutorialMode ? "The tutorial room"
             : Menu.Mode == LobbyMenu.WorkshopMode ? "Build and test a home"
             : Capital(LobbyMenu.Seats(Menu.Mode, Menu.PartySize));
     }
 
-    /// <summary>
-    /// The web's mode and house pickers on one CS2-style page: the queue beside the title, PICK YOUR CHAOS (each
-    /// mode a poster), PICK A HOUSE (each house its plan), and what GO starts along the foot. GO goes back to the
-    /// lobby while the match starts.
-    /// </summary>
     public sealed class PlayPage : LobbyPage
     {
         public override string Id => LobbyMenu.Play;
-        /// <summary>The card a keyboard or controller lands on when the page next draws: the dock's CHANGE opens
-        /// the page on the mode, its house card on the house.</summary>
         public string Aim;
 
-        /// <summary>Five posters, then five houses, fill the panel on a 16:9 screen; a narrower one shrinks the rows.</summary>
         static readonly Vector2 ModeSize = new Vector2(348, 330), HouseSize = new Vector2(346, 280);
         static readonly Color ArtShadow = new Color(LobbyKit.Navy.r, LobbyKit.Navy.g, LobbyKit.Navy.b, .4f);
         static readonly Color Tree = LobbyKit.Hex(0x2f9e3a);
@@ -297,7 +244,6 @@ namespace Wreckabulary
             ("Queue " + LobbyMenu.Workshop, "Workshop"),
         };
 
-        /// <summary>A line on each house, as the web's house picker has them.</summary>
         static readonly Dictionary<string, string> HouseLines = new Dictionary<string, string>
         {
             ["pinwheel"] = "Five cosy rooms. Eight sneaky shortcuts.",
@@ -313,7 +259,6 @@ namespace Wreckabulary
         protected override void Build()
         {
             var body = Panel(Vector2.zero, Vector2.one, "Play", QueueLine(Menu.Queue));
-            // The queue sits beside the title, as CS2 lines its play types up along the top.
             var queues = LobbyKit.Segmented(body.parent, "Queues", Queues, "Queue " + Menu.Queue, PickQueue, 52, 20);
             queues.Place(Vector2.one, Vector2.one, new Vector2(-688, -78), new Vector2(-88, -26));
 
@@ -365,8 +310,6 @@ namespace Wreckabulary
                 ? "Learn the controls in the tutorial room, or build a home from the furniture you spell."
                 : "Every mode, with bots in the empty seats. Pick a mode and a house, then GO.";
 
-        /// <summary>The modes a queue offers, with the web's names, tags and lines. Matchmaking's tags say how the
-        /// seats split, since its partners are people.</summary>
         static IEnumerable<(string mode, string title, string tag, string blurb)> ModesFor(string queue)
         {
             if (queue == LobbyMenu.Workshop)
@@ -384,7 +327,6 @@ namespace Wreckabulary
             else yield return Tutorial;
         }
 
-        /// <summary>A row of cards kept in the middle when it is narrower than the panel (the workshop's two).</summary>
         static RectTransform Centred(RectTransform row)
         {
             row.anchorMin = row.anchorMax = row.pivot = new Vector2(.5f, 1);
@@ -397,7 +339,6 @@ namespace Wreckabulary
             var card = Poster(parent, "Mode " + mode, LobbyKit.ModeColour(mode), on,
                 () => { Menu.Choose(mode: mode); Refresh(); Reselect("Mode " + mode); }, ModeSize);
             var body = card.Body();
-            // The web's art: big, up top, with a soft navy drop; it tips and grows under the pointer.
             var art = LobbyKit.ItemImage(body, LobbyKit.ModeArt(mode), 136);
             if (art)
             {
@@ -416,9 +357,7 @@ namespace Wreckabulary
 
         void HouseCard(Transform parent, string id, HouseLayout layout, int index)
         {
-            // The workshop builds homes only in the houses the web edition has too.
             bool open = Menu.Mode != LobbyMenu.WorkshopMode || HomeDesigner.Supports(id);
-            // The web alternates its house cards between hot and lime.
             var card = Poster(parent, "Map " + id, index % 2 == 0 ? LobbyKit.Hot : LobbyKit.Lime, Menu.Map == id,
                 () => { Menu.Choose(map: id); Refresh(); Reselect("Map " + id); }, HouseSize);
             if (!open)
@@ -430,20 +369,17 @@ namespace Wreckabulary
             var body = card.Body();
             var art = LobbyKit.Rect(body, "Art").Place(new Vector2(0, 1), Vector2.one, new Vector2(18, -150), new Vector2(-18, -14));
             var plan = LobbyKit.Rect(art, "Plan").Fill();
-            // The web's plans sit a little askew, as its posters' art does.
             plan.localRotation = Quaternion.Euler(0, 0, 4f);
             FloorPlan(plan, layout, Color.white, new Vector2(HouseSize.x - 60, 128));
             Wiggle(card, art);
             var words = Words(body, 14);
             var name = LobbyKit.Display(words, layout.Name, 30, LobbyKit.Cream, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Stroke);
-            // A long name ("Walk-up Apartments") shrinks a little to fit the card rather than losing its end.
             name.enableAutoSizing = true; name.fontSizeMin = 22; name.fontSizeMax = 30;
             name.Size(-1, 36);
             TagLine(words, Facts(layout));
             if (HouseLines.TryGetValue(id, out var line)) Wrapped(words, line, 15, LobbyKit.Cream);
         }
 
-        /// <summary>Play & learn has a room of its own, so the houses step aside for a word on it.</summary>
         static void TutorialRoom(Transform parent)
         {
             var note = LobbyKit.Rect(parent, "Tutorial room").Size(-1, HouseSize.y);
@@ -457,7 +393,6 @@ namespace Wreckabulary
             text.rectTransform.Place(new Vector2(0, .5f), new Vector2(1, .5f), new Vector2(250, -76), new Vector2(-48, -4));
         }
 
-        /// <summary>What GO starts: the mode's art on its colour, the mode and house, who plays, and GO.</summary>
         void Footer(RectTransform body)
         {
             var bar = LobbyKit.Rect(body, "Summary").Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 88));
@@ -480,7 +415,6 @@ namespace Wreckabulary
             go.interactable = blocked == null;
         }
 
-        /// <summary>A poster's words, stacked up from its foot as the web's poster column ends.</summary>
         static RectTransform Words(RectTransform body, int pad)
         {
             var words = LobbyKit.Column(body, "Words", 6);
@@ -491,7 +425,6 @@ namespace Wreckabulary
             return words;
         }
 
-        /// <summary>The web's navy tag under a poster's name ("House brawl"), as wide as its words.</summary>
         static void TagLine(Transform parent, string text)
         {
             var line = LobbyKit.Row(parent, "Tag", 0);
@@ -501,11 +434,9 @@ namespace Wreckabulary
             pill.Paint(LobbyKit.Navy, 8).raycastTarget = false;
             var label = LobbyKit.Text(pill, LobbyKit.Upper(text), 14, LobbyKit.Cream, TextAlignmentOptions.Center, FontStyles.Bold);
             label.characterSpacing = 2;
-            // The pill is as wide as its words, so they never need an ellipsis.
             label.overflowMode = TextOverflowModes.Overflow;
         }
 
-        /// <summary>The web's art tips and grows under the pointer.</summary>
         static void Wiggle(Button card, RectTransform art)
         {
             card.GetComponent<LobbyPress>().Hot = hot =>
@@ -515,7 +446,6 @@ namespace Wreckabulary
             };
         }
 
-        /// <summary>"2 floors · 7 rooms": halls and landings aren't rooms.</summary>
         static string Facts(HouseLayout layout)
         {
             int floors = layout.StoreyFloors().Count;
@@ -525,10 +455,6 @@ namespace Wreckabulary
 
         static bool IsPassage(string room) => room.Contains("Hall") || room.Contains("Landing");
 
-        /// <summary>Draws a house from above to fit a box, as the web's plans do: white rooms sharing navy walls, the
-        /// garden green with a tree, halls and landings sun, and a wood dot where each player starts. A house with
-        /// an upstairs shows its storeys side by side, ground floor first, each under a navy label, with the
-        /// stairs on both floors they join.</summary>
         public static void FloorPlan(RectTransform box, HouseLayout layout, Color colour, Vector2 size)
         {
             if (layout.Rooms.Count == 0) return;
@@ -548,7 +474,6 @@ namespace Wreckabulary
                 foreach (var room in layout.Rooms)
                 {
                     if (layout.StoreyOf(room) != storey) continue;
-                    // Neighbours overlap by two pixels, so a shared wall is no thicker than an outside one.
                     var rect = LobbyKit.Rect(box, room.Name).Pin(new Vector2(.5f, .5f), At((room.MinX + room.MaxX) * .5f, (room.MinZ + room.MaxZ) * .5f),
                         new Vector2(room.MaxX - room.MinX, room.MaxZ - room.MinZ) * scale + new Vector2(2, 2));
                     bool garden = room.Name.Contains("Garden");
@@ -589,22 +514,14 @@ namespace Wreckabulary
         }
     }
 
-    /// <summary>
-    /// The web's locker (Web/src/main.js): a narrow panel on the right, so you watch yourself change beside it.
-    /// What you wear in pickers, the colour of each worn part, the extras as cards, the crafted gear style and
-    /// THAT'S MY LOOK, all on one page with nothing to open first. Its second tab is the recipe book.
-    /// </summary>
     public sealed class LoadoutPage : LobbyPage
     {
-        /// <summary>The web locker's 540 plus room for our panel's edge and drop.</summary>
         public const float Width = 600f;
         public override string Id => LobbyMenu.Loadout;
         public override LobbyStage.Focus Focus => LobbyStage.Focus.Left;
         public override float PanelWidth => Width;
         public bool ShowingRecipes { get; private set; }
-        /// <summary>The worn part the swatches colour.</summary>
         public string Part { get; private set; } = "Top";
-        /// <summary>The recipe a click pinned to the detail strip; null shows the first.</summary>
         public string Pinned { get; private set; }
 
         RectTransform lockerList, detail;
@@ -619,7 +536,6 @@ namespace Wreckabulary
 
         protected override void Build()
         {
-            // A choice redraws the page; the locker stays where it was scrolled.
             if (lockerList) scrolled = lockerList.anchoredPosition.y;
             lockerList = detail = null;
             trying = previewing = null;
@@ -627,7 +543,6 @@ namespace Wreckabulary
             var body = Side("Loadout", ShowingRecipes ? $"{words} words to spell. In a match, press Q and type one." : "All style. Zero stats.");
             var tabs = LobbyKit.Segmented(body.parent, "Tabs", new[] { ("LOCKER", "Locker"), ("RECIPES", "Recipes") },
                 ShowingRecipes ? "RECIPES" : "LOCKER", id => ShowRecipes(id == "RECIPES"));
-            // Left of the page's close button (48 wide, 20 in from the corner).
             tabs.Place(Vector2.one, Vector2.one, new Vector2(-84 - 240, -74), new Vector2(-84, -26));
             if (ShowingRecipes) Recipes(body);
             else Locker(body);
@@ -648,11 +563,9 @@ namespace Wreckabulary
             ((RectTransform)done.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(0, 6), new Vector2(0, 66));
             var view = LobbyKit.Rect(body, "Locker").Place(Vector2.zero, Vector2.one, new Vector2(0, 84), Vector2.zero);
             lockerList = LobbyKit.Scroll(view, "Scroll", 18);
-            // Room inside the mask for rings, drops and cards that lift.
             lockerList.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(4, 4, 6, 10);
             lockerList.anchoredPosition = new Vector2(0, scrolled);
 
-            // What you wear, where there is a choice to make (the web's Top and Headwear selects).
             var pickers = LobbyKit.Row(lockerList, "Outfit", 16);
             pickers.Size(-1, 84);
             pickers.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
@@ -668,7 +581,6 @@ namespace Wreckabulary
                 if (!First) First = picker.GetComponentsInChildren<Button>().FirstOrDefault(b => b.name == worn);
             }
 
-            // Each worn part's colour: pick the part, then a swatch.
             var colour = LobbyKit.Column(lockerList, "Colour", 8);
             LobbyKit.SectionLabel(colour, "Colour");
             var parts = Parts(outfit);
@@ -677,7 +589,6 @@ namespace Wreckabulary
             foreach (string slot in parts) PartChip(chips, slot, wardrobe.ColourFor(outfit, slot));
             if (Part != null) Colours(colour, Part);
 
-            // The extras: one piece each, on or off (the web's checkbox cards).
             var extras = wardrobe.Slots.Where(s => !wardrobe.RequiredSlots.Contains(s) && wardrobe.PiecesFor(s).Count() == 1).ToList();
             if (extras.Count > 0)
             {
@@ -695,7 +606,6 @@ namespace Wreckabulary
                 }
             }
 
-            // The finish on what you craft (the web's crafted gear style select), as three cards.
             var gear = LobbyKit.Column(lockerList, "Gear", 8);
             LobbyKit.SectionLabel(gear, "Crafted gear style");
             var styles = LobbyKit.Row(gear, "Styles", 12);
@@ -705,7 +615,6 @@ namespace Wreckabulary
             foreach (string skin in Finishes) FinishCard(styles, skin, wornSkin == skin);
         }
 
-        /// <summary>The worn parts with a colour of their own: not the hood (it matches the top) or the badge.</summary>
         static List<string> Parts(Outfit outfit)
         {
             var wardrobe = GameConfig.Current.Wardrobe;
@@ -728,7 +637,6 @@ namespace Wreckabulary
 
         static string ExtraName(string piece) => piece == "TBadge" ? "Letter badge" : piece;
 
-        /// <summary>A part to colour: its colour in a dot and its name, a sun slab while its swatches show.</summary>
         void PartChip(Transform parent, string slot, Colourway colour)
         {
             bool on = Part == slot;
@@ -758,8 +666,6 @@ namespace Wreckabulary
             Reselect("Part " + slot);
         }
 
-        /// <summary>A part's swatches. Only top colours are sold: the rest of those wait in a row of their own,
-        /// each with a coin on it, beside a way into the shop.</summary>
         void Colours(RectTransform section, string slot)
         {
             var wardrobe = GameConfig.Current.Wardrobe;
@@ -790,8 +696,6 @@ namespace Wreckabulary
             LobbyKit.Text(section, caption, 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 22);
         }
 
-        /// <summary>The web's colour swatch: a navy-rimmed blob with a shine, bigger and sun-ringed when worn.
-        /// Pointing at one tries it on.</summary>
         void Swatch(Transform parent, string slot, Colourway colour, bool on)
         {
             var button = LobbyKit.Button(parent, "Colour " + colour.Id, LobbyKit.Navy, () => PickColour(slot, colour), 20, null, 0, 3);
@@ -803,7 +707,6 @@ namespace Wreckabulary
             button.gameObject.AddComponent<LobbyHint>().Text = colour.Name;
         }
 
-        /// <summary>A top colour still in the shop: smaller, with a coin on it. A click opens the shop on it.</summary>
         void ShopSwatch(Transform parent, Colourway colour)
         {
             var offer = Career.Shop.FirstOrDefault(o => o.Kind == "colour" && o.Value == colour.Id);
@@ -825,7 +728,6 @@ namespace Wreckabulary
             shine.Paint(new Color(1f, 1f, 1f, .67f), Mathf.Max(1, Mathf.RoundToInt(radius * .25f))).raycastTarget = false;
         }
 
-        /// <summary>Shows a colour on you while it's pointed at, and what you wear again after.</summary>
         void TryOn(string slot, Colourway colour, bool hot)
         {
             string key = slot + ":" + colour.Id;
@@ -836,7 +738,6 @@ namespace Wreckabulary
                 preview.Colours[slot] = colour.Id;
                 Menu.Stage.Dress(preview);
             }
-            // Only the swatch being tried: the next one may already have taken over this frame.
             else if (trying == key)
             {
                 trying = null;
@@ -859,8 +760,6 @@ namespace Wreckabulary
             Reselect("Colour " + colour.Id);
         }
 
-        /// <summary>Wears a piece, or takes a slot off ("No " + slot), first putting on what the piece needs: the
-        /// hood brings the hoodie, as on the web. Anything that no longer fits comes off.</summary>
         public void PutOn(string slot, string choice, string reselect)
         {
             var wardrobe = GameConfig.Current.Wardrobe;
@@ -882,7 +781,6 @@ namespace Wreckabulary
             Reselect(reselect);
         }
 
-        /// <summary>A gear style: its disc, its name, and WEARING, OWNED or its price.</summary>
         void FinishCard(Transform parent, string skin, bool worn)
         {
             bool owned = Menu.Career.Owns("skin", skin);
@@ -940,15 +838,12 @@ namespace Wreckabulary
             detail = LobbyKit.Rect(body, "Recipe detail").Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 196));
             var view = LobbyKit.Rect(body, "Recipes").Place(Vector2.zero, Vector2.one, new Vector2(0, 212), Vector2.zero);
             var list = LobbyKit.Scroll(view, "Scroll", 0);
-            // Room inside the mask for a card that lifts and its drop.
             list.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(4, 4, 8, 12);
             var grid = LobbyKit.Grid(list, "Grid", new Vector2(122, 118), 12);
             foreach (var item in GameConfig.Current.Items.Enabled) RecipeCard(grid, item, item == shown);
             Detail(shown);
         }
 
-        /// <summary>The web's recipe card: white with a navy edge, the item over its word in wood tiles. Pointing
-        /// at one shows it in the strip below; a click keeps it there.</summary>
         void RecipeCard(Transform parent, ItemDefinition item, bool on)
         {
             var card = LobbyKit.Button(parent, "Recipe " + item.Id, Color.white, () => PinRecipe(item.Id), 14, LobbyKit.Navy, 3, 4);
@@ -984,8 +879,6 @@ namespace Wreckabulary
             Reselect("Recipe " + id);
         }
 
-        /// <summary>The strip under the recipe book: the item big on a sunburst, its word, what it does and how to
-        /// spell it in a match.</summary>
         void Detail(ItemDefinition item)
         {
             if (!detail || item == null) return;
@@ -1017,7 +910,6 @@ namespace Wreckabulary
             LobbyKit.Kbd(how, "ENTER");
         }
 
-        /// <summary>One line per handling family, the same as the web edition's recipe book.</summary>
         public static string Blurb(HandlingFamily family) => family switch
         {
             HandlingFamily.MeleeSwing => "A satisfying swing",
@@ -1035,11 +927,6 @@ namespace Wreckabulary
         };
     }
 
-    /// <summary>
-    /// Your career: your level on a wood tile with your XP and what's still to go, four stat cards, and your
-    /// recent matches as cards (mode, house, when, result, score, what it earned). With none yet, a card sends
-    /// you to practice.
-    /// </summary>
     public sealed class CareerScreen : LobbyPage
     {
         public override string Id => LobbyMenu.CareerPage;
@@ -1054,7 +941,6 @@ namespace Wreckabulary
             var level = LobbyKit.Row(column, "Level", 22);
             level.Size(-1, 112);
             level.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
-            // Your level on a wood tile, like a letter from the game.
             LobbyKit.LetterTile(level, career.Level.ToString(CultureInfo.InvariantCulture), 104).name = "Level tile";
             var info = LobbyKit.Rect(level, "Info");
             info.Size(-1, 112, 1);
@@ -1070,7 +956,6 @@ namespace Wreckabulary
             var xp = LobbyKit.Display(bar, Number(career.XpIntoLevel) + " / " + Number(next) + " XP", 18, LobbyKit.Cream,
                 TextAlignmentOptions.MidlineRight, LobbyKit.Ink.Stroke);
             xp.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(12, 0), new Vector2(-14, 0));
-            // Overflow, not ellipsis: a line a little taller than its box would otherwise vanish.
             var line = LobbyKit.Text(info, $"Level {career.Level}  ·  {Number(Mathf.Max(0, next - career.XpIntoLevel))} XP to level {career.Level + 1}",
                 18, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
             line.name = "XP line";
@@ -1095,8 +980,6 @@ namespace Wreckabulary
             foreach (var match in career.History) Match(list, match);
         }
 
-        /// <summary>A white stat card: a sun disc with the stat's glyph (a coin for coins), the number in navy
-        /// display type and a small caption.</summary>
         static void Stat(Transform parent, string title, string value, string icon)
         {
             var tile = LobbyKit.Rect(parent, title);
@@ -1117,8 +1000,6 @@ namespace Wreckabulary
             caption.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), new Vector2(80, 8), new Vector2(-8, -4));
         }
 
-        /// <summary>One finished match as a card: the mode's badge, its name over the house and when, then WON or
-        /// LOST, the score and what it earned.</summary>
         static void Match(Transform list, MatchRecord match)
         {
             var card = LobbyKit.Row(list, "Match", 14);
@@ -1148,7 +1029,6 @@ namespace Wreckabulary
                 TextAlignmentOptions.MidlineRight).Size(200, 30);
         }
 
-        /// <summary>No matches yet: a card that says how to get one, and a button to practice.</summary>
         void Empty(Transform column)
         {
             var card = LobbyKit.Rect(column, "No matches");
@@ -1173,11 +1053,6 @@ namespace Wreckabulary
         }
     }
 
-    /// <summary>
-    /// The web's item shop: big cards on sunbursts in the wide side panel, in two shelves (gear styles, then top
-    /// colours), bought with coins from matches. A click on a card tries it on; its price tag buys it, then WEAR
-    /// puts it on. Opened from the locker, it rings the offer you came for.
-    /// </summary>
     public sealed class ShopPage : LobbyPage
     {
         static readonly Vector2 Card = new Vector2(248, 276);
@@ -1185,7 +1060,6 @@ namespace Wreckabulary
 
         public override string Id => LobbyMenu.Shop;
         public override LobbyStage.Focus Focus => LobbyStage.Focus.Left;
-        /// <summary>The offer the shop was opened on, ringed in cyan; null when it was opened from the bar.</summary>
         public string Spotlit => spotlight;
 
         public override void Opened()
@@ -1194,7 +1068,6 @@ namespace Wreckabulary
             spotlight = null;
         }
 
-        /// <summary>Rings one offer and puts a keyboard or controller on what buys it.</summary>
         public void Spotlight(string offerId)
         {
             spotlight = offerId;
@@ -1213,7 +1086,6 @@ namespace Wreckabulary
                 TextAlignmentOptions.MidlineLeft).Size(-1, 30, 1);
             var view = LobbyKit.Rect(body, "Offers").Place(Vector2.zero, Vector2.one, new Vector2(0, 46), Vector2.zero);
             var list = LobbyKit.Scroll(view, "Scroll", 10);
-            // Room inside the mask for rings, drops and cards that lift.
             list.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(4, 4, 8, 12);
             LobbyKit.SectionLabel(list, "Gear styles");
             var finishes = LobbyKit.Grid(list, "Finishes", Card, 16);
@@ -1223,8 +1095,6 @@ namespace Wreckabulary
             foreach (var offer in Career.Shop.Where(o => o.Kind == "colour")) Offer(colours, offer);
         }
 
-        /// <summary>The web's shop card: white with a navy edge, the art on a sunburst, the name and what it is,
-        /// and its price tag, WEAR or WEARING.</summary>
         void Offer(Transform parent, ShopOffer offer)
         {
             bool owned = Menu.Career.Owns(offer.Kind, offer.Value);
@@ -1245,7 +1115,6 @@ namespace Wreckabulary
             name.characterSpacing = 1;
             name.enableAutoSizing = true; name.fontSizeMin = 16; name.fontSizeMax = 24;
             name.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(10, -176), new Vector2(-10, -146));
-            // What the colour goes on, as the web says it: "Hoodie colour" while you wear the hoodie.
             string kindText = offer.Kind == "skin" ? "Crafted gear style" : (Menu.Outfit.PieceIn("Top") ?? "Top") + " colour";
             var kind = LobbyKit.Text(t, kindText, 16, LobbyKit.CardSub, TextAlignmentOptions.Center, FontStyles.Bold);
             kind.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(10, -200), new Vector2(-10, -176));
@@ -1253,11 +1122,9 @@ namespace Wreckabulary
                 : LobbyKit.PriceTag(t, "Buy " + offer.Id, offer.Price, Menu.Career.Coins < offer.Price, () => Buy(offer), 22);
             action.interactable = !worn;
             ((RectTransform)action.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(44, 16), new Vector2(-44, 60));
-            // A controller starts on the offer the shop was opened for, or else on the first thing to buy or wear.
             if (!worn && (offer.Id == spotlight || !First)) First = action;
         }
 
-        /// <summary>The web's owned stamp on an offer's art: green type in a green outline, turned a little.</summary>
         static void OwnedMark(RectTransform art)
         {
             var stamp = LobbyKit.Rect(art, "Owned").Pin(Vector2.one, new Vector2(-8, -8), new Vector2(92, 28));
@@ -1269,7 +1136,6 @@ namespace Wreckabulary
             label.rectTransform.Fill();
         }
 
-        /// <summary>WEAR on something you own: a lime slab, like the locker's confirm.</summary>
         Button WearChip(RectTransform card, ShopOffer offer)
         {
             var button = LobbyKit.Button(card, "Wear " + offer.Id, LobbyKit.LimeHi, () => Wear(offer), 10, LobbyKit.Navy, 2, 3, LobbyKit.LimeLo);
@@ -1279,7 +1145,6 @@ namespace Wreckabulary
             return button;
         }
 
-        /// <summary>The web's worn stamp: green outline and type, turned a little, and never faded.</summary>
         static Button Stamp(RectTransform card, ShopOffer offer)
         {
             var button = LobbyKit.Button(card, "Wearing " + offer.Id, Color.clear, null, -1);
@@ -1323,19 +1188,12 @@ namespace Wreckabulary
             Menu.Wear(next);
             note = "Wearing " + offer.Name + ".";
             Refresh();
-            // WEAR turns into a WEARING stamp, so a controller lands on the card instead.
             Reselect("Offer " + offer.Id);
         }
     }
 
-    /// <summary>
-    /// The web's leaderboards: a side panel with a chip for each mode, the board as podium rows (gold, silver and
-    /// bronze, then white with wood rank tiles), and your best along the foot. Until there's an online board it
-    /// shows your best matches on this PC, and says so.
-    /// </summary>
     public sealed class TrophyPage : LobbyPage
     {
-        // The web's podium: each place's row, left to right, and its rank tile, top to bottom.
         static readonly (Color from, Color to, Color hi, Color lo)[] Podium =
         {
             (LobbyKit.Hex(0xffe14d), LobbyKit.Hex(0xfff7c2), LobbyKit.Hex(0xfff4a8), LobbyKit.Hex(0xe09a00)),
@@ -1349,7 +1207,6 @@ namespace Wreckabulary
         public override LobbyStage.Focus Focus => LobbyStage.Focus.Left;
         public override float PanelWidth => 700f;
 
-        /// <summary>Opens on the board for the mode you've picked.</summary>
         public override void Opened() => board = null;
 
         protected override void Build()
@@ -1357,7 +1214,6 @@ namespace Wreckabulary
             var career = Menu.Career;
             if (!LobbyMenu.Modes.Contains(board)) board = LobbyMenu.Modes.Contains(Menu.Mode) ? Menu.Mode : LobbyMenu.Modes[0];
             var body = Side("Leaderboards", "Best single-match score in each mode.");
-            // Padding leaves room for the ring round your row.
             var column = LobbyKit.Column(body, "Column", 10, 6).Fill();
             var chips = LobbyKit.Row(column, "Boards", 10);
             chips.Size(-1, 96);
@@ -1383,7 +1239,6 @@ namespace Wreckabulary
                 TextAlignmentOptions.MidlineRight).Size(200, 40);
         }
 
-        /// <summary>Your best few matches in a mode, best first. Your all-time best leads when it has left the history.</summary>
         static List<(int score, string detail)> Rows(Career career, string mode)
         {
             var rows = career.History.Where(m => m.Mode == mode).OrderByDescending(m => m.Score)
@@ -1392,7 +1247,6 @@ namespace Wreckabulary
             return rows.Take(Places).ToList();
         }
 
-        /// <summary>A mode's chip: its art over its name, in the mode's colour and tipped a little while its board shows.</summary>
         void Chip(Transform row, string mode)
         {
             bool on = mode == board;
@@ -1420,8 +1274,6 @@ namespace Wreckabulary
             Reselect("Board " + mode);
         }
 
-        /// <summary>One place on the board: podium colours for the top three, a wood rank tile below them, and a hot
-        /// ring round the row that's yours.</summary>
         static void Entry(Transform column, int rank, int score, string name, string detail, bool you)
         {
             var row = LobbyKit.Row(column, "Rank " + rank, 14);
@@ -1454,7 +1306,6 @@ namespace Wreckabulary
             LobbyKit.Display(row, Number(score), 30, LobbyKit.Navy, TextAlignmentOptions.MidlineRight).Size(160, 40);
         }
 
-        /// <summary>The web's board note: a see-through strip of white text.</summary>
         static void Note(Transform column, string text)
         {
             var note = LobbyKit.Rect(column, "Note");
@@ -1465,11 +1316,6 @@ namespace Wreckabulary
         }
     }
 
-    /// <summary>
-    /// Settings in four tabs down the left: general (your name and sound), graphics (display mode, resolution, a
-    /// quality preset and the options it sets, frame cap, v-sync), the controls as key caps beside their controller
-    /// buttons, and how to play. Each row says what it does. A new display asks to be kept and goes back by itself after ten seconds.
-    /// </summary>
     public sealed class SettingsPage : LobbyPage
     {
         static readonly (string id, string title)[] Tabs =
@@ -1482,15 +1328,10 @@ namespace Wreckabulary
         public override bool Modal => true;
 
         string tab = "general";
-        // Unity changes the display at the end of the frame, so the redraw straight after a click would still read
-        // the old one; it shows what was asked for instead.
         (FullScreenMode mode, int width, int height)? asked;
-        // The display to go back to unless the new one is kept. Its timer sits on the menu, so it runs out with the
-        // page closed too.
         (FullScreenMode mode, int width, int height)? revertTo;
         LobbyCountdown timer;
 
-        /// <summary>Shows one tab (general, graphics, controls or how).</summary>
         public void ShowTab(string id)
         {
             tab = id;
@@ -1588,7 +1429,6 @@ namespace Wreckabulary
             reset.Size(180, 46);
         }
 
-        /// <summary>The controls as key caps, with each one's controller button in a column of its own.</summary>
         void Controls(Transform list)
         {
             if (Application.isMobilePlatform)
@@ -1634,7 +1474,6 @@ namespace Wreckabulary
             Wrapped(list, ControlHints.Players + ".", 17, LobbyKit.Muted, 48);
         }
 
-        /// <summary>A key cap (white, navy edge) or a controller button (navy, cyan edge, all one width).</summary>
         static void Cap(Transform parent, string text, bool pad)
         {
             var cap = LobbyKit.Rect(parent, (pad ? "Pad " : "Key ") + text);
@@ -1645,8 +1484,6 @@ namespace Wreckabulary
                 .Place(Vector2.zero, Vector2.one, new Vector2(6, 0), new Vector2(-6, 0));
         }
 
-        /// <summary>The web's how-to-play: three steps with this game's numbers and keys, the keys at a glance, the
-        /// rules worth knowing, and a way straight to a match.</summary>
         void HowToPlay(RectTransform page)
         {
             var column = LobbyKit.Column(page, "How", 14).Fill();
@@ -1675,8 +1512,6 @@ namespace Wreckabulary
             label.rectTransform.Fill();
         }
 
-        /// <summary>A step card: its number, a piece of item art tipped in the corner, its title and a line that
-        /// shrinks rather than clips when the card is narrow.</summary>
         static void Step(Transform row, string number, string title, string art, string text)
         {
             var card = LobbyKit.Rect(row, "Step " + number);
@@ -1693,7 +1528,6 @@ namespace Wreckabulary
             body.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(20, 12), new Vector2(-16, -110));
         }
 
-        /// <summary>The keys at a glance, as on the web: two columns of key caps and what each does.</summary>
         static void KeyBox(Transform column, DesktopBinding keys)
         {
             var box = LobbyKit.Row(column, "Keys", 24, 16);
@@ -1727,13 +1561,11 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>A row: its name over a line on what it does on the left, its controls on the right.</summary>
         static RectTransform Setting(Transform list, string label, string help = null)
         {
             var row = LobbyKit.Rect(list, label);
             row.Size(-1, help == null ? 60 : 80);
             row.Paint(LobbyKit.Card, 14).raycastTarget = false;
-            // The name over its help line, centred; on a narrow screen (4:3) the help wraps onto a second line.
             var words = LobbyKit.Column(row, "Words", 0);
             words.Place(Vector2.zero, new Vector2(.42f, 1), new Vector2(20, 4), new Vector2(-8, -4));
             words.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
@@ -1745,12 +1577,10 @@ namespace Wreckabulary
             controls.Place(new Vector2(.42f, 0), Vector2.one, new Vector2(0, 8), new Vector2(-12, -8));
             var layout = controls.GetComponent<HorizontalLayoutGroup>();
             layout.childAlignment = TextAnchor.MiddleRight;
-            // Each control keeps its own height, centred in the row.
             layout.childForceExpandHeight = false;
             return controls;
         }
 
-        /// <summary>A segmented choice whose buttons are named "prefix id"; a pick redraws and keeps the controller on it.</summary>
         void Choose(RectTransform controls, string prefix, IReadOnlyList<(string id, string label)> choices, string picked, Action<string> pick, float width)
         {
             var named = choices.Select(c => (prefix + " " + c.id, c.label)).ToList();
@@ -1761,7 +1591,6 @@ namespace Wreckabulary
                 Reselect(name);
             });
             track.Size(width, 48);
-            // On a narrow screen the choices give up width (their names shrink to fit) before the row's name does.
             track.GetComponent<LayoutElement>().minWidth = Mathf.Min(width, 64f * choices.Count);
         }
 
@@ -1783,7 +1612,6 @@ namespace Wreckabulary
             Round(controls, name + " more", false, () => { step(1); Refresh(); Reselect(name + " more"); });
         }
 
-        /// <summary>A round white step button with a navy chevron that turns sun under the pointer.</summary>
         static void Round(RectTransform controls, string name, bool back, Action click)
         {
             var button = LobbyKit.Button(controls, name, Color.white, click, 22, LobbyKit.Navy, 3, 3);
@@ -1811,12 +1639,10 @@ namespace Wreckabulary
             _ => FullScreenMode.FullScreenWindow,
         };
 
-        /// <summary>The screen's resolutions, smallest first, with the current size among them.</summary>
         static List<(int width, int height)> Sizes((FullScreenMode mode, int width, int height) now) =>
             Screen.resolutions.Select(r => (width: r.width, height: r.height)).Append((now.width, now.height)).Distinct()
                 .OrderBy(s => s.width * s.height).ThenBy(s => s.width).ToList();
 
-        /// <summary>Changes the display and starts the clock that puts the old one back unless it's kept.</summary>
         void Show(FullScreenMode mode, int width, int height)
         {
             var now = Current;
@@ -1860,7 +1686,6 @@ namespace Wreckabulary
             timer = null;
         }
 
-        /// <summary>The bar under a new display: how long until it goes back, KEEP and REVERT.</summary>
         void KeepBar(RectTransform page)
         {
             var bar = LobbyKit.Row(page, "Keep display", 12);
@@ -1881,7 +1706,6 @@ namespace Wreckabulary
         void NameField(RectTransform controls)
         {
             var holder = LobbyKit.Rect(controls, "Name field");
-            // Built inactive so the field finds its text when it first wakes up.
             holder.gameObject.SetActive(false);
             holder.Size(360, 46);
             holder.Paint(Color.white, 10);
@@ -1895,7 +1719,6 @@ namespace Wreckabulary
             field.textViewport = area;
             field.textComponent = text;
             field.characterLimit = Career.NameLength;
-            // The caret colour is ignored unless it is marked custom.
             field.customCaretColor = true;
             field.caretColor = LobbyKit.Navy;
             field.caretWidth = 2;

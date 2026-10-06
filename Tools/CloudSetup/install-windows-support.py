@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Install pinned official Windows Mono support into a rootless Linux Unity editor.
-
-The archive is verified before extraction. This does not activate Unity or prove
-that a project can build. No macOS installer scripts are executed on Linux.
-"""
 import argparse
 import base64
 import gzip
@@ -86,7 +81,6 @@ def extract(archive, destination):
                     raise RuntimeError("Unterminated payload path")
                 name = encoded[:-1].decode("utf-8")
                 if name == "TRAILER!!!":
-                    # Exhaust the bounded gzip stream, enforcing its CRC/trailer too.
                     while body.read(1024 * 1024):
                         pass
                     break

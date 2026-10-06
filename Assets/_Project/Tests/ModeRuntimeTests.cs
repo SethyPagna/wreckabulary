@@ -8,7 +8,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>Integration coverage for solo seats, team outcomes, map geometry and physical evacuation objectives.</summary>
     public class ModeRuntimeTests
     {
         [UnitySetUp] public IEnumerator SetUp() => TestScenes.Reset();

@@ -17,7 +17,6 @@ function Invoke-Unity {
     $logPath = Join-Path $results $LogName
     $arguments = @('-batchmode', '-nographics', '-projectPath', $repoRoot) +
         $UnityArguments + @('-logFile', $logPath)
-    # Start-Process joins its argument array; quote each argument for Windows.
     $commandLine = ($arguments | ForEach-Object {
         '"' + ($_ -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
     }) -join ' '
@@ -98,11 +97,9 @@ try {
     New-Item -ItemType Directory -Path $results | Out-Null
     Write-Host "Current Unity verification results: $results"
 
-    # Refresh art/data only. Never rebuild prototype scenes or prefabs.
     Invoke-Unity 'setup.log' @('-quit', '-executeMethod', 'Wreckabulary.EditorTools.ProjectSetup.Run')
     foreach ($platform in @('EditMode', 'PlayMode')) {
         $reportPath = Join-Path $results "$platform.xml"
-        # Do not add -quit: the Unity Test Runner exits when the suite completes.
         Invoke-Unity "$platform.log" @('-runTests', '-testPlatform', $platform, '-testResults', $reportPath)
         Assert-TestReport $reportPath
     }

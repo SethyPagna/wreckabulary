@@ -35,7 +35,6 @@ namespace Wreckabulary
 
         public IReadOnlyList<PlayerController> Players => players;
         public bool AllowJoining { get; set; } = true;
-        /// <summary>When true, wrecked roommates get back up after a short delay (house, tutorial, lobby).</summary>
         public bool RespawnKnockedOut { get => respawnKnockedOut; set => respawnKnockedOut = value; }
         /// <summary>True if the players were carried over from another scene.</summary>
         public bool RestoredFromSession { get; private set; }
@@ -85,7 +84,6 @@ namespace Wreckabulary
         {
             if (!AllowJoining || players.Count >= maxPlayers) return;
 
-            // Keyboard and mouse and the left keyboard half both use WASD, so only one of them can play.
             if (!HasJoined(keyboardLeft.Id)) TryJoin(DesktopBinding.Shared);
             if (!HasJoined(DesktopBinding.Shared.Id)) TryJoin(keyboardLeft);
             TryJoin(keyboardRight);
@@ -153,7 +151,6 @@ namespace Wreckabulary
 
         public bool AnyStartPressed() => players.Any(p => p.Commands.start || (p.Binding != null && p.Binding.StartPressed()));
 
-        /// <summary>The mode's configured starter letters; the normal arena starts empty.</summary>
         public void GiveStarterLetters(PlayerController p)
         {
             p.Inventory.Set(Match.Rules.StarterLetters ?? "");

@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>The third-person view's maths, the cursor rule and the wall heights, without a scene.</summary>
     public class ShoulderViewTests
     {
         const float Half = Mathf.PI * .5f;
@@ -16,7 +15,6 @@ namespace Wreckabulary.Tests
         {
             Near(Vector2.up, ShoulderView.CameraRelative(Vector2.up, 0f));
             Near(Vector2.right, ShoulderView.CameraRelative(Vector2.right, 0f));
-            // Looking along +x: W walks +x, D walks -z, S walks -x.
             Near(new Vector2(1f, 0f), ShoulderView.CameraRelative(Vector2.up, Half));
             Near(new Vector2(0f, -1f), ShoulderView.CameraRelative(Vector2.right, Half));
             Near(new Vector2(-1f, 0f), ShoulderView.CameraRelative(Vector2.down, Half));

@@ -80,7 +80,6 @@ namespace Wreckabulary
             else hud.SetInstruction($"<color=#FFD24A>{StepIndex + 1}/{steps.Count}</color>  {step.text}", step.hint);
 
             Resupply();
-            // Whatever the step needs comes back if it got smashed first (a broken CHAIR can't be thrown).
             step.keep?.Invoke();
             if (Time.time > nextTether && Dummy && !Dummy.IsKnockedOut && !Dummy.IsStaggered && !Dummy.IsHeld)
             {
@@ -161,7 +160,6 @@ namespace Wreckabulary
             Dummy.Health.KnockedOut += _ => { if (!Finished) Invoke(nameof(EnsureDummy), 1.5f); };
         }
 
-        /// <summary>A full-health target with no spawn protection so the first whack always counts.</summary>
         static GameRules DummyRules()
         {
             var rules = Match.Rules.Clone();
@@ -178,7 +176,6 @@ namespace Wreckabulary
             ResetDummy();
         }
 
-        /// <summary>Back on its spot at full health.</summary>
         void ResetDummy()
         {
             if (!Dummy || Finished) return;

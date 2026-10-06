@@ -10,11 +10,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>
-    /// The browser edition's centred third-person view for one person playing with a mouse or a controller:
-    /// where it sits, how look turns it, WASD along it, walls pulling it in, furniture fading, tall walls,
-    /// the crosshair, your own tag, pausing when the window loses focus, and the home tour.
-    /// </summary>
     public class ThirdPersonCameraTests
     {
         Camera lens;
@@ -46,7 +41,6 @@ namespace Wreckabulary.Tests
             yield return TestScenes.Reset();
         }
 
-        /// <summary>A person with a controller (or a mouse, without capturing the cursor in a test).</summary>
         sealed class LookBinding : InputBinding
         {
             public PlayerCommands Next;
@@ -98,7 +92,6 @@ namespace Wreckabulary.Tests
             var feet = p.transform.position;
             var at = lens.transform.position;
             Debug.Log($"THIRD_PERSON feet {feet} camera {at}");
-            // Web numbers: 2.6 m back along a 0.16 rad pitch from 1.85 m up.
             Assert.AreEqual(feet.x, at.x, .05f, "centred behind, not over a shoulder");
             Assert.AreEqual(-2.567f, at.z - feet.z, .1f, "behind the player");
             Assert.AreEqual(2.264f, at.y - feet.y, .1f, "above the player's head");
@@ -344,7 +337,7 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator TheHomeTourFollowsTheRoommateFromBehind()
         {
-            rig.enabled = false; // the workshop takes the camera
+            rig.enabled = false;
             var house = GameConfig.Current.HouseFor("pinwheel");
             var input = new LookBinding();
             var tour = new GameObject("Test tour").AddComponent<HomeTourDirector>();

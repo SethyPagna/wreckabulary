@@ -5,8 +5,6 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { MaterialPalette } from "./materials.js";
 import { AvatarAnimator } from "./animator.js";
-// World metres per rig metre. The rig stands about 1 m to the top of the head, so the
-// player is about 1.23 m tall, the size it had when it was fitted to the old hood's bounds.
 export const AVATAR_SCALE = 1.23;
 const ROOM_COLORS = {
   Garden: 0x92b78b,
@@ -75,8 +73,6 @@ export class WorldView {
     this.camera.position.set(16, 22, 23);
     this.target = new THREE.Vector3();
     this.camera.lookAt(this.target);
-    // Mouse-driven view for the shoulder camera: yaw matches the engine's facing angle,
-    // pitch is positive when looking down.
     this.look = { yaw: 0, pitch: 0.16, distance: 2.6 };
     this.shake = 0;
     this.raycaster = new THREE.Raycaster();
@@ -191,8 +187,6 @@ export class WorldView {
               for (const texture of Object.values(source))
                 if (texture?.isTexture) this.assetTextures.add(texture);
             }
-            // Avatar and letter materials retain every authored channel. Enrichment is
-            // subordinate detail on classified props, never a replacement texture.
             if (id !== "avatar" && !id.startsWith("letter:")) {
               const values = originals.map((source) =>
                 this.materials.enrichMaterial(source, id),
@@ -299,10 +293,7 @@ export class WorldView {
     return value;
   }
   rebuild(game) {
-    // Played matches and tours get full-height walls for the shoulder camera; overview
-    // screens (lobby, Workshop) keep the low dollhouse walls you can see over.
     this.tallWalls = game.status !== "preview";
-    // Matches and tours never keep the lobby showroom or its camera.
     if (game.status !== "preview" || game.mode === "Tour") this.setLobby(null);
     const worldKey = `${game.map.id}:${game.house.name}:${game.mode === "MovingOut"}:${this.tallWalls}`;
     const reuse =
@@ -370,7 +361,6 @@ export class WorldView {
       );
       text.position.set(floor.position.x, 0.4, floor.position.z - d * 0.35);
       text.material.opacity = 0.8;
-      // At eye level a standing room sign blocks the view; the HUD names the room instead.
       text.visible = !this.tallWalls && !this.lobbyView;
       text.userData.roomLabel = true;
       this.world.add(text);
@@ -462,7 +452,6 @@ export class WorldView {
         }
       });
     }
-    // Real foliage models, picket details and warm lamp pools make the house feel inhabited.
     for (let n = 0; n < 16; n++) {
       const angle = (n / 16) * Math.PI * 2,
         radius = game.extent + 4 + (n % 3) * 1.5;
@@ -559,8 +548,6 @@ export class WorldView {
         avatar = this.clone("avatar");
       if (avatar) {
         const box = new THREE.Box3().setFromObject(avatar);
-        // A fixed size, not fitted to the bounds: wardrobe pieces (the hood, a cap) change
-        // the bounds but must never resize the player.
         avatar.scale.setScalar(AVATAR_SCALE);
         avatar.position.y = -box.min.y * AVATAR_SCALE;
         group.add(avatar);
@@ -607,8 +594,6 @@ export class WorldView {
       );
       name.position.y = 1.8;
       name.scale.set(1.1, 0.28, 1);
-      // The shoulder camera sits right behind you, so your own tag would cover the view.
-      // The lobby's party list names everyone, so tags stay hidden there too.
       name.visible = p.id !== 0 && !this.lobbyView;
       name.userData.nameTag = p.id !== 0;
       group.add(name);
@@ -632,9 +617,6 @@ export class WorldView {
       this.entities.set(`p${p.id}`, group);
     }
   }
-  // Tints each worn piece's own meshes, as Unity's PlayerAppearance does: a piece shows
-  // its slot's colourway or the slot it borrows from (the Hood takes the Top's), and the
-  // rib cuffs and hems of a fabric_main piece are 25% darker.
   applyWardrobe(avatar, wardrobe = {}) {
     const config = this.data.wardrobe;
     const colourFor = (piece) => {
@@ -819,10 +801,6 @@ export class WorldView {
     }
     this.updateEntities(game, dt);
   }
-  /**
-   * Third-person follow camera, centred close behind the character. It turns with `look`
-   * (driven by the mouse), so the camera, crosshair and character always point the same way.
-   */
   shoulderCamera(p, dt) {
     const look = this.look,
       yaw = look.yaw,
@@ -832,15 +810,12 @@ export class WorldView {
         -Math.sin(pitch),
         Math.cos(yaw) * Math.cos(pitch),
       );
-    // Ease only the height, so jumps feel weighty while turning stays 1:1 with the mouse.
     this.shoulderY = THREE.MathUtils.lerp(
       this.shoulderY ?? p.y,
       p.y,
       1 - Math.exp(-dt * 12),
     );
-    // Centred behind the head: the crosshair, the body and the camera share one line.
     const pivot = new THREE.Vector3(p.x, this.shoulderY + 1.3, p.z);
-    // Pull the camera in when a wall sits between it and the shoulder.
     let distance = look.distance;
     const game = this.lastGame ?? this.game;
     if (this.tallWalls && game?.segmentBlocked) {
@@ -865,7 +840,6 @@ export class WorldView {
       distance < (this.cameraDistance ?? distance) ? 1 : 1 - Math.exp(-dt * 6),
     );
     const position = pivot.clone().addScaledVector(forward, -this.cameraDistance);
-    // A little lift keeps the character in the lower middle, under the crosshair, not on it.
     position.y = Math.max(0.35, position.y + 0.55);
     this.camera.position.copy(position);
     this.target.copy(pivot).addScaledVector(forward, 12);
@@ -879,12 +853,6 @@ export class WorldView {
     );
     this.shake = Math.max(0, (this.shake ?? 0) - dt * 1.2);
   }
-  /**
-   * The lobby is its own showroom, like a shooter's front end: the house is
-   * hidden and the line-up stands on light pads on a glowing grid floor, under
-   * a giant letter-tile sign. `view` is { centre, yaw, floor, spots, camera,
-   * target }; null leaves the lobby and brings the house back.
-   */
   setLobby(view) {
     this.lobbyView = view;
     if (!view) {
@@ -912,8 +880,6 @@ export class WorldView {
         far: this.scene.fog.far,
         lights: this.scene.children.filter((o) => o.isLight).map((l) => [l, l.intensity]),
       };
-      // The house lights are tuned for wood and plaster; the showroom gets its own key
-      // light, so the house ones drop to a fill and the blues stay saturated.
       for (const [light, intensity] of this.lobbySaved.lights) light.intensity = intensity * 0.42;
       this.scene.add(this.lobbyStage);
       this.scene.background = this.lobbyStage.userData.sky;
@@ -928,7 +894,6 @@ export class WorldView {
       if (o.userData.nameTag) o.visible = false;
     });
   }
-  /** Screen position (CSS pixels) of a world point, for HTML tags over the scene. */
   screenOf(x, y, z) {
     const v = new THREE.Vector3(x, y, z).project(this.camera),
       rect = this.renderer.domElement.getBoundingClientRect();
@@ -938,7 +903,6 @@ export class WorldView {
       visible: v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1,
     };
   }
-  /** Lobby animation: floating letters bob and turn, the beam breathes. */
   animateLobby(time) {
     const stage = this.lobbyStage;
     if (!stage) return;
@@ -949,7 +913,6 @@ export class WorldView {
     if (stage.userData.beam)
       stage.userData.beam.material.opacity = 0.4 + Math.sin(time * 2.2) * 0.1;
   }
-  /** Stage space: +z faces the camera and +x reads left to right on screen. */
   buildLobbyStage(spots) {
     const stage = new THREE.Group(),
       canvasTexture = (w, h, paint) => {
@@ -961,7 +924,6 @@ export class WorldView {
         texture.colorSpace = THREE.SRGBColorSpace;
         return texture;
       };
-    // Sky: deep indigo overhead into electric blue at the horizon.
     stage.userData.sky = canvasTexture(4, 512, (ctx, w, h) => {
       const g = ctx.createLinearGradient(0, 0, 0, h);
       g.addColorStop(0, "#0b0c44");
@@ -971,7 +933,6 @@ export class WorldView {
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
     });
-    // Floor: a royal-blue grid that glows in the middle and fades at the edge.
     const floorMap = canvasTexture(1024, 1024, (ctx, w, h) => {
       const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
       g.addColorStop(0, "#3a63ff");
@@ -992,13 +953,11 @@ export class WorldView {
     });
     const floor = new THREE.Mesh(
       new THREE.CircleGeometry(32, 96),
-      // Unlit and untoned, so the grid keeps its electric blue instead of washing out.
       new THREE.MeshBasicMaterial({ map: floorMap, toneMapped: false }),
     );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     stage.add(floor);
-    // Soft glows: additive discs with a radial falloff.
     const glowMap = canvasTexture(256, 256, (ctx, w) => {
       const g = ctx.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
       g.addColorStop(0, "#ffffff");
@@ -1025,7 +984,6 @@ export class WorldView {
     const centreGlow = glow(5.5, 0x4fd8ff, 0.3);
     centreGlow.position.y = 0.01;
     stage.add(centreGlow);
-    // Light pads under each roommate; yours has a beam, like a shooter lobby.
     const padTop = material(0x10155a),
       beamMap = canvasTexture(4, 256, (ctx, w, h) => {
         const g = ctx.createLinearGradient(0, 0, 0, h);
@@ -1071,7 +1029,6 @@ export class WorldView {
       stage.add(pad);
     });
     stage.add(this.lobbyTiles());
-    // Floating letters drift between the sign and the line-up.
     stage.userData.floaters = [];
     [
       ["W", -4.6, 2.6, -2.6],
@@ -1088,7 +1045,6 @@ export class WorldView {
       stage.add(node);
       stage.userData.floaters.push({ node, y, phase: i * 1.7, turn: x < 0 ? 0.35 : -0.35 });
     });
-    // Warm key light on the sign and a cool rim behind the line-up.
     const key = new THREE.SpotLight(0xffd9a0, 28, 22, 0.55, 0.6, 1.4);
     key.position.set(0, 7, 3);
     key.target.position.set(0, 2.4, -5);
@@ -1098,10 +1054,6 @@ export class WorldView {
     stage.add(key, key.target, rim, rim.target);
     return stage;
   }
-  /**
-   * The lobby backdrop: the real letter-tile models stacked into the logo
-   * (WRECK on ABULARY) on a wall of moving boxes behind the line-up.
-   */
   lobbyTiles() {
     const group = new THREE.Group(),
       tile = (char, scale) => {
@@ -1117,7 +1069,6 @@ export class WorldView {
       back = -5,
       boxHeight = 0.74,
       lift = boxHeight * 2;
-    // A wall of taped moving boxes lifts the sign above the line-up's heads.
     const cardboard = material(0xb06f32),
       tape = material(0xe9d6ac);
     for (let row = 0; row < 2; row++)
@@ -1153,7 +1104,6 @@ export class WorldView {
         node.rotation.set(0, wobble(i + 2 * row, 0.035), wobble(i + 5 * row, 0.018));
       }),
     );
-    // Knocked-over tiles lying face up on the deck, like the board's "dropped" tiles.
     [
       ["B", -2.35, 1.55, 0.5],
       ["A", 2.15, 1.85, -0.35],
@@ -1404,13 +1354,10 @@ export class WorldView {
       if (objective.label) objective.label.visible = !objective.done;
     }
     this.updateWorkshopSelection();
-    // Only the line-up stands in the showroom; props stay with the hidden house.
     if (this.lobbyView)
       for (const [key, node] of this.entities) node.visible = /^p\d+$/.test(key);
     this.renderer.render(this.scene, this.camera);
   }
-  // Held gear sits in the right grip bone and turns with the wrist; carried
-  // furniture sits between both grips. Returns false when the avatar has no rig.
   attachToHands(node, item, owner, scale) {
     const animator = this.avatarModels.get(owner.id)?.animator;
     if (!animator || owner.state === "eliminated") return false;
@@ -1425,8 +1372,6 @@ export class WorldView {
         0,
         Math.cos(animator.yaw),
       );
-      // Hands hold the near top edge, so the load hangs low in front of the
-      // body and the big head stays visible above it.
       node.position.copy(mid).addScaledVector(forward, size[2] * scale * 0.5 + 0.05);
       node.position.y = Math.max(owner.y ?? 0, mid.y - size[1] * scale * 0.9);
       return true;
@@ -1434,8 +1379,6 @@ export class WorldView {
     const shield =
       item.definition?.family === "Shield" || !!item.definition?.shield;
     if (shield && owner.block) {
-      // A raised guard stands upright in front of the chest, face forward,
-      // whichever hand the clip lifts.
       const yaw = new THREE.Quaternion().setFromAxisAngle(
         new THREE.Vector3(0, 1, 0),
         animator.yaw,
@@ -1455,7 +1398,6 @@ export class WorldView {
         .sub(offset);
       return true;
     }
-    // Gear in its rest pose stands slightly forward of upright; shields face forward.
     const base = new THREE.Quaternion().setFromEuler(
       shield ? new THREE.Euler(-Math.PI / 2, 0, 0) : new THREE.Euler(0.35, 0, 0),
     );
@@ -1479,7 +1421,6 @@ export class WorldView {
         continue;
       }
       const t = 1 - fx.life / fx.max;
-      // Pop in, hold, then shrink away; the shared asset materials stay untouched.
       const envelope =
         Math.min(t / 0.15, 1) * Math.min(fx.life / (fx.max * 0.35), 1);
       fx.node.scale.setScalar(Math.max(0.01, fx.scale * envelope));
@@ -1999,7 +1940,6 @@ export class WorldView {
     if (this.icons.has(word)) return this.icons.get(word);
     const model = this.clone(word);
     if (!model) return "";
-    // Transparent, so the item sits on any HUD surface (glass hand slots, cream cards).
     const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight(0xfff7e2, 0x596966, 3));
     const light = new THREE.DirectionalLight(0xffffff, 4);

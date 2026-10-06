@@ -7,13 +7,8 @@ using Wreckabulary.Art;
 
 namespace Wreckabulary.EditorTools
 {
-    /// <summary>
-    /// Fills <see cref="ModelLibrary"/> with every model the Blender pipeline reported, keyed by
-    /// its path under <c>Art/Imported</c> without the extension ("Items/BALL").
-    /// </summary>
     public static class ModelLibraryBuilder
     {
-        /// <summary>Rebuilds serialized model and clip references from the existing imported assets.</summary>
         public static void Refresh() => Build(ImportedArtSettings.ReadReport());
 
         public static ModelLibrary Build(List<ImportedArtSettings.ReportFile> report)
@@ -52,7 +47,6 @@ namespace Wreckabulary.EditorTools
             return library;
         }
 
-        /// <summary>"Assets/_Project/Art/Imported/Items/BALL.fbx" → "Items/BALL".</summary>
         public static string KeyOf(string assetPath)
         {
             string path = assetPath.Replace('\\', '/');

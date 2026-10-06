@@ -6,7 +6,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Read-only imported decor: no smashables, summons, delivery economy or damage triggers.</summary>
     public sealed class CreativeHomeRuntime : MonoBehaviour
     {
         Transform geometry, decor, ghost;
@@ -14,7 +13,6 @@ namespace Wreckabulary
         string map;
         LineRenderer selection;
         public HouseLayout House => house;
-        /// <summary>Full-height walls for the tour's third-person camera, low ones for designing.</summary>
         public void SetTallWalls(bool tall) => RoomBuilder.SetTallWalls(geometry, tall);
 
         public bool Show(HomeLayout layout, out string error)
@@ -60,7 +58,6 @@ namespace Wreckabulary
             root.SetPositionAndRotation(new Vector3((float)prop.X, room.FloorY, (float)prop.Z), Quaternion.Euler(0f, prop.Yaw, 0f));
             var visual = ModelVisual.Spawn(item.Model, root, prop.Skin);
             if (!visual) throw new InvalidOperationException("Imported model is unavailable for " + prop.Word + ".");
-            // Centre the authored mesh footprint and ground its lowest point without replacing its import rotation.
             var bounds = ModelVisual.BoundsIn(root, visual);
             visual.transform.localPosition -= new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
             if (solid)
@@ -90,7 +87,6 @@ namespace Wreckabulary
         { root.gameObject.SetActive(false); TactileMaterials.Release(root.gameObject); Destroy(root.gameObject); }
         void OnDestroy()
         {
-            // Staged roots may have never been active, so their material markers cannot rely on Unity OnDestroy.
             TactileMaterials.Release(gameObject);
         }
         public void Highlight(HomeProp prop)

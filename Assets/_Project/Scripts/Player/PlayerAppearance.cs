@@ -7,23 +7,15 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Cosmetic imported avatar, wardrobe and canonical animation playback.</summary>
     [RequireComponent(typeof(PlayerController))]
     [DefaultExecutionOrder(90)]
     public sealed class PlayerAppearance : MonoBehaviour
     {
         const string AvatarKey = "Avatar/Avatar";
 
-        /// <summary>Metres per walk and run cycle with planted feet, from author_clips.py
-        /// (build_report.json "locomotion"; NativeAnimationBindingTests keeps these in step).
-        /// The avatar is spawned at its native size, so rig metres are world metres.</summary>
         public const float WalkStride = .2483f, RunStride = .5176f;
-        // The toy's legs are short: planting every step at gameplay speeds would blur them.
-        // The stride stretches as on the web, and the cadence is capped at the web's top
-        // cadence (about 2.3 walk and 3.5 run cycles a second), so a sprint slides a little.
         const float WalkStretch = 1.7f, RunStretch = 2f, MinCycles = .6f, MaxWalkCycles = 2.4f, MaxRunCycles = 3.6f;
 
-        /// <summary>Walk or run cycles per second at a ground speed in m/s.</summary>
         public static float CyclesPerSecond(bool run, float speed) =>
             Mathf.Clamp(speed / (run ? RunStride * RunStretch : WalkStride * WalkStretch),
                 MinCycles, run ? MaxRunCycles : MaxWalkCycles);
@@ -48,8 +40,6 @@ namespace Wreckabulary
         Vector3 lastVelocity;
         float lean, bank;
 
-        /// <summary>Blends the newest clip in over its first moments, driven by graph time so
-        /// manual evaluation and pausing see the same weights as normal play.</summary>
         sealed class Crossfade : PlayableBehaviour
         {
             public AnimationMixerPlayable Mixer;
@@ -75,7 +65,6 @@ namespace Wreckabulary
         public bool IsAnimationReady => initialized && graph.IsValid() && graph.IsPlaying() && currentPlayable.IsValid();
         public AnimationClip CurrentAnimationClip => currentPlayable.IsValid() ? currentPlayable.GetAnimationClip() : null;
 
-        /// <summary>Called by PlayerController.Setup, including existing serialized prefabs.</summary>
         public bool Initialize(PlayerController player)
         {
             controller = player;
@@ -109,7 +98,6 @@ namespace Wreckabulary
             graph = PlayableGraph.Create("Wreckabulary Avatar " + controller.Index);
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
             mixer = AnimationMixerPlayable.Create(graph, 2);
-            // The fader's output is created first so its weights are prepared before the pose is evaluated.
             fader = ScriptPlayable<Crossfade>.Create(graph);
             fader.GetBehaviour().Mixer = mixer;
             ScriptPlayableOutput.Create(graph, "Crossfade").SetSourcePlayable(fader);
@@ -163,7 +151,6 @@ namespace Wreckabulary
                 if (!clip) { clips.Clear(); return false; }
                 clips.Add(name, clip);
             }
-            // Presentation extras; the avatar still works without them.
             foreach (string name in new[] { "Inspect_OneHand", "Present_Item" })
             {
                 var clip = library.FindClip(AvatarKey, name);
@@ -184,8 +171,6 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>Shows the worn wardrobe meshes and tints them. Also dresses the lobby's
-        /// display avatar. Returns the outfit as worn (repaired if it didn't fit).</summary>
         public static Outfit Dress(SkinnedMeshRenderer[] meshes, Outfit next)
         {
             var catalogue = GameConfig.Current.Wardrobe;
@@ -231,7 +216,6 @@ namespace Wreckabulary
             ApplyOutfit(outfit);
         }
 
-        /// <summary>Action visuals never change damage windows, movement or item rules.</summary>
         public void Play(string clipName, float duration = .5f)
         {
             actionUntil = Time.time + Mathf.Max(.05f, duration);
@@ -243,14 +227,12 @@ namespace Wreckabulary
 
         void OnDamaged(PlayerHealth _, HitInfo __, HitResult result)
         {
-            // A landed, unblocked hit flinches; going down is handled by the downed pose.
             if (result.Landed && !result.Blocked && result.Damage > 0f && !result.BecameDowned && !result.BecameEliminated)
                 Play("Hit_Reaction", Mathf.Clamp(result.HitStun, .25f, .45f));
         }
 
         void OnSummoned(string word)
         {
-            // Consumables play their own drink when used; new gear is shown off briefly.
             if (GameConfig.Current.Items.TryGet(word, out var definition) && definition.Consumable) return;
             if (clips.ContainsKey("Present_Item")) Play("Present_Item", .6f);
         }
@@ -284,7 +266,6 @@ namespace Wreckabulary
                     * currentPlayable.GetAnimationClip().length);
             else if (down && currentClip == "Hit_Reaction")
             {
-                // Hold the end of the reaction while down instead of looping the flinch.
                 float end = currentPlayable.GetAnimationClip().length * .95f;
                 if (currentPlayable.GetTime() >= end) { currentPlayable.SetTime(end); currentPlayable.SetSpeed(0); }
             }
@@ -294,20 +275,16 @@ namespace Wreckabulary
         {
             if (!initialized || !controller) return;
             Posture();
-            // Combat keeps its original proxy/socket contracts. Place those proxies
-            // at the animated mittens after legacy wobble, without changing physics.
             if (gripL && controller.handL) controller.handL.position = gripL.position;
             if (gripR && controller.handR) controller.handR.position = gripR.position;
         }
 
-        /// <summary>Leans into acceleration and banks into turns on top of the clip, a few degrees at most.</summary>
         void Posture()
         {
             if (postureBones == null || postureBones.Length == 0) return;
             for (int i = 0; i < postureBones.Length; i++)
             {
                 var bone = postureBones[i];
-                // A culled animator leaves our last write in place; undo it rather than stacking.
                 if (bone.localRotation == postureWritten[i]) bone.localRotation = postureBase[i];
                 postureBase[i] = bone.localRotation;
             }
@@ -339,7 +316,6 @@ namespace Wreckabulary
         void SetClip(string name, bool restart = false, float fade = .15f)
         {
             if (!graph.IsValid() || (!restart && currentClip == name) || !clips.TryGetValue(name, out var clip)) return;
-            // The outgoing clip keeps playing underneath while the new one fades in.
             if (previousPlayable.IsValid())
             {
                 mixer.DisconnectInput(1);

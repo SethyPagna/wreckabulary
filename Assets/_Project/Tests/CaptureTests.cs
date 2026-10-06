@@ -35,7 +35,6 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator CaptureMatchCards() => RunWithSynchronousShaders(CaptureMatchCardsSequence());
 
-        // UTF can stop an iterator on an unexpected log without disposing it.
         [TearDown]
         public void RestoreShaderCompilation()
         {
@@ -137,7 +136,6 @@ namespace Wreckabulary.Tests
             yield return new WaitForSeconds(0.6f);
             Capture(Path.Combine(dir, "3_bees.png"));
 
-            // The same fight as one person with a mouse or a controller sees it: from behind P1.
             CameraRig.Instance.Follow(World.Players[0]);
             yield return new WaitForSeconds(0.8f);
             yield return CaptureFramed(Path.Combine(dir, "4_third_person.png"));
@@ -151,7 +149,6 @@ namespace Wreckabulary.Tests
             Directory.CreateDirectory(dir);
             Session.Clear();
 
-            // House: two roommates walk in, one sits at the typewriter. The lobby is captured on its own.
             yield return SceneManager.LoadSceneAsync(Session.HubScene);
             yield return null;
             if (LobbyMenu.Instance) UnityEngine.Object.Destroy(LobbyMenu.Instance.gameObject);
@@ -222,8 +219,6 @@ namespace Wreckabulary.Tests
             Directory.CreateDirectory(dir);
             TryLights();
             Session.Clear();
-            // A career with matches, so the career and leaderboard show their cards. The lobby reads it in Start,
-            // the frame after the scene loads; the real one goes back straight after.
             string realCareer = PlayerPrefs.HasKey(MatchTally.CareerKey) ? PlayerPrefs.GetString(MatchTally.CareerKey) : null;
             PlayerPrefs.SetString(MatchTally.CareerKey, SampleCareer().Serialize());
             yield return SceneManager.LoadSceneAsync(Session.HubScene);
@@ -242,11 +237,9 @@ namespace Wreckabulary.Tests
             for (int i = 0; i < pages.Length; i++)
             {
                 menu.Open(pages[i].Item1);
-                // The camera slides you aside for the side panels.
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"lobby_{i + 1}_{pages[i].Item2}.png"));
             }
-            // Settings' other tabs, and the quit box over the lobby.
             menu.Open(LobbyMenu.Settings);
             var settings = menu.Page<SettingsPage>();
             foreach (string tab in new[] { "graphics", "controls", "how" })
@@ -262,8 +255,6 @@ namespace Wreckabulary.Tests
             yield return new WaitForSeconds(.5f);
             yield return CaptureFramed(Path.Combine(dir, "lobby_7_quit.png"));
             menu.GetComponentsInChildren<UnityEngine.UI.Button>().First(b => b.name == "STAY").onClick.Invoke();
-            // The recipe book's second tab, and the shop opened on one offer from the locker (no purchase, so the
-            // real prefs stay as they were).
             menu.Open(LobbyMenu.Loadout);
             var loadout = menu.Page<LoadoutPage>();
             loadout.ShowRecipes(true);
@@ -273,7 +264,6 @@ namespace Wreckabulary.Tests
             menu.OpenShop("colour:grape");
             yield return new WaitForSeconds(1f);
             yield return CaptureFramed(Path.Combine(dir, "lobby_5b_shop_spotlight.png"));
-            // A couch player in the party panel, opened from its chip.
             var couch = new KeyboardBinding(KeyboardBinding.Side.Right);
             menu.Join(couch);
             menu.Open(LobbyMenu.Home);
@@ -282,12 +272,10 @@ namespace Wreckabulary.Tests
             yield return CaptureFramed(Path.Combine(dir, $"lobby_{pages.Length + 1}_party.png"));
             menu.ToggleParty();
             menu.Leave(couch);
-            // Every map's backdrop, seen from home.
             menu.Open(LobbyMenu.Home);
             foreach (string map in GameConfig.Current.Houses.Keys)
             {
                 menu.Choose(map: map);
-                // The PLAY page redraws itself after a choice; here Home has to.
                 menu.Open(LobbyMenu.Home);
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"lobby_map_{map}.png"));
@@ -295,7 +283,6 @@ namespace Wreckabulary.Tests
             Session.Clear();
         }
 
-        /// <summary>Every map in a two-player Dibs match, where the couch camera frames the whole house.</summary>
         IEnumerator CaptureMapsSequence()
         {
             TryLights();
@@ -312,7 +299,6 @@ namespace Wreckabulary.Tests
                 yield return SceneManager.LoadSceneAsync(Session.DibsScene);
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"map_{map}.png"));
-                // One person with a mouse and AI opponents: the view from behind and the HUD they play with.
                 Session.Clear();
                 Session.SelectMap(map);
                 Match.ModeOverride = "Dibs";
@@ -320,7 +306,6 @@ namespace Wreckabulary.Tests
                 yield return SceneManager.LoadSceneAsync(Session.DibsScene);
                 yield return new WaitForSeconds(1.5f);
                 yield return CaptureFramed(Path.Combine(dir, $"map_{map}_tps.png"));
-                // The Tab bag over that view, with a few letters in it so a recipe lights up.
                 var hud = GameHud.Active;
                 if (hud && hud.LocalPlayer)
                 {
@@ -330,7 +315,6 @@ namespace Wreckabulary.Tests
                     yield return CaptureFramed(Path.Combine(dir, $"map_{map}_bag.png"));
                     hud.transform.Find("Safe HUD/Letter bag/Bag link").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
                 }
-                // A house with an upstairs: also one overhead player downstairs, with the floors above lifted off.
                 if (GameConfig.Current.HouseFor(map).StoreyFloors().Count < 2) continue;
                 Session.Clear();
                 Session.SelectMap(map);
@@ -343,7 +327,6 @@ namespace Wreckabulary.Tests
             Session.Clear();
         }
 
-        /// <summary>The web's match cards over one mouse player's view: round chip, composer, pause, help and result.</summary>
         IEnumerator CaptureMatchCardsSequence()
         {
             string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
@@ -392,7 +375,6 @@ namespace Wreckabulary.Tests
             Session.Clear();
         }
 
-        /// <summary>Light values to try, from WRECK_LIGHT ("sun=.9;fill=.33;hemi=.52;env=.25;exp=.45"), for calibrating against the web.</summary>
         static void TryLights()
         {
             string asked = Environment.GetEnvironmentVariable("WRECK_LIGHT");
@@ -413,7 +395,6 @@ namespace Wreckabulary.Tests
             Debug.Log($"Capture lights: {asked}");
         }
 
-        /// <summary>The capture size: WRECK_CAPTURE_SIZE as "2560x1440", or 1600 x 900.</summary>
         static Vector2Int Size()
         {
             string asked = Environment.GetEnvironmentVariable("WRECK_CAPTURE_SIZE");
@@ -422,10 +403,8 @@ namespace Wreckabulary.Tests
                 ? new Vector2Int(w, h) : new Vector2Int(1600, 900);
         }
 
-        /// <summary>A free layer the overlay canvases sit on while they are captured.</summary>
         const int UiLayer = 31;
 
-        /// <summary>Like <see cref="Capture"/>, but the camera targets the texture first so the UI lays out at its size.</summary>
         static IEnumerator CaptureFramed(string path)
         {
             var cam = Camera.main;
@@ -434,9 +413,7 @@ namespace Wreckabulary.Tests
             var canvases = UnityEngine.Object.FindObjectsByType<Canvas>()
                 .Where(c => c.isRootCanvas && c.renderMode == RenderMode.ScreenSpaceOverlay).ToArray();
             cam.targetTexture = rt;
-            // Just past the near plane: on it, depth precision clips the UI away in bands.
             var layers = ToCamera(canvases, cam, Mathf.Max(.3f, cam.nearClipPlane + .05f));
-            // Canvas scalers resize in Update.
             yield return null;
             yield return null;
             Canvas.ForceUpdateCanvases();
@@ -460,7 +437,6 @@ namespace Wreckabulary.Tests
             Save(shot, rt, path);
         }
 
-        /// <summary>Draws the canvases through the camera, on the capture's UI layer. Returns each object's own layer.</summary>
         static (GameObject go, int layer)[] ToCamera(Canvas[] canvases, Camera cam, float planeDistance)
         {
             var layers = canvases.SelectMany(c => c.GetComponentsInChildren<Transform>(true)).Select(t => (t.gameObject, t.gameObject.layer)).ToArray();
@@ -482,12 +458,6 @@ namespace Wreckabulary.Tests
                 if (go) go.layer = layer;
         }
 
-        /// <summary>
-        /// The world with its post-processing, and the UI on top without it: on screen the UI is an
-        /// overlay that the tone curve never touches, so a capture mustn't tone-map it either. URP clears
-        /// a camera's target even when told not to, so the UI renders on its own, once over black and once
-        /// over white; the difference between the two is its coverage, which lays it over the world.
-        /// </summary>
         static Texture2D RenderWithUi(Camera cam, RenderTexture rt)
         {
             var data = cam.GetUniversalAdditionalCameraData();
@@ -514,7 +484,6 @@ namespace Wreckabulary.Tests
             data.renderPostProcessing = post;
             cam.allowHDR = hdr;
 
-            // The target blends in linear light, so the layers combine there too.
             var linear = new float[256];
             for (int i = 0; i < 256; i++) linear[i] = Mathf.GammaToLinearSpace(i / 255f);
             var pixels = world.GetPixels32();
@@ -534,8 +503,6 @@ namespace Wreckabulary.Tests
             return world;
         }
 
-        /// <summary>One channel of the UI over the world: over black the UI shows its colour times its
-        /// coverage; over white, that plus what it lets through.</summary>
         static byte Over(float[] linear, byte world, byte overBlack, byte overWhite)
         {
             float ui = linear[overBlack];

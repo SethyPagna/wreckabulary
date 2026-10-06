@@ -3,44 +3,32 @@ using System.Collections.Generic;
 
 namespace Wreckabulary.Rules
 {
-    /// <summary>
-    /// Every limit and timing a mode can change. Loaded from Data/Config/rules.json:
-    /// "defaults" holds the values every mode starts from, and "modes" holds each mode's
-    /// overrides. Cosmetics never appear here (brief §3).
-    /// </summary>
     public sealed class GameRules
     {
         public string Mode = "Default";
 
-        // Health
         public float MaxHealth = 100f;
         public float SpawnProtectionSeconds = 2f;
 
-        // Inventory (brief §5)
         public int MaxLetters = 10;
         public int MaxCarried = 2;
         public int MaxDeployed = 2;
         public string StarterLetters = "";
         public int LettersDroppedPerHit;
-        /// <summary>Original furniture breaks after base + perLetter × letters worth of break power (a punch is 1).</summary>
         public float FurnitureToughnessBase = 1f;
         public float FurnitureToughnessPerLetter = 0.6f;
 
-        // Crafting
         public float CraftBaseSeconds = 0.6f;
         public float CraftPerLetterSeconds = 0.12f;
         public float CraftMoveSpeed = 0.4f;
 
-        // Combat and movement
         public float HitStunMax = 0.35f;
         public float StaggerImmunitySeconds = 1f;
         public float DodgeSeconds = 0.35f;
         public float DodgeInvulnerableSeconds = 0.15f;
         public float DodgeDistance = 4f;
         public float DodgeCooldown = 1.5f;
-        /// <summary>How high a standing jump rises, in metres.</summary>
         public float JumpHeight = 1.1f;
-        /// <summary>How quickly a player on the ground reaches running speed, and stops without input, in m/s².</summary>
         public float GroundAccel = 36f;
         public float GroundFriction = 28f;
         public MeleeStats Unarmed = new MeleeStats
@@ -49,7 +37,6 @@ namespace Wreckabulary.Rules
             Recovery = 0.25f, Knockback = 3f, BreakPower = 1f, HitStun = 0.15f,
         };
 
-        // Teams, downed and revive
         public int TeamSize = 1;
         public bool FriendlyFire = true;
         public bool DownedEnabled;
@@ -58,15 +45,11 @@ namespace Wreckabulary.Rules
         public float ReviveHealth = 30f;
         public float ReviveRange = 1.8f;
 
-        // Match flow
         public int RoundsToWin = 3;
-        /// <summary>Seconds before a knocked-out player comes back, or a negative number for no respawn.</summary>
         public float RespawnSeconds = -1f;
         public float ReconnectGraceSeconds = 60f;
-        /// <summary>Round length in seconds; 0 means no limit (Hub and Tutorial).</summary>
         public float RoundTimeLimitSeconds = 150f;
 
-        // Clear-out (brief §6)
         public bool ClearOutEnabled;
         public float ClearOutFirstAt = 45f;
         public float ClearOutInterval = 25f;
@@ -121,7 +104,6 @@ namespace Wreckabulary.Rules
         }
     }
 
-    /// <summary>The whole rules.json file: defaults plus one override block per mode.</summary>
     public sealed class RuleBook
     {
         readonly Dictionary<string, GameRules> modes = new Dictionary<string, GameRules>(StringComparer.Ordinal);

@@ -6,7 +6,6 @@ export async function configureSoftwareRendering(page) {
   const profile = await page.evaluate(() => {
     const view = window.wreckabulary.view;
     const shadows = [];
-    // Software-only CI retains shadows and meshes with a smaller raster budget.
     view.scene.traverse((node) => {
       if (!node.isLight || !node.castShadow || !node.shadow) return;
       node.shadow.map?.dispose();

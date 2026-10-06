@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Package a previously built standalone HTML game, keeping private/dev files out."""
 import argparse
 import hashlib
 from pathlib import Path

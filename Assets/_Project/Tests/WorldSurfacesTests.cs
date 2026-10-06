@@ -6,10 +6,6 @@ using UnityEngine.TestTools;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>
-    /// The house dressed as the browser edition's: floors by room, plaster walls with a wood cap, a rug in each
-    /// room, a lawn and plants round about, and a haze the colour of the background.
-    /// </summary>
     public class WorldSurfacesTests
     {
         [UnitySetUp] public IEnumerator SetUp() => TestScenes.Reset();
@@ -39,7 +35,6 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("Surface Planks:1.00:B68E6B", MaterialOf(house, "Study floor"), "the study's darker oak");
             Assert.AreEqual("Surface Planks:1.00:CBA37B", MaterialOf(house, "LivingRoom floor"));
             Assert.AreSame(Named(house, "LivingRoom floor")[0].sharedMaterial, Named(house, "Bedroom floor")[0].sharedMaterial, "oak floors share one material");
-            // The floors keep their names and colliders for everything that stands on them.
             Assert.IsNotNull(Named(house, "LivingRoom floor")[0].GetComponent<BoxCollider>());
             Assert.IsFalse(Named(house, "Rug").Any(r => house.Layout.RoomAt(r.bounds.center.x, r.bounds.center.y, r.bounds.center.z) == "Garden"), "no rug on the lawn");
 
@@ -70,7 +65,6 @@ namespace Wreckabulary.Tests
                     Assert.IsNotNull(wall.Trim, "a cap on every wall");
                     Assert.IsNull(wall.Trim.GetComponent<Collider>(), "the cap isn't solid");
                     Assert.AreEqual(wall.FloorY + wall.VisualHeight(tall) + .04f, wall.Trim.position.y, 1e-4f, "the cap sits on top");
-                    // The plaster keeps its scale at either height: its sides span a third of a repeat per metre.
                     var mesh = wall.GetComponent<MeshFilter>().sharedMesh;
                     var normals = mesh.normals; var uv = mesh.uv;
                     var up = Enumerable.Range(0, normals.Length).Where(i => normals[i].y == 0f).Select(i => uv[i].y).ToArray();
@@ -94,7 +88,6 @@ namespace Wreckabulary.Tests
                 var room = layout.Room(layout.RoomAt(b.center.x, b.center.y, b.center.z));
                 Assert.GreaterOrEqual(b.min.x, room.MinX + .49f, room.Name); Assert.LessOrEqual(b.max.x, room.MaxX - .49f, room.Name);
                 Assert.GreaterOrEqual(b.min.z, room.MinZ + .49f, room.Name); Assert.LessOrEqual(b.max.z, room.MaxZ - .49f, room.Name);
-                // Not over a flight of stairs, nor over the opening a flight comes up through.
                 foreach (var s in layout.Stairs.Where(s => s.Lower == room.Name || s.Upper == room.Name))
                     Assert.IsFalse(b.min.x < s.MaxX && b.max.x > s.MinX && b.min.z < s.MaxZ && b.max.z > s.MinZ, $"the {room.Name} rug clears the stairs");
             }
@@ -112,7 +105,6 @@ namespace Wreckabulary.Tests
             RoomBuilder.ApplyFog(true);
             Assert.Less(RenderSettings.fogStartDistance, overhead, "nearer round a third-person camera");
 
-            // The creative home's bare house: surfaces, but no rugs or garden.
             var bare = RoomBuilder.CreateGeometry(layout, "terrace", null, false);
             yield return null;
             var parts = bare.GetComponentsInChildren<Transform>(true).Select(t => t.name).ToList();

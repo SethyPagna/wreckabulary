@@ -7,13 +7,11 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Builds the selected shared house layout, including open doorways, spawns and original furniture.</summary>
     [DefaultExecutionOrder(-150)]
     public class RoomBuilder : MonoBehaviour
     {
         [SerializeField] Transform furnitureRoot;
         Transform geometry;
-        /// <summary>The scene's wall sign, kept on the two original houses until the walls stand tall.</summary>
         GameObject sign;
         readonly List<Smashable> originals = new();
         public HouseLayout Layout { get; private set; }
@@ -24,14 +22,12 @@ namespace Wreckabulary
             Layout = GameConfig.Current.HouseFor(Session.MapId);
             var oldRoom = GameObject.Find("Room");
             if (oldRoom) oldRoom.SetActive(false);
-            // The scene's wall sign floats over the two original houses; on other maps their walls cut it short.
             var found = GameObject.Find("Sign");
             if (Session.MapId is "pinwheel" or "courtyard") sign = found;
             else if (found) found.SetActive(false);
             if (furnitureRoot) furnitureRoot.gameObject.SetActive(false);
             geometry = CreateGeometry(Layout, Session.MapId, transform);
             ApplyFog(false);
-            // With an upstairs, the floors above you would hide you from the overhead camera.
             if (Layout.StoreyFloors().Count > 1) gameObject.AddComponent<StoreyCutaway>().Configure(Layout, geometry);
             var joins = GetComponent<PlayerJoinManager>();
             if (joins) joins.ConfigureLayout(Layout);
@@ -69,10 +65,6 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>
-        /// Full-height walls for a third-person camera, low ones for the overhead view. At eye level the
-        /// standing sign would block the view, so it goes while the walls are tall (web renderer.js).
-        /// </summary>
         public void SetTallWalls(bool tall)
         {
             if (sign) sign.SetActive(!tall);
@@ -85,10 +77,6 @@ namespace Wreckabulary
             foreach (var wall in geometry.GetComponentsInChildren<TallWall>(true)) wall.Apply(tall);
         }
 
-        /// <summary>
-        /// The browser edition's deep-teal haze (renderer.js), the camera's background colour, so the lawn fades
-        /// into it. It starts nearer round a third-person camera than over the house.
-        /// </summary>
         public static void ApplyFog(bool thirdPerson)
         {
             RenderSettings.fog = true;
@@ -98,10 +86,8 @@ namespace Wreckabulary
             RenderSettings.fogEndDistance = thirdPerson ? 100f : 130f;
         }
 
-        /// <summary>The geometry's group for a storey (0 is the ground floor).</summary>
         public static string StoreyName(int storey) => "Storey " + storey;
 
-        /// <summary>Read-only map geometry shared by matches and the creative preview; adds no furniture or director.</summary>
         public static Transform CreateGeometry(HouseLayout layout, string mapId, Transform parent, bool includeExtras = true)
         {
             var root = new GameObject(layout.Name + " geometry").transform;
@@ -122,7 +108,6 @@ namespace Wreckabulary
             public void Build()
             {
                 storeyFloors = Layout.StoreyFloors();
-                // One group per storey, so a cutaway can hide the floors above you and the lobby can show one.
                 storeys = new Transform[storeyFloors.Count];
                 for (int s = 0; s < storeys.Length; s++)
                 {
@@ -135,7 +120,6 @@ namespace Wreckabulary
                     var r = Layout.Rooms[i];
                     int storey = Layout.StoreyOf(r);
                     bool garden = r.Name == "Garden";
-                    // A floor is left open over each flight of stairs that comes up into it.
                     var holes = Layout.Stairs.Where(s => s.Upper == r.Name).Select(s => Rect.MinMaxRect(s.MinX, s.MinZ, s.MaxX, s.MaxZ));
                     var (floor, floorColour) = FloorOf(r.Name);
                     foreach (var piece in Slab(r, holes))
@@ -149,13 +133,10 @@ namespace Wreckabulary
                 }
                 foreach (var edge in edges.Values) BuildEdge(edge);
                 foreach (var s in Layout.Stairs) BuildStairs(s);
-                // One sun lights every storey; floors above you mustn't black out the rooms below.
                 for (int s = 1; s < storeys.Length; s++)
                     foreach (var r in storeys[s].GetComponentsInChildren<Renderer>(true)) r.shadowCastingMode = ShadowCastingMode.Off;
                 if (!includeExtras) return;
                 BuildSurroundings();
-                // The pinwheel balcony is a reachable elevated route; the courtyard is intentionally open and flat.
-                // Other maps take their shape from the data alone.
                 var ground = storeys[0];
                 if (mapId == "pinwheel")
                 {
@@ -178,10 +159,8 @@ namespace Wreckabulary
 
             static readonly Color Plaster = Surfaces.Hex(0xEDDFC4), Trim = Surfaces.Hex(0xB58760);
 
-            /// <summary>A room's kind without its number: Landing1 and Landing2 are both landings.</summary>
             static string RoomKind(string room) => room.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
 
-            /// <summary>The web's floors (renderer.js): lawn in the garden, the kitchen checker, bath tile, a concrete garage, oak planks elsewhere.</summary>
             static (Surfaces.Kind kind, Color colour) FloorOf(string room) => RoomKind(room) switch
             {
                 "Garden" => (Surfaces.Kind.Lawn, Surfaces.Hex(0x86A17A)),
@@ -192,7 +171,6 @@ namespace Wreckabulary
                 _ => (Surfaces.Kind.Planks, Surfaces.Hex(0xCBA37B)),
             };
 
-            /// <summary>Each room's rug: the web's ROOM_COLORS, and muted colours for the newer houses' rooms.</summary>
             static Color RugOf(string room) => Surfaces.Hex(RoomKind(room) switch
             {
                 "Garden" => 0x92B78B, "Playroom" => 0xE1B970, "Bedroom" => 0xC8B3BD, "Kitchen" => 0xB8C9BE, "Study" => 0xA8B7C8,
@@ -201,10 +179,6 @@ namespace Wreckabulary
                 _ => 0xE4C695,
             });
 
-            /// <summary>
-            /// A sewn rug in the room's colour, as on the web: 62% by 55% of the room and at least half a metre
-            /// clear of its walls, in the largest part of the room that no flight of stairs comes through.
-            /// </summary>
             void BuildRug(RoomBox r, int storey)
             {
                 var flights = Layout.Stairs.Where(s => s.Lower == r.Name || s.Upper == r.Name)
@@ -218,10 +192,6 @@ namespace Wreckabulary
                 rug.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             }
 
-            /// <summary>
-            /// Round the house, as on the web: the plinth it stands on, a lawn out into the haze and plants dotted
-            /// about. None of it is solid; it's there to look at from a third-person camera.
-            /// </summary>
             void BuildSurroundings()
             {
                 float minX = Layout.Rooms.Min(r => r.MinX), maxX = Layout.Rooms.Max(r => r.MaxX);
@@ -240,10 +210,8 @@ namespace Wreckabulary
                 }
             }
 
-            /// <summary>The room's floor as rectangles (x, z), with the stair openings cut out.</summary>
             static List<Rect> Slab(RoomBox r, IEnumerable<Rect> holes) => Slab(Rect.MinMaxRect(r.MinX, r.MinZ, r.MaxX, r.MaxZ), holes);
 
-            /// <summary>An area as rectangles (x, z), with the holes cut out.</summary>
             static List<Rect> Slab(Rect area, IEnumerable<Rect> holes)
             {
                 var pieces = new List<Rect> { area };
@@ -253,7 +221,6 @@ namespace Wreckabulary
                     foreach (var p in pieces)
                     {
                         if (!p.Overlaps(hole)) { next.Add(p); continue; }
-                        // Strips in front of and behind the opening span the piece; the two beside it fill the rest.
                         float z0 = Mathf.Max(p.yMin, hole.yMin), z1 = Mathf.Min(p.yMax, hole.yMax);
                         next.Add(Rect.MinMaxRect(p.xMin, p.yMin, p.xMax, hole.yMin));
                         next.Add(Rect.MinMaxRect(p.xMin, hole.yMax, p.xMax, p.yMax));
@@ -287,8 +254,6 @@ namespace Wreckabulary
                     .Select(d => new Vector2((edge.Vertical ? d.Z : d.X) - d.Width * .5f, (edge.Vertical ? d.Z : d.X) + d.Width * .5f)).ToArray();
                 cuts.AddRange(openings.SelectMany(i => new[] { i.x, i.y }));
                 cuts = cuts.Distinct().OrderBy(v => v).ToList();
-                // Cutaway rendering keeps players visible; the tall collider enforces the doorway route, stopping
-                // under the floor above so it doesn't poke up through it.
                 float height = edge.Storey + 1 < storeyFloors.Count ? Mathf.Min(3.3f, storeyFloors[edge.Storey + 1] - .24f - edge.FloorY) : 3.3f;
                 for (int i = 0; i < cuts.Count - 1; i++)
                 {
@@ -300,12 +265,10 @@ namespace Wreckabulary
                         Surfaces.Kind.Plaster, Plaster);
                     var tall = wall.AddComponent<TallWall>();
                     tall.Tile = Surfaces.Tile(Surfaces.Kind.Plaster);
-                    // A wood cap along the top, as the web's walls have; it rides up and down with the wall.
                     tall.Trim = Surface("Wall trim", storeys[edge.Storey], at, edge.Vertical ? new Vector3(.24f, .085f, length) : new Vector3(length, .085f, .24f),
                         Surfaces.Kind.Wood, Trim, false).transform;
                     tall.FloorY = edge.FloorY;
                     tall.Height = height;
-                    // Outside on either side, or a garden there: an exterior wall.
                     tall.Outside = edge.Vertical
                         ? Outdoors(edge.Storey, edge.Fixed - .1f, mid) || Outdoors(edge.Storey, edge.Fixed + .1f, mid)
                         : Outdoors(edge.Storey, mid, edge.Fixed - .1f) || Outdoors(edge.Storey, mid, edge.Fixed + .1f);
@@ -316,10 +279,6 @@ namespace Wreckabulary
             bool Outdoors(int storey, float x, float z) => !Layout.Rooms.Any(r => r.Name != "Garden" && Layout.StoreyOf(r) == storey
                 && x > r.MinX && x < r.MaxX && z > r.MinZ && z < r.MaxZ);
 
-            /// <summary>
-            /// A flight from the lower room to the one above: an unseen solid ramp to walk on, steps to look at,
-            /// rails along both sides, and on the upper floor a railing round the opening except at the top.
-            /// </summary>
             void BuildStairs(Stairway s)
             {
                 RoomBox lower = Layout.Room(s.Lower), upper = Layout.Room(s.Upper);
@@ -340,9 +299,6 @@ namespace Wreckabulary
                 ramp.transform.rotation = tilt;
                 ramp.GetComponent<Renderer>().enabled = false;
 
-                // Each step's nose touches the ramp, so feet never sink into a tread; the last riser climbs onto
-                // the floor above. The steps are solid underneath the ramp, so nobody walks under the flight,
-                // their tops kept a little below it so the ramp alone is what you stand on.
                 int count = Mathf.Max(1, Mathf.RoundToInt(rise / .2f));
                 float riser = rise / count, tread = s.Run / count;
                 for (int i = 1; i < count; i++)
@@ -356,9 +312,6 @@ namespace Wreckabulary
                     collider.center = new Vector3(0f, -.015f / h, 0f);
                 }
 
-                // A rail stands square to the flight, so a full-length one leans out past the foot at head
-                // height, where it catches anyone crossing in front. Starting it as far up the flight as the
-                // slope's tangent (for a 1 m rail) puts its top end right over the bottom step instead.
                 float start = rise / s.Run;
                 var railColour = new Color(.45f, .32f, .22f);
                 foreach (float side in new[] { -1f, 1f })
@@ -368,7 +321,6 @@ namespace Wreckabulary
                     rail.transform.rotation = tilt;
                 }
 
-                // Upstairs, rails along both sides of the opening and across its foot end; the top end is the way on.
                 float y = upper.FloorY + .5f;
                 var middle = (new Vector3(fx, 0f, fz) + new Vector3(tx, 0f, tz)) * .5f;
                 foreach (float side in new[] { -1f, 1f })
@@ -380,17 +332,12 @@ namespace Wreckabulary
                 Surface("Stairwell railing", above, new Vector3(end.x, y, end.z), Scaled(across, s.Width + .2f, .1f), Surfaces.Kind.Wood, railColour);
             }
 
-            /// <summary>A 1 m tall box this long along an axis-aligned direction and this thick across it.</summary>
             static Vector3 Scaled(Vector3 along, float length, float thickness) =>
                 Mathf.Abs(along.x) > Mathf.Abs(along.z) ? new Vector3(length, 1f, thickness) : new Vector3(thickness, 1f, length);
 
             GameObject Block(string name, Transform group, Vector3 at, Vector3 scale, Color colour, bool solid = true) =>
                 Piece(name, group, at, scale, GameAssets.I.Tinted(colour), null, solid);
 
-            /// <summary>
-            /// A box in one of the web's surfaces with its texture in metres, lined up with its neighbours; a turned
-            /// box (a step, a rail, a ramp) is textured on its own. Wood grain runs along a box's length.
-            /// </summary>
             GameObject Surface(string name, Transform group, Vector3 at, Vector3 scale, Surfaces.Kind kind, Color colour, bool solid = true, bool turned = false) =>
                 Piece(name, group, at, scale, Surfaces.Get(kind, colour), Surfaces.Box(scale, Surfaces.Tile(kind), turned ? null : at, kind == Surfaces.Kind.Wood), solid);
 

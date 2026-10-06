@@ -66,7 +66,6 @@ namespace Wreckabulary.Tests
             var vertices = new List<Vector3>();
             try
             {
-                // Controlled asset sampling covers the authored tail beyond the production .28s lock.
                 animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
                 graph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
                 appearance.Play("Idle", 1f);
@@ -86,7 +85,6 @@ namespace Wreckabulary.Tests
                 var rightFoot = ModelVisual.FindNamed(appearance.AvatarModel, "foot_R");
                 Assert.IsNotNull(leftFoot); Assert.IsNotNull(rightFoot);
                 Assert.Greater(Vector3.Distance(leftFoot.position, rightFoot.position), .01f);
-                // Geometric attribution is fixed in evaluated Idle, never reassigned by animated world X.
                 var leftVertices = Enumerable.Range(0, referenceVertices.Length).Where(index =>
                     (referenceVertices[index] - leftFoot.position).sqrMagnitude <=
                     (referenceVertices[index] - rightFoot.position).sqrMagnitude).ToArray();
@@ -232,7 +230,6 @@ namespace Wreckabulary.Tests
             var originalCulling = animator.cullingMode;
             try
             {
-                // Evaluate the real graph without a camera. Production culling remains unchanged.
                 animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
                 foreach (string name in new[] { "Idle", "Walk_InPlace", "Run_InPlace", "Jump_Preview",
                     "Hold_OneHand", "Carry_TwoHand", "Block_Plate", "Swing_OneHand", "Thrust_OneHand",
@@ -310,7 +307,6 @@ namespace Wreckabulary.Tests
             }
             finally
             {
-                // Restore only the in-memory test mutation; never save this asset or PlayerPrefs.
                 library.Set(original);
             }
             Assert.IsTrue(appearance.Initialize(player), "a valid binding set allows retry");

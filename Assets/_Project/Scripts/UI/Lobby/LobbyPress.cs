@@ -6,31 +6,17 @@ using UnityEngine.UI;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// The web lobby's button feel on a uGUI control: the body lifts and tilts under the pointer or a
-    /// controller, sinks when pressed, and its hard drop shadow grows and shrinks with it. A keyboard or
-    /// controller also sees the web's orange focus ring; the mouse doesn't, like :focus-visible.
-    /// A disabled control fades. It works on plain rects too (recipe cards), and never changes the
-    /// selection, so code that puts a controller on GO or CANCEL decides alone.
-    /// </summary>
     public sealed class LobbyPress : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
         IPointerDownHandler, IPointerUpHandler, ISelectHandler, IDeselectHandler
     {
-        /// <summary>What moves; the root stays put for layouts and hit tests.</summary>
         public RectTransform Body;
-        /// <summary>Tilt is in uGUI degrees (anticlockwise), so the web's rotate(-2deg) is +2 here.</summary>
         public float Lift = 2f, Sink = 2f, Tilt, Scale = 1f, HoverScale = 1f;
-        /// <summary>A resting lean in uGUI degrees, under any tilt (an extras card that's on).</summary>
         public float Lean;
-        /// <summary>The body's hard shadow, its resting depth and its depth while pressed.</summary>
         public Shadow Drop;
         public float DropRest, DropPressed = 1f;
         public Graphic Ring;
-        /// <summary>False for a label that is off on purpose and should stay bold (the shop's WEARING stamp).</summary>
         public bool FadeOff = true;
-        /// <summary>Called when the pointer or a controller arrives or leaves, for colour changes.</summary>
         public Action<bool> Hot;
-        /// <summary>Called when a press starts or ends on the control, for its pressed colour.</summary>
         public Action<bool> Pressed;
 
         Selectable selectable;
@@ -41,7 +27,6 @@ namespace Wreckabulary
         static int checkedFrame;
         static bool navigating;
 
-        /// <summary>True once a key or a pad drives the lobby, until the mouse moves or clicks.</summary>
         public static bool Navigating
         {
             get
@@ -70,7 +55,6 @@ namespace Wreckabulary
         {
             if (data.button != PointerEventData.InputButton.Left) return;
             down = true;
-            // Runs after the button selects itself on the same press, so a click shows no ring.
             ringed = false;
         }
         public void OnPointerUp(PointerEventData data) => down = false;
@@ -116,7 +100,6 @@ namespace Wreckabulary
             Body.localRotation = Quaternion.Slerp(Body.localRotation, Quaternion.Euler(0, 0, tilt), k);
             float scale = Scale * (hot && !down ? HoverScale : 1f);
             Body.localScale = Vector3.Lerp(Body.localScale, Vector3.one * scale, k);
-            // The shadow's foot stays on the floor while the body rises, and flattens under a press.
             SetDrop(Mathf.Max(DropPressed, DropRest + position.y));
         }
 

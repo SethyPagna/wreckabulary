@@ -1,6 +1,3 @@
-// Serves the built game, plus a small online leaderboard at /api/scores.
-// Scores live in a Workers KV namespace bound as LEADERBOARD. Without that
-// binding the API answers 503 and the game shows its on-device bests instead.
 export const MODES = ["Dibs", "Duos", "MovingOut", "MovingDay"];
 export const TOP_SIZE = 50;
 export const MAX_SCORE = 100000;
@@ -15,7 +12,6 @@ const json = (body, status = 200) =>
     },
   });
 
-/** Checks a submitted score and returns a clean entry, or an error message. */
 export function cleanEntry(body) {
   if (!body || typeof body !== "object") return { error: "Send a JSON body." };
   const name = String(body.name ?? "")
@@ -32,7 +28,6 @@ export function cleanEntry(body) {
   return { entry: { name, mode: body.mode, score, player } };
 }
 
-/** Keeps each player's best score in a sorted top list. */
 export function mergeTop(top, entry, at = Date.now()) {
   const list = top.filter((e) => e.player !== entry.player);
   const previous = top.find((e) => e.player === entry.player);
@@ -46,7 +41,6 @@ export function mergeTop(top, entry, at = Date.now()) {
   return list.slice(0, TOP_SIZE);
 }
 
-/** Public rows never include the private player id. */
 export const publicRows = (top, player = "") =>
   top.map((e, i) => ({
     rank: i + 1,
@@ -74,7 +68,6 @@ export async function handleScores(request, env) {
     }
     const { entry, error } = cleanEntry(body);
     if (error) return json({ error }, 400);
-    // One submission per player every few seconds keeps casual spam out.
     const ip = request.headers.get("cf-connecting-ip") ?? "local";
     const rateKey = `rate:${entry.player}:${ip}`;
     if (await store.get(rateKey)) return json({ error: "Slow down a little." }, 429);

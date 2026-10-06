@@ -2,11 +2,6 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// Shrinks a child to the width of this rect, never growing it: a row of cards keeps its design size
-    /// and gets smaller as a whole when there are more cards or the screen is narrower, instead of wrapping
-    /// onto whatever is below it.
-    /// </summary>
     public sealed class LobbyFit : MonoBehaviour
     {
         public RectTransform Target;

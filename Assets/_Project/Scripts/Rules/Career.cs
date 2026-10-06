@@ -6,19 +6,15 @@ using System.Text;
 
 namespace Wreckabulary.Rules
 {
-    /// <summary>One finished match, as the Career page lists it.</summary>
     public sealed class MatchRecord
     {
         public string Mode = "", Map = "";
-        /// <summary>True for a practice match against bots.</summary>
         public bool Practice = true;
         public bool Won;
         public int Score, Coins, Xp, Broken, Crafted, Damage;
-        /// <summary>When the match ended, in Unix seconds.</summary>
         public long EndedAt;
     }
 
-    /// <summary>Something the cart sells. Everything in it is cosmetic.</summary>
     public sealed class ShopOffer
     {
         public readonly string Id, Kind, Value, Name;
@@ -30,18 +26,11 @@ namespace Wreckabulary.Rules
         }
     }
 
-    /// <summary>
-    /// The player's coins, level, purchases, best scores and recent matches. Nothing here
-    /// changes health, damage or speed. It mirrors the web edition's progression.js, with
-    /// a level and a match history for the Career page.
-    /// </summary>
     public sealed class Career
     {
         public const int HistoryLength = 20;
         public const int NameLength = 16;
-        /// <summary>The last second DateTimeOffset can show (31 Dec 9999), in Unix seconds.</summary>
         public const long LatestTime = 253402300799;
-        /// <summary>Starter top colours; the rest are bought.</summary>
         public static readonly IReadOnlyList<string> FreeColours = new[] { "pool", "tomato", "tangerine", "sunflower", "mint" };
         public static readonly IReadOnlyList<ShopOffer> Shop = new[]
         {
@@ -58,16 +47,12 @@ namespace Wreckabulary.Rules
         public string Name = "Housemate";
         public int Coins, Xp, Matches, Wins;
         public readonly List<string> Owned = new List<string>();
-        /// <summary>Best score per mode.</summary>
         public readonly Dictionary<string, int> Bests = new Dictionary<string, int>();
-        /// <summary>Newest first, at most <see cref="HistoryLength"/>.</summary>
         public readonly List<MatchRecord> History = new List<MatchRecord>();
 
-        /// <summary>XP from the start of a level to the next one: 200, 300, 400, ...</summary>
         public static int XpToNext(int level) => 100 + 100 * Math.Max(1, level);
 
         public int Level => LevelOf(Xp, out _);
-        /// <summary>XP earned inside the current level.</summary>
         public int XpIntoLevel { get { LevelOf(Xp, out int into); return into; } }
 
         static int LevelOf(int xp, out int into)
@@ -83,7 +68,6 @@ namespace Wreckabulary.Rules
             (kind == "colour" && FreeColours.Contains(value)) ||
             Owned.Contains(kind + ":" + value);
 
-        /// <summary>Buys an offer. Returns null on success, or why it failed.</summary>
         public string Buy(string id)
         {
             var offer = Shop.FirstOrDefault(s => s.Id == id);
@@ -95,7 +79,6 @@ namespace Wreckabulary.Rules
             return null;
         }
 
-        /// <summary>Score, coins and XP for one finished match.</summary>
         public static MatchRecord Reward(string mode, string map, bool practice, bool won, int broken, int crafted, int damage, long endedAt)
         {
             int score = Math.Max(0, broken * 10 + crafted * 25 + damage + (won ? 150 : 0));
@@ -107,7 +90,6 @@ namespace Wreckabulary.Rules
             };
         }
 
-        /// <summary>Adds a finished match. Returns true when it beats the mode's best score.</summary>
         public bool Record(MatchRecord match)
         {
             Coins += match.Coins;
@@ -116,14 +98,11 @@ namespace Wreckabulary.Rules
             if (match.Won) Wins++;
             History.Insert(0, match);
             if (History.Count > HistoryLength) History.RemoveRange(HistoryLength, History.Count - HistoryLength);
-            // A first match that scores nothing still counts as played: the leaderboard shows 0, not "not played".
             if (Bests.TryGetValue(match.Mode, out int best) && match.Score <= best) return false;
             Bests[match.Mode] = match.Score;
             return match.Score > 0;
         }
 
-        /// <summary>Unlocks looks that were already worn before the shop existed. Returns true when
-        /// something new was unlocked, so the caller knows to save.</summary>
         public bool Keep(string skin, string topColour)
         {
             bool skinNew = Grant("skin:" + skin);
@@ -154,7 +133,6 @@ namespace Wreckabulary.Rules
             return s.Append("]}").ToString();
         }
 
-        /// <summary>Reads a saved career. Anything missing or broken falls back to a fresh value.</summary>
         public static Career Deserialize(string text)
         {
             var career = new Career();
@@ -186,7 +164,6 @@ namespace Wreckabulary.Rules
                     Score = Math.Max(0, m["score"].Int(0)), Coins = Math.Max(0, m["coins"].Int(0)), Xp = Math.Max(0, m["xp"].Int(0)),
                     Broken = Math.Max(0, m["broken"].Int(0)), Crafted = Math.Max(0, m["crafted"].Int(0)),
                     Damage = Math.Max(0, m["damage"].Int(0)),
-                    // Past the year 9999 a time can't be shown, and the cast of a huge number is undefined.
                     EndedAt = (long)Math.Min(Math.Max(0d, m["endedAt"].Number(0)), LatestTime),
                 });
                 if (match != null && career.History.Count < HistoryLength) career.History.Add(match);

@@ -1,5 +1,3 @@
-// Schema-1 Workshop rules. Coordinates are canonical metres, never runtime-scaled.
-// Kept in parity with Assets/_Project/Scripts/Rules/HomeDesign.cs.
 export const HOME_LIMITS = Object.freeze({
   props: 64,
   text: 2048,
@@ -293,8 +291,6 @@ export function addWords(layout, text, room, data) {
   return result;
 }
 
-// JSON.parse rejects malformed JSON, but discards duplicate keys. Walk the same bounded
-// grammar first so imports reject duplicates and deeply nested documents in both runtimes.
 function parseDocument(text) {
   if (typeof text !== "string" || text.length > HOME_LIMITS.json)
     throw new Error("provide at most 65536 JSON characters.");

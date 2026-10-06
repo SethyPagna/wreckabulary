@@ -3,7 +3,6 @@ using NUnit.Framework;
 
 namespace Wreckabulary.Rules.Tests
 {
-    /// <summary>Coins, levels, the cart and match history for the lobby's Career page.</summary>
     [TestFixture]
     public class CareerTests
     {

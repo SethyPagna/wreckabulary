@@ -7,7 +7,6 @@ using UnityEngine;
 
 namespace Wreckabulary.EditorTools
 {
-    /// <summary>Repeatable platform builds; build failures propagate to batch-mode exit status.</summary>
     public static class ProductionBuild
     {
         [MenuItem("Wreckabulary/Build/Linux PC")]

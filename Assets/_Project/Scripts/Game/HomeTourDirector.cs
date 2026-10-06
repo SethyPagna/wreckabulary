@@ -4,11 +4,9 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>A disposable peaceful roommate. The original Hub player and binding are never changed.</summary>
     public sealed class HomeTourDirector : MonoBehaviour
     {
         public PlayerController Player { get; private set; }
-        /// <summary>A mouse or a controller turns the view: the tour follows the roommate from behind, as in matches.</summary>
         public bool ThirdPerson { get; private set; }
         Camera lens;
         readonly ShoulderView view = new();
@@ -37,17 +35,14 @@ namespace Wreckabulary
             if (ThirdPerson)
             {
                 view.Place(lens, Player.transform.position, Player.LookYaw, Player.LookPitch, Time.unscaledDeltaTime);
-                // The tour owns the cursor while it runs; Esc or START ends it and gives the pointer back.
                 CursorPolicy.Apply(CursorPolicy.WantsLock(Player.Binding.ReadsMouse, false, Application.isFocused));
                 return;
             }
             var centre = Player.transform.position; centre.y = 0f;
             lens.orthographic = true;
-            // Keep the roommate readable on phones, including a narrow portrait viewport.
             lens.orthographicSize = Mathf.Max(6.5f, 3.5f / Mathf.Max(.2f,lens.aspect));
             lens.transform.position = centre + new Vector3(0f,30f,-22f); lens.transform.LookAt(centre);
         }
-        /// <summary>Keep peaceful-tour input filtering independent of a spawned player or camera.</summary>
         public static InputBinding CreateBinding(InputBinding source) => new TourBinding(source);
         sealed class TourBinding : InputBinding
         {
@@ -59,11 +54,8 @@ namespace Wreckabulary
             public override void Read(ref PlayerCommands c)
             {
                 var original = default(PlayerCommands); source.Read(ref original);
-                // Merge the source's touch overlay before filtering. The distinct binding ID prevents
-                // PlayerController from merging the unfiltered touch commands a second time.
                 if (source is not TouchBinding && TouchBinding.Shared.IsOverlayFor(source.Id))
                     TouchBinding.Shared.Merge(ref original);
-                // Movement/aim/jump only. Even a craft, attack or grab input cannot start a gameplay action.
                 c.move = original.move; c.look = original.look; c.lookDelta = original.lookDelta; c.jump = original.jump;
                 c.pointer = original.pointer; c.aimAtPointer = original.aimAtPointer;
             }

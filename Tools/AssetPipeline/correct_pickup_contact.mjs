@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-/**
- * Offline Pickup-only FK authoring correction. No Blender/Unity/runtime IK.
- * node correct_pickup_contact.mjs --input Avatar.fbx [--output Avatar.fbx]
- *     [--report evidence.json]
- * Without --output, all correction/serialization checks run in memory.
- * Output may equal input: verify everything first, then atomically replace.
- * This deliberately accepts only the audited Y-up, metre-sized, rigid-foot
- * avatar structure. Unsupported FBX transforms/curves fail before writing.
- */
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -111,8 +102,6 @@ function parseFbx(buffer) {
   return result;
 }
 function footerParts(fbx) {
-  // Blender encode_bin.py: null node, 16-byte ID, four zero bytes, 1..16
-  // padding bytes, aligned version, 120 zero bytes, fixed 16-byte magic.
   const prefixBytes = fbx.headerSize + 20, tailBytes = 140;
   const padding = fbx.footer.length - prefixBytes - tailBytes;
   demand(padding >= 1 && padding <= 16, 'Unsupported FBX producer trailer layout.');
@@ -192,7 +181,7 @@ function describe(fbx) {
         && byId.get(id(c[2]))?.name === 'Geometry' && byId.get(id(c[2])).properties[2]?.value === 'Mesh'
         && clean(byId.get(id(c[2])).properties[1].value) !== 'SK_Boots' && ['Blink', 'BrowRelax'].includes(c[3]));
       demand(morphTargets.length + geometryMorphs.length === 1, 'Unsupported non-transform Pickup curve node: ' + clean(cn.properties[1].value));
-      continue; // Preserve morph tracks byte-for-byte; they do not enter foot FK.
+      continue;
     }
     demand(targets.length === 1, 'Curve node must target exactly one model.');
     const targetModel = byId.get(id(targets[0][2])), propertyName = targets[0][3], modelName = clean(targetModel.properties[1].value);
@@ -298,7 +287,6 @@ function validateTransforms(d) {
   demand(near(globals.get('UnitScaleFactor')?.[0], 100), 'Only metre-sized FBX source units are supported.');
 }
 function fbxGlobals(d) {
-  // Objects are not the top-level GlobalSettings; assigned by correction().
   return d.globalProperties;
 }
 function world(d, name, time = null, cache = new Map()) {
@@ -330,7 +318,7 @@ function footGeometry(d) {
   for (const cluster of clusters) {
     const indexNodes = cluster.children.filter(n => n.name === 'Indexes'), weightNodes = cluster.children.filter(n => n.name === 'Weights');
     demand(indexNodes.length <= 1 && weightNodes.length <= 1, 'Duplicate cluster weight arrays.');
-    if (!indexNodes.length && !weightNodes.length) continue; // Blender emits unused all-bone clusters without arrays.
+    if (!indexNodes.length && !weightNodes.length) continue;
     demand(indexNodes.length === 1 && weightNodes.length === 1, 'Incomplete cluster weight arrays.');
     const indices = leafValue(cluster, 'Indexes'), weights = leafValue(cluster, 'Weights');
     demand(indices.length === weights.length, 'Boot cluster lengths differ.');
@@ -345,8 +333,6 @@ function footGeometry(d) {
     const staticFoot = world(d, name), startTime = d.tracks.get('pelvis/Lcl Translation')?.get('Y')?.times[0];
     demand(startTime !== undefined, 'Missing animated start for bind validation.');
     const animatedFoot = world(d, name, startTime);
-    // Original exporter static pelvis differs from the animated endpoint by
-    // 15.23 micrometres. Validate both, with a tighter animated-start check.
     demand(link.every((v, k) => near(v, staticFoot[k], 2e-5)), 'Foot static transform does not match stored bind.');
     demand(link.every((v, k) => near(v, animatedFoot[k], 1e-5)), 'Foot start pose does not match stored bind.');
     const restored = mm(link, stored);
@@ -512,7 +498,6 @@ function correction(input) {
     demand(foot.maximumKeyPositionDrift < 1e-5, 'Keyframe ankle stance drift: ' + foot.bone);
     demand(foot.maximumKeyOrientationElementDrift < 1e-5, 'Keyframe foot orientation drift: ' + foot.bone);
   }
-  // Exact zero endpoints and float32 deterministic re-authoring support repeat runs.
   const secondPlan = solve(afterDescription);
   demand(secondPlan.replacements.every(r => r.values.every((v, k) => Object.is(Math.fround(v), r.curve.keys[k]))), 'Correction is not idempotent.');
   demand(serialize(parsed).equals(expected), 'Reparsed unchanged FBX serializer is not byte-idempotent.');

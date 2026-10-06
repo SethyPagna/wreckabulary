@@ -7,7 +7,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Validated, per-map local home files. A failed write keeps the previous save.</summary>
     public sealed class HomeStorage
     {
         readonly HomeDesigner designer;
@@ -59,7 +58,6 @@ namespace Wreckabulary
         }
     }
 
-    /// <summary>Detached validated snapshots; rejected edits do not consume history or mutate a draft.</summary>
     public sealed class HomeHistory
     {
         readonly HomeDesigner designer;
@@ -84,7 +82,6 @@ namespace Wreckabulary
             if (result.Layout.ToJson() == snapshots[cursor].ToJson()) return true;
             snapshots.RemoveRange(cursor + 1, snapshots.Count - cursor - 1);
             snapshots.Add(result.Layout); cursor++;
-            // Bound memory while retaining the current snapshot and the latest 100 edits.
             if (snapshots.Count > 101) { snapshots.RemoveAt(0); cursor--; }
             return true;
         }

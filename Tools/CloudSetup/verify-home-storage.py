@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Execute the actual home file/history tests with injected canonical configuration.
-
-This .NET host supplies configuration from the same JSON and an Application path
-shim which throws if used. It tests actual HomeStorage/HomeHistory and temporary
-filesystem I/O, not Unity initialization, rendering, UI, or physical devices.
-"""
 import argparse
 import os
 from pathlib import Path

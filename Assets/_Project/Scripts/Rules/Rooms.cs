@@ -4,7 +4,6 @@ using System.Linq;
 
 namespace Wreckabulary.Rules
 {
-    /// <summary>Rooms joined by doorways. Used by the clear-out to make sure nobody gets trapped.</summary>
     public sealed class RoomGraph
     {
         readonly List<string> rooms = new List<string>();
@@ -33,7 +32,6 @@ namespace Wreckabulary.Rules
 
         public IEnumerable<string> Neighbours(string room) => doors[room];
 
-        /// <summary>True if every room in <paramref name="open"/> can reach every other one through open rooms.</summary>
         public bool Connected(ICollection<string> open)
         {
             if (open.Count <= 1) return true;
@@ -50,11 +48,6 @@ namespace Wreckabulary.Rules
             return seen.Count == open.Count;
         }
 
-        /// <summary>
-        /// Checks a closing order (brief §6: "preserve reachable escape routes"). At every step:
-        /// the room closing must have a doorway into a room that is still open, the rooms left open
-        /// must all stay connected, and protected rooms never close. Returns the problems found.
-        /// </summary>
         public List<string> CheckClosureOrder(IList<string> order, ICollection<string> neverClose)
         {
             var problems = new List<string>();
@@ -83,11 +76,6 @@ namespace Wreckabulary.Rules
 
     public enum RoomPhase { Safe, Warning, Filling, Closed }
 
-    /// <summary>
-    /// When each room is packed up by the Movers. Closure i starts filling at
-    /// firstAt + i × interval, is announced warn seconds earlier, and is sealed fill seconds later.
-    /// Times are seconds since the round started.
-    /// </summary>
     public sealed class ClearOutSchedule
     {
         public readonly struct Closure
@@ -130,7 +118,6 @@ namespace Wreckabulary.Rules
             return RoomPhase.Closed;
         }
 
-        /// <summary>Damage per second to anyone inside the room: none until it starts filling, then growing.</summary>
         public float DamagePerSecond(string room, double t)
         {
             if (!byRoom.TryGetValue(room, out var c) || t < c.FillAt) return 0f;
@@ -142,13 +129,11 @@ namespace Wreckabulary.Rules
         public IEnumerable<string> OpenRooms(IEnumerable<string> all, double t) => all.Where(r => PhaseOf(r, t) != RoomPhase.Closed);
     }
 
-    /// <summary>One piece of original furniture in a room.</summary>
     public sealed class FurniturePlacement
     {
         public string Word;
         public string Room;
         public float X, Z, Yaw;
-        /// <summary>Height above the room's floor, for pieces on a balcony or shelf.</summary>
         public float Y;
     }
 
@@ -160,13 +145,11 @@ namespace Wreckabulary.Rules
 
         public bool Contains(float x, float z) => x >= MinX && x <= MaxX && z >= MinZ && z <= MaxZ;
 
-        /// <summary>True if the point is within <paramref name="slack"/> metres of the box, edges included.</summary>
         public bool Touches(float x, float z, float slack) =>
             x >= MinX - slack && x <= MaxX + slack && z >= MinZ - slack && z <= MaxZ + slack;
 
         public bool Overlaps(RoomBox o) => MinX < o.MaxX && o.MinX < MaxX && MinZ < o.MaxZ && o.MinZ < MaxZ;
 
-        /// <summary>Floors closer than this share a storey; storeys are stacked about 3 m apart.</summary>
         public const float StoreyTolerance = 0.5f;
 
         public bool SameStorey(RoomBox o) => Math.Abs(FloorY - o.FloorY) < StoreyTolerance;
@@ -178,18 +161,12 @@ namespace Wreckabulary.Rules
         public float X, Z, Width;
     }
 
-    /// <summary>
-    /// A flight of stairs from a room up to the room above: a straight ramp along X or Z from the foot
-    /// (on the lower floor) to the top (on the upper floor). Its footprint lies inside both rooms, and the
-    /// same rectangle is left open in the upper floor.
-    /// </summary>
     public sealed class Stairway
     {
         public string Lower, Upper;
         public float FromX, FromZ, ToX, ToZ, Width;
 
         public const float MaxSlopeDegrees = 35f;
-        /// <summary>Clear floor a player needs beyond either end to step on or off.</summary>
         public const float StepOff = 0.7f;
 
         public float Run => (float)Math.Sqrt((ToX - FromX) * (ToX - FromX) + (ToZ - FromZ) * (ToZ - FromZ));
@@ -201,12 +178,10 @@ namespace Wreckabulary.Rules
         public float MinZ => AlongZ ? Math.Min(FromZ, ToZ) : FromZ - Width * 0.5f;
         public float MaxZ => AlongZ ? Math.Max(FromZ, ToZ) : FromZ + Width * 0.5f;
 
-        /// <summary>True if the point is on the ramp, or over the opening it leaves in the floor above.</summary>
         public bool Covers(float x, float z) => x >= MinX && x <= MaxX && z >= MinZ && z <= MaxZ;
 
         public bool Within(RoomBox r) => MinX >= r.MinX && MaxX <= r.MaxX && MinZ >= r.MinZ && MaxZ <= r.MaxZ;
 
-        /// <summary>The point on the centre line this far from the foot: negative is before the foot, past <see cref="Run"/> is beyond the top.</summary>
         public void Along(float metres, out float x, out float z)
         {
             float t = metres / Run;
@@ -226,7 +201,6 @@ namespace Wreckabulary.Rules
         public string Word, Room;
     }
 
-    /// <summary>A house map from Data/Config/house_*.json: rooms, doorways, spawns, furniture and clear-out orders.</summary>
     public sealed class HouseLayout
     {
         public string Name;
@@ -241,15 +215,11 @@ namespace Wreckabulary.Rules
         public float ExtractionX, ExtractionZ;
         public readonly List<HouseObjective> MovingDay = new List<HouseObjective>();
         public readonly List<SpawnPoint> Keepsakes = new List<SpawnPoint>();
-        /// <summary>The room the lobby stands you in; null means the lobby picks one.</summary>
         public string LobbyRoom;
 
-        /// <summary>Floor furniture must stand at least this far from a doorway's centre, so no room starts blocked.</summary>
         public const float DoorClearance = 1.5f;
-        /// <summary>How far below a floor someone can be and still count as standing on it (feet sink into slabs and ramp tops).</summary>
         public const float StandingSlack = 0.3f;
 
-        /// <summary>Rooms joined by doorways and stairs.</summary>
         public RoomGraph Graph()
         {
             var g = new RoomGraph();
@@ -261,7 +231,6 @@ namespace Wreckabulary.Rules
 
         public RoomBox Room(string name) => Rooms.FirstOrDefault(r => r.Name == name);
 
-        /// <summary>The room on the lowest storey at this spot; within a storey, the first listed wins on a shared edge.</summary>
         public string RoomAt(float x, float z)
         {
             RoomBox best = null;
@@ -270,10 +239,6 @@ namespace Wreckabulary.Rules
             return best?.Name;
         }
 
-        /// <summary>
-        /// The room someone at this height is in: the highest floor at or just above their feet. On stairs you
-        /// stay in the lower room until you reach the top. Below every floor, the lowest room.
-        /// </summary>
         public string RoomAt(float x, float y, float z)
         {
             RoomBox best = null;
@@ -282,7 +247,6 @@ namespace Wreckabulary.Rules
             return best?.Name ?? RoomAt(x, z);
         }
 
-        /// <summary>The floor height of each storey, from the ground up.</summary>
         public List<float> StoreyFloors()
         {
             var floors = new List<float>();
@@ -291,7 +255,6 @@ namespace Wreckabulary.Rules
             return floors;
         }
 
-        /// <summary>What to call a storey: GROUND FLOOR and UPSTAIRS in a two-storey house, numbered floors in a taller building.</summary>
         public string StoreyLabel(int storey)
         {
             if (storey <= 0) return "GROUND FLOOR";
@@ -301,7 +264,6 @@ namespace Wreckabulary.Rules
             return storey + suffix + " FLOOR";
         }
 
-        /// <summary>A room's name, with its storey in brackets when the house has more than one ("Bedroom (upstairs)").</summary>
         public string WithStorey(string room)
         {
             var box = Room(room);
@@ -309,10 +271,8 @@ namespace Wreckabulary.Rules
             return room + " (" + StoreyLabel(StoreyOf(box)).ToLowerInvariant() + ")";
         }
 
-        /// <summary>The storey a room's floor belongs to, counting the ground as 0.</summary>
         public int StoreyOf(RoomBox room) => LastStoreyAtOrBelow(room.FloorY + 0.0001f);
 
-        /// <summary>The storey someone at this height stands on (the same rule as <see cref="RoomAt(float, float, float)"/>).</summary>
         public int StoreyAt(float y) => LastStoreyAtOrBelow(y + StandingSlack);
 
         int LastStoreyAtOrBelow(float y)
@@ -324,7 +284,6 @@ namespace Wreckabulary.Rules
             return storey;
         }
 
-        /// <summary>The letters you get from breaking every piece of original furniture in a room.</summary>
         public LetterBag LettersIn(string room)
         {
             var bag = new LetterBag();
@@ -349,7 +308,6 @@ namespace Wreckabulary.Rules
             {
                 if (d.Width < 0.9f) problems.Add($"doorway {d.A}-{d.B} is {d.Width} m wide; a player needs 0.9 m");
                 if (!Room(d.A).SameStorey(Room(d.B))) problems.Add($"doorway {d.A}-{d.B} joins two storeys; use stairs");
-                // Rooms on a storey don't overlap, so a point touching both boxes lies on the wall they share.
                 else if (!Room(d.A).Touches(d.X, d.Z, 0.01f) || !Room(d.B).Touches(d.X, d.Z, 0.01f))
                     problems.Add($"doorway {d.A}-{d.B} at ({d.X}, {d.Z}) isn't on a wall the two rooms share");
             }
@@ -412,11 +370,9 @@ namespace Wreckabulary.Rules
             s.Along(-Stairway.StepOff, out float onX, out float onZ);
             s.Along(s.Run + Stairway.StepOff, out float offX, out float offZ);
             if (!lower.Contains(onX, onZ) || !upper.Contains(offX, offZ)) problems.Add($"{name} need clear floor to step on and off");
-            // Stairs join neighbouring floors: one in between would cut across the flight, with no opening for it.
             foreach (var r in Rooms.Where(r => r.FloorY > lower.FloorY + RoomBox.StoreyTolerance && r.FloorY < upper.FloorY - RoomBox.StoreyTolerance))
                 if (r.MinX < s.MaxX && r.MaxX > s.MinX && r.MinZ < s.MaxZ && r.MaxZ > s.MinZ)
                     problems.Add($"{name} pass through the floor of {r.Name}; stairs join neighbouring storeys");
-            // Flights that share a room keep out of each other's way: no overlapping, and nobody steps on or off into another flight or its opening.
             bool alongZ = Math.Abs(s.ToX - s.FromX) < 0.001f;
             bool ApronMeets(Stairway t, float endX, float endZ, float stepX, float stepZ) => alongZ
                 ? t.MinX < s.MaxX && t.MaxX > s.MinX && t.MinZ < Math.Max(endZ, stepZ) && t.MaxZ > Math.Min(endZ, stepZ)

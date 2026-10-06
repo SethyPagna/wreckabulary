@@ -1,9 +1,5 @@
-// Coins, the cosmetic shop and match scores. Everything here is cosmetic:
-// nothing bought changes health, damage or speed.
-
 export const RANKED_MODES = ["Dibs", "Duos", "MovingOut", "MovingDay"];
 
-// Starter looks are free; the rest are bought with coins earned in matches.
 export const FREE_COLOURS = ["pool", "tomato", "tangerine", "sunflower", "mint"];
 export const SHOP = [
   { id: "skin:Candy", kind: "skin", value: "Candy", price: 250, name: "Candy gear" },
@@ -27,7 +23,6 @@ export function newProgress(random = Math.random) {
   };
 }
 
-/** Repairs a saved record, keeping anything the player already had in use. */
 export function loadProgress(saved, inUse = {}, random = Math.random) {
   const base = newProgress(random);
   const p = saved && typeof saved === "object" ? saved : {};
@@ -38,7 +33,6 @@ export function loadProgress(saved, inUse = {}, random = Math.random) {
     owned: Array.isArray(p.owned) ? p.owned.filter((id) => SHOP.some((s) => s.id === id)) : [],
     bests: p.bests && typeof p.bests === "object" ? { ...p.bests } : {},
   };
-  // Looks chosen before the shop existed stay unlocked.
   if (inUse.skin && inUse.skin !== "Classic") grant(progress, `skin:${inUse.skin}`);
   if (inUse.colour && !FREE_COLOURS.includes(inUse.colour)) grant(progress, `colour:${inUse.colour}`);
   return progress;
@@ -64,7 +58,6 @@ export function buy(progress, id) {
   return { ok: true, item };
 }
 
-/** Score and coins for one finished match, from the engine's stats. */
 export function matchReward(stats, won) {
   const score = Math.max(
     0,
@@ -75,7 +68,6 @@ export function matchReward(stats, won) {
   return { score, coins: Math.floor(score / 10) + (won ? 20 : 5) };
 }
 
-/** Adds a match to the record. Returns whether it beat the mode's best. */
 export function recordMatch(progress, mode, reward) {
   progress.coins += reward.coins;
   const best = progress.bests[mode] ?? 0;

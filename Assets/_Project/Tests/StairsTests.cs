@@ -6,7 +6,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>Walking between floors: up and down a ramp without launching off the top or skipping down it.</summary>
     public class StairsTests
     {
         [UnitySetUp]
@@ -36,7 +35,6 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator APlayerWalksUpAndDownThePinwheelRamp()
         {
-            // The 40° ramp runs north from about z -1.05 on the Playroom floor to z 1.0 on the 1.7 m balcony.
             var input = new ScriptedBinding();
             var p = Player(input, new Vector3(3.25f, 0f, -3f));
             yield return new WaitForSeconds(.3f);

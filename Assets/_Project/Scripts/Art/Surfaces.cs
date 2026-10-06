@@ -4,13 +4,6 @@ using UnityEngine;
 
 namespace Wreckabulary.Art
 {
-    /// <summary>
-    /// The browser edition's room surfaces (Web/src/materials.js and renderer.js), made in code: oak planks,
-    /// plaster, wood trim, lawn, the kitchen checker, bath tile and sewn rugs. Most are a light greyscale
-    /// pattern times a tint, with a matching normal map, so one texture serves every colour; the two tiled
-    /// floors carry their own colours. Textures are built once per session, up to 1024 px (twice the web's),
-    /// and materials are shared per surface and colour.
-    /// </summary>
     public static class Surfaces
     {
         public enum Kind { Planks, Plaster, Wood, Lawn, Checker, Tile, Rug }
@@ -19,11 +12,9 @@ namespace Wreckabulary.Art
         {
             public int Size;
             public float Smoothness, Bump;
-            /// <summary>Metres one repeat of the texture covers, along u and v.</summary>
             public Vector2 Tile;
         }
 
-        // Smoothness is 1 - the web's roughness.
         static readonly Dictionary<Kind, Spec> specs = new()
         {
             [Kind.Planks] = new Spec { Size = 1024, Smoothness = .21f, Bump = .6f, Tile = new Vector2(4f, 1.2f) },
@@ -39,18 +30,12 @@ namespace Wreckabulary.Art
         static readonly Dictionary<string, Material> materials = new();
         static readonly Dictionary<string, Mesh> meshes = new();
 
-        /// <summary>How many metres one repeat covers. A rug's texture spans the whole rug instead.</summary>
         public static Vector2 Tile(Kind kind) => specs[kind].Tile;
 
-        /// <summary>Textures made so far this session (albedo and normal count as one).</summary>
         public static int TextureCount => textures.Count;
 
         public static Color Hex(uint rgb) => new Color32((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, 255);
 
-        /// <summary>
-        /// A shared material for this surface in this colour. The kitchen checker and bath tile have their own
-        /// colours, so they take white. A rug's border keeps its width whatever the rug's shape (width / depth).
-        /// </summary>
         public static Material Get(Kind kind, Color tint, float aspect = 1f)
         {
             aspect = kind == Kind.Rug ? Mathf.Clamp(Mathf.Round(aspect * 4f) / 4f, .5f, 3f) : 1f;
@@ -76,13 +61,6 @@ namespace Wreckabulary.Art
             return material;
         }
 
-        /// <summary>
-        /// A unit cube whose texture coordinates are in metres for a box this size, so a pattern keeps its
-        /// scale on any box: tops and bottoms run along x and z, sides along their length and up. Given where
-        /// the box stands, neighbouring boxes line up (floors either side of a stair opening); without, the
-        /// box is textured on its own from its corner (a step or rail that's turned, or a rug, whose tile is its
-        /// own size so the pattern runs edge to edge once).
-        /// </summary>
         public static Mesh Box(Vector3 size, Vector2 tile, Vector3? at = null, bool grainAlongLength = false)
         {
             var origin = at ?? size * .5f;
@@ -95,7 +73,6 @@ namespace Wreckabulary.Art
             foreach (var (normal, up) in new[] { (Vector3.right, Vector3.up), (Vector3.left, Vector3.up), (Vector3.forward, Vector3.up),
                 (Vector3.back, Vector3.up), (Vector3.up, Vector3.forward), (Vector3.down, Vector3.forward) })
             {
-                // Seen from outside, right then up: clockwise, Unity's front face.
                 var right = Vector3.Cross(normal, up);
                 int first = vertices.Count;
                 foreach (var (r, u) in new[] { (-.5f, -.5f), (-.5f, .5f), (.5f, .5f), (.5f, -.5f) })
@@ -143,7 +120,6 @@ namespace Wreckabulary.Art
                     float dx = (Height(heights, size, x - 1, y, repeats) - Height(heights, size, x + 1, y, repeats)) * 5f;
                     float dy = (Height(heights, size, x, y - 1, repeats) - Height(heights, size, x, y + 1, repeats)) * 5f;
                     float length = Mathf.Sqrt(dx * dx + dy * dy + 1f);
-                    // RGB with a full alpha unpacks right in URP's RG-or-AG normal decoding.
                     bumps[y * size + x] = new Color32((byte)Mathf.RoundToInt((dx / length + 1f) * 127.5f), (byte)Mathf.RoundToInt((dy / length + 1f) * 127.5f),
                         (byte)Mathf.RoundToInt((1f / length + 1f) * 127.5f), 255);
                 }
@@ -160,7 +136,6 @@ namespace Wreckabulary.Art
             return (albedo, normal);
         }
 
-        // A rug has a sewn outer edge; everything else repeats seamlessly.
         static float Height(float[] heights, int size, int x, int y, bool repeats) => repeats
             ? heights[(y + size) % size * size + (x + size) % size]
             : heights[Mathf.Clamp(y, 0, size - 1) * size + Mathf.Clamp(x, 0, size - 1)];
@@ -171,7 +146,6 @@ namespace Wreckabulary.Art
             return t * t * (3f - 2f * t);
         }
 
-        /// <summary>FNV-1a over UTF-16 code units, as the web's hash().</summary>
         static uint Hash(string text)
         {
             uint h = 2166136261;
@@ -179,7 +153,6 @@ namespace Wreckabulary.Art
             return h;
         }
 
-        /// <summary>The web's seededRandom (mulberry32).</summary>
         sealed class Random32
         {
             uint state;
@@ -196,7 +169,6 @@ namespace Wreckabulary.Art
             }
         }
 
-        /// <summary>Periodic value noise, so a repeated floor shows no seam.</summary>
         sealed class Noise
         {
             readonly float[] grid;
@@ -223,10 +195,6 @@ namespace Wreckabulary.Art
             (byte)Mathf.Clamp(Mathf.RoundToInt(face.r * shade), 0, 255), (byte)Mathf.Clamp(Mathf.RoundToInt(face.g * shade), 0, 255),
             (byte)Mathf.Clamp(Mathf.RoundToInt(face.b * shade), 0, 255), 255);
 
-        /// <summary>
-        /// A port of the web's pattern(): the same seeds and layers, plus a finer octave so a 1024 texture
-        /// carries more than the 512 original. Writes the albedo and a height field for the normal map.
-        /// </summary>
         static void Pattern(Kind kind, float aspect, int size, Color32[] colour, float[] heights)
         {
             string web = kind switch { Kind.Checker or Kind.Tile => "ceramic", _ => kind.ToString().ToLowerInvariant() };
@@ -235,14 +203,12 @@ namespace Wreckabulary.Art
             var grain = new Noise(32, random);
             var fine = new Noise(128, random);
             var micro = new Noise(Mathf.Max(128, size / 2), random);
-            // Floor boards differ a little from each other, as real planks do: four rows of up to three boards.
             var boards = new float[12];
             for (int i = 0; i < boards.Length; i++) boards[i] = (random.Next() - .5f) * .035f;
             Color32 white = new(255, 255, 255, 255);
             Color32 light = new(0xF1, 0xE7, 0xCE, 255), dark = new(0xBC, 0xC9, 0xBA, 255), kitchenGrout = new(0xC7, 0xC2, 0xB1, 255);
             Color32 bath = new(0xE9, 0xEE, 0xEA, 255), bathGrout = new(0xC3, 0xCF, 0xCF, 255);
             const float twoPi = Mathf.PI * 2f;
-            // Rows don't depend on each other, so they're shared out over the processor's cores.
             Parallel.For(0, size, y =>
             {
                 for (int x = 0; x < size; x++)
@@ -256,7 +222,6 @@ namespace Wreckabulary.Art
                         case Kind.Wood:
                         case Kind.Planks:
                         {
-                            // Long grain running along u; staggered joins only on floor planks.
                             float drift = Mathf.Sin(u * twoPi * 2f) * .13f;
                             float streak = Mathf.Sin((v * 46f + drift + (large + .5f) * .55f) * twoPi);
                             float pores = Mathf.Pow(Mathf.Max(0f, streak), 6f);
@@ -278,7 +243,6 @@ namespace Wreckabulary.Art
                             float warp = Mathf.Cos(u * twoPi * 128f * aspect), weft = Mathf.Cos(v * twoPi * 128f), woven = warp * weft;
                             shade = .973f + woven * .012f + middle * .012f + tiny * .008f;
                             height = .5f + woven * .052f + small * .016f;
-                            // A border of constant width on any shape of rug, with piping and a running stitch.
                             float edge = Mathf.Min(Mathf.Min(u * aspect, (1f - u) * aspect), Mathf.Min(v, 1f - v));
                             float band = 1f - Smooth(.039f, .058f, edge);
                             float piping = Mathf.Exp(-Mathf.Pow((edge - .055f) / .005f, 2f));
@@ -300,7 +264,6 @@ namespace Wreckabulary.Art
                         case Kind.Checker:
                         case Kind.Tile:
                         {
-                            // Glazed squares with soft grout lines: two tones on the kitchen checker.
                             int squares = kind == Kind.Checker ? 2 : 4;
                             float su = u * squares, sv = v * squares;
                             float gu = Mathf.Min(su % 1f, 1f - su % 1f), gv = Mathf.Min(sv % 1f, 1f - sv % 1f);
@@ -314,7 +277,6 @@ namespace Wreckabulary.Art
                             break;
                         }
                         default:
-                            // Trowelled plaster: broad, pale variation with very small aggregate.
                             shade = .984f + large * .016f + small * .006f + tiny * .005f;
                             height = .5f + large * .033f + small * .029f;
                             break;

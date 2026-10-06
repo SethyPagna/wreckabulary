@@ -6,7 +6,6 @@ using UnityEditor;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>Shader-setting cleanup without scenes, rendering, or waiting for frames.</summary>
     public class CaptureCleanupTests
     {
         bool originalValue;
@@ -98,11 +97,9 @@ namespace Wreckabulary.Tests
                 Assert.IsTrue(routine.MoveNext());
                 Assert.IsFalse(EditorSettings.asyncShaderCompilation);
 
-                // Match UTF's unexpected-log exit: no further MoveNext or Dispose call.
                 fixture.RestoreShaderCompilation();
                 Assert.AreEqual(priorValue, EditorSettings.asyncShaderCompilation);
 
-                // A later disposal must not overwrite a subsequent editor change.
                 EditorSettings.asyncShaderCompilation = !priorValue;
                 ((IDisposable)routine).Dispose();
                 Assert.IsTrue(sequenceDisposed);

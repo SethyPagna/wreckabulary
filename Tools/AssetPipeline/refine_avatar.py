@@ -1,19 +1,3 @@
-"""Board-1 refinement of the shared modular avatar (art direction, 6 Oct 2026).
-
-build_assets.run_avatar calls refine() after every wardrobe module shares the one rig
-and before the half turn and FBX export. Blender space is still the glTF import space:
-metres, Z up, the avatar faces -Y and its right hand is at -X.
-
-Changes, all on the shared 22-joint rig (no new joints, clips or wardrobe meshes):
-  Hood     drop the three loose lobes the pack stacked on top (the red "crown").
-  Head     a dark felt hair fringe, fitted inside the Hood and the Cap.
-  Hoodie   two white drawstrings with chunky aglets.
-  Mittens  white cuff bands at the wrist.
-  Satchel  a brass buckle on the right shoulder strap.
-  Joggers  baggy legs that bunch over the boots.
-New geometry is skinned rigidly to one existing joint and joined into an existing SK_
-mesh, so the wardrobe toggles, tints and animation keep working in Unity and the web.
-"""
 import math
 from collections import defaultdict
 
@@ -22,12 +6,9 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
 HAIR = "hair"
-WHITE = "ivory_badge"          # untinted white felt, the same as the T badge
+WHITE = "ivory_badge"
 BRASS = "accessory_hardware"
-HAIR_RGB = (0.03, 0.017, 0.011)  # linear; sRGB about (0.19, 0.14, 0.11), board 1's dark brown
-
-
-# --------------------------------------------------------------------------- helpers
+HAIR_RGB = (0.03, 0.017, 0.011)
 
 
 def _mesh(name):
@@ -55,7 +36,6 @@ def _material_index(obj, name):
 
 
 def _islands(obj):
-    """Polygon index lists of each piece, welding vertices that share a position."""
     me = obj.data
     key = [tuple(round(c, 5) for c in v.co) for v in me.vertices]
     parent = {}
@@ -100,8 +80,6 @@ def _smoothstep(a, b, x):
 
 
 class Geometry:
-    """Vertices and faces (with per-corner UVs) for one rigid addition."""
-
     def __init__(self):
         self.verts = []
         self.faces = []
@@ -116,10 +94,6 @@ class Geometry:
         self.uvs.append(list(uvs))
 
     def tube(self, centres, radii, segments=10, closed=False, normal=None, caps=True):
-        """A smooth tube through centres; faces point away from the axis.
-
-        Parallel-transported rings; closed=True joins the last ring to the first (a torus).
-        """
         n = len(centres)
         tangents = []
         for i in range(n):
@@ -156,7 +130,6 @@ class Geometry:
                     self.face(tri, [(0.5, 0.5)] * 3)
 
     def capsule(self, start, end, radius, segments=12, rings=4):
-        """A rounded rod from start to end (hemispherical ends)."""
         axis = end - start
         length = axis.length
         t = axis.normalized()
@@ -186,7 +159,6 @@ class Geometry:
         self.tube(pts, [minor] * major_segments, segments=minor_segments, closed=True, normal=axis)
 
     def join_into(self, target, material, group, label):
-        """Skin every vertex fully to one joint and join into target (keeps its shape keys)."""
         me = bpy.data.meshes.new(label)
         me.from_pydata([tuple(v) for v in self.verts], [], self.faces)
         uv_name = target.data.uv_layers.active.name if target.data.uv_layers.active else "UVMap"
@@ -202,7 +174,6 @@ class Geometry:
         bpy.context.scene.collection.objects.link(obj)
         vg = obj.vertex_groups.new(name=group)
         vg.add(list(range(len(me.vertices))), 1.0, "REPLACE")
-        # The addition is built in world space; join keeps world placement.
         for o in bpy.context.view_layer.objects:
             o.select_set(False)
         obj.select_set(True)
@@ -230,12 +201,7 @@ def _delete_polys(obj, poly_indices):
     obj.data.update()
 
 
-# --------------------------------------------------------------------------- steps
-
-
 def remove_hood_crown(hood):
-    """The pack's Hood carries three lobes and a seam stacked above the dome. Board 1's hood is
-    a plain raised hood, so drop every piece that starts above the dome and pokes out of it."""
     points = _points(hood)
     doomed = []
     for polys in _islands(hood):
@@ -250,9 +216,6 @@ def remove_hood_crown(hood):
 
 
 def add_hair(head, fitted, rig):
-    """Sculpted felt hair: a shell combed out from a crown whorl, ending in a thick rounded lip
-    whose underside tucks into the skull. The front sweeps diagonally down to a point over the
-    viewer's right brow, like board 1. It is squeezed to stay inside every headwear piece."""
     skin = _material_index(head, "ivory_vinyl")
     head_bvh = _bvh(head, keep=lambda p: p.material_index == skin)
     skull = [_points(head)[i] for p in head.data.polygons if p.material_index == skin for i in p.vertices]
@@ -264,15 +227,14 @@ def add_hair(head, fitted, rig):
         return _smoothstep(-0.06, -0.15, p.y)
 
     def dip(x):
-        # The swoop: high over the viewer's left eye, sweeping down to a point over the right.
         if -0.2 <= x <= 0.1:
             return 0.068 * ((x + 0.2) / 0.3) ** 1.5
         if 0.1 < x <= 0.24:
-            return 0.068 - 0.03 * (x - 0.1) / 0.14   # stays low over the right temple
+            return 0.068 - 0.03 * (x - 0.1) / 0.14
         return 0.038 if x > 0.24 else 0.0
 
     def hairline(p):
-        back = 0.80 - 0.45 * (p.y + 0.04)           # higher on the forehead, lower at the nape
+        back = 0.80 - 0.45 * (p.y + 0.04)
         f = front_weight(p)
         return (1 - f) * back + f * (0.905 - dip(p.x))
 
@@ -280,7 +242,7 @@ def add_hair(head, fitted, rig):
         hit = head_bvh.ray_cast(centre + d * 0.6, -d, 0.7)
         return hit[0]
 
-    whorl = Vector((0.03, 0.30, 1.0)).normalized()   # crown, a little back and to the side
+    whorl = Vector((0.03, 0.30, 1.0)).normalized()
     e1 = Vector((1, 0, 0))
     e1 = (e1 - whorl * e1.dot(whorl)).normalized()
     e2 = whorl.cross(e1)
@@ -307,9 +269,9 @@ def add_hair(head, fitted, rig):
     geo = Geometry()
     squeezed = [0]
     thick = []
-    lip = 0.016                                     # metres over which the lip rolls under
+    lip = 0.016
     rows = [0.0, .06, .14, .24, .34, .44, .54, .63, .71, .78, .84, .89, .93, .96, .975, .985, .995]
-    sink = [(0.006, -0.0025), (0.018, -0.0045)]     # (metres past the hairline, depth) tucked in
+    sink = [(0.006, -0.0025), (0.018, -0.0045)]
 
     def vertex(theta, phi, u, t_override=None):
         d = direction(theta, phi)
@@ -321,16 +283,13 @@ def add_hair(head, fitted, rig):
             return geo.vert(centre + d * (r_head + t_override)), (phi / (2 * math.pi), min(u, 1.0))
         f = front_weight(p)
         top = 0.016 + 0.009 * f
-        # Combed clumps radiating from the whorl, faded out at the whorl itself.
         top *= 1 + 0.14 * math.cos(11 * phi) * _smoothstep(0.08, 0.35, u)
-        # Roll the lip under over the last `lip` metres of arc.
         arc_left = (1 - u) * edges_at[0] * r_head
         roll = math.sqrt(max(0.0, 1 - (1 - min(1.0, arc_left / lip)) ** 2))
         r = r_head + top * roll
         for bvh in wear:
             h = bvh.ray_cast(centre, d, 1.0)
             if h[0] is not None and (h[0] - centre).length - 0.003 < r:
-                # Never closer than 3 mm to the skull, or the two surfaces z-fight.
                 r = max((h[0] - centre).length - 0.003, r_head + 0.003 * roll)
                 squeezed[0] += 1
         thick.append(r - r_head)
@@ -377,7 +336,6 @@ def _orient_outward(geo, centre):
 
 
 def add_drawstrings(hoodie):
-    """Two short white cords with chunky aglets, hanging from the collar above the T badge."""
     bvh = _bvh(hoodie)
     geo = Geometry()
     cord, tip = 0.0042, 0.0075
@@ -398,7 +356,6 @@ def add_drawstrings(hoodie):
 
 
 def add_cuffs(mittens, sleeves, rig):
-    """White felt bands where the mittens leave the sleeves (board 1's white cuffs)."""
     mitt_points = _points(mittens)
     notes = {}
     for side, sign in (("L", 1), ("R", -1)):
@@ -427,9 +384,6 @@ def add_cuffs(mittens, sleeves, rig):
 
 
 def widen_straps(satchel, factor=1.8):
-    """Board 1's shoulder straps are broad leather bands; the pack's are thin cords. Widen each
-    strap about its own centre line where it crosses the chest and shoulder, and lift it off
-    the hoodie a little so the wider edges don't sink into the chest."""
     straps = _material_index(satchel, "satchel_straps")
     pts = _points(satchel)
     to_local = satchel.matrix_world.inverted()
@@ -440,7 +394,7 @@ def widen_straps(satchel, factor=1.8):
             continue
         verts = sorted({i for p in polys for i in satchel.data.polygons[p].vertices})
         if min(pts[i].y for i in verts) > -0.1:
-            continue                                 # the bag's own top strap, not a shoulder strap
+            continue
         bins = defaultdict(list)
         for i in verts:
             bins[round(pts[i].z / 0.006)].append(pts[i].x)
@@ -458,7 +412,6 @@ def widen_straps(satchel, factor=1.8):
 
 
 def add_buckle(satchel):
-    """A chunky brass buckle centred on the right shoulder strap at chest height."""
     straps = _material_index(satchel, "satchel_straps")
     bvh = _bvh(satchel, keep=lambda p: p.material_index == straps)
     z = 0.465
@@ -466,7 +419,7 @@ def add_buckle(satchel):
     for n in range(121):
         x = -0.17 + 0.0011 * n
         hit = bvh.ray_cast(Vector((x, -1.0, z)), Vector((0, 1, 0)), 2.0)
-        if hit[0] is not None and hit[0].y < 0:      # beside the strap the rays reach the bag behind
+        if hit[0] is not None and hit[0].y < 0:
             hits.append(hit)
     if not hits:
         raise RuntimeError("refine: the right shoulder strap wasn't found")
@@ -484,7 +437,6 @@ def add_buckle(satchel):
 
 
 def baggy_trousers(joggers, rig):
-    """Widen the legs about each leg's bone line: roomy at the hip, bunched over the boots."""
     me = joggers.data
     to_local = joggers.matrix_world.inverted()
     moved = 0
@@ -516,7 +468,6 @@ def baggy_trousers(joggers, rig):
 
 
 def ensure_hair_material(library):
-    """Dark brown felt: the fabric texture and normal map the clothes use, tinted brown."""
     mat = bpy.data.materials.get(HAIR) or bpy.data.materials.new(HAIR)
     mat.diffuse_color = (*HAIR_RGB, 1.0)
     fabric = library.materials.get("fabric_main")
@@ -537,8 +488,6 @@ def _skull_centre(head):
 
 
 def make_room(obj, centre, scale, z_from=None, z_to=None):
-    """Grow headwear about the skull centre so the hair fits under it. The hood keeps its
-    bottom edge where it meets the hoodie: the growth fades in from z_from to z_to."""
     to_local = obj.matrix_world.inverted()
     for v in obj.data.vertices:
         p = obj.matrix_world @ v.co

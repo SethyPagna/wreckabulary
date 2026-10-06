@@ -11,30 +11,17 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// The 3D half of the lobby: the selected map built far from the hub room, your avatar
-    /// standing in its most open room (no platform), and a camera that frames you in the
-    /// middle (home) or on the left (loadout). Dragging turns the avatar. While the lobby holds the
-    /// camera it adds a showroom: a dusk sky behind the map, a warm key and a cyan rim light on you,
-    /// and the lobby's grade.
-    /// </summary>
     public sealed class LobbyStage : MonoBehaviour
     {
-        /// <summary>Where the backdrop is built, well clear of the hub room at the origin.</summary>
         public static readonly Vector3 Origin = new Vector3(0f, 0f, -400f);
         const string AvatarKey = "Avatar/Avatar";
         const float Distance = 4.2f, EyeHeight = .95f, LookHeight = .5f, FieldOfView = 30f;
 
         public enum Focus { Centre, Left }
 
-        /// <summary>The top of the lobby sky, which the camera also clears to: plum over apricot at dusk, not
-        /// the hub's teal and never blue (user, 6 Oct 2026).</summary>
         public static readonly Color SkyTop = LobbyKit.Hex(0x2b1736);
         static readonly Color SkyMiddle = LobbyKit.Hex(0x6b3f6e), SkyLow = LobbyKit.Hex(0xf2b57a);
-        /// <summary>Where you stand across the screen while a side page of unknown width fills the right, from 0
-        /// (left) to 1.</summary>
         public const float SideAt = .3f;
-        /// <summary>Above the default look volume (GraphicsOptions.Look), so the lobby grade wins while it shows.</summary>
         public const int LookPriority = 10;
         static readonly Vector3 KeyFrom = new Vector3(-1.8f, 2.6f, -2.4f), RimFrom = new Vector3(1.6f, 2.2f, 1.8f);
 
@@ -58,7 +45,6 @@ namespace Wreckabulary
         public string Map { get; private set; }
         public Transform Avatar => avatarRoot;
         public float Yaw => Mathf.Repeat(targetYaw, 360f);
-        /// <summary>The avatar's spot in world space, on the floor.</summary>
         public Vector3 Spot => spot;
         public Camera Camera => cam;
 
@@ -74,17 +60,14 @@ namespace Wreckabulary
             if (Map == mapId && set) return;
             var layout = GameConfig.Current.HouseFor(mapId);
             if (set) { set.gameObject.SetActive(false); TactileMaterials.Release(set.gameObject); Destroy(set.gameObject); }
-            // RoomBuilder places blocks in world space, so build at the origin and then move the whole set.
             set = new GameObject("Lobby backdrop · " + layout.Name).transform;
             set.SetParent(transform, false);
             var geometry = RoomBuilder.CreateGeometry(layout, mapId, set);
             var room = OpenRoom(layout);
-            // Floors above yours would hide you from the camera.
             int storey = layout.StoreyOf(room);
             foreach (Transform group in geometry)
                 for (int above = storey + 1; above < layout.StoreyFloors().Count; above++)
                     if (group.name == RoomBuilder.StoreyName(above)) group.gameObject.SetActive(false);
-            // A rug in your room lies between the camera and you and reads as a stage.
             foreach (var child in geometry.GetComponentsInChildren<Transform>(true))
             {
                 var p = set.InverseTransformPoint(child.position);
@@ -92,7 +75,6 @@ namespace Wreckabulary
                 { child.gameObject.SetActive(false); Destroy(child.gameObject); }
             }
             float depth = room.MaxZ - room.MinZ;
-            // Stand towards the back wall and look south across the room, so the far wall is the backdrop.
             float distance = Mathf.Min(Distance, depth * .62f);
             var local = new Vector3((room.MinX + room.MaxX) * .5f, room.FloorY, Mathf.Min(room.MaxZ - 1.6f, room.MinZ + .45f + distance + depth * .12f));
             toCamera = new Vector3(0f, 0f, -distance);
@@ -104,7 +86,6 @@ namespace Wreckabulary
             Place(true);
         }
 
-        /// <summary>The map's lobby room if it names one, else the ground-floor room with the most space to stand back in; gardens count.</summary>
         static RoomBox OpenRoom(HouseLayout layout) =>
             (layout.LobbyRoom != null ? layout.Room(layout.LobbyRoom) : null)
             ?? layout.Rooms.Where(r => layout.StoreyOf(r) == 0)
@@ -120,7 +101,6 @@ namespace Wreckabulary
             {
                 if (layout.StoreyOf(layout.Room(f.Room)) > storey) continue;
                 var at = new Vector3(f.X, layout.Room(f.Room).FloorY + f.Y, f.Z);
-                // Keep the view from the camera to you clear; a rug spreads wide enough to look like a stage.
                 float clear = f.Word == "RUG" ? 2.2f : 1.1f;
                 if (DistanceToSegment(new Vector2(at.x, at.z), new Vector2(eye.x, eye.z), new Vector2(stand.x, stand.z)) < clear) continue;
                 string key = f.Word == "RUG" ? "Environment/Round_Rug" : "Items/" + f.Word.ToUpperInvariant();
@@ -170,25 +150,17 @@ namespace Wreckabulary
             return true;
         }
 
-        /// <summary>Turns the avatar by a drag, in degrees. Kept unwrapped, so a fast flick of more
-        /// than half a turn in one frame still spins the way it was dragged.</summary>
         public void Turn(float degrees) => targetYaw += degrees;
 
-        /// <summary>Frames you for a page: centred, or in the middle of the room left of a side page.
-        /// <paramref name="panel"/> is how much of the right the page covers, in screen heights (the lobby canvas
-        /// scales with the height); 0 stands you at <see cref="SideAt"/>.</summary>
         public void Frame(Focus focus, float panel = 0f)
         {
             targetSide = focus == Focus.Left ? 1f : 0f;
             if (focus == Focus.Left) this.panel = panel;
         }
 
-        /// <summary>Where you stand beside a side page covering <paramref name="panel"/> screen heights on the
-        /// right of a screen this wide for its height, from 0 (left) to 1.</summary>
         public static float StandAt(float panel, float aspect) =>
             panel > 0f && aspect > 0f ? Mathf.Clamp(.5f - panel / (2f * aspect), .15f, .45f) : SideAt;
 
-        /// <summary>Takes the main camera for the lobby view; <see cref="Release"/> gives it back.</summary>
         public void TakeCamera()
         {
             if (cameraTaken) return;
@@ -204,21 +176,18 @@ namespace Wreckabulary
             cam.fieldOfView = FieldOfView;
             cam.nearClipPlane = .1f;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            // The sky covers everything past the room; this only shows if it ever doesn't.
             cam.backgroundColor = SkyTop;
             GraphicsOptions.ApplyTo(cam);
             cameraTaken = true;
             Showroom(true);
         }
 
-        /// <summary>The sky, the lights on you and the lobby grade: on while the lobby holds the camera.</summary>
         void Showroom(bool on)
         {
             if (on && !sky) BuildShowroom();
             if (sky)
             {
                 sky.worldCamera = cam;
-                // Past any room, and in front of anything far beyond it (the hub room lies 400 units on).
                 if (cam) sky.planeDistance = Mathf.Min(cam.farClipPlane - 1f, 80f);
                 sky.enabled = on;
             }
@@ -229,7 +198,6 @@ namespace Wreckabulary
 
         void BuildShowroom()
         {
-            // A screen-space-camera canvas drawn first among see-through things: walls in front hide it.
             var canvasObject = new GameObject("Lobby sky", typeof(RectTransform));
             canvasObject.transform.SetParent(transform, false);
             sky = canvasObject.AddComponent<Canvas>();
@@ -239,8 +207,6 @@ namespace Wreckabulary
             gradient.texture = skyTexture = SkyTexture();
             gradient.raycastTarget = false;
 
-            // CS2's showroom grade: a soft navy vignette, the far room a little out of focus, a touch more
-            // contrast and colour, and a faint bloom on the brightest highlights.
             var volumeObject = new GameObject("Lobby look");
             volumeObject.transform.SetParent(transform, false);
             look = volumeObject.AddComponent<Volume>();
@@ -282,7 +248,6 @@ namespace Wreckabulary
             return light;
         }
 
-        /// <summary>The sky's colours top to bottom, in a strip the canvas stretches over the screen.</summary>
         static Texture2D SkyTexture()
         {
             const int Texels = 128;
@@ -291,7 +256,6 @@ namespace Wreckabulary
             var pixels = new Color32[Texels];
             for (int i = 0; i < Texels; i++)
             {
-                // Row 0 is the bottom; plum fades to mauve by 55% down, then to apricot at the horizon.
                 float down = 1f - (i + .5f) / Texels;
                 Color colour = down < .55f
                     ? Color.Lerp(SkyTop, SkyMiddle, Mathf.SmoothStep(0f, 1f, down / .55f))
@@ -303,7 +267,6 @@ namespace Wreckabulary
             return texture;
         }
 
-        /// <summary>Gives the camera back to the hub (for exploring or leaving the lobby).</summary>
         public void Release()
         {
             if (!cameraTaken) return;
@@ -325,14 +288,10 @@ namespace Wreckabulary
             float k = snap ? 1f : 1f - Mathf.Exp(-10f * Time.unscaledDeltaTime);
             yaw = Mathf.Lerp(yaw, targetYaw, k);
             side = Mathf.Lerp(side, targetSide, snap ? 1f : 1f - Mathf.Exp(-7f * Time.unscaledDeltaTime));
-            // Yaw 0 faces the camera.
             if (avatarRoot) avatarRoot.rotation = Quaternion.LookRotation(toCamera.sqrMagnitude > 0 ? toCamera.normalized : Vector3.back) * Quaternion.Euler(0f, yaw, 0f);
-            // The key light from over the camera's left shoulder, the rim from behind on the right.
             Aim(key, KeyFrom);
             Aim(rim, RimFrom);
             if (!cameraTaken || !cam) return;
-            // Slide the camera sideways so you stand in the room left of a side page. Worked out each frame from
-            // the screen's shape, so a resized window keeps you clear of the panel.
             var right = Vector3.Cross(Vector3.up, -toCamera.normalized);
             float halfWidth = Mathf.Tan(cam.fieldOfView * .5f * Mathf.Deg2Rad) * cam.aspect;
             var shift = right * side * ((1f - 2f * StandAt(panel, cam.aspect)) * toCamera.magnitude * halfWidth);
@@ -340,7 +299,6 @@ namespace Wreckabulary
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(spot + Vector3.up * LookHeight + shift - eye));
         }
 
-        /// <summary>Puts a light at an offset from you (x across the camera's view, z away from it) aimed at your chest.</summary>
         void Aim(Light light, Vector3 from)
         {
             if (!light) return;

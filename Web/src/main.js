@@ -149,20 +149,15 @@ function resetInputs() {
 const MOUSE_SENSITIVITY = 0.0024;
 const worldCanvas = () => document.querySelector("#world");
 const mouseLocked = () => document.pointerLockElement === worldCanvas();
-// Refusals in a row since the mouse was last captured. A browser can turn one request down
-// (Chrome does right after Esc), so only a second refusal in a row lets clicks act without it.
 let lockRefusals = 0;
 let lockPending = false;
 function refuseLock() {
-  // The error event and the promise can both report the same refusal.
   if (!lockPending) return;
   lockPending = false;
   lockRefusals++;
 }
 document.addEventListener("pointerlockerror", refuseLock);
-/** Asks to capture the mouse. Returns true when the click should only capture it. */
 function lockMouse() {
-  // Automated test browsers keep the cursor free so they can still click the HUD.
   if (matchMedia("(pointer: coarse)").matches || mouseLocked() || navigator.webdriver)
     return false;
   lockPending = true;
@@ -176,8 +171,6 @@ function lockMouse() {
 function releaseMouse() {
   if (mouseLocked()) document.exitPointerLock();
 }
-// On touch devices PLAY goes fullscreen and asks to stay sideways, so the match uses
-// the whole screen. Browsers that refuse (iPhone Safari) fall back to the rotate hint.
 function fullscreenLandscape() {
   if (!matchMedia("(pointer: coarse)").matches || navigator.webdriver) return;
   const root = document.documentElement;
@@ -220,10 +213,6 @@ function start() {
   );
   sound("craft");
 }
-// The lobby: your character on a little stage with the roommates beside you, and
-// tabs for Play, Locker, Shop, Recipes and Leaderboard, like a shooter's front end.
-// The look follows the art boards: honey-wood letter tiles, cocoa outlines and
-// sticker-style cards with hard shadows.
 const LOBBY_TABS = [
   ["play", "lobbyPlay", "Play"],
   ["locker", "closet", "Locker"],
@@ -257,7 +246,6 @@ const icon = (name, cls = "") =>
   `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
 const COIN_ICON =
   '<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.2"/><circle class="coin-rim" cx="12" cy="12" r="7.2"/><path class="coin-w" d="M7.6 9.2l1.6 5.8 1.6-4.1 1.2 0 1.6 4.1 1.6-5.8"/></svg>';
-// Each mode gets a colour and a crafted item as its poster art.
 const MODE_ART = {
   Dibs: ["BAT", "#ef5b2b"],
   Duos: ["BALL", "#3fa9dd"],
@@ -265,8 +253,6 @@ const MODE_ART = {
   MovingDay: ["SOFA", "#9471dc"],
   Tutorial: ["BOOK", "#f2b230"],
 };
-// Little floor plans for the house picker: five rooms in a pinwheel, or four wings
-// round a garden.
 const HOUSE_PLANS = {
   pinwheel:
     '<rect x="8" y="8" width="56" height="30" rx="4"/><rect x="64" y="8" width="28" height="56" rx="4"/><rect x="36" y="64" width="56" height="28" rx="4"/><rect x="8" y="38" width="28" height="54" rx="4"/><rect class="plan-hall" x="36" y="38" width="28" height="26" rx="3"/><circle class="plan-dot" cx="22" cy="22" r="4"/><circle class="plan-dot" cx="78" cy="48" r="4"/><circle class="plan-dot" cx="64" cy="78" r="4"/><circle class="plan-dot" cx="22" cy="66" r="4"/>',
@@ -320,7 +306,6 @@ ${tab === "play" ? lobbyStageUi() : `<section class="lobby-panel" aria-label="${
   bindLobby(tab);
   placeLobbyTags();
 }
-// Play tab: name tags over the line-up, the chosen mode and house, and PLAY.
 function lobbyStageUi() {
   const [art, colour] = MODE_ART[mode] ?? ["BOX", "#ffd21f"],
     house = MAPS.find((m) => m.id === map) ?? MAPS[0];
@@ -350,7 +335,6 @@ function lobbyStageUi() {
 </footer>
 ${lobbyPicker ? lobbyPickerUi() : ""}`;
 }
-// Clicking the chosen mode or house opens the full choice.
 function lobbyPickerUi() {
   const body =
     lobbyPicker === "mode"
@@ -411,8 +395,6 @@ function lockerPanel() {
     .map((s) => `<option ${skin === s ? "selected" : ""}>${s}</option>`)
     .join("")}</select></label><button class="sticker-button" data-action="home">That’s my look ${icon("check")}</button>`;
 }
-// You stand in the middle; the roommates fan out beside and a step behind you.
-// [side, back] in metres: +side is screen-left, -back is further from the camera.
 const LOBBY_SPOTS = [
   [0, 0],
   [-1.3, -0.45],
@@ -435,7 +417,6 @@ function stageLobby(tab) {
     p.yaw = angle - side * 0.12;
     p.facing = { x: Math.sin(p.yaw), z: Math.cos(p.yaw) };
   });
-  // Frame by screen shape so PC, phone portrait and phone landscape all fill the screen.
   const aspect = innerWidth / Math.max(1, innerHeight),
     portrait = aspect < 1,
     halfTan = Math.tan((20 * Math.PI) / 180),
@@ -450,11 +431,8 @@ function stageLobby(tab) {
     look = portrait ? 0.95 : 0.78;
   } else if (tab === "locker") {
     distance = portrait ? 5.2 : 3.3;
-    // The panel takes the right side on wide screens and the bottom on phones.
     shift = portrait ? 0 : widthAt(distance) * 0.17;
     eye = portrait ? 1.1 : 0.95;
-    // On phones a bottom sheet covers the lower half, so aim low to lift the line-up
-    // into the strip between the tabs and the sheet.
     look = portrait ? -0.2 : 0.68;
   } else {
     distance = portrait ? 7 : fit(9.5);
@@ -476,7 +454,6 @@ function stageLobby(tab) {
     target: at(0, look, shift),
   });
 }
-// Keeps the HTML name tags over the roommates' heads as the camera moves.
 function placeLobbyTags() {
   if (screen !== "home" || lobbyTab !== "play") return;
   ui.querySelectorAll("[data-tag]").forEach((tag) => {
@@ -594,7 +571,6 @@ function saveProgress() {
     localStorage.setItem("wreckabulary.progress.v1", JSON.stringify(progress));
   } catch {}
 }
-// Online board first; if the server has no leaderboard yet, show this device's bests.
 async function loadBoard(boardFor) {
   const list = () => document.querySelector("#board");
   try {
@@ -619,7 +595,6 @@ async function loadBoard(boardFor) {
     list().innerHTML = `<li class="board-note">The online board is offline. Showing this device.</li>${best ? `<li class="you"><span class="rank">–</span><strong>${esc(progress.name)}</strong><b>${best.toLocaleString()}</b></li>` : ""}`;
   }
 }
-// Called once when a match finishes: coins, best score and the online submission.
 function rewardMatch(won) {
   if (game.rewarded) return game.rewarded;
   const reward = matchReward(game.stats, won),
@@ -655,7 +630,6 @@ function updateHud() {
       game.rules.roundTimeLimit - (game.time - game.roundStart),
     );
   document.querySelector("#hp-value").textContent = Math.ceil(p.hp);
-  // No bar: the number alone, turning warm red when you're low.
   document.querySelector(".vitals-hp").classList.toggle("low", p.hp < 30);
   document.querySelector("#shield-text").textContent =
     p.bubble > 0 ? `+ ${Math.ceil(p.bubble)} BUBBLE` : "";
@@ -736,7 +710,6 @@ function updateHud() {
       .map((o) => `${o.word} → ${o.room}`)
       .join(" · ")}</span>`;
   else objective.innerHTML = "";
-  // PUBG-style head count beside the timer: who is still up, at a glance.
   const alive = game.players.filter((q) => q.state === "alive").length,
     count = document.querySelector("#alive-count");
   count.querySelector("b").textContent = `${alive}/${game.players.length}`;
@@ -782,8 +755,6 @@ function updateHud() {
   )
     result();
 }
-// The bag is a fixed grid: held letters, then letters reserved by a craft in
-// progress, then empty cells, so its size always reads at a glance.
 function bagCells(bag, reserved, tossable) {
   const cells = [...bag].map((c) =>
     tossable
@@ -797,28 +768,22 @@ function bagCells(bag, reserved, tossable) {
   return cells.join("");
 }
 const WEAR_SLOTS = ["Headwear", "Face", "Top", "Gloves", "Bottoms", "Footwear", "Back", "Badge"];
-// Tab peek: letters, both hands, what you're wearing and the full house map.
-// The match keeps running underneath, so it closes the moment Tab is released.
 function setBag(open) {
   bagOpen = open && screen === "game";
   if (bagOpen) releaseMouse();
   const root = document.querySelector("#bag-root");
   if (!root) return;
-  // The panel is pictures, not paragraphs: inventory on the left, the live minimap
-  // zoomed in the middle, and the recipe book down the right.
   root.innerHTML = bagOpen
     ? `<section class="bag-panel" aria-label="Bag and map"><div class="bag-inv"><div class="inv-row inv-letters" aria-label="Letters">${glyph("bag")}<div class="bag-letters" id="bag-letters"></div><b class="inv-count" id="bag-panel-count"></b></div><div class="inv-row bag-hands" id="bag-hands" aria-label="Hands"></div><div class="inv-row bag-wear" id="bag-wear" aria-label="Wearing"></div><div class="inv-row bag-effects" id="bag-effects" aria-label="Effects"></div></div><div class="bag-map-slot" aria-hidden="true"></div><aside class="bag-book" aria-label="Recipe book">${glyph("book")}<div class="recipe-grid" id="bag-recipes"></div></aside><button class="close bag-close" data-action="bag" aria-label="Close bag">×</button></section>`
     : "";
   root.querySelectorAll("[data-action]").forEach(
     (b) => (b.onclick = () => actions[b.dataset.action]()),
   );
-  // Tab zooms the same minimap from the corner instead of drawing a second map.
   document.querySelector("#minimap")?.classList.toggle("zoomed", bagOpen);
   document.querySelector(".hud")?.classList.toggle("bag-open", bagOpen);
   if (bagOpen) updateBag();
   updateMinimap();
 }
-// Small line icons for the Tab panel, so it reads at a glance without words.
 const GLYPHS = {
   bag: '<path d="M7 8V6a5 5 0 0 1 10 0v2"/><rect x="4" y="8" width="16" height="13" rx="3"/>',
   book: '<path d="M4 5a2 2 0 0 1 2-2h6v17H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-6v17h6a2 2 0 0 1 2 2z"/>',
@@ -938,7 +903,6 @@ const RECIPE_BLURBS = {
   DeployZone: "A slippery surprise",
   DeployCover: "Make your own cover",
 };
-// Which letters of `word` the bag covers, each bag letter used once.
 function letterCover(bag, word) {
   const copy = [...bag];
   return [...word].map((c) => {
@@ -948,8 +912,6 @@ function letterCover(bag, word) {
     return true;
   });
 }
-// The recipe book: every word, with the letters you already hold marked. It is
-// reference only (Tab panel and lobby); in a match you spell by typing on Q.
 function recipeBook(bag = "") {
   return data.items.items
     .filter((i) => i.enabled)
@@ -960,8 +922,6 @@ function recipeBook(bag = "") {
     })
     .join("");
 }
-// Q opens the composer: type the word, Enter spells it. No list to pick from;
-// the recipe book lives in the Tab panel and the lobby.
 function drawer(prefill = "") {
   craftOpen = !craftOpen;
   resetInputs();
@@ -1072,7 +1032,6 @@ function how() {
   layer.querySelector("#help-close").onclick = close;
   layer.querySelector("#help-done").onclick = close;
 }
-// Designs are separate documents. Matches always create fresh canonical houses.
 const workshopSessions = new Map();
 let workshop = null;
 const designData = () => ({ houses: data.houses, items: data.items });
@@ -1666,7 +1625,6 @@ function bindUi() {
     b.onpointerup = b.onpointercancel = () => (input[b.dataset.hold] = false);
   });
 }
-// Placing or using what you hold keeps your facing; swings and throws turn to the nearest target.
 function aimsAtTargets() {
   const p = game.players[0],
     held = game.held(p),
@@ -1760,7 +1718,6 @@ window.addEventListener("keydown", (e) => {
   if ((paused || game.status !== "playing") && e.code !== "Escape") return;
   keys.add(e.code);
   if (e.code === "KeyQ" || e.code === "KeyC") {
-    // Keep the Q itself out of the composer box that opens and takes focus.
     e.preventDefault();
     drawer();
     return;
@@ -1800,8 +1757,6 @@ window.addEventListener("blur", () => {
   resetInputs();
   if (screen === "game" && game.status === "playing" && !paused) pause();
 });
-// Touch devices play sideways. Turning one upright covers the game (see .rotate-hint),
-// so a running match pauses instead of carrying on unseen. Keep in sync with the CSS.
 const upright = matchMedia("(orientation: portrait) and (pointer: coarse)");
 upright.addEventListener("change", () => {
   if (!upright.matches) return;
@@ -1860,13 +1815,10 @@ function viewCanvasEvents() {
       return;
     }
     if ((screen !== "game" && screen !== "tour") || paused || craftOpen) return;
-    // Touch drags on the world turn the camera; the action buttons do the fighting.
     if (e.pointerType !== "mouse") {
       look = { id: e.pointerId, x: e.clientX, y: e.clientY };
       return;
     }
-    // Any click in the world captures the mouse so it steers the camera, like a shooter.
-    // That click only captures: left click throws and places, so it can't fire by accident.
     if (!mouseLocked() && lockMouse()) return;
     if (screen !== "game") return;
     if (e.button === 2) input.block = true;
@@ -1893,7 +1845,6 @@ function viewCanvasEvents() {
   document.addEventListener("mousemove", (e) => {
     if (paused || craftOpen || bagOpen) return;
     if (screen !== "game" && screen !== "tour") return;
-    // Before the mouse is captured, only moves over the world steer (so HUD buttons stay usable).
     if (!mouseLocked() && e.target !== canvas) return;
     turnLook(e.movementX * MOUSE_SENSITIVITY, e.movementY * MOUSE_SENSITIVITY);
   });
@@ -1903,7 +1854,6 @@ function viewCanvasEvents() {
       lockRefusals = 0;
       lockPending = false;
     }
-    // Losing the mouse mid-match (Esc, alt-tab) pauses, the way shooters do.
     if (
       !mouseLocked() &&
       screen === "game" &&
@@ -1944,7 +1894,6 @@ function animate(now) {
             touch.y +
             (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) -
             (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0);
-        // Camera-relative: W walks where the crosshair looks, A/D strafe.
         const yaw = view.look.yaw,
           fx = Math.sin(yaw),
           fz = Math.cos(yaw);
@@ -1983,7 +1932,6 @@ function animate(now) {
   }
   requestAnimationFrame(animate);
 }
-// The lobby camera is framed for the screen's shape, so reframe on resize or rotation.
 window.addEventListener("resize", () => {
   if (game && view && ["home", "closet"].includes(screen)) stageLobby(lobbyTab);
 });
@@ -2007,8 +1955,6 @@ async function boot() {
     try {
       const saved = JSON.parse(localStorage.getItem("wreckabulary.profile.v1"));
       if (saved?.wardrobe?.pieces && saved.wardrobe.colours) {
-        // A saved outfit lists everything worn, so an empty optional slot stays empty
-        // rather than picking up the default's hood or satchel.
         const pieces = { ...saved.wardrobe.pieces };
         for (const slot of wardrobe.requiredSlots) pieces[slot] ??= profile.pieces[slot];
         if (pieces.Headwear === "Hood" && pieces.Top !== "Hoodie") pieces.Top = "Hoodie";

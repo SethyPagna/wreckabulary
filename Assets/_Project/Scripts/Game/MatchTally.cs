@@ -6,11 +6,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// Counts a match (the house's furniture wrecked, the local player's damage and crafts) and adds the
-    /// finished match to their <see cref="Career"/>. Every match is practice for now: there is
-    /// no online play yet.
-    /// </summary>
     public sealed class MatchTally : MonoBehaviour
     {
         public const string CareerKey = "wv.career";
@@ -21,10 +16,8 @@ namespace Wreckabulary
         float damage, roundDamage;
         int crafted, broken, roundCrafted, roundBroken;
 
-        /// <summary>The last finished match, for the lobby to announce once.</summary>
         public static MatchRecord LastResult { get; set; }
         public static bool LastWasBest { get; private set; }
-        /// <summary>This round's numbers, for the result card.</summary>
         public static int RoundBroken => current ? current.roundBroken : 0;
         public static int RoundCrafted => current ? current.roundCrafted : 0;
         public static int RoundDamage => current ? Mathf.CeilToInt(current.roundDamage) : 0;
@@ -58,7 +51,6 @@ namespace Wreckabulary
                 if (!player || watched.Contains(player)) continue;
                 watched.Add(player);
                 if (player.Health) player.Health.Damaged += OnDamaged;
-                // Scripted players are tests: they never pay into the real career.
                 if (!local && player.Binding is not BotBinding && player.Binding is not ScriptedBinding)
                 {
                     local = player;
@@ -70,7 +62,6 @@ namespace Wreckabulary
         void OnEnable() => Smashable.AnyBroken += OnBroken;
         void OnDisable() => Smashable.AnyBroken -= OnBroken;
 
-        /// <summary>Only the house's own furniture counts, as on the web; delivery boxes and crafted things don't.</summary>
         void OnBroken(Smashable smashable)
         {
             if (!room) room = FindAnyObjectByType<RoomBuilder>();
@@ -94,7 +85,6 @@ namespace Wreckabulary
 
         void OnSummoned(string word) { crafted++; roundCrafted++; }
 
-        /// <summary>A new round: the result card counts afresh.</summary>
         public static void BeginRound()
         {
             if (!current) return;
@@ -102,7 +92,6 @@ namespace Wreckabulary
             current.roundDamage = 0f;
         }
 
-        /// <summary>A new match, or a retry: the career's count starts again too.</summary>
         public static void BeginMatch()
         {
             if (!current) return;
@@ -111,10 +100,8 @@ namespace Wreckabulary
             current.damage = 0f;
         }
 
-        /// <summary>Called once by the mode when a match ends; returns what the career paid (null with no local player).</summary>
         public static MatchRecord Finish(bool won) => current ? current.Record(won) : null;
 
-        /// <summary>For Dibs and Duos: whether the winner is on the local player's team.</summary>
         public static MatchRecord FinishFor(PlayerController winner) =>
             current ? current.Record(winner && current.local && winner.Team == current.local.Team) : null;
 
@@ -127,7 +114,6 @@ namespace Wreckabulary
             LastWasBest = career.Record(record);
             LastResult = record;
             SaveCareer(career);
-            // "Play again" in the same scene is a new match.
             damage = 0; crafted = 0; broken = 0;
             return record;
         }

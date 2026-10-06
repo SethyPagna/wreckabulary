@@ -5,7 +5,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Shared rule-driven warnings, floor indicators and hazard damage for battle and evacuation.</summary>
     public sealed class ClearOutController : MonoBehaviour
     {
         readonly Dictionary<string, Renderer> indicators = new();
@@ -77,7 +76,6 @@ namespace Wreckabulary
                     Message = $"LEAVE {Layout.WithStorey(closure.Room).ToUpperInvariant()} — movers are packing it";
             }
             if (Time.time < nextDamage) return;
-            // Fixed half-second hazard ticks; damage integrates elapsed time without hit-stun or knockback.
             nextDamage = Time.time + .5f;
             foreach (var p in World.Players)
             {

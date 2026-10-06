@@ -3,8 +3,6 @@ using UnityEngine.UI;
 
 namespace Wreckabulary
 {
-    /// <summary>Leans a graphic like the web's skewed tabs: the top slides right and the bottom left.
-    /// Add it before LobbyGradient and Shadow so the shadow copies the leaning shape.</summary>
     [RequireComponent(typeof(Graphic))]
     public sealed class LobbySkew : BaseMeshEffect
     {

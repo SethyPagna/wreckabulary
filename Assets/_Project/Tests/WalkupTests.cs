@@ -9,19 +9,13 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>
-    /// The three-storey Walk-up Apartments: two flights that switch back in the stairwell, bots that take both,
-    /// and a cutaway and minimap that count three floors.
-    /// </summary>
     public class WalkupTests
     {
         [UnitySetUp] public IEnumerator SetUp() => TestScenes.Reset();
         [UnityTearDown] public IEnumerator TearDown() => TestScenes.Reset();
 
-        // Up from the lobby: north along x 1.5 from z -3.5 to 1. Up from the first-floor landing: south along x -1.5 from z 1 to -3.5.
         static readonly Vector3 InTheLobby = new(1.5f, 0f, -5.2f);
 
-        /// <summary>Just the building, with its furniture put away, for walking and viewing.</summary>
         static IEnumerator BuildHouse(System.Action<RoomBuilder> built)
         {
             Match.ModeOverride = "Dibs";
@@ -67,7 +61,6 @@ namespace Wreckabulary.Tests
         static Renderer[] StoreyParts(RoomBuilder room, int storey) =>
             room.GetComponentsInChildren<Transform>(true).First(t => t.name == RoomBuilder.StoreyName(storey)).GetComponentsInChildren<Renderer>(true);
 
-        /// <summary>Walks one way until the test says stop, or a few seconds pass; returns the highest point reached.</summary>
         static IEnumerator Walk(ScriptedBinding input, PlayerController p, Vector2 move, System.Func<Vector3, bool> arrived, float[] peak)
         {
             input.Next.move = move;
@@ -95,7 +88,6 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(StoreyParts(room, 1).Concat(StoreyParts(room, 2)).All(r => !cutaway.Draws(r)), "in the lobby, both floors above are lifted off");
 
             var peak = new[] { float.MinValue };
-            // Up the first flight and off its top onto the first-floor landing.
             yield return Walk(input, p, Vector2.up, at => at.z > 2f, peak);
             var landing = p.transform.position;
             Debug.Log($"WALKUP_FIRST ({landing.x:F2}, {landing.y:F3}, {landing.z:F2}) peak {peak[0]:F3}");
@@ -105,12 +97,10 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(1, cutaway.TopStorey);
             Assert.IsTrue(StoreyParts(room, 1).All(cutaway.Draws) && StoreyParts(room, 2).All(r => !cutaway.Draws(r)), "the first floor is drawn, the second still lifted");
 
-            // Across the landing, in front of the second flight's foot, without catching on its rail.
             yield return Walk(input, p, Vector2.left, at => at.x < -1.5f, peak);
             Assert.Less(p.transform.position.x, -1.3f, "crossed to the foot of the second flight");
             Assert.AreEqual(3f, p.transform.position.y, .2f);
 
-            // Up the second flight, the other way, onto the top landing.
             peak[0] = float.MinValue;
             yield return Walk(input, p, Vector2.down, at => at.z < -4.4f, peak);
             var top = p.transform.position;
@@ -134,20 +124,15 @@ namespace Wreckabulary.Tests
                 Assert.IsTrue(Physics.Raycast(new Vector3(x, fromY, z), Vector3.down, out var hit, fromY + 1f, World.GroundMask), $"something under ({x}, {fromY}, {z})");
                 return hit.point.y;
             }
-            // Halfway along each flight, seen through the opening in the floor above it.
             Assert.AreEqual(1.5f, Down(1.5f, 5.5f, -1.25f), .25f, "the first flight, under the first-floor opening");
             Assert.AreEqual(4.5f, Down(-1.5f, 8.5f, -1.25f), .25f, "the second flight, under the second-floor opening");
-            // The second-floor landing covers the first flight; the walkway between the flights has floor on both landings.
             Assert.AreEqual(6f, Down(1.5f, 8.5f, -1.25f), .05f);
             Assert.AreEqual(6f, Down(0f, 8.5f, -1.25f), .05f);
             Assert.AreEqual(3f, Down(0f, 5.5f, -1.25f), .05f, "the walkway on the first-floor landing");
             Assert.AreEqual(3f, Down(0f, 5.5f, -5f), .05f, "the first-floor landing's far end is floor you can reach");
-            // Beside the walkway: the first flight's opening is railed, the second flight is solid from the side.
             Assert.IsTrue(Physics.Raycast(new Vector3(0f, 3.5f, -1.25f), Vector3.right, 1f, World.GroundMask), "the railing round the first opening");
             Assert.IsTrue(Physics.Raycast(new Vector3(0f, 3.5f, -1.25f), Vector3.left, 1f, World.GroundMask), "the side of the second flight");
-            // Nothing sticks out past the second flight's foot to catch someone crossing the landing in front of it.
             Assert.IsFalse(Physics.Raycast(new Vector3(1f, 4f, 1.15f), Vector3.left, 3f, World.GroundMask), "the rails end over the bottom step");
-            // A doorway to each side on every floor, with walls beside them.
             foreach (float y in new[] { 0f, 3f, 6f })
             {
                 Assert.IsFalse(Physics.Raycast(new Vector3(-2f, y + .5f, 3.5f), Vector3.left, 1.2f, World.GroundMask), $"west doorway at {y} m");
@@ -179,7 +164,6 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(2, cutaway.TopStorey);
             Assert.IsTrue(first.Concat(second).All(cutaway.Draws));
 
-            // On the couch with someone in the garage: both flats over the garage come off, the rest stays.
             var below = Player(1, new ScriptedBinding(), new Vector3(5.5f, 0f, -3f));
             yield return new WaitForSeconds(.5f);
             Assert.AreEqual(2, cutaway.TopStorey);
@@ -191,7 +175,6 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator EveryoneStartsInAFlatAndTheMapCountsFloors()
         {
-            // One person at the keyboard with three AI roommates: the HUD and its map are that person's.
             yield return LoadBattle("Dibs", DesktopBinding.Shared);
             yield return new WaitForSeconds(.5f);
             var layout = Object.FindAnyObjectByType<RoomBuilder>().Layout;
@@ -227,7 +210,6 @@ namespace Wreckabulary.Tests
         public IEnumerator ABotTakesBothFlightsDownToReviveItsPartner() =>
             BotRevives(downedAt: new Vector3(-5f, 0f, 0f), botAt: new Vector3(4f, 6f, 2f), "Cafe");
 
-        // From beside the top of a flight, the straight way down clips the railing's end; bots once dithered there.
         [UnityTest]
         public IEnumerator ABotGoesDownTheTopFlightFromBesideIt() =>
             BotRevives(downedAt: new Vector3(0f, 3f, 4f), botAt: new Vector3(-.8f, 6f, -4.2f), "Landing1", trips: new[] { 0, 1 });
@@ -236,7 +218,6 @@ namespace Wreckabulary.Tests
         public IEnumerator ABotGoesDownTheBottomFlightFromBesideIt() =>
             BotRevives(downedAt: new Vector3(-1.5f, 0f, 4f), botAt: new Vector3(.8f, 3f, 1.7f), "Lobby", trips: new[] { 1, 0 });
 
-        /// <summary>A bot floors away from its downed partner: it takes each flight it needs once, in order.</summary>
         static IEnumerator BotRevives(Vector3 downedAt, Vector3 botAt, string room, int[] trips = null)
         {
             yield return LoadBattle("Duos");
@@ -267,7 +248,6 @@ namespace Wreckabulary.Tests
                 for (int i = 0; i < flights.Count; i++)
                 {
                     var s = flights[i];
-                    // On this flight: over its footprint and between its two floors (the other flight's floor is a storey away).
                     bool on = s.Covers(now.x, now.z) && now.y > layout.Room(s.Lower).FloorY - .3f && now.y < layout.Room(s.Upper).FloorY + .3f;
                     if (on && !wasOn[i]) timesOn[i]++;
                     wasOn[i] = on;
@@ -350,8 +330,6 @@ namespace Wreckabulary.Tests
             }
             CollectionAssert.AreEquivalent(new[] { 0, 1, 2 }, storeys, "boxes land on all three floors");
 
-            // With only the stairwell still open, as late in Dibs, boxes still land clear of both flights; the middle
-            // of a landing, where an unlucky drop once fell back to, is between them.
             var stairwell = new[] { "Lobby", "Landing1", "Landing2" };
             spawner.RoomOpen = name => stairwell.Contains(name);
             for (int i = 0; i < 100; i++)

@@ -4,13 +4,6 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// The lobby's glyphs, drawn once from signed-distance shapes into white alpha textures. Most are
-    /// the web lobby's outline icons (Web/src/main.js ICON_PATHS), ported from its 24-unit grid with the
-    /// same 2.3 stroke and round ends; the cart stays a cart. UI images tint them, so the project needs
-    /// no icon files and every glyph stays crisp at its drawn size. Also the rounded and frame sprites
-    /// that every panel, card and button is sliced from.
-    /// </summary>
     public static class LobbyIcons
     {
         public const string Home = "home", Settings = "settings", Power = "power", Trophy = "trophy",
@@ -21,7 +14,6 @@ namespace Wreckabulary
             { Home, Settings, Power, Trophy, Cart, Coin, Close, Turn, Play, Locker, Badge, Lock, Check, Arrow, CoinW, Chevron, Party, Plus,
               Glasses, Satchel };
         const int Size = 128;
-        /// <summary>The web's stroke width 2.3 on its 24-unit grid, as a half width in [-1, 1].</summary>
         const float Half = 2.3f / 24f;
         static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
         static readonly Dictionary<(int, int), Sprite> slices = new Dictionary<(int, int), Sprite>();
@@ -39,7 +31,6 @@ namespace Wreckabulary
             for (int y = 0; y < Size; y++)
                 for (int x = 0; x < Size; x++)
                 {
-                    // Pixel centre in [-1, 1] with y up; one pixel of soft edge.
                     var p = new Vector2((x + .5f) * pixel - 1f, (y + .5f) * pixel - 1f);
                     float cover = Mathf.Clamp01(.5f - shape(p) / pixel);
                     pixels[y * Size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(cover * 255));
@@ -52,20 +43,12 @@ namespace Wreckabulary
             return sprite;
         }
 
-        /// <summary>A white rounded square for nine-sliced panels and buttons (corner radius 10 px).</summary>
         public static Sprite Rounded => RoundedSprite(10);
 
-        /// <summary>A white rounded square with this corner radius in UI pixels, for nine slicing.
-        /// A rect twice the radius across draws a disc.</summary>
         public static Sprite RoundedSprite(int radius) => Slice(radius, 0);
 
-        /// <summary>Just the edge of RoundedSprite: a ring this many UI pixels wide, inside the shape.</summary>
         public static Sprite FrameSprite(int radius, int width) => Slice(radius, width);
 
-        /// <summary>
-        /// The web's shop art behind an item: a royal-to-cyan glow with paler rays every 18 degrees, in a rounded
-        /// rect of this size in UI pixels. Drawn at twice the size with mipmaps, so it stays smooth on any screen.
-        /// </summary>
         public static Texture2D Sunburst(int width, int height, int radius)
         {
             var key = (width, height, radius);
@@ -86,7 +69,6 @@ namespace Wreckabulary
                     var p = at - middle;
                     float r = p.magnitude;
                     var colour = Color.Lerp(inner, outer, r / far);
-                    // Texels from the nearest ray edge, positive inside a ray, for one texel of soft edge.
                     float a = Mathf.Repeat(Mathf.Atan2(p.y, p.x), 2f * Ray);
                     float inside = a < Ray ? Mathf.Min(a, Ray - a) : -Mathf.Min(a - Ray, 2f * Ray - a);
                     colour = Color.Lerp(colour, Color.white, .267f * Mathf.Clamp01(.5f + inside * r));
@@ -99,11 +81,6 @@ namespace Wreckabulary
             return texture;
         }
 
-        /// <summary>
-        /// The web posters' rays (repeating-conic-gradient(at 50% 26%, #fff2 0 10deg, #0000 10deg 20deg)): white
-        /// wedges every 20 degrees from a point a quarter of the way down, on clear, in a rounded rect of this size
-        /// in UI pixels. Lay it over a poster's colour. Drawn at twice the size with mipmaps.
-        /// </summary>
         public static Texture2D Rays(int width, int height, int radius)
         {
             var key = (width, height, radius);
@@ -116,7 +93,6 @@ namespace Wreckabulary
             var pixels = new Color32[w * h];
             var middle = new Vector2(w / 2f, h / 2f);
             var origin = new Vector2(w / 2f, h * .74f);
-            // The web's #fff2 as it is: over a bright poster, the alpha the panels need reads too strong.
             const float strength = 0x22 / 255f;
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
@@ -124,7 +100,6 @@ namespace Wreckabulary
                     var at = new Vector2(x + .5f, y + .5f);
                     var p = at - origin;
                     float r = p.magnitude;
-                    // Texels from the nearest ray edge, positive inside a ray, for one texel of soft edge.
                     float a = Mathf.Repeat(Mathf.Atan2(p.x, p.y), 2f * Ray);
                     float inside = a < Ray ? Mathf.Min(a, Ray - a) : -Mathf.Min(a - Ray, 2f * Ray - a);
                     float ray = Mathf.Clamp01(.5f + inside * r);
@@ -185,7 +160,6 @@ namespace Wreckabulary
                 case Power:
                     return p => Arc(p, new Vector2(0, -.06f), .6f, 125f, 55f).Min(Segment(p, new Vector2(0, .1f), new Vector2(0, .8f))) - Half;
                 case Trophy:
-                    // The web's leaderboard cup: rim, bowl, handles, stem and foot.
                     return p => Lines(p, G(7.5f, 8.5f), G(7.5f, 4), G(16.5f, 4), G(16.5f, 8.5f))
                         .Min(Arc(p, G(12, 8.5f), 4.5f / 12f, 180f, 360f))
                         .Min(Lines(p, G(7.5f, 6), G(4.5f, 6))).Min(Arc(p, G(7.383f, 6.829f), .25f, 164f, 278f))
@@ -202,7 +176,6 @@ namespace Wreckabulary
                 case Turn:
                     return p =>
                     {
-                        // A flat ellipse with arrow heads at both ends: "drag to turn".
                         var squashed = new Vector2(p.x, p.y * 2.6f);
                         float arc = (Mathf.Abs(Circle(squashed, Vector2.zero, .8f)) - .16f) / 2.6f;
                         arc = Cut(arc, Box(p, new Vector2(0, .3f), new Vector2(.42f, .3f), 0));
@@ -213,7 +186,6 @@ namespace Wreckabulary
                 case Play:
                     return p => Polygon(p, G(8, 5.5f), G(19, 12), G(8, 18.5f)) - .04f;
                 case Locker:
-                    // A coat hanger: the hook, its neck and the triangle.
                     return p => Arc(p, G(12, 6.5f), 2f / 12f, -72.4f, 180f)
                         .Min(Lines(p, G(12.6f, 8.4f), G(12, 9.3f), G(12, 10)))
                         .Min(Lines(p, G(12, 10), G(3.8f, 16.6f), G(4.3f, 18), G(19.7f, 18), G(20.2f, 16.6f), G(12, 10))) - Half;
@@ -233,17 +205,14 @@ namespace Wreckabulary
                 case Chevron:
                     return p => Lines(p, G(9, 5.5f), G(15.5f, 12), G(9, 18.5f)) - Half;
                 case Party:
-                    // The web's party chip: a filled figure in front, an outlined one behind on the right.
                     return p => Union(Union(Circle(p, G(9, 8), 3.2f / 12f), Mathf.Max(Circle(p, G(9, 19.5f), 6.2f / 12f), G(9, 19.5f).y - p.y)),
                         Mathf.Min(Mathf.Abs(Circle(p, G(17, 9), 2.5f / 12f)), Arc(p, G(16.5f, 19f), 5f / 12f, -6f, 90f)) - Half);
                 case Plus:
                     return p => Lines(p, G(12, 6), G(12, 18)).Min(Lines(p, G(6, 12), G(18, 12))) - Half;
                 case Glasses:
-                    // The web's extras glyph: two lenses, the bridge and the arms.
                     return p => Mathf.Abs(Circle(p, G(7, 13), 3.5f / 12f)).Min(Mathf.Abs(Circle(p, G(17, 13), 3.5f / 12f)))
                         .Min(Lines(p, G(10.5f, 13), G(13.5f, 13))).Min(Lines(p, G(3.5f, 12), G(2.5f, 9))).Min(Lines(p, G(20.5f, 12), G(21.5f, 9))) - Half;
                 case Satchel:
-                    // The bag, its handle and flap line, and a filled clasp.
                     return p => Union(Mathf.Abs(Box(p, G(12, 14.75f), new Vector2(7.5f / 12f, 4.75f / 12f), 0f))
                             .Min(Lines(p, G(8, 10), G(8, 8))).Min(Arc(p, G(12, 8), 4f / 12f, 0f, 180f)).Min(Lines(p, G(16, 8), G(16, 10)))
                             .Min(Lines(p, G(4.5f, 13.5f), G(19.5f, 13.5f))) - Half,
@@ -253,7 +222,6 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>A point on the web's 24-unit icon grid (y down) in [-1, 1] with y up.</summary>
         static Vector2 G(float x, float y) => new Vector2((x - 12f) / 12f, (12f - y) / 12f);
 
         static float Min(this float a, float b) => Mathf.Min(a, b);
@@ -261,7 +229,6 @@ namespace Wreckabulary
         static float Cut(float a, float b) => Mathf.Max(a, -b);
         static float Circle(Vector2 p, Vector2 c, float r) => (p - c).magnitude - r;
 
-        /// <summary>Distance to a polyline; subtract a half width to stroke it with round ends and joins.</summary>
         static float Lines(Vector2 p, params Vector2[] points)
         {
             float d = float.MaxValue;
@@ -269,7 +236,6 @@ namespace Wreckabulary
             return d;
         }
 
-        /// <summary>Distance to a circular arc running anticlockwise from one angle to another, in degrees.</summary>
         static float Arc(Vector2 p, Vector2 c, float r, float from, float to)
         {
             var q = p - c;
@@ -300,7 +266,6 @@ namespace Wreckabulary
             return (p - (a + ab * t)).magnitude;
         }
 
-        /// <summary>Signed distance to a simple polygon (negative inside).</summary>
         static float Polygon(Vector2 p, params Vector2[] v)
         {
             float d = Vector2.Dot(p - v[0], p - v[0]);

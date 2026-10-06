@@ -4,55 +4,37 @@ using UnityEngine.InputSystem.Controls;
 
 namespace Wreckabulary
 {
-    /// <summary>What a player asked to do this frame. Edge flags (grab, attack, jump, …) are true for one frame only.</summary>
     public struct PlayerCommands
     {
         public Vector2 move;
-        /// <summary>Interact: pick up on the press. Kept held, it revives a downed teammate.</summary>
         public bool grab, grabHeld;
-        /// <summary>Does what the held thing is for: swing gear, throw a carried prop or thrown item, place a tool, use a consumable. Punches empty-handed.</summary>
         public bool attack;
         public bool jump, dodge;
-        /// <summary>Raises a held PLATE while down.</summary>
         public bool blockHeld;
-        /// <summary>Lets go of what's held. Bindings fire it only after a short hold, so a tap can't lose an item.</summary>
         public bool drop;
-        /// <summary>Switches the two carried gear slots.</summary>
         public bool swap;
-        /// <summary>1 or 2 uses that hand (keys 1 and 2, or a tap on the slot); 0 leaves the hands alone.</summary>
         public int slot;
         public bool spellHeld, spellDown, spellUp;
         public bool up, down;
         public bool start;
-        /// <summary>Stick aim on the ground (x, z). Zero while the stick rests.</summary>
         public Vector2 look;
-        /// <summary>Mouse aim: when set, the player turns to face <see cref="pointer"/>, a screen position.</summary>
         public bool aimAtPointer;
         public Vector2 pointer;
-        /// <summary>
-        /// Third-person look for this frame, in radians: x turns right, y looks down. The mouse fills it while
-        /// the cursor is captured, the right stick at a steady rate.
-        /// </summary>
         public Vector2 lookDelta;
     }
 
-    /// <summary>One player's input source: keyboard and mouse, a gamepad, half a keyboard, or a script in tests.</summary>
     public abstract class InputBinding
     {
-        /// <summary>How long drop must be held before it lets go (PLAN §2.11).</summary>
         public const float DropHoldSeconds = 0.25f;
 
         public abstract string Id { get; }
-        /// <summary>Turns the third-person view (mouse or right stick). Without it a lone player keeps the overhead view.</summary>
         public virtual bool CanLook => false;
-        /// <summary>Looks with the mouse, so the third-person view captures the cursor.</summary>
         public virtual bool ReadsMouse => false;
         public abstract void Read(ref PlayerCommands c);
         public abstract bool JoinPressed();
         public abstract bool StartPressed();
     }
 
-    /// <summary>Fires once when a button has been held long enough, then waits for it to be let go.</summary>
     public struct HoldToFire
     {
         bool holding, fired;
@@ -141,7 +123,6 @@ namespace Wreckabulary
             if (c.move.sqrMagnitude > 1f) c.move.Normalize();
         }
 
-        /// <summary>J joins the left half (Space joins <see cref="DesktopBinding"/>); . or / joins the right half.</summary>
         public override bool JoinPressed()
         {
             var kb = Keyboard.current;
@@ -160,10 +141,6 @@ namespace Wreckabulary
         }
     }
 
-    /// <summary>
-    /// Left stick move, right stick aim, A jump, X attack (also throws and places), B dodge, RT grab (hold to revive), LT block,
-    /// hold Y to spell (stick or d-pad up/down to choose), hold LB to drop.
-    /// </summary>
     public class GamepadBinding : InputBinding
     {
         public readonly Gamepad Pad;
@@ -172,7 +149,6 @@ namespace Wreckabulary
 
         public GamepadBinding(Gamepad pad) => Pad = pad;
 
-        /// <summary>Right-stick look at full tilt, in radians a second (the web has no pad code; a default).</summary>
         public const float LookYawSpeed = 3f, LookPitchSpeed = 2f;
 
         public override string Id => $"gamepad-{Pad.deviceId}";
@@ -216,7 +192,6 @@ namespace Wreckabulary
             (TouchBinding.Shared.IsOverlayFor(Id) && TouchBinding.Shared.StartPressed());
     }
 
-    /// <summary>Input driven by code, for tests and bots. Edge flags clear after each read; held ones and aim stay.</summary>
     public class ScriptedBinding : InputBinding
     {
         static int count;

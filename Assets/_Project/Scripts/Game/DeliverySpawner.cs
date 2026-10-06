@@ -19,7 +19,6 @@ namespace Wreckabulary
         [SerializeField] Vector2 areaX = new(-6.5f, 6.5f);
         [SerializeField] Vector2 areaZ = new(-4.2f, 3.2f);
         [SerializeField] float dropHeight = 6f;
-        /// <summary>How far a box lands from a flight of stairs: half a turned long box (about .73 m) and the rail beside it.</summary>
         const float StairClearance = .85f;
         [Tooltip("Boxes only arrive while fewer letters than this are in play.")]
         [SerializeField] int minLettersInPlay = 26;
@@ -47,9 +46,7 @@ namespace Wreckabulary
             Drop(Collapsing);
         }
 
-        /// <summary>The house being played. With an upstairs, boxes drop into its rooms instead of all landing on the top floor.</summary>
         public HouseLayout Layout { get; set; }
-        /// <summary>Rooms boxes may drop into (in a house with an upstairs); null means any.</summary>
         public System.Func<string, bool> RoomOpen { get; set; }
 
         public Smashable Drop(bool hazard)
@@ -65,7 +62,6 @@ namespace Wreckabulary
             var floors = Layout?.StoreyFloors();
             if (floors == null || floors.Count < 2)
                 return new Vector3(Random.Range(areaX.x, areaX.y), dropHeight, Random.Range(areaZ.x, areaZ.y));
-            // A big room is likelier than a small one; a metre in from the walls and clear of the stairs, under the floor above.
             var rooms = Layout.Rooms.Where(r => r.MaxX - r.MinX > 2.5f && r.MaxZ - r.MinZ > 2.5f && (RoomOpen == null || RoomOpen(r.Name))).ToList();
             if (rooms.Count == 0) rooms = Layout.Rooms.Where(r => r.MaxX - r.MinX > 2.5f && r.MaxZ - r.MinZ > 2.5f).ToList();
             if (rooms.Count == 0) rooms = Layout.Rooms.ToList();
@@ -86,8 +82,6 @@ namespace Wreckabulary
             }
             if (!clear)
             {
-                // Unlucky every time, as when only the stairwell is still open: any clear spot on a half-metre grid.
-                // Not the middle of the room, which in the walk-up sits between its two flights.
                 var spots = new List<(RoomBox room, float x, float z)>();
                 foreach (var r in rooms)
                 {

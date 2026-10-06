@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import worker, { cleanEntry, mergeTop, handleScores, TOP_SIZE } from "../worker.mjs";
 
-// An in-memory stand-in for a Workers KV namespace.
 function memoryKv() {
   const map = new Map();
   return {

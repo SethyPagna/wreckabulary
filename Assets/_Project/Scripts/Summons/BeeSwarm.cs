@@ -4,7 +4,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>BEES: a buzzing cloud of B, E, E, S that chases the nearest other player and stings once for 6 damage.</summary>
     public class BeeSwarm : MonoBehaviour
     {
         PlayerController owner;

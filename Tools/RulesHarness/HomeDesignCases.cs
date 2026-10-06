@@ -146,7 +146,7 @@ namespace Wreckabulary.RulesHarness
         {
             var door = InRoom(door: new Doorway { X = 0, Z = 0, Width = 1.4f });
             var layout = Empty(); layout.Props.Add(Prop(x: 1, z: .5));
-            Refused(door.Validate(layout), "door:"); // Centre is outside radius 1.05, rectangle is not.
+            Refused(door.Validate(layout), "door:");
             layout.Props[0].Z = 1;
             Assert.IsTrue(door.Validate(layout).Ok, "A clear rectangle corner is permitted.");
         }

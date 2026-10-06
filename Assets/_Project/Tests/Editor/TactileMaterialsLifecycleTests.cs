@@ -5,7 +5,6 @@ using Wreckabulary.Art;
 
 namespace Wreckabulary.EditorTests
 {
-    /// <summary>Real Unity ownership checks; source compilation does not execute these tests.</summary>
     [TestFixture]
     public sealed class TactileMaterialsLifecycleTests
     {
@@ -42,7 +41,7 @@ namespace Wreckabulary.EditorTests
         {
             var stage = Prop(false);
             Assert.AreEqual(baselineScopes + 1, TactileMaterials.RegisteredScopeCount);
-            Object.DestroyImmediate(stage); // OnDestroy is not assumed for a never-enabled marker.
+            Object.DestroyImmediate(stage);
             TactileMaterials.CollectUnused();
             Assert.AreEqual(baselineScopes, TactileMaterials.RegisteredScopeCount);
             if (baselineScopes == 0)

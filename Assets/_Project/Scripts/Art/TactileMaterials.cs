@@ -4,10 +4,6 @@ using UnityEngine.SceneManagement;
 
 namespace Wreckabulary.Art
 {
-    /// <summary>
-    /// Opted-in imported props share restrained URP surface detail. Authored assets,
-    /// albedo/normal textures, colours and average finishes remain authoritative.
-    /// </summary>
     [AddComponentMenu("")]
     public sealed class TactileMaterials : MonoBehaviour
     {
@@ -34,14 +30,11 @@ namespace Wreckabulary.Art
         public static int SharedMaterialCount => variants.Count;
         public static int GeneratedTextureCount => textures.Count;
         public static int RegisteredScopeCount { get { PruneDeadScopes(); return scopes.Count; } }
-        // RGBA32 including the complete 64-pixel mip chain. This is a storage
-        // estimate for generated data, not a measured device allocation.
         public static int EstimatedTextureBytes => textures.Count * 21844;
 
         public static bool IsEligible(Material material) =>
             material && material.shader && material.shader.name == LitShader && TrySurface(material.name, out _);
 
-        /// <summary>Marks one imported item/environment root; avatar/letters/VFX never opt in.</summary>
         public static void Apply(GameObject root)
         {
             if (!root) return;
@@ -52,7 +45,6 @@ namespace Wreckabulary.Art
             scope.RefreshMaterials();
         }
 
-        /// <summary>Skin swaps can address a holder above the actual opted-in model.</summary>
         public static void Refresh(GameObject root)
         {
             if (!root) return;
@@ -61,11 +53,6 @@ namespace Wreckabulary.Art
             CollectUnused();
         }
 
-        /// <summary>
-        /// Release an abandoned inactive stage before destroying it. Restore its
-        /// source materials first, so cache disposal cannot invalidate a live
-        /// renderer even if the caller delays destruction or reuses the root.
-        /// </summary>
         public static void Release(GameObject root)
         {
             if (!root) return;
@@ -86,7 +73,6 @@ namespace Wreckabulary.Art
             CollectUnused();
         }
 
-        /// <summary>Dead inactive scopes are detected without relying on OnDestroy.</summary>
         public static void CollectUnused()
         {
             PruneDeadScopes();
@@ -116,8 +102,6 @@ namespace Wreckabulary.Art
         {
             foreach (var renderer in GetComponentsInChildren<Renderer>(true))
             {
-                // Cosmetic tint/face maps and animated wardrobe remain unchanged,
-                // even if a future avatar happens to share a world material name.
                 if (renderer is SkinnedMeshRenderer) continue;
                 var shared = renderer.sharedMaterials;
                 bool changed = false;
@@ -137,7 +121,6 @@ namespace Wreckabulary.Art
             if (!IsEligible(source) || generatedMaterials.Contains(source)) return source;
             if (variants.TryGetValue(source, out var existing)) return existing;
             if (variants.Count >= CacheLimit) return source;
-            // Preserve future authored specular-workflow and detail materials.
             if (source.IsKeywordEnabled("_SPECULAR_SETUP") || source.IsKeywordEnabled("_DETAIL_MULX2") ||
                 source.IsKeywordEnabled("_DETAIL_SCALED")) return source;
             foreach (string property in new[] { "_DetailAlbedoMap", "_DetailNormalMap", "_DetailMask" })
@@ -145,8 +128,6 @@ namespace Wreckabulary.Art
             if (!source.HasProperty("_MetallicGlossMap") || !source.HasProperty("_Smoothness")) return source;
             if (!TrySurface(source.name, out var surface)) return source;
             var detail = Details(surface);
-            // Retain the exact material name so the existing skin-family lookup
-            // continues to map this copy back to Classic/Candy/Arcade originals.
             var material = new Material(source) { name = source.name, hideFlags = HideFlags.DontSave };
             material.SetTexture("_DetailAlbedoMap", detail.Albedo);
             material.SetTexture("_DetailNormalMap", detail.Normal);
@@ -156,9 +137,6 @@ namespace Wreckabulary.Art
             material.SetFloat("_DetailNormalMapScale", detail.NormalScale);
             material.DisableKeyword("_DETAIL_SCALED");
             material.EnableKeyword("_DETAIL_MULX2");
-            // URP multiplies smoothness-map alpha by _Smoothness. Encode the
-            // original scalar plus balanced variation, preserving the skin's
-            // average gloss and metallic finish rather than assigning a new one.
             if (!source.GetTexture("_MetallicGlossMap") &&
                 !source.IsKeywordEnabled("_SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A"))
             {
@@ -253,8 +231,6 @@ namespace Wreckabulary.Art
 
         static Texture2D Texture(string name, Color[] pixels)
         {
-            // Linear data maps: grey .5 is neutral in URP detail multiplication;
-            // normal channels and gloss alpha must not receive an sRGB conversion.
             var texture = new Texture2D(Resolution, Resolution, TextureFormat.RGBA32, true, true)
             {
                 name = name, wrapMode = TextureWrapMode.Repeat,

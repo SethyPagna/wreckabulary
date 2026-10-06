@@ -6,13 +6,7 @@ using System.Linq;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// The match camera. One person playing with a mouse or a controller gets the browser edition's centred
-    /// third-person view (<see cref="ShoulderView"/>) in every scene. Couch players share a view that frames
-    /// them all; a lone touch or half-keyboard player keeps a closer overhead view; a scene without a house
-    /// layout keeps its own pose and drifts a little towards the action. Big hits shake it.
-    /// </summary>
-    [DefaultExecutionOrder(-60)] // turns before the players read their look, places after they move
+    [DefaultExecutionOrder(-60)]
     public class CameraRig : MonoBehaviour
     {
         public static CameraRig Instance { get; private set; }
@@ -21,9 +15,7 @@ namespace Wreckabulary
         [SerializeField] float soloDistance = .5f;
         [SerializeField] float soloFieldOfView = 40f;
 
-        /// <summary>The third-person view shakes less: the camera is close, so the same hit reads bigger.</summary>
         const float ThirdPersonShake = .3f;
-        /// <summary>How long furniture stays faded after it stops hiding the player.</summary>
         const float FadeHold = .15f;
 
         Vector3 basePosition, smooth;
@@ -41,23 +33,17 @@ namespace Wreckabulary
         PlayerController target, followed;
         Vector3 lastFeet;
         readonly RaycastHit[] blockers = new RaycastHit[16];
-        /// <summary>Furniture faded out of the way of the view: its own shadow mode, and when it may come back.</summary>
         readonly Dictionary<Renderer, (ShadowCastingMode mode, float until)> faded = new();
         readonly List<Renderer> unfade = new();
 
-        /// <summary>The player the third-person view follows; null in the shared and overhead views.</summary>
         public PlayerController Target => target;
         public bool IsThirdPerson => target;
-        /// <summary>How far behind the pivot the third-person camera sits now, after any pull-in.</summary>
         public float ViewDistance => view.CurrentDistance;
-        /// <summary>The furniture renderers faded right now because they hid the player.</summary>
         public IReadOnlyCollection<Renderer> Faded => faded.Keys;
 
-        /// <summary>A person playing here: not a bot, and not a script (tests; the tutorial dummy has no binding).</summary>
         public static bool IsHuman(PlayerController p) =>
             p && p.Binding != null && p.Binding is not BotBinding && p.Binding is not ScriptedBinding;
 
-        /// <summary>Follows this player in third person whoever plays it (tests); null goes back to choosing.</summary>
         public void Follow(PlayerController player) => followed = player;
 
         public void FrameLayout(HouseLayout layout)
@@ -95,7 +81,6 @@ namespace Wreckabulary
                 baseOrthographic = lens.orthographic;
                 baseFieldOfView = lens.fieldOfView;
                 baseNearClip = lens.nearClipPlane;
-                // The browser edition's deep teal surrounds the house, so the edges blend into the HUD instead of a void.
                 lens.clearFlags = CameraClearFlags.SolidColor;
                 lens.backgroundColor = new Color32(0x17, 0x3a, 0x3d, 0xff);
             }
@@ -104,14 +89,12 @@ namespace Wreckabulary
 
         void OnDisable()
         {
-            // The lobby stage and the workshop take the camera: the player walks the old way until it's back.
             if (target) target.ShooterView = false;
             target = null;
             RestoreFaded();
             CursorPolicy.Apply(false);
         }
 
-        /// <summary>Orthographic size that shows the whole house with a slim margin.</summary>
         float HouseSize(float aspect) => Mathf.Max(layoutWidth / aspect, layoutDepth * .85f) * .5f + .8f;
 
         public static void Shake(float amount)
@@ -119,7 +102,6 @@ namespace Wreckabulary
             if (Instance) Instance.shake = Mathf.Max(Instance.shake, amount);
         }
 
-        /// <summary>The one human player who can turn the view, or the player a test asked for. Couch play has none.</summary>
         PlayerController ChooseTarget()
         {
             if (followed && followed.isActiveAndEnabled) return followed;
@@ -151,7 +133,6 @@ namespace Wreckabulary
                 CursorPolicy.Apply(false);
                 if (wasThirdPerson && lens)
                 {
-                    // Back to the scene's own view, gliding out from where the camera was.
                     smooth = transform.position;
                     transform.rotation = baseRotation;
                     lens.orthographic = baseOrthographic;
@@ -159,7 +140,6 @@ namespace Wreckabulary
                     lens.nearClipPlane = baseNearClip;
                 }
             }
-            // Walls stand full height around a third-person camera and stay low under the overhead one.
             var rooms = FindAnyObjectByType<RoomBuilder>();
             if (rooms) { rooms.SetTallWalls(target); RoomBuilder.ApplyFog(target); }
             if (StoreyCutaway.Instance) StoreyCutaway.Instance.Refresh();
@@ -175,7 +155,6 @@ namespace Wreckabulary
 
         void FollowTarget()
         {
-            // A knocked-out body tumbles away; the view stays where they fell.
             if (!target.IsEliminated) lastFeet = target.transform.position;
             float dt = Time.unscaledDeltaTime;
             if (lens) view.Place(lens, lastFeet, target.LookYaw, target.LookPitch, dt);
@@ -191,10 +170,6 @@ namespace Wreckabulary
             CursorPolicy.Apply(CursorPolicy.WantsLock(mouse, hud && hud.NeedsPointer, Application.isFocused));
         }
 
-        /// <summary>
-        /// Furniture between the camera and the player fades to its shadow and comes back once it's out of the
-        /// way. Walls never fade: the camera pulls in in front of them instead.
-        /// </summary>
         void FadeBlockers()
         {
             float now = Time.unscaledTime;
@@ -249,7 +224,6 @@ namespace Wreckabulary
                 if (!p || p.IsEliminated) continue;
                 centre += p.transform.position;
                 n++;
-                // The tutorial's dummy has no binding: it isn't someone at the couch.
                 if (p.Binding != null && p.Binding is not BotBinding)
                 {
                     localCount++; localPlayer = p;
@@ -259,9 +233,6 @@ namespace Wreckabulary
             var goal = basePosition;
             if (framesLayout)
             {
-                // A lone player who can't turn the view (touch, half a keyboard) gets a closer perspective
-                // view. Couch players share a view that frames them all, close when they're together and
-                // never wider than the whole house.
                 bool followLocal = localCount == 1;
                 float aspect = lens ? Mathf.Max(.5f, lens.aspect) : 16f / 9f;
                 wholeHouseSize = HouseSize(aspect);
@@ -270,17 +241,12 @@ namespace Wreckabulary
                 if (localCount > 1)
                 {
                     var spread = high - low;
-                    // Room for the HUD columns and a step of space around everyone.
                     size = Mathf.Clamp(Mathf.Max((spread.x + 9f) / aspect, (spread.z + 7f) * .85f) * .5f + 1f, 7.5f, wholeHouseSize);
                     var middle = (low + high) * .5f;
-                    // Near the whole-house size, settle on the house centre so the edges don't wobble.
                     focus = Vector3.Lerp(middle, layoutCentre, Mathf.InverseLerp(wholeHouseSize * .7f, wholeHouseSize, size));
                 }
-                // Upstairs, look at the floor you're on rather than the ground.
                 var cutaway = StoreyCutaway.Instance;
                 focus.y = cutaway ? cutaway.FocusY : 0f;
-                // The solo overhead view looks along the same direction, so world-aligned controls and
-                // pointer aim read the same as the couch view.
                 goal = focus + new Vector3(0f, 30f, -22f) * (followLocal ? soloDistance : 1f);
                 if (lens)
                 {

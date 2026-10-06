@@ -1,4 +1,3 @@
-// Latest-source focused Workshop input suite, after the complete game regression run.
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";

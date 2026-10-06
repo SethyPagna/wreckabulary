@@ -17,7 +17,6 @@ namespace Wreckabulary
 
         public static readonly List<InputBinding> Bindings = new();
         public static string MapId { get; private set; } = "pinwheel";
-        /// <summary>The lobby's last queue and mode, so GO after a match starts the same thing again.</summary>
         public static string LobbyQueue, LobbyMode;
 
         /// <summary>Best Moving Day stars per level, for this play session.</summary>
@@ -40,7 +39,6 @@ namespace Wreckabulary
 
         public static void Remember(InputBinding binding)
         {
-            // AI seats are local to a match, never roommates carried back into the hub.
             if (binding is BotBinding) return;
             if (!Bindings.Exists(b => b.Id == binding.Id)) Bindings.Add(binding);
         }
@@ -65,7 +63,6 @@ namespace Wreckabulary
 
         public static void SelectMap(string mapId)
         {
-            // Validate here, rather than failing after a scene has started loading.
             GameConfig.Current.HouseFor(mapId);
             MapId = string.IsNullOrEmpty(mapId) ? "pinwheel" : mapId;
         }
@@ -79,13 +76,11 @@ namespace Wreckabulary
             SceneManager.LoadScene(scene);
         }
 
-        /// <summary>Open an isolated creative stage over the Hub without rebuilding scenes or rebinding players.</summary>
         public static bool OpenWorkshop(string mapId, out string error)
         {
             if (CreativeWorkshop.Instance) { error = "A workshop is already open."; return false; }
             var workshop = new GameObject("Creative Workshop").AddComponent<CreativeWorkshop>();
             mapId ??= MapId;
-            // Homes are designed on the maps the designer knows; any other selected map opens on the first house.
             return workshop.Open(Rules.HomeDesigner.Supports(mapId) ? mapId : "pinwheel", out error);
         }
 

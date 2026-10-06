@@ -7,7 +7,6 @@ using System.Text.RegularExpressions;
 
 namespace Wreckabulary.Rules
 {
-    /// <summary>Portable, unscaled schema-1 Workshop decor. Craft eligibility does not apply.</summary>
     public sealed class HomeProp
     {
         public string Id;
@@ -33,7 +32,6 @@ namespace Wreckabulary.Rules
             Props = Props == null ? null : Props.Select(p => p?.Clone()).ToList()
         };
 
-        /// <summary>Serializes this document; use HomeDesigner.Export to validate before saving.</summary>
         public string ToJson()
         {
             var b = new StringBuilder("{\"schema\":").Append(Schema).Append(",\"map\":");
@@ -63,7 +61,6 @@ namespace Wreckabulary.Rules
                     case '"': b.Append("\\\""); break;
                     case '\\': b.Append("\\\\"); break;
                     default:
-                        // Escaping UTF-16 also preserves lone surrogates in portable JSON.
                         if (c < 32 || char.IsSurrogate(c)) b.Append("\\u").Append(((int)c).ToString("x4"));
                         else b.Append(c);
                         break;
@@ -97,10 +94,6 @@ namespace Wreckabulary.Rules
         public string Json;
     }
 
-    /// <summary>
-    /// Pure Workshop validation and first-fit placement, shared with Web/src/home-design.js.
-    /// Successful operations return detached snapshots; failures never change their inputs.
-    /// </summary>
     public sealed class HomeDesigner
     {
         public const int MaxProps = 64;
@@ -112,7 +105,7 @@ namespace Wreckabulary.Rules
         public const double PropGap = .1;
         public const double SpawnRadius = .75;
         public const double DoorMargin = .35;
-        const double Epsilon = 1e-6; // Canonical catalogue/map dimensions are floats in C#.
+        const double Epsilon = 1e-6;
         readonly Func<string, HouseLayout> mapFor;
         readonly ItemCatalogue catalogue;
         static readonly Regex IdPattern = new Regex(@"\A[A-Za-z0-9_-]{1,48}\z");
@@ -130,7 +123,6 @@ namespace Wreckabulary.Rules
         public HomeLayout CreateLayout(string map, string name = "My Cozy House") =>
             new HomeLayout { Map = map, Name = TrimName(name ?? "") };
 
-        /// <summary>The maps a home can be designed on. The web shares this list (home-design.js), so a saved home loads in both.</summary>
         public static bool Supports(string id) => id == "pinwheel" || id == "courtyard";
 
         HouseLayout House(string id)
@@ -367,7 +359,6 @@ namespace Wreckabulary.Rules
 
         static List<string> Tokenize(string text)
         {
-            // Match ECMAScript whitespace exactly, including BOM but excluding .NET's NEL.
             var result = new List<string>(); int start = 0;
             for (int i = 0; i <= text.Length; i++)
                 if (i == text.Length || Separator(text[i]))
@@ -393,7 +384,6 @@ namespace Wreckabulary.Rules
         static void Reject(HomeBatchResult result, string word, string reason) =>
             result.Rejected.Add(new HomeWordRejection { Word = word, Reason = reason });
 
-        /// <summary>The config reader is permissive about numeric lexemes; imported user JSON must be strict.</summary>
         static void CheckJsonLexemes(string text)
         {
             if (text == null || text.Length > MaxJsonLength) throw new FormatException("provide at most 65536 JSON characters.");

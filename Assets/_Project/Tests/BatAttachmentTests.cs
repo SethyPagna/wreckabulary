@@ -27,7 +27,7 @@ namespace Wreckabulary.Tests
             player = UnityEngine.Object.FindFirstObjectByType<PlayerJoinManager>().Join(input);
             appearance = player.GetComponent<PlayerAppearance>();
             yield return TestScenes.WaitUntil(() => player.CanAct && player.Grounded && appearance.IsAnimationReady, 15, "native production player ready");
-            yield return null; // production Start subscriptions, including knockout release
+            yield return null;
         }
         HeldWeapon NewBat(RigidbodyInterpolation mode)
         {
@@ -169,7 +169,6 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(player.Combat.SwitchGear()); Assert.AreSame(second,player.Combat.Weapon);
             player.Combat.Drop();
             Assert.AreEqual(RigidbodyInterpolation.Extrapolate,second.GetComponent<Rigidbody>().interpolation);
-            // OnReleased can recur when thrown gear comes to rest; the snapshot is consumed once.
             first.OnReleased(); Assert.AreEqual(RigidbodyInterpolation.Extrapolate,first.GetComponent<Rigidbody>().interpolation);
         }
 

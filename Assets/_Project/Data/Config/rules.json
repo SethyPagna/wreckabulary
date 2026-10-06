@@ -1,5 +1,5 @@
 {
- "notes": "Game rules per mode. 'defaults' applies to every mode; each block under 'modes' overrides only what it lists. Times are in seconds, distances in metres, health in HP. Cosmetics never appear here. See docs/PLAN.md section 2.",
+ "notes": "Game rules per mode. 'defaults' applies to every mode; each block under 'modes' overrides only what it lists. Times are in seconds, distances in metres, health in HP. Cosmetics never appear here. See PROJECT_REPORT.md section 1.",
  "defaults": {
   "maxHealth": 100,
   "spawnProtection": 2,

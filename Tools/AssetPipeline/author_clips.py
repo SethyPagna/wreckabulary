@@ -1,26 +1,3 @@
-"""Authored animation clips for the shared 22-bone avatar.
-
-The pack's walk and run are a small shuffle: the feet never plant or pass each other, so at
-gameplay speed the body glides across the floor as if on wheels. Its jump, swings, throw,
-hit and celebrate are small arm waves without anticipation or follow-through. This module
-replaces those clips under the same names and lengths with keyframed motion built from a
-few readable parameters:
-
-- locomotion: stance feet that slide back at a constant rate (planted relative to the
-  ground when the runtime plays the clip at its stride), swing feet that lift and pass,
-  two-bone IK for the legs, pelvis bob, sway and twist, a counter-turning chest, a steady
-  head and arms swinging against the legs;
-- one-shots: key poses with anticipation, a fast strike and follow-through, eased per
-  segment, feet held planted by the same IK.
-
-Every bone of this rig shares one rest orientation, so all maths runs in the "body frame":
-X is the avatar's left, Y is up and Z is forward. A bone's pose is the product of the local
-rotations above it. Pickup and Place are left alone: Pickup is corrected for boot contact
-offline (correct_pickup_contact.mjs) and tested at its authored length.
-
-Each locomotion clip reports its stride: rig metres travelled per cycle with planted feet.
-The web animator and Unity scale it by the avatar's size to drive cadence from speed.
-"""
 import math
 
 import bpy
@@ -37,20 +14,15 @@ def rot(axis, degrees):
 
 
 def body(pitch=0.0, turn=0.0, tilt=0.0):
-    """Rotation of an upright bone: `pitch` tips its top forward, `turn` faces it to the
-    avatar's left and `tilt` leans its top to the avatar's right (degrees)."""
     return rot(Y, turn) @ rot(X, pitch) @ rot(Z, tilt)
 
 
 def arm(side, forward=0.0, out=0.0, twist=0.0):
-    """Upper-arm rotation from rest (arms hang down and outwards): `forward` swings the hand
-    forward and up, `out` raises the arm away from the body (negative tucks it in)."""
     s = 1 if side == "L" else -1
     return rot(Z, s * out) @ rot(X, -forward) @ rot(Y, s * twist)
 
 
 def elbow(bend):
-    """Forearm rotation: bend the elbow so the hand comes forward and up."""
     return rot(X, -bend)
 
 
@@ -64,8 +36,8 @@ EASE = {
     "io": lambda t: t * t * (3 - 2 * t),
     "out": lambda t: 1 - (1 - t) ** 2,
     "in": lambda t: t * t,
-    "snap": lambda t: t ** 3,                       # slow start, fastest at the end (strikes)
-    "whip": lambda t: 1 - (1 - t) ** 3,             # fastest at the start (releases, recoils)
+    "snap": lambda t: t ** 3,
+    "whip": lambda t: 1 - (1 - t) ** 3,
 }
 
 
@@ -80,8 +52,6 @@ def _align(rest_dir, rest_ref, new_dir, new_ref):
 
 
 class Rig:
-    """The armature in body-frame terms, with forward kinematics and leg IK."""
-
     def __init__(self, obj):
         bones = obj.data.bones
         basis = bones[0].matrix_local.to_quaternion()
@@ -109,8 +79,6 @@ class Rig:
         self.sole = self._sole_points()
 
     def _sole_points(self):
-        """Boot vertices relative to each ankle, for keeping the sole on the floor as the
-        foot pitches. Falls back to a small box when the boots aren't merged yet."""
         boots = bpy.data.objects.get("SK_Boots")
         points = {s: [] for s in SIDES}
         if boots and boots.type == "MESH":
@@ -125,13 +93,11 @@ class Rig:
             if len(points[s]) < 8:
                 raise RuntimeError("author_clips: SK_Boots has no vertices weighted to foot_" + s)
             lowest = min(p.y for p in points[s])
-            # Only the bottom of the boot can touch the floor.
             points[s] = [p for p in points[s] if p.y < lowest + 0.03]
         self.ground = min(self.rest[f"foot_{s}"].y + min(p.y for p in points[s]) for s in SIDES)
         return points
 
     def ankle_height(self, side, pitch):
-        """Ankle height that keeps the lowest point of the pitched boot on the floor."""
         r = rot(X, pitch)
         return self.ground - min((r @ p).y for p in self.sole[side])
 
@@ -141,9 +107,6 @@ class Rig:
         return pelvis_w, {s: pelvis_p + pelvis_w @ (self.rest[f"thigh_{s}"] - self.rest["pelvis"]) for s in SIDES}
 
     def solve_leg(self, local, shift, side, ankle, pitch, splay=0.15):
-        """Set thigh, shin and foot so the ankle reaches `ankle` with the foot pitched by
-        `pitch` degrees (positive raises the heel). Returns how far the target was out of
-        reach (0 when reached)."""
         leg = self.legs[side]
         pelvis_w, hips = self.hips(local, shift)
         hip = hips[side]
@@ -182,14 +145,11 @@ class Rig:
 
 
 def steady_head(rig, local, target):
-    """Split the correction to a wanted world head rotation between neck and head."""
     chest_w = rig.world(local, "chest")
     neck_w = chest_w.slerp(target, 0.5)
     local["neck"] = chest_w.inverted() @ neck_w
     local["head"] = neck_w.inverted() @ target
 
-
-# --------------------------------------------------------------------------- locomotion
 
 WALK = dict(duty=0.58, reach=0.072, lift=0.036, kick=0.0, heel=14, toe=26, width=0.088,
             drop=0.016, bob=0.009, sway=0.008, yaw=9, roll=4, lean=4, run=False,
@@ -200,10 +160,8 @@ RUN = dict(duty=0.34, reach=0.088, lift=0.062, kick=0.035, heel=6, toe=38, width
 
 
 def gait(rig, g, phase):
-    """Pose at `phase` (0-1) of a cycle that starts at the left heel strike."""
     local, misses = {}, []
     two = 2 * math.pi
-    # Pelvis: a walk is highest at mid-stance, a run lowest (it compresses, then flies).
     mid = g["duty"] / 2
     if g["run"]:
         lift = -g["bob"] * math.cos(2 * two * (phase - mid))
@@ -211,8 +169,8 @@ def gait(rig, g, phase):
         lift = -g["bob"] * math.cos(2 * two * phase)
     sway = g["sway"] * math.cos(two * (phase - mid))
     shift = Vector((sway, -g["drop"] + lift, 0.0))
-    yaw = -g["yaw"] * math.cos(two * phase)                 # the forward leg's hip leads
-    roll = g["roll"] * math.cos(two * (phase - mid))        # the swing side's hip drops
+    yaw = -g["yaw"] * math.cos(two * phase)
+    roll = g["roll"] * math.cos(two * (phase - mid))
     local["pelvis"] = body(pitch=g["lean"] * 0.5, turn=yaw, tilt=roll)
     local["spine"] = body(pitch=g["lean"] * 0.3, turn=-yaw * g["chest_counter"] * 0.5, tilt=-roll * 0.6)
     bounce = (0.5 - 0.5 * math.cos(2 * two * (phase - mid))) if g["run"] else 0.0
@@ -238,15 +196,12 @@ def gait(rig, g, phase):
                     + g["lift"] * math.sin(math.pi * u ** 0.85) + g["kick"] * 0.8 * math.sin(math.pi * u) * (1 - u))
         misses.append(rig.solve_leg(local, shift, side, Vector((x, y, rest.z + z)), pitch))
 
-        # Arms swing against the legs, a little behind them.
         back = g["swing"] * math.cos(two * (phase + offset - 0.04))
-        forward = (1 - back / g["swing"]) / 2              # 0 when back, 1 when forward
+        forward = (1 - back / g["swing"]) / 2
         local[f"upper_arm_{side}"] = arm(side, forward=-back, out=g["out"])
         local[f"forearm_{side}"] = elbow(g["elbow"] + g["elbow_swing"] * forward)
     return local, shift, max(misses)
 
-
-# --------------------------------------------------------------------------- key poses
 
 NEUTRAL_ARMS = dict(out=-8)
 
@@ -254,9 +209,6 @@ NEUTRAL_ARMS = dict(out=-8)
 def pose(pelvis=(0, 0, 0), spine=(0, 0, 0), chest=(0, 0, 0), neck=(0, 0, 0), head=(0, 0, 0),
          arm_l=(0, -8), arm_r=(0, -8), elbow_l=10, elbow_r=10, hand_l=(0, 0, 0), hand_r=(0, 0, 0),
          shift=(0, 0, 0), foot_l=(0, 0, 0, 0), foot_r=(0, 0, 0, 0)):
-    """A key pose in friendly units: body parts as (pitch, turn, tilt) degrees, arms as
-    (forward, out[, twist]) degrees, the pelvis shift in body-frame metres and each foot as
-    (dx, dy, dz, pitch) from its rest ankle (dy > 0 lifts it)."""
     return {
         "pelvis": body(*pelvis), "spine": body(*spine), "chest": body(*chest),
         "neck": body(*neck), "head": body(*head),
@@ -268,7 +220,6 @@ def pose(pelvis=(0, 0, 0), spine=(0, 0, 0), chest=(0, 0, 0), neck=(0, 0, 0), hea
 
 
 def keyed(rig, keys, frame):
-    """Interpolate a list of (frame, pose, ease) and solve the legs."""
     for (f0, a, _), (f1, b, ease) in zip(keys, keys[1:]):
         if f0 <= frame <= f1:
             t = EASE[ease]((frame - f0) / (f1 - f0)) if f1 > f0 else 1.0
@@ -293,8 +244,6 @@ def keyed(rig, keys, frame):
 
 
 def idle_pose(rig, u):
-    """A breathing idle that loops over u in [0, 1): weight shifts side to side once, the
-    chest breathes twice and the head drifts."""
     two = 2 * math.pi
     breathe = math.sin(two * 2 * u)
     shift = Vector((0.006 * math.sin(two * u), -0.004 + 0.0025 * breathe, 0.0))
@@ -312,10 +261,7 @@ def idle_pose(rig, u):
     return local, shift, max(misses)
 
 
-# One-shots. Times are frames at 30 fps within the original clip lengths.
 def swing_keys():
-    """A flat bat swing that reads from the camera behind: the arm cocks out to the right
-    and back, whips round to the front at impact (frame 7) and wraps across to the left."""
     n = pose()
     wind = pose(pelvis=(0, -16, 0), spine=(-3, -14, 0), chest=(-5, -20, -4), head=(4, 30, 0),
                 arm_r=(-38, 58, 0), elbow_r=64, arm_l=(40, -6), elbow_l=34, hand_r=(-25, 0, 0),
@@ -395,9 +341,6 @@ def celebrate_keys():
 
 
 def jump_pose(rig, u):
-    """Jump over the whole clip: crouch (0-0.15), launch (0.15-0.3), tuck at the top
-    (0.3-0.6), then reach down for the floor and hold that falling pose to the end. The
-    web plays 0.15-0.85 across the real jump; Unity holds the last frame while airborne."""
     crouch = pose(pelvis=(12, 0, 0), spine=(6, 0, 0), chest=(8, 0, 0), head=(-10, 0, 0),
                   arm_l=(-40, 6), arm_r=(-40, 6), elbow_l=24, elbow_r=24, shift=(0, -0.05, 0.004))
     launch = pose(pelvis=(-4, 0, 0), chest=(-8, 0, 0), head=(-12, 0, 0), arm_l=(150, 52), arm_r=(150, 52),
@@ -412,8 +355,6 @@ def jump_pose(rig, u):
             (0.75, fall, "io"), (1.0, fall, "lin")]
     return keyed(rig, keys, u)
 
-
-# --------------------------------------------------------------------------- writing
 
 def _curves(action):
     if hasattr(action, "fcurves"):
@@ -430,7 +371,6 @@ def _frames(end):
 
 
 def write_action(rig, name, sample):
-    """Replace action `name` with keys from sample(frame, end) -> (local, shift, miss)."""
     old = bpy.data.actions[name]
     start, end = old.frame_range
     if abs(start) > 1e-6:
@@ -474,7 +414,6 @@ def write_action(rig, name, sample):
 
 
 def author(rig_obj):
-    """Replace the weak pack clips; returns facts for the build report."""
     rig = Rig(rig_obj)
     report = {"replaced": [], "ik_overreach_m": {}, "locomotion": {}}
 
@@ -501,7 +440,6 @@ def author(rig_obj):
         report["replaced"].append(name)
     for name, g in (("Walk_InPlace", WALK), ("Run_InPlace", RUN)):
         end = bpy.data.actions[name].frame_range[1]
-        # Planted stride: the stance foot covers 2 * reach while in contact for `duty`.
         report["locomotion"][name] = {"stride": round(2 * g["reach"] / g["duty"], 4),
                                       "cycle_seconds": round(end / bpy.context.scene.render.fps, 4),
                                       "duty": g["duty"]}

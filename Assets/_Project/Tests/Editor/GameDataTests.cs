@@ -9,12 +9,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.EditorTests
 {
-    /// <summary>
-    /// Checks the game data the way the game loads it (Resources/GameData), and checks it
-    /// against the imported art: every modelled item has its model, grip, size and skin
-    /// materials, the house's furniture exists, and the wardrobe's pieces are on the avatar.
-    /// Run Wreckabulary → Data → Set Up Game Data and Wreckabulary → Art → Set Up Imported Art first.
-    /// </summary>
     [TestFixture]
     public class GameDataTests
     {
@@ -148,7 +142,6 @@ namespace Wreckabulary.EditorTests
         [Test]
         public void EveryHouseFileIsAPlayableMap()
         {
-            // A new house_*.json only reaches the game after Set Up Game Data.
             var files = System.IO.Directory.GetFiles(GameDataSetup.ConfigFolder, "house_*.json")
                 .Select(path => System.IO.Path.GetFileNameWithoutExtension(path).Substring("house_".Length));
             CollectionAssert.AreEquivalent(files, config.Houses.Keys);

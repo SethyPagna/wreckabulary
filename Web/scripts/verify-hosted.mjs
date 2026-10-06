@@ -1,4 +1,3 @@
-// Run on a GitHub-hosted runner: compare the live release to its independent build.
 import { createHash } from "node:crypto";
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";

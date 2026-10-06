@@ -2,13 +2,8 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>Deploy has no button any more (the attack button places); it keeps its slot because the HUD picks icons by number.</summary>
     public enum TouchAction { Attack, Dodge, Jump, Craft, Block, Grab, Deploy, Drop, Swap, Start, Up, Down }
 
-    /// <summary>
-    /// One local touch player. Independent pointer controls feed this binding; reading commands
-    /// consumes presses once while held block/grab and both sticks persist until release.
-    /// </summary>
     public sealed class TouchBinding : InputBinding
     {
         static TouchBinding shared;
@@ -48,7 +43,6 @@ namespace Wreckabulary
             if (action == TouchAction.Start) startFrame = Time.frameCount;
         }
 
-        /// <summary>Touch craft is a deliberate menu: tap CRAFT, choose a recipe, tap BUILD.</summary>
         public void SetCraftOpen(bool open)
         {
             if (open && !craftOpen) craftDown = true;
@@ -78,7 +72,6 @@ namespace Wreckabulary
             craftDown = false;
         }
 
-        /// <summary>On a touch-capable PC the same player can use either the keyboard or overlay.</summary>
         public void Merge(ref PlayerCommands c)
         {
             var touch = default(PlayerCommands);
@@ -104,7 +97,6 @@ namespace Wreckabulary
             c.start |= touch.start;
         }
 
-        /// <summary>Focus loss and menu closing release every control, including a held revive.</summary>
         public void ReleaseAll()
         {
             System.Array.Clear(held, 0, held.Length);
@@ -115,7 +107,7 @@ namespace Wreckabulary
             startFrame = -1;
         }
 
-        public override bool JoinPressed() => false; // The PLAY button joins via PlayerJoinManager.
+        public override bool JoinPressed() => false;
         public override bool StartPressed() => Enabled && startFrame == Time.frameCount;
     }
 }

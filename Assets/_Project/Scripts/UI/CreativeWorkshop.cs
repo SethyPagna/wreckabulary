@@ -10,7 +10,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Runtime home editor overlay. Its disposable stage never changes the Hub scene or its players.</summary>
     public sealed class CreativeWorkshop : MonoBehaviour
     {
         static readonly Color Cream = new(.97f,.94f,.86f), Ink = new(.18f,.23f,.23f), Teal = new(.13f,.48f,.48f);
@@ -89,7 +88,6 @@ namespace Wreckabulary
             priorSelection = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
             touchEnabled = TouchBinding.Shared.Enabled; touchOverlay = TouchBinding.Shared.OverlayDesktop;
             touchId = TouchBinding.Shared.OverlayBindingId; TouchBinding.Shared.ReleaseAll();
-            // Record roots before the overlay has children; hidden players retain their components and original bindings.
             captured = true;
             foreach (var root in gameObject.scene.GetRootGameObjects())
             {
@@ -100,14 +98,11 @@ namespace Wreckabulary
                 if (!keep) root.SetActive(false);
                 else
                 {
-                    // Camera rigs and any gameplay scripts on retained service roots must also pause.
                     foreach (var behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
                     {
                         if (behaviour is EventSystem || behaviour is UnityEngine.EventSystems.BaseInputModule) continue;
                         suspended.Add((behaviour, behaviour.enabled)); behaviour.enabled = false;
                     }
-                    // A disabled MonoBehaviour keeps its running coroutines; an inactive GameObject cancels them.
-                    // Retain the join root so an already scheduled Hub KO respawn can finish while its player is hidden.
                     foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
                     { hiddenRenderers.Add((renderer,renderer.enabled)); renderer.enabled = false; }
                     foreach (var collider in root.GetComponentsInChildren<Collider>(true))
@@ -204,7 +199,6 @@ namespace Wreckabulary
             MakeButton(content,"Import JSON",new Vector2(178,-796),new Vector2(154,46),() => OpenJson(true));
             status = Label(content,"",new Vector2(12,-854),new Vector2(320,125),18,Ink);
             status.textWrappingMode = TextWrappingModes.Normal;
-            // Keep every control reachable through the same scroll area after adding controller prop selection.
             foreach (RectTransform child in content)
                 if (child.anchoredPosition.y <= -572) child.anchoredPosition += new Vector2(0,-40);
             content.sizeDelta = new Vector2(0,1030);
@@ -270,7 +264,6 @@ namespace Wreckabulary
         {
             var validation = designer.Validate(candidate);
             if (!validation.Ok) { SetStatus(string.Join("\n",validation.Errors)); Refresh(); return false; }
-            // Render the staged detached layout before moving the document/history cursor.
             if (!stage.Show(validation.Layout,out var error)) { SetStatus(error); Refresh(); return false; }
             if (!history.TryApply(validation.Layout,out error)) { stage.Show(history.Current,out _); SetStatus(error); return false; }
             previewKey = null; Refresh(); SetStatus(message); return true;
@@ -316,7 +309,6 @@ namespace Wreckabulary
                 touchControls.gameObject.SetActive(Application.isMobilePlatform || Touchscreen.current != null || tourBinding is TouchBinding);
                 tourTitle.text = "YOUR SAVED HOME\nMove freely · Back or START returns";
                 LayoutUi();
-                // Gamepad A jumps while touring; do not leave a menu button selected for the same submit input.
                 EventSystem.current?.SetSelectedGameObject(null);
             }
             catch (Exception ex) { EndTour(); SetStatus("Could not start tour: " + ex.Message); }
@@ -361,7 +353,6 @@ namespace Wreckabulary
                 if (!importing) { SetStatus(storage.TryExportFile(history.Current,out var path,out var error) ? "Exported to " + path : error); return; }
                 var result = designer.Import(jsonInput.text);
                 if (!result.Ok) { SetStatus(string.Join("\n",result.Errors)); return; }
-                // An imported map may differ. Preflight rendering before replacing any current draft.
                 if (!stage.Show(result.Layout,out var renderError)) { SetStatus(renderError); return; }
                 if (!drafts.TryGetValue(result.Layout.Map,out var target)) target = new HomeHistory(designer,designer.CreateLayout(result.Layout.Map));
                 if (!target.TryApply(result.Layout,out var historyError)) { stage.Show(history.Current,out _); SetStatus(historyError); return; }
@@ -410,7 +401,6 @@ namespace Wreckabulary
                 if (pad.leftShoulder.wasPressedThisFrame) ChangeSkin();
                 if (moving)
                 {
-                    // While moving, focus a non-selectable label so D-pad movement does not also navigate menu controls.
                     EventSystem.current?.SetSelectedGameObject(null);
                     if (pad.dpad.left.wasPressedThisFrame) Nudge(-.5,0);
                     if (pad.dpad.right.wasPressedThisFrame) Nudge(.5,0);
@@ -448,7 +438,6 @@ namespace Wreckabulary
             }
             else if (pressed)
             {
-                // Cutaway walls have taller walking colliders. Ignore those invisible extensions for editor selection.
                 selected = Physics.RaycastAll(lens.ScreenPointToRay(pointer),200f,Physics.DefaultRaycastLayers,QueryTriggerInteraction.Ignore)
                     .OrderBy(hit => hit.distance).Select(hit => hit.collider.GetComponentInParent<HomePropView>()).FirstOrDefault(view => view)?.Id;
                 RefreshSelection();
@@ -459,7 +448,6 @@ namespace Wreckabulary
         void LateUpdate()
         {
             if (!captured || restored) return;
-            // A retained Hub coroutine can reset a roommate/HUD; keep the original hierarchy peaceful and hidden.
             foreach (var pause in pausedBodies) pause.Freeze();
             foreach (var entry in hiddenRenderers) if (entry.component) entry.component.enabled = false;
             foreach (var entry in hiddenColliders) if (entry.component) entry.component.enabled = false;
@@ -649,7 +637,6 @@ namespace Wreckabulary
             {
                 if (!body) return;
                 bool respawned = player && player.Health && state.HasValue && player.Health.State != state.Value;
-                // A scheduled KO recovery is legitimate: retain its new spawn/life rather than restoring old KO momentum.
                 body.isKinematic = respawned ? player.IsHeld : kinematic;
                 body.useGravity = gravity; body.detectCollisions = collisions;
                 if (!body.isKinematic) { body.linearVelocity = respawned ? Vector3.zero : velocity; body.angularVelocity = respawned ? Vector3.zero : angular; }

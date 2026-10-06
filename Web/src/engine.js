@@ -1,4 +1,3 @@
-// Browser simulation uses the canonical Unity catalogue and rule values. Rendering never mutates rules.
 export const MODES = {
   Dibs: {
     title: "Dibs!",
@@ -111,7 +110,6 @@ export class Game {
     return this.seed / 4294967296;
   }
   emit(type, entity = {}, extra = {}) {
-    // Player-centred events name their player so the view can animate the right avatar.
     const player = this.players?.includes(entity) ? { player: entity.id } : {};
     this.events.push({
       type,
@@ -214,7 +212,6 @@ export class Game {
                 ...this.wardrobe,
                 colours: {
                   ...this.wardrobe.colours,
-                  // Roommates never wear the player's colour.
                   Top: ["pool", "sunflower", "grape", "mint", "tomato"].filter(
                     (c) => c !== this.wardrobe.colours?.Top,
                   )[id - 1],
@@ -399,9 +396,7 @@ export class Game {
         p.z <= r.bounds[3],
     );
   }
-  /** Moving Day: the held word is still on the checklist and would land in its room. */
   placesObjective(p, item) {
-    // Only spelled things count, the same as checkPlacements().
     if (this.mode !== "MovingDay" || !item || item.origin !== "crafted") return false;
     const spot = { x: p.x + p.facing.x * 1.6, z: p.z + p.facing.z * 1.6 },
       room = this.roomAt(spot)?.name;
@@ -680,8 +675,6 @@ export class Game {
       this.time < p.stunUntil
     )
       return false;
-    // Attack does what the held thing is for: throw it, use it, place it, or swing it.
-    // Anything but a swing spends the press, so holding the button doesn't punch next.
     const item = this.held(p),
       def = item?.origin === "map" ? null : item?.definition;
     if (item?.origin === "map" || def?.use || def?.thrown) {
@@ -1526,7 +1519,6 @@ export class Game {
     p.motion = { x: input.x ?? 0, z: input.z ?? 0 };
     if (!input.attack) p.pressSpent = false;
     if (p.state === "alive") {
-      // Shoulder camera: the body always faces where the camera looks, like a shooter.
       if (Number.isFinite(input.yaw)) {
         p.yaw = input.yaw;
         p.facing = { x: Math.sin(input.yaw), z: Math.cos(input.yaw) };
@@ -1559,8 +1551,6 @@ export class Game {
             dt,
         );
       else {
-        // Ground physics like a shooter: accelerate towards the wished velocity and
-        // brake with friction when the keys are released, instead of snapping.
         const v = (p.velocity ??= { x: 0, z: 0 }),
           wish = { x: dir.x * speed * length, z: dir.z * speed * length },
           rate = (length > 0.01 ? this.rules.groundAccel : this.rules.groundFriction) ?? 1e9,
@@ -1574,7 +1564,6 @@ export class Game {
         }
         const before = { x: p.x, z: p.z };
         this.move(p, v.x * dt, v.z * dt);
-        // Walls soak up the blocked part of the momentum.
         if (dt > 0) {
           if (Math.abs(p.x - before.x) < Math.abs(v.x * dt) * 0.5) v.x = 0;
           if (Math.abs(p.z - before.z) < Math.abs(v.z * dt) * 0.5) v.z = 0;

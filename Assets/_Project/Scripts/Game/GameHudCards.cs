@@ -10,22 +10,15 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>What a round's or a match's result card shows.</summary>
     public sealed class HudResult
     {
         public int Round;
-        /// <summary>The match is over: the card says HOUSE PARTY COMPLETE and offers PLAY AGAIN.</summary>
         public bool Final, Won;
         public string Heading = "", Detail = "";
         public int Broken, Crafted, Damage;
-        /// <summary>What the career paid for the match, or null for a round in the middle of one.</summary>
         public MatchRecord Reward;
         public bool Best;
 
-        /// <summary>
-        /// A result card's numbers: this round's, as on the web, or, once the career has paid, the whole match's
-        /// (what the pay was worked out from).
-        /// </summary>
         public static HudResult Of(int round, bool final, bool won, string heading, MatchRecord reward)
         {
             return new HudResult
@@ -39,11 +32,6 @@ namespace Wreckabulary
         }
     }
 
-    /// <summary>
-    /// The web edition's cards over a match (Web/src/style.css): the toast, the round chip with its countdown, the
-    /// typed spell composer, the pause and help cards, the result card and the mode's start buttons. Sizes are the
-    /// web's CSS pixels x 1.25 on the 1920 x 1080 canvas.
-    /// </summary>
     public partial class GameHud
     {
         static readonly Color Primary = Hex(0x173b3c), PrimaryLip = Hex(0x102b2c), PrimaryHover = Hex(0x245754);
@@ -57,28 +45,23 @@ namespace Wreckabulary
         static readonly Color MissingFill = Hex(0xf3d3c6), MissingEdge = Hex(0xe3a994), MissingLip = Hex(0xc98f7c), Go = Hex(0xdf7955);
         static readonly Color StepNumber = Hex(0xbe7754), StepInk = Hex(0x576f66), FinePrint = Hex(0x546763);
 
-        // Toast
         RectTransform toast;
         CanvasGroup toastFade;
         TextMeshProUGUI toastLabel;
         float toastAt = -10f;
         string lastTitle = "", lastSub = "";
-        // Round chip
         RectTransform chip;
         Image chipDisc;
         TextMeshProUGUI chipDigit, chipLine;
         int chipLeft = -1;
         float chipPulseAt = -10f, goUntil;
-        // Mode actions
         GameObject modeActions;
         TextMeshProUGUI modePlayLabel;
         Action modeAction;
         bool modeWanted;
-        // Pause and help
         GameObject pauseCard, helpCard;
         TextMeshProUGUI pauseBlurb;
         Button resumeButton, helpDone;
-        // Result
         GameObject resultRoot;
         RectTransform resultShade;
         Image resultSpark;
@@ -90,7 +73,6 @@ namespace Wreckabulary
         Action resultNextAction, resultHomeAction;
         Coroutine resultSoon;
         Sprite sparkSprite;
-        // Composer
         RectTransform composer, composerTiles, caret;
         Image composerEdge, composerRing;
         readonly ComposerTile[] tiles = new ComposerTile[TrayTiles];
@@ -99,8 +81,8 @@ namespace Wreckabulary
         bool composerOpen;
         float caretAt, shakeAt = -10f, eraseNext;
         int openedFrame = -1;
+        bool composerReleaseWait;
         Keyboard typingKeyboard;
-        // Cards that shrink to a narrow screen.
         readonly System.Collections.Generic.List<(RectTransform card, float width)> cardWidths = new();
         GridLayoutGroup helpKeys;
         float fittedRoom = -1f;
@@ -112,7 +94,6 @@ namespace Wreckabulary
             public TextMeshProUGUI letter;
         }
 
-        /// <summary>The keyboard player types words, as on the web; touch and controllers pick from the words they can make.</summary>
         bool TypedMode => LocalPlayer && LocalPlayer.Binding is DesktopBinding && !TouchControlsShown;
         public bool ComposerOpen => craftRoot && craftRoot.activeSelf;
         public string ComposerText => composerText;
@@ -127,8 +108,6 @@ namespace Wreckabulary
         TMP_FontAsset GameFont => GameAssets.I ? GameAssets.I.font : TMP_Settings.defaultFontAsset;
         TMP_FontAsset DisplayFont => LobbyFonts.Display ? LobbyFonts.Display : GameFont;
 
-        // ---- Building blocks ----
-
         Image Paint(RectTransform rt, Sprite sprite, Color colour, float multiplier = 1f)
         {
             var image = rt.gameObject.AddComponent<Image>();
@@ -137,7 +116,6 @@ namespace Wreckabulary
             return image;
         }
 
-        /// <summary>A layer the size of its parent (grown, and moved down by a lip's depth), which no layout moves.</summary>
         static RectTransform Cover(string label, Transform parent, float grow = 0f, float dy = 0f)
         {
             var rt = new GameObject(label, typeof(RectTransform)).GetComponent<RectTransform>();
@@ -154,11 +132,9 @@ namespace Wreckabulary
             return rt;
         }
 
-        /// <summary>The web's soft box-shadow: a blurred copy of the shape, this much blur, this far down.</summary>
         Image SoftShadow(Transform parent, Color colour, float blur, float dy) =>
             Paint(Cover("Shadow", parent, blur * .6f, dy), softSprite, colour, 28f / blur);
 
-        /// <summary>A card's layers, back to front: its soft shadow, its hard lip, its face and a hairline edge.</summary>
         void Raise(RectTransform rt, int radius, Color face, Color lip, float lipDepth, Color drop, float blur, float dropY, Color? edge = null)
         {
             SoftShadow(rt, drop, blur, dropY);
@@ -198,7 +174,6 @@ namespace Wreckabulary
             return image;
         }
 
-        /// <summary>The web's modal card: cream, round corners, a hard lip and a soft shadow, its rows stacked down it.</summary>
         RectTransform Card(string label, Transform parent, float width, float padding)
         {
             var rt = Rect(label, parent, new Vector2(.5f, .5f), Vector2.zero, new Vector2(width, 200f));
@@ -214,8 +189,6 @@ namespace Wreckabulary
             return rt;
         }
 
-        /// <summary>The web's .btn: dark with a lip for the main choice, cream with a hairline for the others; it lifts
-        /// under the pointer and a controller sees the orange focus ring.</summary>
         Button CardButton(Transform parent, string label, string caption, Action action, bool primary, float height)
         {
             var rt = Rect(label, parent, new Vector2(.5f, .5f), Vector2.zero, new Vector2(300f, height));
@@ -241,7 +214,6 @@ namespace Wreckabulary
 
         static TextMeshProUGUI LabelOf(Button button) => button.transform.Find("Body/Label").GetComponent<TextMeshProUGUI>();
 
-        /// <summary>A round icon button in a cream disc with a hairline, the web's × in a card's corner.</summary>
         Button RoundButton(Transform parent, string label, string icon, Action action, float size)
         {
             var rt = Rect(label, parent, Vector2.one, Vector2.zero, Vector2.one * size);
@@ -270,8 +242,6 @@ namespace Wreckabulary
             var events = EventSystem.current;
             if (events) events.SetSelectedGameObject(null);
         }
-
-        // ---- Built in Start ----
 
         void BuildCards()
         {
@@ -330,9 +300,6 @@ namespace Wreckabulary
             modeActions.SetActive(false);
         }
 
-        // ---- Toast and round chip ----
-
-        /// <summary>The web's toast: a dark pill under the status line that slides in, holds and fades by itself.</summary>
         public void Toast(string text)
         {
             if (!toast || string.IsNullOrEmpty(text)) return;
@@ -345,7 +312,6 @@ namespace Wreckabulary
             toast.SetAsLastSibling();
         }
 
-        /// <summary>The round chip at the top: a number in a cream disc counting down, and what's about to start.</summary>
         public void ShowCountdown(int left, string line)
         {
             if (!chip) return;
@@ -359,7 +325,6 @@ namespace Wreckabulary
             SetChipLine(line);
         }
 
-        /// <summary>GO on a coral disc, gone a moment later.</summary>
         public void ShowGo(string line = null)
         {
             if (!chip) return;
@@ -384,7 +349,6 @@ namespace Wreckabulary
             chip.sizeDelta = new Vector2(Mathf.Clamp(width + 90f, 160f, 900f), 56f);
         }
 
-        /// <summary>Shows or hides the start button under the status line (START WITH AI in a Dibs lobby).</summary>
         public void ShowModeActions(bool on, string caption = null, Action play = null)
         {
             if (!modeActions) return;
@@ -392,8 +356,6 @@ namespace Wreckabulary
             if (play != null) modeAction = play;
             modeWanted = on;
         }
-
-        // ---- Pause and help ----
 
         void BuildPause()
         {
@@ -415,7 +377,6 @@ namespace Wreckabulary
             CardButton(card, "Pause controls", "Controls & recipes", () => ShowHelp(true), false, 46f);
             Gap(card, 12.5f);
             CardButton(card, "Pause home", "Back to the house party", GoHome, false, 46f);
-            // A touch screen can turn the on-screen buttons on or off here; a mouse-only PC never sees the switch.
             bool touchable = Touchscreen.current != null || Application.isMobilePlatform;
             var gap = Gap(card, 12.5f); gap.SetActive(touchable);
             var touch = CardButton(card, "Touch switch", "Touch controls: off", () => { touchChosen = true; ShowTouchControls(!TouchControlsShown); }, false, 46f);
@@ -426,7 +387,6 @@ namespace Wreckabulary
             pauseRoot.SetActive(false);
         }
 
-        /// <summary>The web's help card over the pause card: three steps, the keys at a glance, the health line.</summary>
         void BuildHelp(RectTransform shade)
         {
             var card = Card("Pause help", shade, 812f, 40f);
@@ -509,7 +469,6 @@ namespace Wreckabulary
             FocusOn(on ? helpDone : resumeButton);
         }
 
-        /// <summary>The pause card's line about the mode being played, the web's MODES descriptions.</summary>
         string ModeBlurb()
         {
             if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == Session.TutorialScene)
@@ -529,14 +488,11 @@ namespace Wreckabulary
             _ => n.ToString(),
         };
 
-        /// <summary>Fills the pause card as it opens (the mode can change between matches) and puts a controller on KEEP PLAYING.</summary>
         void OnPauseShown()
         {
             if (pauseBlurb) pauseBlurb.text = ModeBlurb();
             ShowHelp(false);
         }
-
-        // ---- Result ----
 
         void BuildResult()
         {
@@ -612,10 +568,6 @@ namespace Wreckabulary
             resultRoot.SetActive(false);
         }
 
-        /// <summary>
-        /// The web's result card: a spark or an arrow, ROUND n COMPLETE (or HOUSE PARTY COMPLETE when the match is
-        /// over), the headline, what you did, what the career paid, then NEXT ROUND or PLAY AGAIN and the way home.
-        /// </summary>
         public void ShowResult(HudResult result, Action next, Action home = null)
         {
             if (!resultRoot || result == null) return;
@@ -648,7 +600,6 @@ namespace Wreckabulary
             FocusOn(resultNext);
         }
 
-        /// <summary>Shows the result card after the round's slow-motion beat, on the real clock.</summary>
         public void ShowResultSoon(HudResult result, Action next, float delay = .9f)
         {
             if (resultSoon != null) StopCoroutine(resultSoon);
@@ -669,7 +620,6 @@ namespace Wreckabulary
             if (resultRoot && resultRoot.activeSelf) { resultRoot.SetActive(false); ClearFocus(); }
         }
 
-        /// <summary>NEXT ROUND or PLAY AGAIN, from the button or a mode's start key; only the first of the two counts.</summary>
         public void ConfirmResult()
         {
             if (!ResultShown) return;
@@ -678,7 +628,6 @@ namespace Wreckabulary
             next?.Invoke();
         }
 
-        /// <summary>The web's ✦: a four-pointed star with curved sides.</summary>
         Sprite SparkSprite()
         {
             if (sparkSprite) return sparkSprite;
@@ -704,18 +653,10 @@ namespace Wreckabulary
             return sparkSprite;
         }
 
-        // ---- Spell composer ----
-
-        /// <summary>
-        /// The web's spell composer above the letter tray. A keyboard player types the word (Enter spells it, Esc
-        /// closes, Tab opens the recipe book); its tiles show which letters you hold. Touch and controllers pick
-        /// from the words they can make instead.
-        /// </summary>
         void BuildComposer()
         {
             composer = Put(Rect("Craft drawer", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 0f), new Vector2(.5f, 0f), new Vector2(0f, 262f), new Vector2(650f, 189f));
             craftRoot = composer.gameObject;
-            // Clicks on the card stay off the game.
             var hit = composer.gameObject.AddComponent<Image>(); hit.color = Color.clear; hit.raycastTarget = true;
             SoftShadow(composer, CardDrop, 75f, -19f);
             Paint(Cover("Face", composer), LobbyIcons.RoundedSprite(25), ComposerFill);
@@ -727,7 +668,7 @@ namespace Wreckabulary
             Put(eyebrow.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -16f), new Vector2(300f, 40f));
             eyebrow.alignment = TextAlignmentOptions.MidlineLeft; eyebrow.textWrappingMode = TextWrappingModes.NoWrap;
             var book = MakeButton("Recipe book", composer, Vector2.one, new Vector2(-70f, -16f), new Vector2(170f, 40f),
-                $"<u>Recipe book</u>  {ControlHints.KeyOf(DesktopBinding.Shared.Bag)}", () => SetBagPinned(true), Color.clear);
+                "<u>Recipe book</u>", () => SetBagPinned(true), Color.clear);
             var bookText = book.GetComponentInChildren<TextMeshProUGUI>();
             bookText.fontSize = 13f; bookText.color = Faded; bookText.alignment = TextAlignmentOptions.Right;
             bookLink = book.gameObject;
@@ -782,7 +723,6 @@ namespace Wreckabulary
             return rt.gameObject;
         }
 
-        /// <summary>The tray's Spell link: opens the composer, or closes it when it's open.</summary>
         void OpenComposer()
         {
             if (!LocalPlayer || Paused || ResultShown) return;
@@ -798,7 +738,6 @@ namespace Wreckabulary
             SyncComposer();
         }
 
-        /// <summary>Shows the composer while the local player is spelling, and tells the input who has the keyboard.</summary>
         void SyncComposer()
         {
             if (!craftRoot) return;
@@ -809,13 +748,11 @@ namespace Wreckabulary
             if (open && !composerOpen)
             {
                 composerText = ""; composerError = null; caretAt = Time.unscaledTime; openedFrame = Time.frameCount;
-                // A button clicked earlier keeps the keyboard's Enter; the composer takes it back.
                 if (typed) ClearFocus();
             }
             composerOpen = open;
             if (craftRoot.activeSelf != open) craftRoot.SetActive(open);
-            DesktopBinding.Typing = open && typed;
-            // A touch SPELL press that the summoner never took (or one it finished) lets go.
+            DesktopBinding.Typing = (open && typed) || composerReleaseWait;
             if (summoner && !summoner.IsSpelling && !summoner.IsCrafting && TouchBinding.Shared.CraftOpen && !TouchBinding.Shared.CraftPressPending)
                 TouchBinding.Shared.SetCraftOpen(false);
         }
@@ -829,7 +766,6 @@ namespace Wreckabulary
             composerError = null; caretAt = Time.unscaledTime;
         }
 
-        /// <summary>Replaces the composer's word, keeping only letters, as the web's input does.</summary>
         public void TypeWord(string word)
         {
             sb.Clear();
@@ -854,13 +790,31 @@ namespace Wreckabulary
             if (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame) SubmitComposer();
         }
 
+        void CloseComposerOnKeys()
+        {
+            var keyboard = Keyboard.current;
+            var mouse = Mouse.current;
+            if (composerReleaseWait)
+            {
+                bool held = (keyboard != null && keyboard.tabKey.isPressed) || (mouse != null && mouse.rightButton.isPressed);
+                if (!held) composerReleaseWait = false;
+                return;
+            }
+            if (!composerOpen || !TypedMode || Paused || BagOpen) return;
+            bool tab = keyboard != null && keyboard.tabKey.wasPressedThisFrame;
+            bool right = mouse != null && mouse.rightButton.wasPressedThisFrame;
+            if (!tab && !right) return;
+            composerReleaseWait = true;
+            DesktopBinding.Typing = true;
+            CancelCraft();
+        }
+
         void SpellNow()
         {
             if (TypedMode) SubmitComposer();
             else ConfirmCraft();
         }
 
-        /// <summary>The recipe for a word if it's one the catalogue has turned on.</summary>
         WordEntry EnabledRecipe(string word)
         {
             if (!LocalPlayer || string.IsNullOrEmpty(word)) return null;
@@ -868,7 +822,6 @@ namespace Wreckabulary
             return recipe != null && GameConfig.Current.Items.TryGet(recipe.word, out var item) && item.Enabled ? recipe : null;
         }
 
-        /// <summary>The web's letterCover: each letter in the bag covers one tile, left to right; the rest are missing.</summary>
         string MissingLetters(string word)
         {
             spare.Clear(); spare.AddRange(LocalPlayer.Inventory.Letters);
@@ -883,7 +836,6 @@ namespace Wreckabulary
 
         static string Spread(string letters) => string.Join(" ", letters.ToCharArray());
 
-        /// <summary>Spells the typed word, or says why not (the web's craft errors, in its order) and shakes.</summary>
         public void SubmitComposer()
         {
             if (!LocalPlayer || !composerOpen) return;
@@ -910,14 +862,13 @@ namespace Wreckabulary
             shakeAt = Time.unscaledTime;
         }
 
-        /// <summary>The live line under the typed word (the web's updateComposer): 0 neutral, 1 ready, 2 a problem.</summary>
         string TypedStatus(out int state)
         {
             state = 2;
             if (composerError != null) return composerError;
             string word = composerText;
             state = 0;
-            if (word.Length == 0) return "Type a word you can make from your letters.";
+            if (word.Length == 0) return "Type a word you can make from your letters. Tab or right-click closes.";
             var player = LocalPlayer;
             var recipe = EnabledRecipe(word);
             state = 2;
@@ -935,7 +886,6 @@ namespace Wreckabulary
             return "That isn't a recipe. Check the book with " + ControlHints.KeyOf(DesktopBinding.Shared.Bag) + ".";
         }
 
-        /// <summary>Redraws the open composer every frame, so typing shows at once.</summary>
         void RefreshComposer()
         {
             if (!composerOpen || !LocalPlayer) return;
@@ -975,7 +925,6 @@ namespace Wreckabulary
             buildButton.interactable = typed || summoner.SelectedWord != null;
             string caption = typed ? "SPELL\n<size=62%><alpha=#99>ENTER</size>" : "SPELL";
             if (buildLabel.text != caption) buildLabel.text = caption;
-            // The web's shake for a word that can't be spelled: 240 ms either side of the middle.
             float shake = (Time.unscaledTime - shakeAt) / .24f;
             float x = shake < 1f ? Mathf.Sin(shake * Mathf.PI * 6f) * 8.75f * (1f - shake) : 0f;
             composer.anchoredPosition = new Vector2(x, composer.anchoredPosition.y);
@@ -1002,7 +951,6 @@ namespace Wreckabulary
                 if (got) spare.RemoveAt(at);
                 tile.root.anchoredPosition = new Vector2(x0 + (i * (width + gap) + width * .5f) * scale, 0f);
                 tile.root.sizeDelta = new Vector2(width, height) * scale;
-                // The web tips every third tile one way and the next the other (CSS degrees run clockwise).
                 tile.root.localRotation = Quaternion.Euler(0f, 0f, i % 3 == 2 ? 3f : i % 3 == 0 ? -2f : 0f);
                 tile.face.color = got ? Tile : MissingFill;
                 tile.edge.color = got ? TileLine : MissingEdge;
@@ -1016,8 +964,6 @@ namespace Wreckabulary
             if (caret.gameObject.activeSelf != blink) caret.gameObject.SetActive(blink);
             caret.anchoredPosition = new Vector2(x0 + (count > 0 ? run * scale + 6f : 0f), 0f);
         }
-
-        // ---- Every frame ----
 
         void UpdateCards()
         {
@@ -1050,7 +996,6 @@ namespace Wreckabulary
             ReadComposerKeys();
         }
 
-        /// <summary>Cards narrower than the screen keep their width; on a narrow one they shrink to fit it.</summary>
         void FitCards()
         {
             if (!safe) return;

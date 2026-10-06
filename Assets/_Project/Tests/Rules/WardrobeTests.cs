@@ -3,7 +3,6 @@ using NUnit.Framework;
 
 namespace Wreckabulary.Rules.Tests
 {
-    /// <summary>The shared avatar's wardrobe (brief §3): only combinations that fit.</summary>
     [TestFixture]
     public class WardrobeTests
     {

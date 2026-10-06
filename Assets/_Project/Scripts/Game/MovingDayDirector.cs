@@ -20,7 +20,6 @@ namespace Wreckabulary
         {
             public string name;
             public Vector2 xRange, zRange;
-            /// <summary>The room's floor, and the floor of the storey above (unbounded on the top storey).</summary>
             public float floorY, ceilingY = float.PositiveInfinity;
             public bool Contains(Vector3 p) => p.x >= xRange.x && p.x <= xRange.y && p.z >= zRange.x && p.z <= zRange.y
                 && p.y > floorY - 1f && p.y < ceilingY - 0.5f;
@@ -98,7 +97,6 @@ namespace Wreckabulary
             if (!deliverySpot) deliverySpot = new GameObject("Delivery spot").transform;
             var deliveryRoom = house.Room(house.ExtractionRoom);
             deliverySpot.position = new Vector3(house.ExtractionX, deliveryRoom.FloorY, house.ExtractionZ);
-            // Boxes drop from 2.5 m, or a metre under the floor above, so none starts inside the ceiling and gets shoved out of it.
             int deliveryStorey = house.StoreyOf(deliveryRoom);
             deliveryDrop = deliveryStorey + 1 < floors.Count ? Mathf.Min(2.5f, floors[deliveryStorey + 1] - .24f - 1f - deliveryRoom.FloorY) : 2.5f;
             joins.RespawnKnockedOut = true;
@@ -112,7 +110,6 @@ namespace Wreckabulary
             p.Health.ResetForRound();
             var objectives = new HashSet<string>(checklistWords.Select(w => w.word));
             p.Summoner.ChecklistPlacementWords = objectives;
-            // Checklist IDs build plain furniture; the other enabled recipes remain usable tools.
             p.Summoner.WordsOverride = checklistWords.Concat(GameAssets.I.words.Words.Where(w => !objectives.Contains(w.word))).ToList();
             p.Inventory.Set("");
             p.Frozen = Current != State.Playing;
@@ -184,7 +181,6 @@ namespace Wreckabulary
 
                 case State.Complete:
                 case State.OutOfTime:
-                    // The result card waits for PLAY AGAIN; a start key works too, after a beat.
                     if (hud.ResultShown && t > 1.6f && joins.AnyStartPressed()) hud.ConfirmResult();
                     break;
             }
@@ -265,7 +261,7 @@ namespace Wreckabulary
                 {
                     if (WordSolver.CanSpell(WordSolver.Count(letters), word))
                     {
-                        foreach (char c in word) letters.Remove(c); // reserve each recipe once across duplicate objectives
+                        foreach (char c in word) letters.Remove(c);
                         continue;
                     }
                     Deliver(word);
@@ -281,7 +277,6 @@ namespace Wreckabulary
                 var room = rooms[UnityEngine.Random.Range(0, rooms.Length)];
                 var at = new Vector3(UnityEngine.Random.Range(room.xRange.x + 2f, room.xRange.y - 2f), room.floorY + 0.012f,
                                      UnityEngine.Random.Range(room.zRange.x + 2f, room.zRange.y - 2f));
-                // Not on the stairs or over their opening; the next spill comes along soon enough.
                 if (layoutBuilder && layoutBuilder.Layout.Stairs.Any(s => s.Covers(at.x, at.z))) return;
                 var puddle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 Destroy(puddle.GetComponent<Collider>());

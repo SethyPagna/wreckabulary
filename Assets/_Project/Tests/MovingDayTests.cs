@@ -85,7 +85,7 @@ namespace Wreckabulary.Tests
         public IEnumerator CancellingAToolRefundsItsLettersAndSpentSoapCannotStrandTheChecklist()
         {
             yield return UntilPlaying();
-            director.StopAllCoroutines(); // Isolate recovery from the initial scheduled deliveries.
+            director.StopAllCoroutines();
             foreach (var supply in Object.FindObjectsByType<Smashable>()) Object.Destroy(supply.gameObject);
             yield return null;
             var p = joins.Players[0];

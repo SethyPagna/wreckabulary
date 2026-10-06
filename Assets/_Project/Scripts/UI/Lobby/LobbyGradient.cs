@@ -3,9 +3,6 @@ using UnityEngine.UI;
 
 namespace Wreckabulary
 {
-    /// <summary>A two-stop gradient across a graphic, top to bottom or left to right. It multiplies the
-    /// vertex colour, so the graphic's own colour stays white. Add it before Shadow, or the shadow
-    /// takes the gradient too.</summary>
     [RequireComponent(typeof(Graphic))]
     public sealed class LobbyGradient : BaseMeshEffect
     {
@@ -26,7 +23,6 @@ namespace Wreckabulary
             for (int i = 0; i < mesh.currentVertCount; i++)
             {
                 mesh.PopulateUIVertex(ref vertex, i);
-                // From is the top (or left) edge.
                 float t = Horizontal
                     ? Mathf.InverseLerp(rect.xMin, rect.xMax, vertex.position.x)
                     : Mathf.InverseLerp(rect.yMax, rect.yMin, vertex.position.y);

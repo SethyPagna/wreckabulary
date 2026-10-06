@@ -7,7 +7,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>Integration invariants between catalogue data, crafting, physical gear and loot.</summary>
     public class CatalogueRuntimeTests
     {
         [UnitySetUp]
@@ -180,7 +179,7 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(player.Summoner.Summon("BLADE"));
             var blade = player.Combat.Weapon;
             Assert.AreSame(bat, player.Combat.StoredGear);
-            player.Inventory.Set("PLATE"); // the 10-letter bag can't hold all three recipes at once
+            player.Inventory.Set("PLATE");
             Assert.IsFalse(player.Summoner.Summon("PLATE"));
             Assert.AreEqual(Sorted("PLATE"), Sorted(player.Inventory.Letters));
             Assert.IsTrue(player.Combat.SwitchGear());

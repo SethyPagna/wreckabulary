@@ -13,9 +13,6 @@ namespace Wreckabulary
         float damage, knockback, breakPower, blastRadius;
         bool spent;
 
-        /// <param name="damage">Player damage (HP).</param>
-        /// <param name="knockback">In shove units, like rules.json.</param>
-        /// <param name="breakPower">What it does to furniture.</param>
         public static Projectile Fire(string word, Vector3 from, Vector3 velocity, PlayerController owner,
                                       float damage, float knockback, float breakPower, float blastRadius)
         {
@@ -98,11 +95,6 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>
-        /// A floor (or ceiling, or the underside of stairs) between the blast and a target shields it; walls don't.
-        /// Cast from the target, so a bomb lying on a floor, even sunk a hair into it, still has that floor between it
-        /// and anyone below, and only floors clearly between the two heights count, not the one it's lying on.
-        /// </summary>
         static bool FloorBetween(Vector3 from, Vector3 to)
         {
             var path = from - to;

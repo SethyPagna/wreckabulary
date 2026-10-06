@@ -1,7 +1,5 @@
 import * as THREE from "three";
 
-// Original, deterministic canvas patterns. No supplied image is sampled or edited.
-// Keep contrast low: material detail should support the silhouette at game distance.
 const SURFACES = {
   wood: { size: 256, roughness: 0.76, normal: 0.18 },
   planks: { size: 512, roughness: 0.79, normal: 0.23 },
@@ -59,7 +57,6 @@ function seededRandom(seed) {
   };
 }
 
-// Periodic value noise avoids a hard line when a pattern is repeated on a floor.
 function noiseGrid(resolution, random) {
   const grid = Float32Array.from({ length: resolution * resolution }, () =>
     random(),
@@ -111,7 +108,6 @@ function pattern(kind, aspect = 1) {
       let rough = 0.96;
 
       if (kind === "wood" || kind === "planks") {
-        // Long grain on furniture; staggered joins only on architectural planks.
         const drift = Math.sin(u * twoPi * 2) * 0.13;
         const streak = Math.sin((v * 46 + drift + broad(u, v) * 0.55) * twoPi);
         const pores = Math.pow(Math.max(0, streak), 6);
@@ -140,7 +136,6 @@ function pattern(kind, aspect = 1) {
         height = 0.5 + woven * 0.052 + small * 0.016;
         rough = 0.972 + small * 0.023;
         if (kind === "rug") {
-          // A constant physical border width on rectangular rugs; UVs remain 0..1.
           const edge = Math.min(u * aspect, (1 - u) * aspect, v, 1 - v);
           const band = 1 - smoothstep(0.039, 0.058, edge);
           const piping = Math.exp(-Math.pow((edge - 0.055) / 0.005, 2));
@@ -151,7 +146,6 @@ function pattern(kind, aspect = 1) {
           shade -= band * 0.065;
           shade += stitch * 0.045 - piping * 0.024;
           height += piping * 0.05 + stitch * 0.035;
-          // An almost invisible tonal stripe makes a broad rug read as a textile.
           shade -= Math.pow(Math.max(0, Math.cos(v * twoPi * 6)), 12) * 0.008;
         }
       } else if (kind === "leather") {
@@ -159,7 +153,6 @@ function pattern(kind, aspect = 1) {
         height = 0.5 + middle * 0.062 + small * 0.042;
         rough = 0.948 + middle * 0.058;
       } else if (kind === "ceramic" || kind === "vinyl" || kind === "painted") {
-        // Fine orange peel under a smooth glaze, without dark speckle or dirt.
         shade = 0.991 + large * 0.005;
         height = 0.5 + small * (kind === "ceramic" ? 0.012 : 0.019);
         rough = 0.962 + middle * 0.045 + small * 0.018;
@@ -175,7 +168,6 @@ function pattern(kind, aspect = 1) {
         height = 0.5 + blades * 0.05 + small * 0.027;
         rough = 0.979 + small * 0.02;
       } else {
-        // Troweled plaster: broad, pale variation with very small aggregate.
         shade = 0.984 + large * 0.016 + small * 0.006;
         height = 0.5 + large * 0.033 + small * 0.029;
         rough = 0.968 + middle * 0.033;
@@ -187,13 +179,11 @@ function pattern(kind, aspect = 1) {
       const tone = Math.round(clamp(shade, 0, 1) * 255);
       color.pixels.data.set([tone, tone, tone, 255], offset);
       const roughTone = Math.round(clamp(rough, 0, 1) * 255);
-      // MeshStandardMaterial reads the green channel for roughness.
       roughness.pixels.data.set([roughTone, roughTone, roughTone, 255], offset);
     }
   }
 
   const at = (x, y) => {
-    // A rug has a sewn outer boundary, while all other textures repeat seamlessly.
     if (kind === "rug")
       return heights[clamp(y, 0, size - 1) * size + clamp(x, 0, size - 1)];
     return heights[((y + size) % size) * size + ((x + size) % size)];
@@ -236,7 +226,6 @@ function repetition(value) {
 
 function classifiedKind(source) {
   const name = String(source.name ?? "").toLowerCase();
-  // Preserve authored eyes, face, luminous details, glass, and actual metals.
   if (
     /eyes?|iris|pupil|face|mouth|teeth|glow|emissi|glass|water|soap|leaf/.test(
       name,
@@ -260,14 +249,9 @@ function classifiedKind(source) {
   if (/vinyl/.test(name)) return "vinyl";
   if (/plaster|wall(?:_|$)/.test(name)) return "plaster";
   if (/painted|enamel/.test(name)) return "painted";
-  // Generic colour labels are not enough evidence to infer a physical surface.
   return null;
 }
 
-/**
- * Shared material owner for one WorldView. Reuse through map changes and call
- * dispose() only from WorldView.dispose(), never while clearing a room.
- */
 export class MaterialPalette {
   constructor(renderer) {
     this.anisotropy = Math.max(
@@ -320,11 +304,9 @@ export class MaterialPalette {
     return material;
   }
 
-  /** Cached PBR surface, using a neutral original base pattern tinted by color. */
   surface(kind, color = 0xffffff, { repeatX = 1, repeatY = 1 } = {}) {
     this.assertLive();
     kind = canonicalKind(kind);
-    // Use rug() when a sewn, nonrepeating textile border is wanted.
     if (kind === "rug") return this.rug(color, 1);
     repeatX = repetition(repeatX);
     repeatY = repetition(repeatY);
@@ -352,7 +334,6 @@ export class MaterialPalette {
     return material;
   }
 
-  /** One continuous top-facing UV region gives a thin box a sewn textile edge. */
   rug(color = 0xffffff, aspect = 1) {
     this.assertLive();
     aspect = Number.isFinite(Number(aspect))
@@ -382,11 +363,6 @@ export class MaterialPalette {
     return material;
   }
 
-  /**
-   * Clone once per source/key. Authored maps, scalar values, colour, emissive,
-   * metalness and UV transforms stay unchanged. Only empty detail channels on a
-   * confidently named PBR surface get the neutral original normal/roughness maps.
-   */
   enrichMaterial(source, key = "") {
     this.assertLive();
     if (!source?.isMaterial) return source;
@@ -427,7 +403,6 @@ export class MaterialPalette {
     if (this.disposed) return;
     this.disposed = true;
     for (const material of this.materials) material.dispose();
-    // Imported source textures are deliberately absent from this owned set.
     for (const texture of this.generatedTextures) texture.dispose();
     this.materials.clear();
     this.generatedTextures.clear();

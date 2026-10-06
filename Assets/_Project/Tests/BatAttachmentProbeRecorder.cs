@@ -189,7 +189,6 @@ namespace Wreckabulary.Tests
                 { leftCandidates.Add(i); idleLeftSoleY = Mathf.Min(idleLeftSoleY, world.y); }
                 else { rightCandidates.Add(i); idleRightSoleY = Mathf.Min(idleRightSoleY, world.y); }
             }
-            // Retain the same native vertex indices; never select a new minimum region from a later pose.
             foreach (int index in leftCandidates)
                 if (boots.transform.TransformPoint(bootVertices[index]).y <= idleLeftSoleY + .002f) leftSoleIndices.Add(index);
             foreach (int index in rightCandidates)

@@ -14,7 +14,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>The PC lobby on the hub: the map behind you, one page at a time, and PLAY → GO into a match.</summary>
     public class LobbyTests
     {
         static readonly string[] Keys = new[] { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey }
@@ -31,7 +30,6 @@ namespace Wreckabulary.Tests
         [UnitySetUp]
         public IEnumerator SetUp()
         {
-            // The lobby saves into the real prefs; keep the player's own and start each test fresh.
             saved = Keys.Select(k => PlayerPrefs.HasKey(k) ? PlayerPrefs.GetString(k) : null).ToArray();
             hadVolume = PlayerPrefs.HasKey(LobbyMenu.VolumeKey);
             savedVolume = PlayerPrefs.GetFloat(LobbyMenu.VolumeKey, 1f);
@@ -86,7 +84,6 @@ namespace Wreckabulary.Tests
             Canvas.ForceUpdateCanvases();
         }
 
-        /// <summary>A button on screen now; hidden pages and cleared controls don't count.</summary>
         static Button Find(string name)
         {
             var button = LobbyMenu.Instance.GetComponentsInChildren<Button>().FirstOrDefault(b => b.name == name);
@@ -110,7 +107,6 @@ namespace Wreckabulary.Tests
         static Transform Backdrop(LobbyStage stage) =>
             stage.GetComponentsInChildren<Transform>().FirstOrDefault(t => t.name.StartsWith("Lobby backdrop"));
 
-        /// <summary>Across the floor, ignoring height.</summary>
         static float DistanceToSegment(Vector3 point, Vector3 from, Vector3 to)
         {
             Vector2 p = new Vector2(point.x, point.z), a = new Vector2(from.x, from.z), b = new Vector2(to.x, to.z);
@@ -127,7 +123,6 @@ namespace Wreckabulary.Tests
 
         static GameObject Selected => EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
 
-        /// <summary>Every label under a page fits in its box: none ends in an ellipsis.</summary>
         static void AssertNoEllipsis(Transform root, string where)
         {
             Canvas.ForceUpdateCanvases();
@@ -138,7 +133,6 @@ namespace Wreckabulary.Tests
             }
         }
 
-        /// <summary>A pad press that the lobby reads on the next frame, as from a real controller.</summary>
         IEnumerator Press(GamepadButton button)
         {
             if (pad == null) pad = InputSystem.AddDevice<Gamepad>();
@@ -148,13 +142,10 @@ namespace Wreckabulary.Tests
             yield return null;
         }
 
-        /// <summary>A key press that the lobby reads on the next frame.</summary>
         IEnumerator Tap(Key key)
         {
             if (keys == null)
             {
-                // In the editor, keys reach play mode only while the Game view has focus, and a batch run has
-                // none: the Input System lets them through regardless only with both of these set.
                 keysRoute = InputSystem.settings.editorInputBehaviorInPlayMode;
                 keysFocus = InputSystem.settings.backgroundBehavior;
                 InputSystem.settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
@@ -168,7 +159,6 @@ namespace Wreckabulary.Tests
             yield return null;
         }
 
-        /// <summary>A left click that starts and ends on this object, as the event system sends it.</summary>
         static void ClickOn(GameObject target)
         {
             var e = new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left };
@@ -197,14 +187,12 @@ namespace Wreckabulary.Tests
             Assert.AreSame(Camera.main, stage.Camera);
             Assert.IsFalse(stage.Camera.orthographic);
             AssertFramed(stage, "the camera looks at you");
-            // No stage: no rug lies on the floor between the camera and you.
             var eye = stage.Camera.transform.position;
             foreach (var rug in Backdrop(stage).GetComponentsInChildren<Transform>().Where(t => t.name is "RUG" or "Rug" || t.name.EndsWith("_Rug")))
                 Assert.Greater(DistanceToSegment(rug.position, eye, stage.Spot), 2f, $"{rug.name} at {rug.position} is clear of the view");
             Assert.IsFalse(Object.FindAnyObjectByType<PlayerJoinManager>().AllowJoining, "clicking the hub no longer joins players");
             Assert.IsEmpty(Object.FindAnyObjectByType<PlayerJoinManager>().Players, "bots never stand in the lobby");
 
-            // The showroom: a dusk sky behind the map, the lobby grade over the default look, and lights on you.
             var sky = stage.GetComponentsInChildren<Canvas>().Single(c => c.name == "Lobby sky");
             Assert.AreEqual(RenderMode.ScreenSpaceCamera, sky.renderMode, "drawn in the world pass, behind the room");
             Assert.AreSame(stage.Camera, sky.worldCamera);
@@ -234,7 +222,6 @@ namespace Wreckabulary.Tests
             Assert.Greater(ScreenX(Find("CAREER")), ScreenX(Find("PLAY")));
             foreach (var left in new[] { "Home", "Settings", "Quit", "Leaderboard", "Shop" })
                 Assert.Less(ScreenX(Find(left)), ScreenX(Find("LOADOUT")), $"{left} is on the left");
-            // The web's two segmented pills: home, settings and quit together, then the leaderboard and the shop.
             Assert.AreSame(Find("Home").transform.parent, Find("Quit").transform.parent, "home, settings and quit share a pill");
             Assert.AreSame(Find("Leaderboard").transform.parent, Find("Shop").transform.parent, "the leaderboard and shop share one");
             Assert.AreNotSame(Find("Home").transform.parent, Find("Shop").transform.parent);
@@ -249,7 +236,6 @@ namespace Wreckabulary.Tests
             foreach (var name in new[] { "Top scrim", "Right scrim", "Bottom scrim" })
                 Assert.IsFalse(menu.GetComponentsInChildren<Image>(true).Single(i => i.name == name).raycastTarget, $"the {name} never takes clicks");
             Assert.Greater(LobbyKit.WebAlpha(.9f), .99f, "the web's 90% navy, as it looks in linear blending");
-            // A click on the Home cell lands on Home, through the scrim drawn over the map.
             var home = (RectTransform)Find("Home").transform;
             var hits = new System.Collections.Generic.List<RaycastResult>();
             EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = home.TransformPoint(home.rect.center) }, hits);
@@ -429,7 +415,6 @@ namespace Wreckabulary.Tests
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
-            // Not the tab row, which is also called Pages.
             var host = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Pages" && r.parent.name == "Safe area");
             var feed = menu.GetComponentsInChildren<RectTransform>(true).Single(r => r.name == "Messages");
             foreach (var (button, page) in new[]
@@ -446,7 +431,6 @@ namespace Wreckabulary.Tests
                 Assert.AreEqual(page == LobbyMenu.Home, feed.gameObject.activeSelf, "lobby messages show beside Home only");
             }
 
-            // The loadout slides you to the left so the panel can fill the right.
             Click("LOADOUT");
             yield return new WaitForSeconds(1f);
             Assert.Less(menu.Stage.Camera.WorldToViewportPoint(menu.Stage.Spot).x, .42f, "you stand left of the loadout panel");
@@ -458,7 +442,6 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator BarButtonsToggleTheirPage()
         {
-            // "clicking to open and clicking to close" (user, 6 Oct 2026).
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
             foreach (var (button, page) in new[]
@@ -502,7 +485,6 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(LobbyMenu.Home, menu.Current, "Esc closes the page");
             Assert.AreSame(Find("LOADOUT").gameObject, Selected);
 
-            // Centred pages close on a click beside their panel; a click on the panel doesn't.
             Click("Settings");
             yield return null;
             var shade = menu.GetComponentsInChildren<LobbyShade>().Single(s => s.name == "Shade");
@@ -709,7 +691,6 @@ namespace Wreckabulary.Tests
             yield return TestScenes.Load(Session.DibsScene);
             Assert.IsTrue(Camera.main.GetUniversalAdditionalCameraData().renderPostProcessing, "match cameras post-process too");
 
-            // The web's lights: its sun over the camera's left shoulder, a cool shadowless fill, a warm-sky/teal-ground ambient.
             var lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None).Where(l => l.type == LightType.Directional).ToList();
             var sun = lights.Single(l => l.name == "Sun");
             Assert.AreEqual(2.85f / Mathf.PI, sun.intensity, 1e-3f, "the web's sun 2.85 in Unity's units");
@@ -727,7 +708,6 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator FixedRowsKeepTheirHeight()
         {
-            // Rows report themselves flexible, so a sized row must not swallow its column's spare room.
             yield return OpenLobby();
             Click("Party");
             yield return null;
@@ -749,7 +729,6 @@ namespace Wreckabulary.Tests
             var menu = LobbyMenu.Instance;
             var stage = menu.Stage;
 
-            // The middle of the home screen is open: a press there lands on the turn area, not a panel.
             var hits = new System.Collections.Generic.List<RaycastResult>();
             EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = new Vector2(Screen.width * .5f, Screen.height * .55f) }, hits);
             Assert.IsNotEmpty(hits);
@@ -805,7 +784,6 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(1, joins.HumanCount, "you came along");
             Assert.AreEqual(4, joins.Players.Count, "bots fill the practice seats");
 
-            // Home again, GO starts the same thing.
             Assert.IsTrue(Session.GoHome());
             yield return TestScenes.WaitForActive(Session.HubScene);
             yield return null;
@@ -887,7 +865,6 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator AControllerCanCancelAndStepBack()
         {
-            // Long enough that slow frames can't start the match before B.
             LobbyMenu.StartDelay = 5f;
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
@@ -1014,7 +991,6 @@ namespace Wreckabulary.Tests
             var loadout = menu.Page<LoadoutPage>();
             var panel = loadout.Root.GetComponentsInChildren<RectTransform>().First(r => r.name == "Panel");
             Assert.AreEqual(LoadoutPage.Width, panel.rect.width, 1f, "the web's narrow locker, not the career page's width");
-            // What you wear, each worn part's colour, the extras, the gear style and the confirm, all at once.
             foreach (string name in new[] { "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear", "Part Top", "Part Bottoms", "Colour tomato",
                 "Extra Face", "Extra Back", "Extra Badge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
                 Find(name);

@@ -7,7 +7,6 @@ using Debug = UnityEngine.Debug;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>The web's room surfaces made in code: shared, textured in metres and facing the right way.</summary>
     public class SurfacesTests
     {
         [Test]
@@ -37,7 +36,6 @@ namespace Wreckabulary.Tests
         [Test]
         public void PatternsAreTheSameEverySession()
         {
-            // Made from the web's seeds, so the same floor looks the same wherever it's drawn.
             var planks = (Texture2D)Surfaces.Get(Surfaces.Kind.Planks, Color.white).mainTexture;
             Assert.IsFalse(planks.isReadable, "the pixels are let go once they're on the GPU");
             Assert.Greater(Surfaces.TextureCount, 0);
@@ -52,7 +50,6 @@ namespace Wreckabulary.Tests
             var right = Surfaces.Box(size, tile, new Vector3(2f, -.12f, 0f));
             Assert.AreSame(left, Surfaces.Box(size, tile, new Vector3(-2f, -.12f, 0f)), "the same box is made once");
 
-            // Where the two floors meet (x = 0) their tops carry the same coordinates, so the planks run on.
             Vector2 TopAt(Mesh mesh, float localX, float localZ)
             {
                 var v = mesh.vertices; var n = mesh.normals; var uv = mesh.uv;
@@ -67,7 +64,6 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(1f / 1.2f, TopAt(left, .5f, .5f).y, 1e-5f, "a metre north is a metre of pattern");
             Assert.AreEqual(1f, TopAt(right, .5f, .5f).x - TopAt(right, -.5f, .5f).x, 1e-5f, "4 m of floor, one repeat");
 
-            // A rug is textured from its corner, once edge to edge.
             var rug = Surfaces.Box(new Vector3(3f, .008f, 2f), new Vector2(3f, 2f));
             Assert.AreEqual(Vector2.zero, TopAt(rug, -.5f, -.5f));
             Assert.AreEqual(Vector2.one, TopAt(rug, .5f, .5f));
@@ -82,12 +78,10 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(24, mesh.tangents.Length, "tangents for the normal map");
             for (int i = 0; i < t.Length; i += 3)
             {
-                // Unity draws clockwise faces: the winding's normal must match the stored one.
                 var face = Vector3.Cross(v[t[i + 1]] - v[t[i]], v[t[i + 2]] - v[t[i]]).normalized;
                 Assert.Greater(Vector3.Dot(face, n[t[i]]), .99f, $"triangle {i / 3} faces {face}, not {n[t[i]]}");
                 Assert.Greater(Vector3.Dot(v[t[i]], n[t[i]]), .49f, "and sits on the side it faces");
             }
-            // Wood grain runs along a box's length on its top: here z is the long side.
             var uv = mesh.uv;
             var top = Enumerable.Range(0, v.Length).Where(i => n[i] == Vector3.up).ToArray();
             Assert.AreEqual(3f, top.Max(i => uv[i].x) - top.Min(i => uv[i].x), 1e-5f);

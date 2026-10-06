@@ -14,13 +14,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// The PC lobby, laid out like a shooter's front end (user, 6 Oct 2026): your avatar standing
-    /// in the selected map under dark edge scrims, two segmented icon pills top left (home, settings,
-    /// quit; leaderboard, shop), the LOADOUT · PLAY · CAREER tabs in the middle, coins and the party
-    /// chip top right (the party opens under it), lobby notices top left, and the match dock with GO
-    /// bottom right. One page shows at a time; LB and RB step through them.
-    /// </summary>
     public sealed class LobbyMenu : MonoBehaviour
     {
         public const string OutfitKey = "wv.outfit.0";
@@ -29,23 +22,14 @@ namespace Wreckabulary
         public const string Practice = "practice", Matchmaking = "matchmaking", Workshop = "workshop";
         public const string TutorialMode = "Tutorial", WorkshopMode = "Workshop", RoomMode = "Room";
         public const string VolumeKey = "wv.volume", VsyncKey = "wv.vsync";
-        /// <summary>Practice modes, in the order the PLAY page shows them.</summary>
         public static readonly string[] Modes = { "Dibs", "Duos", "MovingOut", "MovingDay" };
-        /// <summary>Seconds between GO and the match loading; tests shorten it.</summary>
         public static float StartDelay = 3f;
-        /// <summary>Seats in a couch party, you included.</summary>
         public const int PartyMax = 4;
         const float BarHeight = 76f, Gutter = 26f, PartyWidth = 380f, FeedWidth = 420f;
-        /// <summary>The canvas is always this tall (it scales with the screen's height), so its units are
-        /// fractions of the screen's height.</summary>
         const float ReferenceHeight = 1080f;
-        /// <summary>Seconds a lobby notice stays up, and its fade at the end.</summary>
         public const float MessageLife = 8f, MessageFade = .4f;
-        /// <summary>Notices showing at once.</summary>
         public const int MessagesShown = 3;
-        /// <summary>Set once you have turned your avatar, which retires the "drag to turn" hint.</summary>
         public const string TurnHintKey = "lobby.turnHint";
-        /// <summary>The pages LB and RB step through: the lobby, the three tabs, then the icons.</summary>
         public static readonly string[] PageOrder = { Home, Loadout, Play, CareerPage, Shop, Trophy, Settings };
 
         public static LobbyMenu Instance { get; private set; }
@@ -59,20 +43,16 @@ namespace Wreckabulary
         public string Current { get; private set; }
         public bool Starting => startAt > 0f;
         public IReadOnlyList<string> Messages => messages;
-        /// <summary>Couch players who joined in the lobby, in seat order after you. They come along on GO.</summary>
         public IReadOnlyList<InputBinding> Party => party;
         public int PartySize => 1 + party.Count;
 
         readonly List<string> messages = new List<string>();
         readonly List<InputBinding> party = new List<InputBinding>();
-        // The left half shares WASD with the keyboard and mouse you play on, so only the right half joins.
         readonly KeyboardBinding keyboardRight = new KeyboardBinding(KeyboardBinding.Side.Right);
         readonly Dictionary<string, LobbyPage> pages = new Dictionary<string, LobbyPage>();
         readonly Dictionary<string, LobbyTab> tabs = new Dictionary<string, LobbyTab>();
-        /// <summary>The bar button that opens each page, where a keyboard or controller lands when it closes.</summary>
         readonly Dictionary<string, Selectable> openers = new Dictionary<string, Selectable>();
         readonly List<PlayerController> frozen = new List<PlayerController>();
-        /// <summary>The notices showing, newest first, with when each went up.</summary>
         readonly List<(CanvasGroup card, float posted)> notices = new List<(CanvasGroup, float)>();
         Canvas canvas;
         RectTransform safe, pageHost, feed, rail, partyList, status, quitDialog;
@@ -81,7 +61,6 @@ namespace Wreckabulary
         LobbyTab partyTab;
         GameObject bottomScrim;
         GameHud hud;
-        /// <summary>The pad that pressed GO, which then plays the match.</summary>
         Gamepad goPad;
         float startAt;
         bool hidden, typedLastFrame;
@@ -93,8 +72,6 @@ namespace Wreckabulary
             SceneManager.sceneLoaded += OnScene;
         }
 
-        /// <summary>Play pressed in the editor with Hub open: this project's Enter Play Mode Options skip
-        /// the scene reload, so the open scene never raises sceneLoaded and the lobby wouldn't appear.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void OpenOnPlay() => OnScene(SceneManager.GetActiveScene(), LoadSceneMode.Single);
 
@@ -117,15 +94,12 @@ namespace Wreckabulary
                 if (wardrobe.Problems(candidate).Count == 0) Outfit = candidate;
             }
             Career = MatchTally.LoadCareer();
-            // Looks picked before the shop existed stay yours.
             if (Career.Keep(Outfit.ItemSkins.Values.FirstOrDefault() ?? "Classic", Outfit.ColourOf("Top") ?? ""))
                 MatchTally.SaveCareer(Career);
             Map = GameConfig.Current.Houses.ContainsKey(Session.MapId) ? Session.MapId : GameConfig.Current.Houses.Keys.First();
-            // Back from a match, GO starts the same thing again.
             Choose(Session.LobbyQueue, Session.LobbyMode);
             AudioListener.volume = Mathf.Clamp01(PlayerPrefs.GetFloat(VolumeKey, 1f));
             if (PlayerPrefs.HasKey(VsyncKey)) QualitySettings.vSyncCount = PlayerPrefs.GetInt(VsyncKey) > 0 ? 1 : 0;
-            // Back from a match, the couch players who came along are still in the party (GO seats you first).
             foreach (var binding in Session.Bindings.Skip(1))
                 if (party.Count < PartyMax - 1 && Couch(binding) && !InParty(binding.Id)) party.Add(binding);
             SuspendHub();
@@ -156,7 +130,6 @@ namespace Wreckabulary
 
         void OnEnable()
         {
-            // Back from the Creative Workshop, which hides the lobby while it is open.
             if (!Stage) return;
             Stage.TakeCamera();
             if (Current != null && pages.TryGetValue(Current, out var page) && page.First && EventSystem.current)
@@ -166,20 +139,16 @@ namespace Wreckabulary
         void OnDestroy()
         {
             if (Instance == this) Instance = null;
-            // The stage gives the camera back to the hub as it goes.
             if (Stage) Destroy(Stage.gameObject);
             ResumeHub();
         }
 
-        /// <summary>Stops the hub's own controls while the lobby is up: no joining by clicking,
-        /// no walking about on keyboard players, and the hub HUD out of the way.</summary>
         void SuspendHub()
         {
             var joins = FindAnyObjectByType<PlayerJoinManager>();
             if (joins)
             {
                 joins.AllowJoining = false;
-                // Only real controls: test players keep moving so the hub can still be tested.
                 foreach (var player in joins.Players)
                     if (player && (player.Binding is DesktopBinding || player.Binding is TouchBinding ||
                         player.Binding is KeyboardBinding || player.Binding is GamepadBinding) && !player.Frozen)
@@ -204,23 +173,18 @@ namespace Wreckabulary
             var scaler = gameObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, ReferenceHeight);
-            // PC first: keep the bar the same height on wide screens and let width grow.
             scaler.matchWidthOrHeight = 1f;
             gameObject.AddComponent<GraphicRaycaster>();
             if (!FindAnyObjectByType<EventSystem>())
             {
                 var system = new GameObject("Menu Event System");
                 system.AddComponent<EventSystem>();
-                // Like the HUD's own: without actions a controller can't move or press anything.
                 system.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
-            // Dark fades along the edges, so the bar, the notices and the dock sit on one dark band each
-            // instead of on the bright map (CS2's front end). They never take clicks.
             LobbyKit.Scrim(transform, "Top scrim", LobbyKit.Edge.Top, 220, .9f, 64);
             LobbyKit.Scrim(transform, "Right scrim", LobbyKit.Edge.Right, 520, .55f);
             bottomScrim = LobbyKit.Scrim(transform, "Bottom scrim", LobbyKit.Edge.Bottom, 300, .6f).gameObject;
             safe = LobbyKit.Rect(transform, "Safe area").Fill();
-            // Behind everything: dragging on the open view turns your avatar.
             var drag = LobbyKit.Rect(safe, "Turn area").Fill();
             drag.Paint(new Color(0, 0, 0, 0));
             var turner = drag.gameObject.AddComponent<LobbyDrag>();
@@ -232,14 +196,11 @@ namespace Wreckabulary
 
         void BuildBar()
         {
-            // No slab of its own: the top scrim darkens the map behind the whole bar.
             var bar = LobbyKit.Rect(safe, "Top bar").Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -BarHeight), Vector2.zero);
             var left = LobbyKit.Row(bar, "System", 12, 0);
             left.Place(new Vector2(0, 0), new Vector2(0, 1), new Vector2(Gutter, 8), new Vector2(600, -8));
             left.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             left.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
-            // The web's two segmented pills: home, settings and quit (red under the pointer), then the
-            // leaderboard and the shop. Click to open, click again to close (user, 6 Oct 2026); Home always goes home.
             var system = LobbyKit.Segment(left, "System pill");
             tabs[Home] = LobbyKit.IconTab(system, LobbyIcons.Home, "Home", () => Open(Home));
             tabs[Settings] = LobbyKit.IconTab(system, LobbyIcons.Settings, "Settings", () => Toggle(Settings));
@@ -248,7 +209,6 @@ namespace Wreckabulary
             tabs[Trophy] = LobbyKit.IconTab(places, LobbyIcons.Trophy, "Leaderboard", () => Toggle(Trophy));
             tabs[Shop] = LobbyKit.IconTab(places, LobbyIcons.Cart, "Shop", () => Toggle(Shop));
 
-            // PLAY sits exactly in the middle of the screen: equal tabs, centred in their row.
             var centre = LobbyKit.Row(bar, "Pages", 14, 0);
             centre.Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(628, BarHeight));
             var row = centre.GetComponent<HorizontalLayoutGroup>();
@@ -258,7 +218,6 @@ namespace Wreckabulary
                 tabs[id] = LobbyKit.Tab(centre, title, icon, () => Toggle(id));
             foreach (var kv in tabs) openers[kv.Key] = kv.Value.Button;
 
-            // Coins, then the party chip, which opens who's on the couch under it. Sound and help live in Settings.
             var wallet = LobbyKit.Row(bar, "Wallet", 12, 0);
             wallet.Place(new Vector2(1, 0), new Vector2(1, 1), new Vector2(-600, 8), new Vector2(-Gutter, -8));
             wallet.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleRight;
@@ -273,13 +232,10 @@ namespace Wreckabulary
             coins = LobbyKit.Display(chip, "0", 26, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Stroke);
             coins.Size(-1, 34);
             partyTab = LobbyKit.Tab(wallet, "Party", LobbyIcons.Party, ToggleParty, 132, 52, 26, 0);
-            // Tighter than a page tab, so "4/4" fits beside the icon.
             partyTab.GetComponentInChildren<HorizontalLayoutGroup>().padding = new RectOffset(16, 18, 0, 0);
             partyCount = partyTab.GetComponentsInChildren<TextMeshProUGUI>(true).First();
         }
 
-        /// <summary>The party panel under the party chip: you, the couch players, how to join. The chip, Esc or B,
-        /// or opening a page closes it.</summary>
         void BuildParty()
         {
             rail = LobbyKit.Column(safe, "Party and friends", 10, 18);
@@ -309,20 +265,17 @@ namespace Wreckabulary
             rail.gameObject.SetActive(false);
         }
 
-        /// <summary>The party chip: opens the party panel under it, or closes it.</summary>
         public void ToggleParty() => ShowParty(!rail.gameObject.activeSelf);
 
         void ShowParty(bool on)
         {
             if (!rail) return;
-            // Who's on the couch belongs to the lobby screen: from a page, the chip goes back there first.
             if (on && Current != Home) Open(Home);
             rail.gameObject.SetActive(on);
             if (partyTab) partyTab.On = on;
             if (on) LobbyPop.On(rail).Play(new Vector2(0, 12));
         }
 
-        /// <summary>The first drag on the open view: you know how to turn now, so the hint goes for good.</summary>
         void Turning()
         {
             if (PlayerPrefs.HasKey(TurnHintKey)) return;
@@ -332,7 +285,6 @@ namespace Wreckabulary
             if (hint) LobbyPop.On(hint).Vanish();
         }
 
-        /// <summary>Redraws the couch players under you, and how to join while a seat is free.</summary>
         void RefreshParty()
         {
             if (!partyList) return;
@@ -364,7 +316,6 @@ namespace Wreckabulary
                 leave.gameObject.AddComponent<LobbyHint>().Text = "Leave the party";
             }
             if (party.Count >= PartyMax - 1) return;
-            // A free seat: an empty slot with a plus, and how to take it.
             var join = LobbyKit.Row(partyList, "Join", 12, 9).Size(-1, 86);
             join.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             join.Paint(LobbyKit.Mist(.06f), 14).raycastTarget = false;
@@ -384,10 +335,8 @@ namespace Wreckabulary
 
         bool InParty(string id) => party.Exists(b => b.Id == id);
 
-        /// <summary>A controller's Start or the keyboard's right half takes the next seat; Select leaves.</summary>
         void PollParty()
         {
-            // Not while a match starts, a dialog is up or someone types a name ("." is a join key).
             if (Starting || quitDialog || Typing) return;
             for (int i = party.Count - 1; i >= 0; i--)
                 if (party[i] is GamepadBinding g && (!g.Pad.added || g.Pad.selectButton.wasPressedThisFrame)) Leave(party[i]);
@@ -409,7 +358,6 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>Seats a couch player in the party.</summary>
         public void Join(InputBinding binding)
         {
             if (binding == null || party.Count >= PartyMax - 1 || InParty(binding.Id)) return;
@@ -430,7 +378,6 @@ namespace Wreckabulary
         void PartyChanged()
         {
             RefreshParty();
-            // Home and PLAY say who plays ("you + 3 bots"); redraw them, keeping a controller where it was.
             if (Current != Home && Current != Play) return;
             var page = pages[Current];
             var selected = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
@@ -445,7 +392,6 @@ namespace Wreckabulary
 
         void BuildFeed()
         {
-            // Top left under the pills, like a shooter's notices: the newest few, each fading after a while.
             feed = LobbyKit.Column(safe, "Messages", 8, 0);
             feed.Pin(new Vector2(0, 1), new Vector2(Gutter, -(BarHeight + 10)), new Vector2(FeedWidth, 0));
             feed.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -453,7 +399,6 @@ namespace Wreckabulary
 
         void BuildStatus()
         {
-            // Just under the PLAY tab, on every page, the way a shooter shows a match being found.
             status = LobbyKit.Rect(safe, "Starting").Pin(new Vector2(.5f, 1), new Vector2(0, -(BarHeight + 12)), new Vector2(560, 88));
             LobbyKit.PanelFace(status, 18, 4, 6).raycastTarget = true;
             LobbyKit.Rect(status, "Accent").Place(Vector2.zero, new Vector2(0, 1), new Vector2(14, 14), new Vector2(24, -14)).Paint(LobbyKit.Sun, 5).raycastTarget = false;
@@ -476,10 +421,8 @@ namespace Wreckabulary
             bool moved = id != Current;
             foreach (var other in pages.Values) other.Root.gameObject.SetActive(other == page);
             Current = id;
-            // A page opens over where the party panel was; the bottom scrim is for Home's dock.
             if (id != Home) ShowParty(false);
             if (bottomScrim) bottomScrim.SetActive(id == Home);
-            // Drops any colour being tried on in the shop.
             Stage.Dress(Outfit);
             if (moved) page.Opened();
             page.Refresh();
@@ -491,34 +434,26 @@ namespace Wreckabulary
             if (EventSystem.current && first) EventSystem.current.SetSelectedGameObject(first.gameObject);
         }
 
-        /// <summary>A bar tab or icon: opens its page, or closes it when it is the page showing.
-        /// Only the bar toggles; the menu's own redraws call <see cref="Open"/>.</summary>
         public void Toggle(string id)
         {
             if (id == Current && id != Home) Close();
             else Open(id);
         }
 
-        /// <summary>Opens the shop on one offer (the locker's coin swatches and gear styles you don't own yet):
-        /// it rings that card and puts a keyboard or controller on what buys it.</summary>
         public void OpenShop(string offerId)
         {
             Open(Shop);
             if (pages[Shop] is ShopPage shop) shop.Spotlight(offerId);
         }
 
-        /// <summary>Opens PLAY on one of its cards (the dock's mode or house), with a keyboard or controller on it.</summary>
         public void OpenPlay(string card)
         {
             if (pages[Play] is PlayPage play) play.Aim = card;
             Open(Play);
         }
 
-        /// <summary>The page of a type, for tests and the pages that open each other.</summary>
         public T Page<T>() where T : LobbyPage => pages.Values.OfType<T>().FirstOrDefault();
 
-        /// <summary>Closes the open page (its X, Esc or B, a second click on its button): back home, with
-        /// a keyboard or controller on the button that opens it rather than on GO.</summary>
         public void Close()
         {
             if (Current == null || Current == Home) return;
@@ -533,7 +468,6 @@ namespace Wreckabulary
             messages.Insert(0, message);
             if (messages.Count > 6) messages.RemoveAt(messages.Count - 1);
             if (!feed) return;
-            // A solid navy notice with a sun mark, newest on top; the oldest goes when a fourth arrives.
             var card = LobbyKit.Rect(feed, "Message");
             card.SetAsFirstSibling();
             card.Paint(LobbyKit.Panel, 10).raycastTarget = false;
@@ -555,7 +489,6 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>Fades each notice out at the end of its life.</summary>
         void AgeNotices()
         {
             for (int i = notices.Count - 1; i >= 0; i--)
@@ -578,7 +511,6 @@ namespace Wreckabulary
             if (name) name.text = Career.Name;
         }
 
-        /// <summary>Wears an outfit, saves it and dresses the avatar in the lobby.</summary>
         public void Wear(Outfit next)
         {
             var problems = GameConfig.Current.Wardrobe.Problems(next);
@@ -598,7 +530,6 @@ namespace Wreckabulary
             RefreshBar();
         }
 
-        /// <summary>Chooses what GO starts. A null argument keeps the current choice.</summary>
         public void Choose(string queue = null, string mode = null, string map = null)
         {
             if (Starting) CancelStart();
@@ -607,7 +538,6 @@ namespace Wreckabulary
             if (Queue == Workshop && Mode != TutorialMode && Mode != WorkshopMode) Mode = TutorialMode;
             if (Queue != Workshop && !Modes.Contains(Mode) && !(Queue == Matchmaking && Mode == RoomMode) && !(Queue == Practice && Mode == TutorialMode))
                 Mode = Modes[0];
-            // The workshop builds homes only in the houses the web edition has too, so it takes you to one.
             if (Mode == WorkshopMode && !HomeDesigner.Supports(map ?? Map)) map = HomeDesigner.Supports(Map) ? null : "pinwheel";
             Session.LobbyQueue = Queue;
             Session.LobbyMode = Mode;
@@ -620,19 +550,15 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>Why GO can't start the current choice, or null when it can.</summary>
         public string Blocked => Queue == Matchmaking
             ? "Matchmaking needs online or LAN play, which isn't built yet. Practice plays every mode with bots."
             : null;
 
-        /// <summary>GO: back to the lobby with a short countdown, like a match being found.</summary>
         public void Go()
         {
             if (Starting) return;
             if (Blocked != null) { Post(Blocked); return; }
-            // Whoever pressed GO plays: a pad's A or Start seats that pad, anything else the keyboard and mouse.
             goPad = Gamepad.all.FirstOrDefault(p => p.buttonSouth.wasPressedThisFrame || p.startButton.wasPressedThisFrame);
-            // A pad in the party that presses GO is you now, not a second seat.
             if (goPad != null)
             {
                 int seat = party.FindIndex(b => b is GamepadBinding g && g.Pad == goPad);
@@ -643,7 +569,6 @@ namespace Wreckabulary
             statusTitle.text = Queue == Workshop ? "OPENING" : "STARTING PRACTICE";
             statusDetail.text = Describe();
             Open(Home);
-            // Home hides GO while a match starts, so a keyboard or controller lands on CANCEL.
             if (EventSystem.current) EventSystem.current.SetSelectedGameObject(cancelButton.gameObject);
             Post("Starting " + Describe() + ".");
             RefreshBar();
@@ -656,12 +581,10 @@ namespace Wreckabulary
             goPad = null;
             status.gameObject.SetActive(false);
             Post("Cancelled.");
-            // Redraws the page with GO back on it and puts a keyboard or controller there.
             if (Current != null) Open(Current);
             RefreshBar();
         }
 
-        /// <summary>"Dibs · Pinwheel House · you + 3 bots" and so on.</summary>
         public string Describe()
         {
             if (Mode == TutorialMode) return "Play & learn · the tutorial room";
@@ -670,7 +593,6 @@ namespace Wreckabulary
             return ModeName(Mode) + " · " + GameConfig.Current.HouseFor(Map).Name + " · " + Seats(Mode, PartySize);
         }
 
-        /// <summary>A mode's name, as the web's posters give it.</summary>
         public static string ModeName(string mode) => mode switch
         {
             "Dibs" => "Dibs!",
@@ -683,8 +605,6 @@ namespace Wreckabulary
             _ => mode,
         };
 
-        /// <summary>Who plays in practice with this many of you on the couch, as the match fills its
-        /// seats: Dibs and Duos fill to four with bots, and Duos teams alternate by seat.</summary>
         public static string Seats(string mode, int humans = 1)
         {
             humans = Mathf.Clamp(humans, 1, PartyMax);
@@ -726,14 +646,12 @@ namespace Wreckabulary
                 statusCount.text = Mathf.CeilToInt(Mathf.Max(0f, left)).ToString();
                 if (left <= 0f) Launch();
             }
-            // LB and RB step through the pages, as on a console front end.
             int step = AnyPad(p => p.rightShoulder) ? 1 : AnyPad(p => p.leftShoulder) ? -1 : 0;
             if (step != 0 && !quitDialog && !Starting && !Typing)
             {
                 int at = Array.IndexOf(PageOrder, Current);
                 Open(PageOrder[(at + step + PageOrder.Length) % PageOrder.Length]);
             }
-            // Esc or a pad's B steps back: out of the quit dialog or the party panel, out of a start, then home.
             var keyboard = Keyboard.current;
             if ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) || AnyPad(p => p.buttonEast))
             {
@@ -744,8 +662,6 @@ namespace Wreckabulary
                     if (EventSystem.current && partyTab) EventSystem.current.SetSelectedGameObject(partyTab.gameObject);
                 }
                 else if (Starting) CancelStart();
-                // Esc in the name field only leaves the field. The field may have let go of it already
-                // this frame, so the frame before counts too.
                 else if (Typing || typedLastFrame) { }
                 else Close();
             }
@@ -764,13 +680,11 @@ namespace Wreckabulary
         {
             startAt = 0f;
             status.gameObject.SetActive(false);
-            // GO hid Home's card and buttons; bring them back whatever happens next.
             Open(Current ?? Home);
             var pad = goPad;
             goPad = null;
             if (Mode == WorkshopMode)
             {
-                // The workshop shows the hub's own camera look; OnEnable takes the camera back when it closes.
                 Stage.Release();
                 if (!Session.OpenWorkshop(Map, out string error)) { Stage.TakeCamera(); Post(error); }
                 RefreshBar();
@@ -781,8 +695,6 @@ namespace Wreckabulary
             else Session.LoadMode(Mode, Map);
         }
 
-        /// <summary>Seats the controls that pressed GO as you, then the couch party in its order; bots
-        /// fill the rest. A different device for you replaces the one you used last time.</summary>
         void Seat(Gamepad pad)
         {
             InputBinding you;
@@ -803,7 +715,6 @@ namespace Wreckabulary
             if (quitDialog) return;
             var shade = quitDialog = LobbyKit.Rect(safe, "Quit dialog").Fill();
             shade.Paint(LobbyKit.Shade);
-            // A click beside the box means stay.
             shade.gameObject.AddComponent<LobbyShade>().Clicked = CloseQuit;
             var box = LobbyKit.Rect(shade, "Box").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(640, 300));
             LobbyKit.PanelFace(box, 28, 5, 8).raycastTarget = true;
@@ -812,19 +723,16 @@ namespace Wreckabulary
             title.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(64, -98), new Vector2(-64, -34));
             var saved = LobbyKit.Text(box, "Your looks, coins and career are saved.", 20, LobbyKit.Muted, TextAlignmentOptions.Center);
             saved.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(30, -138), new Vector2(-30, -104));
-            // The corner X means stay, as a click beside the box does.
             var close = LobbyKit.IconButton(box, LobbyIcons.Close, "Stay", CloseQuit);
             close.name = "Close quit";
             ((RectTransform)close.transform).Pin(Vector2.one, new Vector2(-18, -18), new Vector2(44, 44));
             var quit = LobbyKit.Danger(box, "QUIT GAME", 26, Application.Quit);
             ((RectTransform)quit.transform).Pin(new Vector2(.5f, 0), new Vector2(-140, 36), new Vector2(256, 72));
-            // Staying is the safe choice, so it wears the sun.
             var stay = LobbyKit.Button(box, "STAY", LobbyKit.SunHi, CloseQuit, 14, LobbyKit.Navy, 4, 6, LobbyKit.Sun2);
             var word = LobbyKit.Display(stay.Body(), "STAY", 30, LobbyKit.Navy);
             word.characterSpacing = 3;
             word.rectTransform.Fill();
             ((RectTransform)stay.transform).Pin(new Vector2(.5f, 0), new Vector2(140, 36), new Vector2(256, 72));
-            // A keyboard or controller stays inside the dialog; the shade stops clicks behind it.
             quit.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = stay };
             stay.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = quit, selectOnUp = close };
             close.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnDown = stay };

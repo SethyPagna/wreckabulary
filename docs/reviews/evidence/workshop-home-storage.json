@@ -1,9 +1,0 @@
-{
-  "kind": "Actual HomeStorage and test source, injected filesystem-only .NET host",
-  "passed": 11,
-  "failed": 0,
-  "UnityExecution": "NOT RUN",
-  "platformPersistence": "NOT RUN",
-  "command": "python3 Tools/CloudSetup/verify-home-storage.py",
-  "log": "PASS SavedHomesRoundTripEveryPortableField(pinwheel)\nPASS SavedHomesRoundTripEveryPortableField(courtyard)\nPASS RejectedSaveLeavesPreviousFileExactlyIntact()\nPASS ASecondValidSaveReplacesTheSameMapWithoutChangingTheOtherMap()\nPASS MalformedOrMismatchedFilesNeverReturnAPartialLayout()\nPASS UnsupportedMapCannotEscapeTheStorageDirectory()\nPASS InvalidEditIsAtomicAndDoesNotConsumeUndoOrRedo()\nPASS UndoRedoRestoresExactSnapshotsAndNewEditClearsTheRedoBranch()\nPASS AValidatedDifferentMapCannotReplaceAnExistingHistory()\nPASS AnUnchangedEditDoesNotDiscardTheRedoBranch()\nPASS ExportFileUsesTheValidatedPortableDocument()\nHOME_STORAGE_TESTS passed=11 failed=0 UnityExecution=NOT-RUN\n"
-}

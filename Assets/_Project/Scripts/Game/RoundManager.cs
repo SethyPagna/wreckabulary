@@ -9,7 +9,6 @@ namespace Wreckabulary
 {
     public enum Phase { Lobby, Countdown, Playing, RoundOver, MatchOver }
 
-    /// <summary>Dibs and Duos use tick-end team outcomes, a shared score and clear-out schedule.</summary>
     public class RoundManager : MonoBehaviour
     {
         public static RoundManager Instance { get; private set; }
@@ -86,12 +85,10 @@ namespace Wreckabulary
                     break;
                 case Phase.Playing:
                     hud.SetTimer(FormatTime(TimeLeft));
-                    // The status line only speaks up for the Movers; the objective is in the side column.
                     hud.SetInstruction(clearOut.Message, "");
                     break;
                 case Phase.RoundOver:
                 case Phase.MatchOver:
-                    // The result card waits for NEXT ROUND or PLAY AGAIN; a start key works too, after a beat.
                     if (hud.ResultShown && PhaseTime > 1.6f && joins.AnyStartPressed()) hud.ConfirmResult();
                     break;
             }
@@ -170,7 +167,6 @@ namespace Wreckabulary
             foreach (var p in Players) p.Frozen = true;
             World.FreezeTransient();
             lastWinner = outcome.State == RoundState.Won ? Players.First(p => p.Team == outcome.WinningTeam) : null;
-            // The web's lines: your dibs, anyone else's (or a wipe) is one more chance, and the clock is a messy draw.
             var you = hud.LocalPlayer;
             bool won = lastWinner && you && lastWinner.Team == you.Team;
             bool timeUp = !lastWinner && Match.Rules.RoundTimeLimitSeconds > 0f && TimeLeft <= 0f;

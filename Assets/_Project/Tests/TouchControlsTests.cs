@@ -134,9 +134,7 @@ namespace Wreckabulary.Tests
         [Test]
         public void SwapHasMatchingDesktopAndScriptedEdges()
         {
-            // Left click places and throws, as in the browser edition, so there is no separate place key.
             Assert.IsNull(DesktopBinding.Shared.Map.FindAction("Place"));
-            // Same keys as the browser edition: 1 and 2 pick a hand, Tab peeks at the bag, Esc pauses.
             Assert.AreEqual("<Keyboard>/1", DesktopBinding.Shared.Hand1.bindings[0].path);
             Assert.AreEqual("<Keyboard>/2", DesktopBinding.Shared.Hand2.bindings[0].path);
             Assert.AreEqual("<Keyboard>/tab", DesktopBinding.Shared.Bag.bindings[0].path);

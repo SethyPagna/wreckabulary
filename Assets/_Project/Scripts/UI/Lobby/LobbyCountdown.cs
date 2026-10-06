@@ -4,10 +4,6 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// A real-time countdown for a lobby choice that undoes itself (a new display): it writes the seconds left
-    /// into a label and acts when they run out. It sits on the menu, so it keeps counting with its page closed.
-    /// </summary>
     public sealed class LobbyCountdown : MonoBehaviour
     {
         public float Ends;
@@ -16,7 +12,6 @@ namespace Wreckabulary
         Func<int, string> words;
         int shown = -1;
 
-        /// <summary>Where to write the seconds left, and how. The label may go with its page; the count goes on.</summary>
         public void Show(TextMeshProUGUI target, Func<int, string> say)
         {
             label = target;

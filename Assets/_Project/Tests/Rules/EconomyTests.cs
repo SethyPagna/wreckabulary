@@ -5,7 +5,6 @@ using NUnit.Framework;
 
 namespace Wreckabulary.Rules.Tests
 {
-    /// <summary>Letters and items (brief §5 and §9): nothing is ever lost or duplicated.</summary>
     [TestFixture]
     public class EconomyTests
     {
@@ -316,8 +315,6 @@ namespace Wreckabulary.Rules.Tests
         [Test]
         public void EliminationDropsLettersAsTilesAndGearIntact()
         {
-            // Player 0 holds a BAT and is half-way through a LAMP; player 1 is carrying a chair.
-            // (Carrying furniture and crafting can't overlap: both need your hands.)
             var e = TestData.NewEconomy();
             var bat = TestData.Craft(e, 0, "BAT");
             TestData.GiveLetters(e, 0, "XYZLAMP");
@@ -377,10 +374,6 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual(2, changes);
         }
 
-        /// <summary>
-        /// Thousands of random requests from 4 players, including impossible and out-of-date ones.
-        /// After every one, every letter must be accounted for and no item may be in two places.
-        /// </summary>
         [TestCase(1)]
         [TestCase(2)]
         [TestCase(3)]
@@ -395,8 +388,6 @@ namespace Wreckabulary.Rules.Tests
             double now = 0;
             var counts = new Dictionary<string, int>();
 
-            // How often each action is tried: building up (collect, craft) is weighted above
-            // tearing down (damage, break), so there is always gear around to deploy, throw and use.
             string[] plan =
             {
                 "place", "collect", "collect", "collect", "begin", "begin", "begin", "complete", "complete", "complete",
@@ -407,8 +398,6 @@ namespace Wreckabulary.Rules.Tests
             {
                 now += 0.25;
                 string op = plan[rng.Next(plan.Length)];
-                // Mostly aim at a target the action can work on, sometimes at anything at all,
-                // so both the successes and the refusals get exercised.
                 var items = e.Items.ToList();
                 var fitting = items.Where(i => Fits(e, op, i)).ToList();
                 var item = fitting.Count > 0 && rng.Next(4) > 0 ? fitting[rng.Next(fitting.Count)] : items.Count > 0 ? items[rng.Next(items.Count)] : null;
@@ -423,7 +412,6 @@ namespace Wreckabulary.Rules.Tests
                 var me = e.Player(p);
                 var affordable = recipes.Where(r => me.Letters.Contains(e.Catalogue.Get(r).Letters)).ToList();
                 string recipe = affordable.Count > 0 && rng.Next(4) > 0 ? affordable[rng.Next(affordable.Count)] : recipes[rng.Next(recipes.Length)];
-                // A 10-letter bag clogs quickly, so usable consumables (FOAM) are rare; favour them when affordable.
                 var usableNow = affordable.Where(r => e.Catalogue.Get(r).Consumable && e.Catalogue.Get(r).Use != null).ToList();
                 if (usableNow.Count > 0 && rng.Next(2) == 0) recipe = usableNow[rng.Next(usableNow.Count)];
                 bool ok;
@@ -456,7 +444,7 @@ namespace Wreckabulary.Rules.Tests
                         {
                             op = "eliminate";
                             e.Eliminate(p);
-                            e.Player(p).CanAct = true; // back in for the next round of the test
+                            e.Player(p).CanAct = true;
                             ok = true;
                         }
                         break;
@@ -470,14 +458,12 @@ namespace Wreckabulary.Rules.Tests
                 Assert.GreaterOrEqual(counts.TryGetValue(op, out int n) ? n : 0, 3, $"the fuzz rarely managed a successful {op}, so it isn't testing much ({tally})");
         }
 
-        /// <summary>Usually a letter the player holds (a 10-letter bag needs clearing out), sometimes any letter.</summary>
         static char TossChoice(PlayerInventory me, Random rng)
         {
             string held = me.Letters.ToString();
             return held.Length > 0 && rng.Next(4) > 0 ? held[rng.Next(held.Length)] : (char)('A' + rng.Next(26));
         }
 
-        /// <summary>Whether <paramref name="op"/> in the random-play test has a chance of working on the item.</summary>
         static bool Fits(Economy e, string op, ItemInstance i)
         {
             e.Catalogue.TryGet(i.Word, out var def);

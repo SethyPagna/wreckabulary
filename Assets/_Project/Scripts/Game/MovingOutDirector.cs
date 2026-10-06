@@ -6,7 +6,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Carry the shared map's keepsakes to the van, then get every surviving roommate out.</summary>
     public sealed class MovingOutDirector : MonoBehaviour
     {
         public enum State { Waiting, Countdown, Playing, Complete, Failed }
@@ -64,7 +63,6 @@ namespace Wreckabulary
                     .Where(s => room.Layout.RoomAt(s.transform.position.x, s.transform.position.y, s.transform.position.z) == objective.Room)
                     .OrderBy(s => Vector2.Distance(new Vector2(s.transform.position.x, s.transform.position.z), new Vector2(objective.X, objective.Z)))
                     .First();
-                // Keepsakes can't be accidentally smashed; saving them requires an actual carry and drop.
                 prop.Invulnerable = true;
                 var token = prop.gameObject.AddComponent<Keepsake>();
                 token.Configure(objective.Room);
@@ -105,7 +103,6 @@ namespace Wreckabulary
                     break;
                 case State.Complete:
                 case State.Failed:
-                    // The result card waits for PLAY AGAIN; a start key works too, after a beat.
                     if (hud.ResultShown && Time.time - finishedAt > 1.6f && joins.AnyStartPressed()) hud.ConfirmResult();
                     break;
             }
@@ -137,13 +134,10 @@ namespace Wreckabulary
             else if (PackedCount == KeepsakeCount && survivors.All(p => p.Health.IsAlive && AtVan(p.transform.position))) Finish(true);
         }
 
-        /// <summary>Inside the van circle and on its floor, not on the storey above it.</summary>
-        /// <summary>Beside the van and on its floor: packing and finishing don't reach through a ceiling.</summary>
         public bool AtVan(Vector3 p) => World.Flat(p - extraction).sqrMagnitude <= 2.4f * 2.4f && Mathf.Abs(p.y - extraction.y) < 1.5f;
 
         void Finish(bool won)
         {
-            // The web's lines: everyone aboard, a crew the Movers got, or a van that ran out of time.
             bool wiped = joins.Players.All(p => p.IsEliminated);
             Current = won ? State.Complete : State.Failed;
             finishedAt = Time.time;

@@ -6,7 +6,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>Application-file persistence and history boundaries, independent of native UI interaction.</summary>
     public class HomeStorageTests
     {
         HomeDesigner designer;

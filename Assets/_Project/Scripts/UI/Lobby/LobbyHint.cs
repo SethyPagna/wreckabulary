@@ -4,13 +4,8 @@ using UnityEngine.EventSystems;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// A small label under an icon button: after a short pause under the pointer (so sweeping across the
-    /// bar doesn't flash every name), at once for a keyboard or controller, fading in, sized to its words.
-    /// </summary>
     public sealed class LobbyHint : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, ISelectHandler, IDeselectHandler
     {
-        /// <summary>The web's hover pause before a hint, and its fade.</summary>
         public const float Delay = .35f, FadeIn = .12f;
         public string Text;
         GameObject shown;
@@ -43,8 +38,6 @@ namespace Wreckabulary
             var tip = LobbyKit.Rect(transform, "Hint");
             var label = LobbyKit.Text(tip, Text, 17, LobbyKit.Cream, TextAlignmentOptions.Center);
             float width = Mathf.Ceil(label.GetPreferredValues(Text).x) + 28;
-            // Hangs just below the button, slid sideways to stay on screen (Home sits close to the left edge).
-            // Everything under the scaled root canvas has scale 1, so its units match anchoredPosition.
             var self = (RectTransform)transform;
             var root = (RectTransform)GetComponentInParent<Canvas>().rootCanvas.transform;
             float centre = root.InverseTransformPoint(self.TransformPoint(self.rect.center)).x;
@@ -57,7 +50,6 @@ namespace Wreckabulary
             LobbyKit.Frame(tip, LobbyKit.ChipEdge, 8, 2);
             label.transform.SetAsLastSibling();
             label.rectTransform.Fill();
-            // Hints draw above the bar and the pages.
             var canvas = tip.gameObject.AddComponent<Canvas>();
             canvas.overrideSorting = true; canvas.sortingOrder = 500;
             fade = tip.gameObject.AddComponent<CanvasGroup>();

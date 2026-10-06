@@ -37,5 +37,5 @@ Source and licence: https://dejavu-fonts.github.io/License.html
 The action-button illustrations were generated for this project with the native
 image-generation tool on 1 October 2026. Item thumbnails and supplied-model
 showcase images are renders of the actual project meshes.
-Source provenance: https://github.com/SethyPagna/wreckabulary/blob/main/docs/art/provenance.md
+Source provenance: https://github.com/SethyPagna/wreckabulary/blob/main/PROJECT_REPORT.md
 Source conversion pipeline: https://github.com/SethyPagna/wreckabulary/tree/main/Tools/AssetPipeline

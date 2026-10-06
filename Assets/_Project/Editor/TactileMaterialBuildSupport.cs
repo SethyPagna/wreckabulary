@@ -7,11 +7,6 @@ using Wreckabulary.Art;
 
 namespace Wreckabulary.EditorTools
 {
-    /// <summary>
-    /// Persistent Resources seeds preserve the runtime-created URP keyword
-    /// combinations. Generate after the authoritative material library exists.
-    /// No transient runtime texture or invented asset identifier is serialized.
-    /// </summary>
     public static class TactileMaterialBuildSupport
     {
         const string Folder = "Assets/_Project/Resources/TactileVariantSeeds";
@@ -54,9 +49,6 @@ namespace Wreckabulary.EditorTools
                 seed.DisableKeyword("_DETAIL_SCALED");
                 seed.EnableKeyword("_DETAIL_MULX2");
                 seed.EnableKeyword("_METALLICSPECGLOSSMAP");
-                // Detail normal decoding blends over the authored base normal.
-                // Preserve its existing _NORMALMAP choice rather than inventing
-                // a different normal-map combination in the seed.
                 if (created) AssetDatabase.CreateAsset(seed, path);
                 else EditorUtility.SetDirty(seed);
                 var keywords = new HashSet<string>(seed.shaderKeywords);
@@ -82,7 +74,6 @@ namespace Wreckabulary.EditorTools
             };
             var pixels = new Color[16];
             for (int i = 0; i < pixels.Length; i++) pixels[i] = colour;
-            // Keep the persistent data readable while Unity serializes the asset.
             texture.SetPixels(pixels);
             texture.Apply(true, false);
             AssetDatabase.CreateAsset(texture, path);

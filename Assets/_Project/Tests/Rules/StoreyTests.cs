@@ -5,11 +5,9 @@ using NUnit.Framework;
 
 namespace Wreckabulary.Rules.Tests
 {
-    /// <summary>Maps with more than one storey: rooms stacked by floor height and joined by stairs.</summary>
     [TestFixture]
     public class StoreyTests
     {
-        // Hall and Den downstairs, Landing and Loft on top of them; one flight from the Hall up to the Landing.
         const string TwoStoreys = @"{
  ""name"": ""Two Storeys"",
  ""rooms"": [
@@ -137,7 +135,6 @@ namespace Wreckabulary.Rules.Tests
             Reports("lobby room Attic", ProblemsWith(h => h.LobbyRoom = "Attic"));
         }
 
-        /// <summary>An attic over the landing, reached by a second flight from the landing.</summary>
         static void WithAttic(HouseLayout h, Stairway up)
         {
             h.Rooms.Add(new RoomBox { Name = "Attic", MinX = 0f, MinZ = 0f, MaxX = 6f, MaxZ = 8f, FloorY = 6f });
@@ -150,7 +147,6 @@ namespace Wreckabulary.Rules.Tests
         [Test]
         public void FlightsJoinNeighbouringFloorsAndKeepOutOfEachOthersWay()
         {
-            // Back the other way beside the first flight: a switchback, like the walk-up's.
             var switchback = Flight("Landing", "Attic", 4.5f, 5.5f, 4.5f, 1f);
             Assert.IsEmpty(ProblemsWith(h => WithAttic(h, switchback)));
             var house = House();
@@ -166,7 +162,6 @@ namespace Wreckabulary.Rules.Tests
 
             Reports("pass through the floor of Landing", ProblemsWith(h => WithAttic(h, Flight("Hall", "Attic", 4.5f, 1f, 4.5f, 7f))));
             Reports("stairs Hall-Landing overlap the stairs Landing-Attic", ProblemsWith(h => WithAttic(h, Flight("Landing", "Attic", 1f, 5.5f, 1f, 1f))));
-            // Across the landing just past the top of the first flight: you'd step off it into the side of this one.
             Reports("stairs Hall-Landing step on or off over the stairs Landing-Attic", ProblemsWith(h => WithAttic(h, Flight("Landing", "Attic", .5f, 6.8f, 5f, 6.8f))));
             Assert.IsFalse(ProblemsWith(h => WithAttic(h, Flight("Landing", "Attic", .5f, 6.8f, 5f, 6.8f))).Contains("overlap"), "beside it, not on it");
         }

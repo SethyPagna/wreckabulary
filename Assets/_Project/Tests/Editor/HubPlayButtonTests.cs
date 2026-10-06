@@ -8,10 +8,6 @@ using UnityEngine.TestTools;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>
-    /// Pressing Play with the Hub scene open, the way people look at the game in the editor. The project's
-    /// Enter Play Mode Options skip the scene reload, which play mode tests never see: they load scenes themselves.
-    /// </summary>
     public class HubPlayButtonTests
     {
         static bool hubLoadedEvent;
@@ -24,7 +20,6 @@ namespace Wreckabulary.Tests
         public void SetUp()
         {
             setup = EditorSceneManager.GetSceneManagerSetup();
-            // Opening the lobby can grant looks into the career; keep the real one as it was.
             savedCareer = PlayerPrefs.HasKey(MatchTally.CareerKey) ? PlayerPrefs.GetString(MatchTally.CareerKey) : null;
         }
 

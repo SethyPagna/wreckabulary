@@ -5,7 +5,6 @@ using Wreckabulary.Art;
 
 namespace Wreckabulary
 {
-    /// <summary>Crafted gear keeps its recipe and durability through pickup, use, throw and deployment.</summary>
     [RequireComponent(typeof(Rigidbody))]
     public class HeldWeapon : MonoBehaviour, IDamageable
     {
@@ -56,15 +55,12 @@ namespace Wreckabulary
 
         void Update()
         {
-            // The throwing player's miniature and skin travel with the same item until it rests.
             if (inFlight && Time.time - thrownAt > 0.3f && GetComponent<Rigidbody>().linearVelocity.sqrMagnitude < 0.1f)
                 OnReleased();
         }
 
         public void OnHeld(PlayerCombat user)
         {
-            // Held gear follows the animated hand hierarchy. Physics interpolation
-            // otherwise overwrites its local grip pose as that hierarchy moves.
             var body = GetComponent<Rigidbody>();
             if (!interpolationSuspended)
             {
@@ -123,7 +119,6 @@ namespace Wreckabulary
             {
                 if (definition.Use != null) { StartCoroutine(ConsumeAfterChannel(user, owner)); return; }
                 if (definition.Thrown != null) { user.Throw(); return; }
-                // Placing comes before swinging, so gear that can do both (TABLE) is put down.
                 if (definition.Deploy != null) { user.DeployHeld(); return; }
                 if (definition.Melee != null) { StartCoroutine(MeleeAfterWindup(user, owner)); return; }
                 return;

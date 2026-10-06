@@ -5,20 +5,11 @@ using System.Collections.Generic;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// One player on keyboard and mouse, with the brief's desktop layout (§8): WASD move, mouse aim,
-    /// left click does what the held thing is for (smash, throw, place, use), right click block, Space jump, Shift dodge, E grab (hold to revive),
-    /// Q spell (mouse wheel or W/S to choose), hold R to drop, 1/2 hands, hold Tab bag and map, Esc pause, Enter start.
-    /// The keys live in an action map so they can be rebound, and prompts read them back
-    /// through <see cref="ControlHints"/>.
-    /// </summary>
     public class DesktopBinding : InputBinding
     {
         static DesktopBinding shared;
-        /// <summary>The keyboard is typing a word into the HUD's composer: no player commands come from it meanwhile.</summary>
         public static bool Typing;
 
-        /// <summary>There is one mouse, so there is one desktop player, and a rebind applies everywhere.</summary>
         public static DesktopBinding Shared => shared ??= new DesktopBinding();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -49,7 +40,6 @@ namespace Wreckabulary
             Interact = Button("Interact", "<Keyboard>/e");
             Spell = Button("Spell", "<Keyboard>/q");
             Drop = Button("Drop", "<Keyboard>/r");
-            // As in the browser edition: 1 and 2 pick a hand, hold Tab to peek at the bag and map, Esc pauses.
             Hand1 = Button("Hand 1", "<Keyboard>/1");
             Hand2 = Button("Hand 2", "<Keyboard>/2");
             Bag = Button("Bag", "<Keyboard>/tab");
@@ -92,8 +82,6 @@ namespace Wreckabulary
             c.down = Down.WasPressedThisFrame();
             c.start = Start.WasPressedThisFrame();
 
-            // A captured cursor turns the third-person view (Unity's delta is positive upwards) and sits
-            // in the middle of the screen, where no menu is: every click goes to the game.
             if (Cursor.lockState == CursorLockMode.Locked)
             {
                 var delta = Look.ReadValue<Vector2>();
@@ -101,13 +89,10 @@ namespace Wreckabulary
                 return;
             }
 
-            // Clicking a menu or an on-screen skill must never also punch into the world.
             bool overUi = EventSystem.current && EventSystem.current.IsPointerOverGameObject();
-            // Hover state can be a frame behind a pointer moved and pressed in the same update.
             if (!overUi && (c.attack || c.blockHeld)) overUi = HitsUiNow();
             if (overUi) c.attack = c.blockHeld = false;
 
-            // Aim only while the pointer is over the game, so alt-tabbing away doesn't spin the player.
             if (Mouse.current == null || !Application.isFocused || overUi ||
                 (TouchBinding.Shared.IsOverlayFor(Id) && TouchBinding.Shared.IsAiming)) return;
             c.pointer = Point.ReadValue<Vector2>();
@@ -129,7 +114,6 @@ namespace Wreckabulary
             return uiHits.Count > 0;
         }
 
-        /// <summary>Space, E or a left click.</summary>
         public override bool JoinPressed() =>
             Jump.WasPressedThisFrame() || Interact.WasPressedThisFrame() ||
             (Attack.WasPressedThisFrame() && !HitsUiNow());

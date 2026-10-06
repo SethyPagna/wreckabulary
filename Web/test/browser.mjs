@@ -1,4 +1,3 @@
-// Real Chromium interactions exercise the bundled game, not a mocked DOM.
 import { chromium } from "playwright";
 import { workshopDesktop, workshopMobile } from "./workshop-browser.mjs";
 import { click, screenshot, softwareGpu, deviceScaleFactor, configureSoftwareRendering } from "./browser-ui.mjs";
@@ -23,8 +22,6 @@ async function boot(context) {
   if (softwareGpu) page.setDefaultTimeout(120000);
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("response", (r) => {
-    // A dev or preview server has no Worker behind /api/scores; the leaderboard's
-    // offline fallback handles that, so only that endpoint may be missing.
     const offlineBoard = r.status() === 404 && new URL(r.url()).pathname === "/api/scores";
     if (r.status() >= 400 && !offlineBoard) errors.push(`${r.status()} ${r.url()}`);
   });
@@ -59,7 +56,6 @@ try {
   await screenshot(page, "home-desktop");
   record("Real supplied GLBs load and render the home scene.");
   await workshopDesktop(page, { click, screenshot, record });
-  // The dock shows only the chosen house; clicking it opens the picker.
   await click(page, "[data-action=maps]");
   await click(page, "[data-map=courtyard]");
   assert.equal(await page.locator(".picker").count(), 0, "Picking a house closes the picker.");
@@ -174,7 +170,6 @@ try {
       hands: document.querySelectorAll("#bag-hands .bag-hand").length,
       wearing: document.querySelectorAll("#bag-wear .wear-chip svg").length > 0,
       recipes: document.querySelectorAll("#bag-recipes .recipe").length,
-      // One map: the corner minimap zooms into the middle; no second copy is drawn.
       maps: document.querySelectorAll(".map-room").length / document.querySelectorAll("#minimap .map-room").length,
       zoomed: map.width > 240 && Math.abs(map.left + map.width / 2 - innerWidth / 2) < 40,
       you: !!document.querySelector("#minimap .map-player.you"),
@@ -190,7 +185,6 @@ try {
   record(
     "Desktop HUD hides touch buttons, stacks timer under the map, shows a 5 x 2 bag, and Tab peeks an icon bag, the zoomed minimap and the recipe book.",
   );
-  // Place the test player beside real map furniture; damage still comes through the public controls.
   await page.evaluate(() => {
     const g = window.wreckabulary.game,
       p = g.players[0],
@@ -199,7 +193,6 @@ try {
     p.z = lamp.z;
     p.facing = { x: -1, z: 0 };
     p.yaw = -Math.PI / 2;
-    // The camera owns facing in a match: turn the view like the mouse would.
     window.wreckabulary.view.look.yaw = p.yaw;
     window.testFurniture = lamp.id;
   });
@@ -362,7 +355,6 @@ try {
     undefined,
     { timeout: 15000, polling: 100 },
   );
-  // F and G no longer place or throw; the attack button (left click or J) places it.
   await page.keyboard.press("KeyF");
   await page.keyboard.press("KeyG");
   assert.equal(
@@ -479,7 +471,6 @@ try {
     "Moving Out physically carries and drops a keepsake; a downed crew member blocks victory until revived and gathered, then retry resets the rescue.",
   );
   await desktop.close();
-  // Phones play sideways only; upright they get a rotate hint (checked below).
   const mobile = await browser.newContext({
       viewport: { width: 844, height: 390 },
       isMobile: true,
@@ -535,7 +526,6 @@ try {
   await click(phone, "[data-action=start]");
   await phone.waitForFunction(() => window.wreckabulary.screen === "game");
   const joy = await phone.locator("#joystick").boundingBox();
-  // The sideways-phone joystick is 90px (thumb-sized on a 390px-tall screen).
   assert.ok(joy && joy.width >= 88);
   const initial = await phone.evaluate(() => ({
     x: window.wreckabulary.game.players[0].x,

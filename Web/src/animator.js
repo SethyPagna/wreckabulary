@@ -1,14 +1,5 @@
 import * as THREE from "three";
 
-// Layered, procedural-assisted animation for the supplied 22-bone avatar.
-// Every authored clip drives all bones, so each clip is split into an upper-body
-// and a lower-body copy. Weights are composed per half as an override stack:
-// locomotion -> held pose -> air -> one-shot -> downed. Clip time is driven here,
-// not by the mixer, so walk and run share one stride phase and one-shots can be
-// re-timed to gameplay windows. A posture pass then leans, banks, twists and
-// flinches the spine and head on top of the sampled pose, and turns the legs toward
-// the direction of travel when the player strafes or backpedals.
-
 const UPPER = new Set([
   "spine",
   "chest",
@@ -26,8 +17,6 @@ const UPPER = new Set([
   "grip_R",
 ]);
 
-// One-shots: rate is clip playback speed; full one-shots also drive the legs
-// while the player is standing still.
 export const SHOTS = {
   swing: { clip: "Swing_OneHand", rate: 1.6 },
   thrust: { clip: "Thrust_OneHand", rate: 1.5 },
@@ -40,7 +29,6 @@ export const SHOTS = {
   celebrate: { clip: "Celebrate", rate: 1, full: true },
 };
 
-// Held poses that replace the upper body of the locomotion cycle.
 const POSES = [
   "Hold_OneHand",
   "Carry_TwoHand",
@@ -49,19 +37,14 @@ const POSES = [
   "Place",
 ];
 
-// Locomotion. The clips are in place and the manifest gives each one's planted stride
-// (rig metres per cycle, two steps). The toy's legs are short: planting the feet exactly
-// at top speed would need about seven cycles a second, so STRETCH lets them slide a little
-// for about 2.3 walk and 3.4 run cycles a second at full speed. Old assets without strides
-// keep their original world-metre strides.
 const WALK_FULL = 1.2,
   RUN_FULL = 3.6,
   TURN_SPEED = 12,
   STRETCH = { walk: 1.7, run: 2.0 },
   LEGACY_STRIDE = { walk: 1.5, run: 3.0 },
-  HIP_TURN_MAX = 1.05, // how far the legs turn toward the direction of travel (radians)
-  BACKPEDAL_ON = 1.92, // travel this far from facing runs the cycle backwards...
-  BACKPEDAL_OFF = 1.57; // ...until it comes back inside this
+  HIP_TURN_MAX = 1.05,
+  BACKPEDAL_ON = 1.92,
+  BACKPEDAL_OFF = 1.57;
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -134,9 +117,6 @@ export class AvatarAnimator {
     return this.clips.has(clip);
   }
 
-  // Orientation of a grip bone relative to the avatar while a pose is fully applied.
-  // Held items follow the hand's rotation away from this reference, so a swing
-  // rotates the bat with the wrist and the rest pose keeps it upright.
   sampleReference(pose, boneName) {
     const bone = this.bones.get(boneName);
     if (!bone || !this.clips.has(pose) || !this.clips.has("Idle")) return null;
@@ -155,7 +135,6 @@ export class AvatarAnimator {
   trigger(name) {
     const spec = SHOTS[name];
     if (!spec || !this.clips.has(spec.clip)) return;
-    // A hit never interrupts a celebration; a fresh swing restarts a running swing.
     if (this.shot?.spec === SHOTS.celebrate && name !== "celebrate") return;
     this.shot = { spec, time: 0, duration: this.clips.get(spec.clip).duration };
     if (name === "hit") this.flinchVelocity += 7;
@@ -165,20 +144,16 @@ export class AvatarAnimator {
     this.flinchVelocity += amount;
   }
 
-  // Gameplay state is read from the engine's player record each frame.
   update(dt, player, game, held) {
     dt = Math.min(dt, 0.1);
     this.time += dt;
     const avatar = this.avatar;
 
-    // Facing: the engine snaps yaw to input; the body turns at a bounded rate.
     if (this.yaw === null) this.yaw = player.yaw;
-    // The mouse-driven player turns 1:1 with the camera, like a shooter; others ease.
     const limit = this.instantTurn ? Infinity : TURN_SPEED * dt;
     this.yaw = wrap(this.yaw + clamp(wrap(player.yaw - this.yaw), -limit, limit));
     avatar.rotation.y = this.yaw;
 
-    // Ground velocity from the engine position, smoothed.
     let mx = 0,
       mz = 0;
     if (this.last && dt > 0) {
@@ -194,10 +169,6 @@ export class AvatarAnimator {
     this.speed = Math.hypot(this.vx, this.vz);
     this.accel += ((this.speed - before) / Math.max(dt, 1e-3) - this.accel) * ease(8, dt);
 
-    // Direction of travel against facing. The shooter camera strafes and backpedals the
-    // player while the body keeps facing the aim, so the legs turn toward the travel
-    // direction (the chest turns back in posture), and walking backwards runs the cycle
-    // in reverse. Banking follows the path's curvature, not the mouse.
     let legTarget = 0;
     if (this.speed > 0.3) {
       const heading = Math.atan2(this.vx, this.vz);
@@ -221,7 +192,6 @@ export class AvatarAnimator {
     const dodging = game.time < (player.dodgingUntil ?? 0);
     const s = alive ? this.speed : 0;
 
-    // Locomotion weights and a shared stride phase.
     let idleW = clamp(1 - s / WALK_FULL, 0, 1),
       walkW = 0,
       runW = 0;
@@ -240,7 +210,6 @@ export class AvatarAnimator {
     this.runW = runW;
     this.idleTime += dt;
 
-    // Held pose: what the hands are doing.
     let pose = null;
     if (alive) {
       if (player.reviveTarget !== null && player.reviveTarget !== undefined) pose = "Place";
@@ -252,12 +221,10 @@ export class AvatarAnimator {
     for (const p of POSES) {
       const target = p === pose ? 1 : 0;
       this.poseWeights.set(p, this.poseWeights.get(p) + (target - this.poseWeights.get(p)) * ease(12, dt));
-      // Revive holds the crouched middle of Place; other poses loop slowly.
       const d = this.clips.get(p)?.duration ?? 1;
       this.poseTime.set(p, p === "Place" ? d * 0.45 : (this.poseTime.get(p) + dt) % d);
     }
 
-    // Air: jump clip time follows the actual jump arc.
     const inAir = alive && game.time < (player.jumpUntil ?? 0);
     this.air += ((inAir ? 1 : 0) - this.air) * ease(inAir ? 18 : 8, dt);
     const jumpDur = this.clips.get("Jump_Preview")?.duration ?? 1;
@@ -266,7 +233,6 @@ export class AvatarAnimator {
       : 1;
     const jumpTime = (0.15 + 0.7 * progress) * jumpDur;
 
-    // One-shot envelope.
     let shotW = 0,
       shotKey = null,
       shotTime = 0;
@@ -281,10 +247,8 @@ export class AvatarAnimator {
       }
     }
 
-    // Downed: hold the end of the hit reaction and lie back.
     this.down += ((downed ? 1 : 0) - this.down) * ease(downed ? 5 : 7, dt);
 
-    // Compose both halves.
     const upper = new Map(),
       lower = new Map();
     const loco = [
@@ -330,7 +294,6 @@ export class AvatarAnimator {
     this.mixer.update(0);
     this.current = this.dominant(upper);
 
-    // Downed body: lie back smoothly, raised so the back rests on the floor.
     avatar.rotation.x = -this.down * 1.3;
     avatar.position.y = this.baseY + this.down * 0.16;
 
@@ -359,7 +322,6 @@ export class AvatarAnimator {
     return best;
   }
 
-  // Rotate a bone about a world-space axis, preserving the sampled pose underneath.
   rotateWorld(name, axis, angle) {
     const bone = this.bones.get(name);
     if (!bone || !angle) return;
@@ -370,7 +332,6 @@ export class AvatarAnimator {
   }
 
   posture(dt, player, speed, idleW, dodging) {
-    // Spring for hit flinches.
     this.flinchVelocity += (-120 * this.flinch - 14 * this.flinchVelocity) * dt;
     this.flinch += this.flinchVelocity * dt;
     if (this.down > 0.98) return;
@@ -381,8 +342,6 @@ export class AvatarAnimator {
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(bodyQ);
     const up = new THREE.Vector3(0, 1, 0);
 
-    // The walk and run clips lean on their own; this adds a little for speed and
-    // acceleration along the facing, and stands a backwards run up straight.
     const lean =
       clamp((0.012 * speed + 0.03 * this.accel) * this.travel, -0.1, 0.15) +
       (this.backpedal ? -0.12 * this.runW : 0) +
@@ -393,7 +352,6 @@ export class AvatarAnimator {
     const flinch = clamp(this.flinch, -0.6, 0.6);
     const legs = live * this.hipTurn;
 
-    // Legs toward the travel direction; spine, chest and head turn back to the aim.
     this.rotateWorld("pelvis", up, legs);
     this.rotateWorld("spine", up, -legs * 0.5);
     this.rotateWorld("chest", up, -legs * 0.35);
@@ -407,7 +365,6 @@ export class AvatarAnimator {
     this.rotateWorld("head", up, live * twist * 0.4);
   }
 
-  // World transform for a held item whose own grip point is `gripLocal` (model units).
   holdTransform(item, gripLocal, scale, base) {
     const grip = this.bones.get("grip_R");
     if (!grip || !this.holdReference) return false;
@@ -421,7 +378,6 @@ export class AvatarAnimator {
     return true;
   }
 
-  // Midpoint between both grips, for two-handed carrying.
   carryPoint(target) {
     const l = this.bones.get("grip_L"),
       r = this.bones.get("grip_R");
