@@ -149,20 +149,29 @@ function resetInputs() {
 const MOUSE_SENSITIVITY = 0.0024;
 const worldCanvas = () => document.querySelector("#world");
 const mouseLocked = () => document.pointerLockElement === worldCanvas();
-// Set once the browser turns the mouse lock down, so clicks then act without it.
-let lockRefused = false;
-document.addEventListener("pointerlockerror", () => (lockRefused = true));
-/** Asks to capture the mouse. Returns true when the request went out. */
+// Refusals in a row since the mouse was last captured. A browser can turn one request down
+// (Chrome does right after Esc), so only a second refusal in a row lets clicks act without it.
+let lockRefusals = 0;
+let lockPending = false;
+function refuseLock() {
+  // The error event and the promise can both report the same refusal.
+  if (!lockPending) return;
+  lockPending = false;
+  lockRefusals++;
+}
+document.addEventListener("pointerlockerror", refuseLock);
+/** Asks to capture the mouse. Returns true when the click should only capture it. */
 function lockMouse() {
   // Automated test browsers keep the cursor free so they can still click the HUD.
   if (matchMedia("(pointer: coarse)").matches || mouseLocked() || navigator.webdriver)
     return false;
+  lockPending = true;
   try {
-    worldCanvas().requestPointerLock()?.catch?.(() => (lockRefused = true));
+    worldCanvas().requestPointerLock()?.catch?.(refuseLock);
   } catch {
-    lockRefused = true;
+    refuseLock();
   }
-  return !lockRefused;
+  return lockRefusals < 2;
 }
 function releaseMouse() {
   if (mouseLocked()) document.exitPointerLock();
@@ -1890,6 +1899,10 @@ function viewCanvasEvents() {
   });
   document.addEventListener("pointerlockchange", () => {
     document.body.classList.toggle("mouse-locked", mouseLocked());
+    if (mouseLocked()) {
+      lockRefusals = 0;
+      lockPending = false;
+    }
     // Losing the mouse mid-match (Esc, alt-tab) pauses, the way shooters do.
     if (
       !mouseLocked() &&

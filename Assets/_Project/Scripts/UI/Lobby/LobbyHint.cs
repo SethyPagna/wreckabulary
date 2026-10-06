@@ -30,7 +30,8 @@ namespace Wreckabulary
             float shift = Mathf.Clamp(centre, root.rect.xMin + half, root.rect.xMax - half) - centre;
             var tip = LobbyKit.Rect(transform, "Hint").Pin(new Vector2(.5f, 0f), new Vector2(shift, -6), new Vector2(width, 34));
             tip.pivot = new Vector2(.5f, 1f);
-            tip.Paint(LobbyKit.Panel, true).raycastTarget = false;
+            tip.Paint(LobbyKit.ChipFill, 10).raycastTarget = false;
+            LobbyKit.Frame(tip, LobbyKit.ChipEdge, 10, 2);
             var label = LobbyKit.Text(tip, Text, 18, LobbyKit.Cream, TextAlignmentOptions.Center);
             label.rectTransform.Fill();
             // Hints draw above the bar and the pages.

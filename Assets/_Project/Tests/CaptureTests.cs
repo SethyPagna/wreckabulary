@@ -205,6 +205,13 @@ namespace Wreckabulary.Tests
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"lobby_{i + 1}_{pages[i].Item2}.png"));
             }
+            // A couch player in the party rail.
+            var couch = new KeyboardBinding(KeyboardBinding.Side.Right);
+            menu.Join(couch);
+            menu.Open(LobbyMenu.Home);
+            yield return new WaitForSeconds(1f);
+            yield return CaptureFramed(Path.Combine(dir, $"lobby_{pages.Length + 1}_party.png"));
+            menu.Leave(couch);
             // Every map's backdrop, seen from home.
             menu.Open(LobbyMenu.Home);
             foreach (string map in GameConfig.Current.Houses.Keys)

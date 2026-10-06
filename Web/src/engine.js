@@ -401,7 +401,8 @@ export class Game {
   }
   /** Moving Day: the held word is still on the checklist and would land in its room. */
   placesObjective(p, item) {
-    if (this.mode !== "MovingDay" || !item) return false;
+    // Only spelled things count, the same as checkPlacements().
+    if (this.mode !== "MovingDay" || !item || item.origin !== "crafted") return false;
     const spot = { x: p.x + p.facing.x * 1.6, z: p.z + p.facing.z * 1.6 },
       room = this.roomAt(spot)?.name;
     return this.objectives.some(

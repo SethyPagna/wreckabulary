@@ -61,7 +61,7 @@ git lfs pull
 git lfs fsck
 ```
 
-Add this checkout to Unity Hub and activate Unity Personal on the machine running the editor. After import, choose **Wreckabulary → Set Up Art and Data** to refresh generated material/model libraries, animation references and map data. Open `Assets/_Project/Scenes/Hub.unity`, press Play, join through the front-door UI or a join button, choose a map and mode, then start. The typewriter offers the same mode choices. Scene names such as `LivingRoom` select a runtime map; they are not separate content maps.
+Add this checkout to Unity Hub and activate Unity Personal on the machine running the editor. After import, choose **Wreckabulary → Set Up Art and Data** to refresh generated material/model libraries, animation references and map data. Open `Assets/_Project/Scenes/Hub.unity` and press Play. The lobby opens with you standing in the selected map: PLAY picks a queue, mode and map, GO starts. Couch players join the party rail with Start on a controller or `.` on the keyboard's right half (Select or the rail's × leaves) and come along on GO. Scene names such as `LivingRoom` select a runtime map; they are not separate content maps.
 
 [Cloud setup instructions](Tools/CloudSetup/README.md) provide the pinned .NET installer and Unity verification script. With .NET 9 installed, the rules suite runs without Unity:
 

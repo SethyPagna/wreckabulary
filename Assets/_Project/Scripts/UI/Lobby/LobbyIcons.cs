@@ -5,17 +5,24 @@ using UnityEngine;
 namespace Wreckabulary
 {
     /// <summary>
-    /// The lobby's flat glyphs (home, settings, power, trophy, cart, coin, close), drawn once
-    /// from signed-distance shapes into white alpha textures. UI images tint them, so the
-    /// project needs no icon files and every glyph stays crisp at its drawn size.
+    /// The lobby's glyphs, drawn once from signed-distance shapes into white alpha textures. Most are
+    /// the web lobby's outline icons (Web/src/main.js ICON_PATHS), ported from its 24-unit grid with the
+    /// same 2.3 stroke and round ends; the cart stays a cart. UI images tint them, so the project needs
+    /// no icon files and every glyph stays crisp at its drawn size. Also the rounded and frame sprites
+    /// that every panel, card and button is sliced from.
     /// </summary>
     public static class LobbyIcons
     {
         public const string Home = "home", Settings = "settings", Power = "power", Trophy = "trophy",
-            Cart = "cart", Coin = "coin", Close = "close", Turn = "turn";
-        public static readonly string[] All = { Home, Settings, Power, Trophy, Cart, Coin, Close, Turn };
+            Cart = "cart", Coin = "coin", Close = "close", Turn = "turn", Play = "play", Locker = "locker",
+            Badge = "badge", Lock = "lock", Check = "check", Arrow = "arrow", CoinW = "coin-w", Chevron = "chevron";
+        public static readonly string[] All =
+            { Home, Settings, Power, Trophy, Cart, Coin, Close, Turn, Play, Locker, Badge, Lock, Check, Arrow, CoinW, Chevron };
         const int Size = 128;
+        /// <summary>The web's stroke width 2.3 on its 24-unit grid, as a half width in [-1, 1].</summary>
+        const float Half = 2.3f / 24f;
         static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
+        static readonly Dictionary<(int, int), Sprite> slices = new Dictionary<(int, int), Sprite>();
 
         public static Sprite Get(string name)
         {
@@ -41,32 +48,43 @@ namespace Wreckabulary
             return sprite;
         }
 
-        static Sprite rounded;
-
         /// <summary>A white rounded square for nine-sliced panels and buttons (corner radius 10 px).</summary>
-        public static Sprite Rounded
+        public static Sprite Rounded => RoundedSprite(10);
+
+        /// <summary>A white rounded square with this corner radius in UI pixels, for nine slicing.
+        /// A rect twice the radius across draws a disc.</summary>
+        public static Sprite RoundedSprite(int radius) => Slice(radius, 0);
+
+        /// <summary>Just the edge of RoundedSprite: a ring this many UI pixels wide, inside the shape.</summary>
+        public static Sprite FrameSprite(int radius, int width) => Slice(radius, width);
+
+        static Sprite Slice(int radius, int width)
         {
-            get
+            if (slices.TryGetValue((radius, width), out var sprite) && sprite) return sprite;
+            int size = 2 * (radius + 2) + 4;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
             {
-                if (rounded) return rounded;
-                const int size = 48, radius = 10;
-                var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
-                { name = "Lobby rounded", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
-                var pixels = new Color32[size * size];
-                for (int y = 0; y < size; y++)
-                    for (int x = 0; x < size; x++)
-                    {
-                        var p = new Vector2(x + .5f, y + .5f);
-                        float d = Box(p, new Vector2(size / 2f, size / 2f), new Vector2(size / 2f, size / 2f), radius);
-                        pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(Mathf.Clamp01(.5f - d) * 255));
-                    }
-                texture.SetPixels32(pixels);
-                texture.Apply(false, true);
-                rounded = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 100, 0,
-                    SpriteMeshType.FullRect, new Vector4(radius + 2, radius + 2, radius + 2, radius + 2));
-                rounded.name = texture.name;
-                return rounded;
-            }
+                name = width > 0 ? $"Lobby frame {radius}/{width}" : $"Lobby rounded {radius}",
+                filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp,
+            };
+            var pixels = new Color32[size * size];
+            var middle = new Vector2(size / 2f, size / 2f);
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float d = Box(new Vector2(x + .5f, y + .5f), middle, middle, radius);
+                    float cover = Mathf.Clamp01(.5f - d);
+                    if (width > 0) cover *= Mathf.Clamp01(.5f + d + width);
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(cover * 255));
+                }
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            float border = radius + 2;
+            sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 100, 0,
+                SpriteMeshType.FullRect, new Vector4(border, border, border, border));
+            sprite.name = texture.name;
+            slices[(radius, width)] = sprite;
+            return sprite;
         }
 
         static Func<Vector2, float> Shape(string name)
@@ -74,56 +92,34 @@ namespace Wreckabulary
             switch (name)
             {
                 case Home:
-                    return p => Cut(Union(Polygon(p, new Vector2(-.92f, .02f), new Vector2(0, .86f), new Vector2(.92f, .02f)),
-                            Box(p, new Vector2(0, -.38f), new Vector2(.62f, .44f), .04f)),
-                        Box(p, new Vector2(0, -.52f), new Vector2(.17f, .3f), .05f));
+                    return p => Lines(p, G(3.5f, 11.5f), G(12, 4), G(20.5f, 11.5f))
+                        .Min(Lines(p, G(5.5f, 10), G(5.5f, 20), G(18.5f, 20), G(18.5f, 10)))
+                        .Min(Lines(p, G(10, 20), G(10, 14.5f), G(14, 14.5f), G(14, 20))) - Half;
                 case Settings:
                     return p =>
                     {
-                        float gear = Circle(p, Vector2.zero, .6f);
+                        float gear = Circle(p, Vector2.zero, .5f);
                         for (int i = 0; i < 8; i++)
-                        {
-                            float a = i * Mathf.PI / 4f;
-                            var local = Rotate(p, -a);
-                            gear = Union(gear, Box(local, new Vector2(0, .7f), new Vector2(.15f, .2f), .04f));
-                        }
-                        return Cut(gear, Circle(p, Vector2.zero, .27f));
+                            gear = Union(gear, Box(Rotate(p, -i * Mathf.PI / 4f), new Vector2(0, .64f), new Vector2(.13f, .16f), .05f));
+                        return Union(Mathf.Abs(gear), Mathf.Abs(Circle(p, Vector2.zero, .19f))) - Half * .85f;
                     };
                 case Power:
-                    return p =>
-                    {
-                        float ring = Mathf.Abs(Circle(p, new Vector2(0, -.08f), .62f)) - .11f;
-                        // Open the ring at the top where the stroke passes through.
-                        float gap = Polygon(p, Vector2.zero, new Vector2(-.62f, 1.05f), new Vector2(.62f, 1.05f));
-                        return Union(Cut(ring, gap), Segment(p, new Vector2(0, .1f), new Vector2(0, .86f)) - .11f);
-                    };
+                    return p => Arc(p, new Vector2(0, -.06f), .6f, 125f, 55f).Min(Segment(p, new Vector2(0, .1f), new Vector2(0, .8f))) - Half;
                 case Trophy:
-                    return p =>
-                    {
-                        float cup = Union(Box(p, new Vector2(0, .52f), new Vector2(.46f, .3f), .02f),
-                            Cut(Circle(p, new Vector2(0, .24f), .46f), Box(p, new Vector2(0, .7f), new Vector2(1f, .46f), 0)));
-                        float handles = Union(Mathf.Abs(Circle(p, new Vector2(-.5f, .44f), .22f)) - .07f,
-                            Mathf.Abs(Circle(p, new Vector2(.5f, .44f), .22f)) - .07f);
-                        handles = Cut(handles, Box(p, Vector2.zero, new Vector2(.44f, 1f), 0));
-                        float stem = Box(p, new Vector2(0, -.36f), new Vector2(.1f, .2f), .02f);
-                        float foot = Box(p, new Vector2(0, -.7f), new Vector2(.4f, .11f), .05f);
-                        return Union(Union(cup, handles), Union(stem, foot));
-                    };
+                    // The web's leaderboard cup: rim, bowl, handles, stem and foot.
+                    return p => Lines(p, G(7.5f, 8.5f), G(7.5f, 4), G(16.5f, 4), G(16.5f, 8.5f))
+                        .Min(Arc(p, G(12, 8.5f), 4.5f / 12f, 180f, 360f))
+                        .Min(Lines(p, G(7.5f, 6), G(4.5f, 6))).Min(Arc(p, G(7.383f, 6.829f), .25f, 164f, 278f))
+                        .Min(Lines(p, G(16.5f, 6), G(19.5f, 6))).Min(Arc(p, G(16.617f, 6.829f), .25f, -98f, 16f))
+                        .Min(Lines(p, G(12, 13), G(12, 16.5f)))
+                        .Min(Lines(p, G(8, 20), G(16, 20), G(15, 16.5f), G(9, 16.5f), G(8, 20))) - Half;
                 case Cart:
-                    return p =>
-                    {
-                        float basket = Polygon(p, new Vector2(-.52f, .42f), new Vector2(.86f, .42f), new Vector2(.62f, -.22f), new Vector2(-.36f, -.22f));
-                        float handle = Union(Segment(p, new Vector2(-.52f, .42f), new Vector2(-.72f, .74f)) - .08f,
-                            Segment(p, new Vector2(-.72f, .74f), new Vector2(-.95f, .74f)) - .08f);
-                        float rail = Segment(p, new Vector2(-.4f, -.4f), new Vector2(.68f, -.4f)) - .07f;
-                        float wheels = Union(Circle(p, new Vector2(-.3f, -.68f), .15f), Circle(p, new Vector2(.56f, -.68f), .15f));
-                        return Union(Union(basket, handle), Union(rail, wheels));
-                    };
+                    return p => Union(Lines(p, G(2, 3.5f), G(4.2f, 3.5f), G(6.8f, 15.5f), G(18.4f, 15.5f), G(20.4f, 7.6f), G(5.3f, 7.6f)) - Half,
+                        Union(Circle(p, G(8.6f, 20), .14f), Circle(p, G(17, 20), .14f)));
                 case Coin:
                     return p => Cut(Circle(p, Vector2.zero, .9f), Mathf.Abs(Circle(p, Vector2.zero, .64f)) - .07f);
                 case Close:
-                    return p => Union(Segment(p, new Vector2(-.6f, -.6f), new Vector2(.6f, .6f)) - .12f,
-                        Segment(p, new Vector2(-.6f, .6f), new Vector2(.6f, -.6f)) - .12f);
+                    return p => Lines(p, G(6.5f, 6.5f), G(17.5f, 17.5f)).Min(Lines(p, G(17.5f, 6.5f), G(6.5f, 17.5f))) - Half;
                 case Turn:
                     return p =>
                     {
@@ -135,14 +131,60 @@ namespace Wreckabulary
                         float right = Polygon(p, new Vector2(.62f, .02f), new Vector2(.22f, .2f), new Vector2(.28f, -.2f));
                         return Union(arc, Union(left, right));
                     };
+                case Play:
+                    return p => Polygon(p, G(8, 5.5f), G(19, 12), G(8, 18.5f)) - .04f;
+                case Locker:
+                    // A coat hanger: the hook, its neck and the triangle.
+                    return p => Arc(p, G(12, 6.5f), 2f / 12f, -72.4f, 180f)
+                        .Min(Lines(p, G(12.6f, 8.4f), G(12, 9.3f), G(12, 10)))
+                        .Min(Lines(p, G(12, 10), G(3.8f, 16.6f), G(4.3f, 18), G(19.7f, 18), G(20.2f, 16.6f), G(12, 10))) - Half;
+                case Badge:
+                    return p => Mathf.Abs(Box(p, Vector2.zero, new Vector2(.625f, .625f), 3.5f / 12f))
+                        .Min(Lines(p, G(8.5f, 9), G(15.5f, 9))).Min(Lines(p, G(12, 9), G(12, 16))) - Half;
+                case Lock:
+                    return p => Union(Lines(p, G(7.5f, 11), G(7.5f, 8.5f)).Min(Arc(p, G(12, 8.5f), 4.5f / 12f, 0f, 180f))
+                            .Min(Lines(p, G(16.5f, 8.5f), G(16.5f, 11))) - Half,
+                        Box(p, G(12, 15.75f), new Vector2(7f / 12f, 4.75f / 12f), 2.5f / 12f) - Half);
+                case Check:
+                    return p => Lines(p, G(5, 12.5f), G(9.5f, 17), G(19, 7.5f)) - Half;
+                case Arrow:
+                    return p => Lines(p, G(5, 12), G(18, 12)).Min(Lines(p, G(13, 6.5f), G(18.5f, 12), G(13, 17.5f))) - Half;
+                case CoinW:
+                    return p => Lines(p, G(7.6f, 9.2f), G(9.2f, 15), G(10.8f, 10.9f), G(12, 10.9f), G(13.6f, 15), G(15.2f, 9.2f)) - 1.8f / 24f;
+                case Chevron:
+                    return p => Lines(p, G(9, 5.5f), G(15.5f, 12), G(9, 18.5f)) - Half;
                 default:
                     throw new ArgumentException("No lobby icon called " + name, nameof(name));
             }
         }
 
+        /// <summary>A point on the web's 24-unit icon grid (y down) in [-1, 1] with y up.</summary>
+        static Vector2 G(float x, float y) => new Vector2((x - 12f) / 12f, (12f - y) / 12f);
+
+        static float Min(this float a, float b) => Mathf.Min(a, b);
         static float Union(float a, float b) => Mathf.Min(a, b);
         static float Cut(float a, float b) => Mathf.Max(a, -b);
         static float Circle(Vector2 p, Vector2 c, float r) => (p - c).magnitude - r;
+
+        /// <summary>Distance to a polyline; subtract a half width to stroke it with round ends and joins.</summary>
+        static float Lines(Vector2 p, params Vector2[] points)
+        {
+            float d = float.MaxValue;
+            for (int i = 0; i + 1 < points.Length; i++) d = Mathf.Min(d, Segment(p, points[i], points[i + 1]));
+            return d;
+        }
+
+        /// <summary>Distance to a circular arc running anticlockwise from one angle to another, in degrees.</summary>
+        static float Arc(Vector2 p, Vector2 c, float r, float from, float to)
+        {
+            var q = p - c;
+            float span = Mathf.Repeat(to - from, 360f);
+            if (span == 0f) span = 360f;
+            if (Mathf.Repeat(Mathf.Atan2(q.y, q.x) * Mathf.Rad2Deg - from, 360f) <= span) return Mathf.Abs(q.magnitude - r);
+            Vector2 a = c + r * new Vector2(Mathf.Cos(from * Mathf.Deg2Rad), Mathf.Sin(from * Mathf.Deg2Rad));
+            Vector2 b = c + r * new Vector2(Mathf.Cos(to * Mathf.Deg2Rad), Mathf.Sin(to * Mathf.Deg2Rad));
+            return Mathf.Min((p - a).magnitude, (p - b).magnitude);
+        }
 
         static Vector2 Rotate(Vector2 p, float a)
         {

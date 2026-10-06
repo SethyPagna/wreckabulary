@@ -32,6 +32,8 @@ namespace Wreckabulary
         public static readonly string[] Modes = { "Dibs", "Duos", "MovingDay", "MovingOut" };
         /// <summary>Seconds between GO and the match loading; tests shorten it.</summary>
         public static float StartDelay = 3f;
+        /// <summary>Seats in a couch party, you included.</summary>
+        public const int PartyMax = 4;
         const float BarHeight = 76f, RailWidth = 300f, FeedWidth = 360f, Gutter = 20f;
 
         public static LobbyMenu Instance { get; private set; }
@@ -45,14 +47,20 @@ namespace Wreckabulary
         public string Current { get; private set; }
         public bool Starting => startAt > 0f;
         public IReadOnlyList<string> Messages => messages;
+        /// <summary>Couch players who joined in the lobby, in seat order after you. They come along on GO.</summary>
+        public IReadOnlyList<InputBinding> Party => party;
+        public int PartySize => 1 + party.Count;
 
         readonly List<string> messages = new List<string>();
+        readonly List<InputBinding> party = new List<InputBinding>();
+        // The left half shares WASD with the keyboard and mouse you play on, so only the right half joins.
+        readonly KeyboardBinding keyboardRight = new KeyboardBinding(KeyboardBinding.Side.Right);
         readonly Dictionary<string, LobbyPage> pages = new Dictionary<string, LobbyPage>();
-        readonly Dictionary<string, (TextMeshProUGUI label, Image underline)> tabs = new Dictionary<string, (TextMeshProUGUI, Image)>();
+        readonly Dictionary<string, LobbyTab> tabs = new Dictionary<string, LobbyTab>();
         readonly List<PlayerController> frozen = new List<PlayerController>();
         Canvas canvas;
-        RectTransform safe, pageHost, feed, feedList, rail, status, quitDialog;
-        TextMeshProUGUI coins, initial, statusTitle, statusDetail, statusCount;
+        RectTransform safe, pageHost, feed, feedList, rail, partyList, status, quitDialog;
+        TextMeshProUGUI coins, initial, partyHeading, statusTitle, statusDetail, statusCount;
         Button power, cancelButton;
         GameHud hud;
         /// <summary>The pad that pressed GO, which then plays the match.</summary>
@@ -99,6 +107,9 @@ namespace Wreckabulary
             Choose(Session.LobbyQueue, Session.LobbyMode);
             AudioListener.volume = Mathf.Clamp01(PlayerPrefs.GetFloat(VolumeKey, 1f));
             if (PlayerPrefs.HasKey(VsyncKey)) QualitySettings.vSyncCount = PlayerPrefs.GetInt(VsyncKey) > 0 ? 1 : 0;
+            // Back from a match, the couch players who came along are still in the party (GO seats you first).
+            foreach (var binding in Session.Bindings.Skip(1))
+                if (party.Count < PartyMax - 1 && Couch(binding) && !InParty(binding.Id)) party.Add(binding);
             SuspendHub();
             Stage = new GameObject("Lobby stage").AddComponent<LobbyStage>();
             Stage.Show(Map, Outfit);
@@ -196,69 +207,176 @@ namespace Wreckabulary
 
         void BuildBar()
         {
+            // The web's bar: navy fading to nothing over the map.
             var bar = LobbyKit.Rect(safe, "Top bar").Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -BarHeight), Vector2.zero);
-            bar.Paint(LobbyKit.Bar);
-            var left = LobbyKit.Row(bar, "System", 4, 0);
-            left.Place(new Vector2(0, 0), new Vector2(0, 1), new Vector2(14, 10), new Vector2(560, -10));
-            LobbyKit.IconButton(left, LobbyIcons.Home, "Home", () => Open(Home)).Size(56, 56);
-            LobbyKit.IconButton(left, LobbyIcons.Settings, "Settings", () => Open(Settings)).Size(56, 56);
-            power = LobbyKit.IconButton(left, LobbyIcons.Power, "Quit", AskQuit).Size(56, 56);
+            LobbyKit.Gradient(bar.Paint(Color.white), LobbyKit.Bar, new Color(LobbyKit.Bar.r, LobbyKit.Bar.g, LobbyKit.Bar.b, 0f));
+            var left = LobbyKit.Row(bar, "System", 10, 0);
+            left.Place(new Vector2(0, 0), new Vector2(0, 1), new Vector2(18, 8), new Vector2(560, -8));
+            LobbyKit.IconButton(left, LobbyIcons.Home, "Home", () => Open(Home)).Size(52, 52);
+            LobbyKit.IconButton(left, LobbyIcons.Settings, "Settings", () => Open(Settings)).Size(52, 52);
+            power = LobbyKit.IconButton(left, LobbyIcons.Power, "Quit", AskQuit).Size(52, 52);
             LobbyKit.Rect(left, "Divider").Paint(LobbyKit.Line).Size(2, 36);
-            LobbyKit.IconButton(left, LobbyIcons.Trophy, "Leaderboard", () => Open(Trophy)).Size(56, 56);
-            LobbyKit.IconButton(left, LobbyIcons.Cart, "Shop", () => Open(Shop)).Size(56, 56);
+            LobbyKit.IconButton(left, LobbyIcons.Trophy, "Leaderboard", () => Open(Trophy)).Size(52, 52);
+            LobbyKit.IconButton(left, LobbyIcons.Cart, "Shop", () => Open(Shop)).Size(52, 52);
             left.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             left.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
 
-            // PLAY sits exactly in the middle of the screen.
-            var centre = LobbyKit.Row(bar, "Pages", 0, 0);
+            // PLAY sits exactly in the middle of the screen: equal tabs, centred in their row.
+            var centre = LobbyKit.Row(bar, "Pages", 16, 0);
             centre.Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(660, BarHeight));
-            foreach (var (id, title) in new[] { (Loadout, "LOADOUT"), (Play, "PLAY"), (CareerPage, "CAREER") })
-            {
-                var tab = LobbyKit.Ghost(centre, title, () => Open(id));
-                tab.Size(220, BarHeight);
-                ((Image)tab.targetGraphic).sprite = null;
-                var label = LobbyKit.Text(tab.transform, title, id == Play ? 34 : 28, LobbyKit.Cream, TextAlignmentOptions.Center, FontStyles.Bold);
-                label.characterSpacing = 4;
-                label.rectTransform.Fill();
-                var underline = LobbyKit.Rect(tab.transform, "Underline").Place(new Vector2(.2f, 0), new Vector2(.8f, 0), Vector2.zero, new Vector2(0, 5)).Paint(LobbyKit.Honey);
-                underline.raycastTarget = false;
-                tabs[id] = (label, underline);
-            }
+            var row = centre.GetComponent<HorizontalLayoutGroup>();
+            row.childAlignment = TextAnchor.MiddleCenter;
+            row.childForceExpandHeight = false;
+            foreach (var (id, title, icon) in new[] { (Loadout, "LOADOUT", LobbyIcons.Locker), (Play, "PLAY", LobbyIcons.Play), (CareerPage, "CAREER", LobbyIcons.Badge) })
+                tabs[id] = LobbyKit.Tab(centre, title, icon, () => Open(id));
 
             // Coins only: the party lives in the rail, and sound and help live in Settings.
             var wallet = LobbyKit.Row(bar, "Wallet", 10, 0);
-            wallet.Place(new Vector2(1, 0), new Vector2(1, 1), new Vector2(-(RailWidth + Gutter), 14), new Vector2(-Gutter, -14));
+            wallet.Place(new Vector2(1, 0), new Vector2(1, 1), new Vector2(-(RailWidth + Gutter), 10), new Vector2(-Gutter, -10));
             wallet.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleRight;
             wallet.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
-            LobbyKit.Icon(wallet, LobbyIcons.Coin, LobbyKit.Honey).Size(34, 34);
-            coins = LobbyKit.Text(wallet, "0", 30, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft, FontStyles.Bold).Size(150, 48);
+            var chip = LobbyKit.Row(wallet, "Coin chip", 10);
+            chip.GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(12, 20, 6, 6);
+            chip.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            LobbyKit.Face(chip, LobbyKit.ChipFill, 10, LobbyKit.ChipEdge, 2);
+            chip.Size(-1, 50);
+            LobbyKit.Coin(chip, 34);
+            coins = LobbyKit.Display(chip, "0", 30, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft);
+            coins.Size(-1, 40);
         }
 
         void BuildRail()
         {
             rail = LobbyKit.Rect(safe, "Party and friends").Place(new Vector2(1, 0), Vector2.one,
                 new Vector2(-RailWidth - Gutter, Gutter), new Vector2(-Gutter, -(BarHeight + Gutter)));
-            rail.Paint(LobbyKit.Panel, true);
+            LobbyKit.Face(rail, LobbyKit.Panel, 18, LobbyKit.Line, 3, 7).raycastTarget = true;
             var column = LobbyKit.Column(rail, "Rail", 10, 18).Fill();
             column.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.UpperLeft;
-            LobbyKit.Heading(column, "Party  1 / 4");
+            partyHeading = LobbyKit.Heading(column, "Party");
             var you = LobbyKit.Row(column, "You", 12, 10).Size(-1, 74);
-            you.Paint(LobbyKit.Card, true);
+            you.Paint(LobbyKit.Card, 14);
             var badge = LobbyKit.Rect(you, "Badge");
-            badge.Paint(LobbyKit.Tomato, true);
+            LobbyKit.Face(badge, LobbyKit.Hot, 12, LobbyKit.Navy, 3, 3);
             badge.Size(54, 54);
-            initial = LobbyKit.Text(badge, LobbyKit.Upper(Career.Name.Substring(0, 1)), 30, LobbyKit.Cream, TextAlignmentOptions.Center, FontStyles.Bold);
+            initial = LobbyKit.Display(badge, LobbyKit.Upper(Career.Name.Substring(0, 1)), 30, LobbyKit.Cream, TextAlignmentOptions.Center, LobbyKit.Ink.Stroke);
             initial.rectTransform.Fill();
             var who = LobbyKit.Column(you, "Who", 0, 0);
             who.Size(170, -1, 1);
-            LobbyKit.Text(who, Career.Name, 24, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft, FontStyles.Bold).Size(-1, 30).name = "Name";
-            LobbyKit.Text(who, "Level " + Career.Level + "  ·  in the lobby", 18, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 24).name = "Level";
+            LobbyKit.Display(who, Career.Name, 26, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).Size(-1, 32).name = "Name";
+            LobbyKit.Text(who, "Level " + Career.Level + "  ·  in the lobby", 17, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 24).name = "Level";
+            partyList = LobbyKit.Column(column, "Couch", 10, 0);
             LobbyKit.Rect(column, "Gap").Size(-1, 14);
             LobbyKit.Heading(column, "Friends");
-            var empty = LobbyKit.Text(column, "Friends and other players show up here once online or LAN play is built. Practice matches fill the seats with bots.",
-                19, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
+            var empty = LobbyKit.Text(column, "Friends and other players show up here once online or LAN play is built. Practice matches fill the empty seats with bots.",
+                18, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
             empty.textWrappingMode = TextWrappingModes.Normal;
-            empty.Size(-1, 120);
+            empty.Size(-1, 150);
+            RefreshParty();
+        }
+
+        /// <summary>Redraws the couch players under you, and how to join while a seat is free.</summary>
+        void RefreshParty()
+        {
+            if (!partyList) return;
+            partyHeading.text = $"PARTY  {PartySize} / {PartyMax}";
+            LobbyKit.Clear(partyList);
+            for (int i = 0; i < party.Count; i++)
+            {
+                var binding = party[i];
+                int seat = i + 2;
+                var row = LobbyKit.Row(partyList, "Seat " + seat, 12, 10).Size(-1, 74);
+                row.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+                row.Paint(LobbyKit.Card, 14);
+                var badge = LobbyKit.Rect(row, "Seat badge");
+                LobbyKit.Face(badge, GameAssets.I ? GameAssets.I.PlayerColor(seat - 1) : LobbyKit.Lime, 12, LobbyKit.Navy, 3, 3);
+                badge.Size(54, 54);
+                LobbyKit.Display(badge, "P" + seat, 26, LobbyKit.Cream, TextAlignmentOptions.Center, LobbyKit.Ink.Stroke).rectTransform.Fill();
+                var who = LobbyKit.Column(row, "Who", 0, 0);
+                who.Size(-1, -1, 1);
+                LobbyKit.Display(who, "Player " + seat, 24, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).Size(-1, 30);
+                LobbyKit.Text(who, binding is GamepadBinding ? "Controller" : "Right keyboard", 16,
+                    LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 22);
+                var leave = LobbyKit.Button(row, "Leave " + seat, Color.white, () => Leave(binding), 17, LobbyKit.Navy, 2, 2);
+                leave.Size(34, 34);
+                var glyph = LobbyKit.Icon(leave.Body(), LobbyIcons.Close, LobbyKit.Navy);
+                glyph.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(9, 9), new Vector2(-9, -9));
+                var face = leave.FaceOf();
+                leave.GetComponent<LobbyPress>().Hot = hot => face.color = hot ? LobbyKit.Sun : Color.white;
+                leave.gameObject.AddComponent<LobbyHint>().Text = "Leave the party";
+            }
+            if (party.Count >= PartyMax - 1) return;
+            var join = LobbyKit.Rect(partyList, "Join");
+            join.Size(-1, 100);
+            join.Paint(LobbyKit.Mist(.05f), 14).raycastTarget = false;
+            LobbyKit.Frame(join, LobbyKit.Line, 14, 2);
+            var how = LobbyKit.Text(join, "Press Start on a controller, or . on the keyboard's right half, to join. Select leaves.", 15,
+                LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
+            how.textWrappingMode = TextWrappingModes.Normal;
+            how.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(14, 6), new Vector2(-14, -6));
+        }
+
+        bool Couch(InputBinding binding) =>
+            binding is GamepadBinding g ? g.Pad != null && g.Pad.added : binding is KeyboardBinding k && k.Id == keyboardRight.Id;
+
+        bool InParty(string id) => party.Exists(b => b.Id == id);
+
+        /// <summary>A controller's Start or the keyboard's right half takes the next seat; Select leaves.</summary>
+        void PollParty()
+        {
+            // Not while a match starts, a dialog is up or someone types a name ("." is a join key).
+            if (Starting || quitDialog || Typing) return;
+            for (int i = party.Count - 1; i >= 0; i--)
+                if (party[i] is GamepadBinding g && (!g.Pad.added || g.Pad.selectButton.wasPressedThisFrame)) Leave(party[i]);
+            if (party.Count >= PartyMax - 1) return;
+            if (!InParty(keyboardRight.Id) && keyboardRight.JoinPressed()) Join(new KeyboardBinding(KeyboardBinding.Side.Right));
+            foreach (var pad in Gamepad.all)
+            {
+                var binding = new GamepadBinding(pad);
+                if (pad.startButton.wasPressedThisFrame && !InParty(binding.Id) && party.Count < PartyMax - 1) Join(binding);
+            }
+        }
+
+        static bool Typing
+        {
+            get
+            {
+                var selected = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+                return selected && selected.TryGetComponent(out TMP_InputField field) && field.isFocused;
+            }
+        }
+
+        /// <summary>Seats a couch player in the party.</summary>
+        public void Join(InputBinding binding)
+        {
+            if (binding == null || party.Count >= PartyMax - 1 || InParty(binding.Id)) return;
+            party.Add(binding);
+            Post($"Player {party.Count + 1} joined the party.");
+            PartyChanged();
+        }
+
+        public void Leave(InputBinding binding)
+        {
+            int index = party.FindIndex(b => b.Id == binding.Id);
+            if (index < 0) return;
+            party.RemoveAt(index);
+            Post($"Player {index + 2} left the party.");
+            PartyChanged();
+        }
+
+        void PartyChanged()
+        {
+            RefreshParty();
+            // Home and PLAY say who plays ("you + 3 bots"); redraw them, keeping a controller where it was.
+            if (Current != Home && Current != Play) return;
+            var page = pages[Current];
+            var selected = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+            bool onPage = selected && selected.transform.IsChildOf(page.Root);
+            string name = onPage ? selected.name : null;
+            page.Refresh();
+            if (!onPage || !EventSystem.current) return;
+            var again = page.Root.GetComponentsInChildren<Selectable>().FirstOrDefault(s => s.name == name);
+            var target = again ? again : page.First;
+            if (target) EventSystem.current.SetSelectedGameObject(target.gameObject);
         }
 
         void BuildFeed()
@@ -275,19 +393,18 @@ namespace Wreckabulary
         void BuildStatus()
         {
             // Just under the PLAY tab, on every page, the way a shooter shows a match being found.
-            status = LobbyKit.Rect(safe, "Starting").Pin(new Vector2(.5f, 1), new Vector2(0, -(BarHeight + 12)), new Vector2(660, 100));
-            status.Paint(LobbyKit.Panel, true);
-            var accent = LobbyKit.Rect(status, "Accent").Place(Vector2.zero, new Vector2(0, 1), Vector2.zero, new Vector2(8, 0));
-            accent.Paint(LobbyKit.Honey);
-            statusTitle = LobbyKit.Text(status, "", 20, LobbyKit.Honey, TextAlignmentOptions.TopLeft, FontStyles.Bold);
-            statusTitle.characterSpacing = 4;
-            statusTitle.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(30, 0), new Vector2(-250, -16));
-            statusDetail = LobbyKit.Text(status, "", 23, LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
-            statusDetail.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(30, 18), new Vector2(-250, 0));
-            statusCount = LobbyKit.Text(status, "", 50, LobbyKit.Cream, TextAlignmentOptions.Center, FontStyles.Bold);
-            statusCount.rectTransform.Place(new Vector2(1, 0), Vector2.one, new Vector2(-240, 0), new Vector2(-145, 0));
-            cancelButton = LobbyKit.LabelButton(status, "CANCEL", LobbyKit.Card, LobbyKit.Cream, 22, CancelStart);
-            ((RectTransform)cancelButton.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-140, -28), new Vector2(-20, 28));
+            status = LobbyKit.Rect(safe, "Starting").Pin(new Vector2(.5f, 1), new Vector2(0, -(BarHeight + 14)), new Vector2(660, 104));
+            LobbyKit.Face(status, LobbyKit.Panel, 18, LobbyKit.Line, 3, 7).raycastTarget = true;
+            LobbyKit.Rect(status, "Accent").Place(Vector2.zero, new Vector2(0, 1), new Vector2(14, 16), new Vector2(24, -16)).Paint(LobbyKit.Sun, 5).raycastTarget = false;
+            statusTitle = LobbyKit.Caps(status, "", 16);
+            statusTitle.alignment = TextAlignmentOptions.TopLeft;
+            statusTitle.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(42, 0), new Vector2(-250, -18));
+            statusDetail = LobbyKit.Text(status, "", 22, LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
+            statusDetail.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(42, 20), new Vector2(-250, 0));
+            statusCount = LobbyKit.Display(status, "", 56, LobbyKit.Sun, TextAlignmentOptions.Center, LobbyKit.Ink.Drop);
+            statusCount.rectTransform.Place(new Vector2(1, 0), Vector2.one, new Vector2(-240, 0), new Vector2(-150, 0));
+            cancelButton = LobbyKit.Pill(status, "CANCEL", "Cancel", 22, CancelStart);
+            ((RectTransform)cancelButton.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-142, -26), new Vector2(-22, 26));
             status.gameObject.SetActive(false);
         }
 
@@ -301,12 +418,7 @@ namespace Wreckabulary
             page.Refresh();
             Stage.Frame(page.Focus);
             feed.gameObject.SetActive(page.ShowFeed);
-            foreach (var kv in tabs)
-            {
-                bool on = kv.Key == id;
-                kv.Value.label.color = on ? LobbyKit.Honey : LobbyKit.Cream;
-                kv.Value.underline.enabled = on;
-            }
+            foreach (var kv in tabs) kv.Value.On = kv.Key == id;
             var first = page.First;
             if (EventSystem.current && first) EventSystem.current.SetSelectedGameObject(first.gameObject);
         }
@@ -320,8 +432,10 @@ namespace Wreckabulary
             for (int i = 0; i < messages.Count; i++)
             {
                 var card = LobbyKit.Rect(feedList, "Message");
-                card.Paint(new Color(LobbyKit.Bar.r, LobbyKit.Bar.g, LobbyKit.Bar.b, .72f - i * .08f), true);
-                var text = LobbyKit.Text(card, messages[i], 19, i == 0 ? LobbyKit.Cream : LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
+                var fill = LobbyKit.ChipFill;
+                card.Paint(new Color(fill.r, fill.g, fill.b, .85f - i * .1f), 10).raycastTarget = false;
+                if (i == 0) LobbyKit.Frame(card, LobbyKit.Line, 10, 2);
+                var text = LobbyKit.Text(card, messages[i], 18, i == 0 ? LobbyKit.Cream : LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
                 text.textWrappingMode = TextWrappingModes.Normal;
                 text.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(14, 6), new Vector2(-14, -6));
                 card.Size(-1, messages[i].Length > 40 ? 66 : 44);
@@ -389,6 +503,12 @@ namespace Wreckabulary
             if (Blocked != null) { Post(Blocked); return; }
             // Whoever pressed GO plays: a pad's A or Start seats that pad, anything else the keyboard and mouse.
             goPad = Gamepad.all.FirstOrDefault(p => p.buttonSouth.wasPressedThisFrame || p.startButton.wasPressedThisFrame);
+            // A pad in the party that presses GO is you now, not a second seat.
+            if (goPad != null)
+            {
+                int seat = party.FindIndex(b => b is GamepadBinding g && g.Pad == goPad);
+                if (seat >= 0) { party.RemoveAt(seat); RefreshParty(); }
+            }
             startAt = Time.unscaledTime + StartDelay;
             status.gameObject.SetActive(true);
             statusTitle.text = Queue == Workshop ? "OPENING" : "STARTING PRACTICE";
@@ -418,7 +538,7 @@ namespace Wreckabulary
             if (Mode == TutorialMode) return "Play & learn · the tutorial room";
             if (Mode == WorkshopMode) return "Creative Workshop · " + GameConfig.Current.HouseFor(Map).Name;
             if (Queue == Matchmaking) return ModeName(Mode) + " · " + GameConfig.Current.HouseFor(Map).Name + " · online";
-            return ModeName(Mode) + " · " + GameConfig.Current.HouseFor(Map).Name + " · " + Seats(Mode);
+            return ModeName(Mode) + " · " + GameConfig.Current.HouseFor(Map).Name + " · " + Seats(Mode, PartySize);
         }
 
         public static string ModeName(string mode) => mode switch
@@ -431,13 +551,25 @@ namespace Wreckabulary
             _ => mode,
         };
 
-        /// <summary>Who plays in practice, as the match fills its seats today.</summary>
-        public static string Seats(string mode) => mode switch
+        /// <summary>Who plays in practice with this many of you on the couch, as the match fills its
+        /// seats: Dibs and Duos fill to four with bots, and Duos teams alternate by seat.</summary>
+        public static string Seats(string mode, int humans = 1)
         {
-            "Dibs" => "you + 3 bots",
-            "Duos" => "you and a bot vs 2 bots",
-            _ => "solo",
-        };
+            humans = Mathf.Clamp(humans, 1, PartyMax);
+            int bots = PartyMax - humans;
+            return mode switch
+            {
+                "Dibs" => humans == 1 ? "you + 3 bots" : bots == 0 ? "4 players" : $"{humans} players + {bots} bot{(bots > 1 ? "s" : "")}",
+                "Duos" => humans switch
+                {
+                    1 => "you and a bot vs 2 bots",
+                    2 => "2 players, each with a bot",
+                    3 => "3 players and a bot",
+                    _ => "2 v 2",
+                },
+                _ => humans == 1 ? "solo" : $"{humans} players",
+            };
+        }
 
         void Update()
         {
@@ -454,6 +586,7 @@ namespace Wreckabulary
                 canvas.enabled = !hidden;
             }
             if (hidden) return;
+            PollParty();
             if (Starting)
             {
                 float left = startAt - Time.unscaledTime;
@@ -498,9 +631,9 @@ namespace Wreckabulary
             else Session.LoadMode(Mode, Map);
         }
 
-        /// <summary>Seats the controls that pressed GO as you. Anyone else already playing along stays;
-        /// a different device for you replaces the one you used last time.</summary>
-        static void Seat(Gamepad pad)
+        /// <summary>Seats the controls that pressed GO as you, then the couch party in its order; bots
+        /// fill the rest. A different device for you replaces the one you used last time.</summary>
+        void Seat(Gamepad pad)
         {
             InputBinding you;
             if (pad != null && pad.added) you = new GamepadBinding(pad);
@@ -510,9 +643,9 @@ namespace Wreckabulary
                 if (touch) TouchBinding.Shared.Enabled = true;
                 you = touch ? TouchBinding.Shared : DesktopBinding.Shared;
             }
-            if (Session.Bindings.Exists(b => b.Id == you.Id)) return;
-            if (Session.Bindings.Count > 0) Session.Bindings[0] = you;
-            else Session.Remember(you);
+            Session.Bindings.Clear();
+            Session.Remember(you);
+            foreach (var binding in party) Session.Remember(binding);
         }
 
         void AskQuit()
@@ -520,14 +653,14 @@ namespace Wreckabulary
             if (quitDialog) return;
             var shade = quitDialog = LobbyKit.Rect(safe, "Quit dialog").Fill();
             shade.Paint(LobbyKit.Shade);
-            var box = LobbyKit.Rect(shade, "Box").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(560, 240));
-            box.Paint(LobbyKit.Panel, true);
-            var title = LobbyKit.Text(box, "Leave Wreckabulary?", 34, LobbyKit.Cream, TextAlignmentOptions.Center, FontStyles.Bold);
-            title.rectTransform.Place(new Vector2(0, .55f), Vector2.one);
-            var quit = LobbyKit.LabelButton(box, "QUIT GAME", LobbyKit.Tomato, LobbyKit.Cream, 24, Application.Quit);
-            ((RectTransform)quit.transform).Place(new Vector2(.06f, .12f), new Vector2(.48f, .42f));
-            var stay = LobbyKit.LabelButton(box, "STAY", LobbyKit.Card, LobbyKit.Cream, 24, CloseQuit);
-            ((RectTransform)stay.transform).Place(new Vector2(.52f, .12f), new Vector2(.94f, .42f));
+            var box = LobbyKit.Rect(shade, "Box").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(600, 260));
+            LobbyKit.Face(box, LobbyKit.Page, 26, LobbyKit.Line, 4, 8).raycastTarget = true;
+            var title = LobbyKit.Display(box, "Leave Wreckabulary?", 40, LobbyKit.Sun, TextAlignmentOptions.Center, LobbyKit.Ink.Drop);
+            title.rectTransform.Place(new Vector2(0, .52f), Vector2.one, new Vector2(20, 0), new Vector2(-20, -10));
+            var quit = LobbyKit.Danger(box, "QUIT GAME", 26, Application.Quit);
+            ((RectTransform)quit.transform).Place(new Vector2(.06f, .14f), new Vector2(.48f, .42f));
+            var stay = LobbyKit.Pill(box, "STAY", "Stay", 26, CloseQuit);
+            ((RectTransform)stay.transform).Place(new Vector2(.52f, .14f), new Vector2(.94f, .42f));
             // A keyboard or controller stays inside the dialog; the shade stops clicks behind it.
             quit.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = stay };
             stay.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = quit };

@@ -10,12 +10,20 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>One lobby page. Only one shows at a time, and each redraws itself from the menu's state.</summary>
+    /// <summary>
+    /// One lobby page. Only one shows at a time, and each redraws itself from the menu's state.
+    /// Pages wear the web lobby's look (LobbyKit): navy panels with sun titles, posters for modes and
+    /// maps, wood tiles, white cards with navy edges and hard drops. Rotations are in uGUI degrees,
+    /// which turn the other way from CSS: the web's rotate(-8deg) is +8 here.
+    /// </summary>
     public abstract class LobbyPage
     {
-        protected static readonly Color Chosen = new Color(LobbyKit.Honey.r, LobbyKit.Honey.g, LobbyKit.Honey.b, .16f);
-        protected static readonly Color Ink = new Color(.12f, .09f, .06f);
         protected static readonly string[] Finishes = { "Classic", "Candy", "Arcade" };
+        /// <summary>The hard drop under cards on a solid navy page, where a navy one wouldn't show.</summary>
+        protected static readonly Color Deep = LobbyKit.Hex(0x04052a);
+        /// <summary>The web's see-through card on the navy page, made solid: a uGUI shadow draws under
+        /// its card, so a see-through card would show its own drop through itself.</summary>
+        protected static readonly Color BoardIdle = LobbyKit.Hex(0x292b5c), BoardHover = LobbyKit.Hex(0x3c3e6a);
 
         public abstract string Id { get; }
         public virtual LobbyStage.Focus Focus => LobbyStage.Focus.Centre;
@@ -51,20 +59,23 @@ namespace Wreckabulary
             if (target) EventSystem.current.SetSelectedGameObject(target.gameObject);
         }
 
-        /// <summary>A dark panel with a title. Returns the body to fill.</summary>
+        /// <summary>A web panel: navy with a light edge and a hard drop, its title in sun capitals. Returns the body to fill.</summary>
         protected RectTransform Panel(Vector2 min, Vector2 max, string title, string subtitle = null)
         {
             var panel = LobbyKit.Rect(Root, "Panel").Place(min, max);
-            panel.Paint(Focus == LobbyStage.Focus.Centre ? LobbyKit.Page : LobbyKit.Panel, true);
-            var head = LobbyKit.Text(panel, LobbyKit.Upper(title), 34, LobbyKit.Cream, TextAlignmentOptions.BottomLeft, FontStyles.Bold);
-            head.characterSpacing = 3;
-            head.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -78), new Vector2(-32, -24));
-            float top = 98;
+            // Pages that cover you are solid; the side panels are glass over the map.
+            var face = LobbyKit.Face(panel, Focus == LobbyStage.Focus.Centre ? LobbyKit.Page : LobbyKit.Panel, 24, LobbyKit.Line, 3, 7);
+            // A click on the panel stays there instead of turning you.
+            face.raycastTarget = true;
+            var head = LobbyKit.Display(panel, LobbyKit.Upper(title), 44, LobbyKit.Sun, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Drop);
+            head.characterSpacing = 2;
+            head.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -86), new Vector2(-32, -18));
+            float top = 100;
             if (!string.IsNullOrEmpty(subtitle))
             {
                 var sub = LobbyKit.Text(panel, subtitle, 19, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
-                sub.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -116), new Vector2(-32, -84));
-                top = 130;
+                sub.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -124), new Vector2(-32, -92));
+                top = 134;
             }
             return LobbyKit.Rect(panel, "Body").Place(Vector2.zero, Vector2.one, new Vector2(32, 28), new Vector2(-32, -top));
         }
@@ -88,35 +99,61 @@ namespace Wreckabulary
             return rect;
         }
 
-        /// <summary>A tall choice card: a title, a line about it and an optional footer.</summary>
-        protected static Button Card(Transform parent, string name, string title, string body, string foot, bool on, Action click)
+        /// <summary>
+        /// A web poster for a mode or a map: its colour running light to dark, a navy edge and a hard
+        /// drop, lifting and leaning a little under the pointer. Put its content on its Body.
+        /// </summary>
+        protected static Button Poster(Transform parent, string name, Color colour, bool on, Action click)
         {
-            var button = LobbyKit.Button(parent, name, on ? Chosen : LobbyKit.Card, click);
-            var t = button.transform;
-            if (on) LobbyKit.Rect(t, "Mark").Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 5)).Paint(LobbyKit.Honey).raycastTarget = false;
-            var head = LobbyKit.Text(t, title, 27, on ? LobbyKit.Honey : LobbyKit.Cream, TextAlignmentOptions.TopLeft, FontStyles.Bold);
-            head.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(20, 0), new Vector2(-16, -18));
-            var text = Wrapped(t, body, 18, LobbyKit.Muted);
-            text.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(20, foot != null ? 44 : 14), new Vector2(-16, -56));
-            text.overflowMode = TextOverflowModes.Ellipsis;
-            if (foot != null)
-            {
-                var f = LobbyKit.Text(t, foot, 18, LobbyKit.Honey, TextAlignmentOptions.BottomLeft, FontStyles.Bold);
-                f.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(20, 16), new Vector2(-16, 0));
-            }
+            var button = LobbyKit.Button(parent, name, Color.Lerp(colour, Color.white, .3f), click, 20, LobbyKit.Navy, 4, 6,
+                Color.Lerp(colour, Color.black, .25f));
+            var press = button.GetComponent<LobbyPress>();
+            press.Lift = 5f; press.Tilt = 1f;
+            if (on) Chosen(button.Body(), 20);
             return button;
         }
 
-        /// <summary>A short row button: a title over a muted line, like a loadout slot.</summary>
-        protected static Button Tile(Transform parent, string name, string title, string sub, bool on, Action click)
+        /// <summary>The web's chosen mark: a sun ring just outside the card and a check on its corner.</summary>
+        protected static void Chosen(RectTransform body, int radius)
         {
-            var button = LobbyKit.Button(parent, name, on ? Chosen : LobbyKit.Card, click);
-            var t = button.transform;
-            if (on) LobbyKit.Rect(t, "Mark").Place(Vector2.zero, new Vector2(0, 1), Vector2.zero, new Vector2(5, 0)).Paint(LobbyKit.Honey).raycastTarget = false;
-            var head = LobbyKit.Text(t, title, 21, on ? LobbyKit.Honey : LobbyKit.Cream, TextAlignmentOptions.BottomLeft, FontStyles.Bold);
-            head.rectTransform.Place(new Vector2(0, .5f), Vector2.one, new Vector2(18, 0), new Vector2(-12, -6));
-            var line = LobbyKit.Text(t, sub, 17, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
-            line.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), new Vector2(18, 6), new Vector2(-12, 0));
+            LobbyKit.Ring(body, LobbyKit.Sun, radius, 5);
+            var check = LobbyKit.Rect(body, "Check").Pin(Vector2.one, new Vector2(12, 12), new Vector2(38, 38));
+            LobbyKit.Face(check, LobbyKit.Sun, 19, LobbyKit.Navy, 4);
+            LobbyKit.Icon(check, LobbyIcons.Check, LobbyKit.Navy).rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(8, 8), new Vector2(-8, -8));
+        }
+
+        /// <summary>The small navy tag at a poster's foot ("2 v 2", "Solo").</summary>
+        protected static void Tag(RectTransform body, string text)
+        {
+            var tag = LobbyKit.Row(body, "Foot", 0);
+            tag.GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(12, 12, 3, 3);
+            tag.Pin(Vector2.zero, new Vector2(16, 14), new Vector2(0, 30));
+            tag.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            tag.Paint(LobbyKit.Navy, 8).raycastTarget = false;
+            LobbyKit.Text(tag, LobbyKit.Upper(text), 15, LobbyKit.Cream, TextAlignmentOptions.Center, FontStyles.Bold).characterSpacing = 2;
+        }
+
+        /// <summary>A queue choice: a glass card with a light edge, or a sun slab with navy type when chosen.</summary>
+        protected static Button Board(Transform parent, string name, string title, string body, bool on, Action click)
+        {
+            var button = on
+                ? LobbyKit.Button(parent, name, LobbyKit.SunHi, click, 16, LobbyKit.Navy, 3, 5, LobbyKit.Sun2)
+                : LobbyKit.Button(parent, name, BoardIdle, click, 16, LobbyKit.ChipEdge, 2, 5);
+            var t = button.Body();
+            t.GetComponent<Shadow>().effectColor = Deep;
+            var press = button.GetComponent<LobbyPress>();
+            if (on) press.Lift = 0f;
+            else
+            {
+                var face = t.GetComponent<Image>();
+                press.Hot = hot => face.color = hot ? BoardHover : BoardIdle;
+            }
+            var head = LobbyKit.Display(t, title, 28, on ? LobbyKit.Navy : LobbyKit.Cream, TextAlignmentOptions.TopLeft);
+            head.characterSpacing = 1;
+            head.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(20, 0), new Vector2(-16, -16));
+            var text = Wrapped(t, body, 17, on ? LobbyKit.CardSub : LobbyKit.Muted);
+            text.overflowMode = TextOverflowModes.Ellipsis;
+            text.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(20, 12), new Vector2(-16, -54));
             return button;
         }
 
@@ -145,30 +182,40 @@ namespace Wreckabulary
 
         protected override void Build()
         {
-            var hint = LobbyKit.Row(Root, "Turn hint", 8);
-            hint.Pin(new Vector2(.5f, 0), new Vector2(0, 4), new Vector2(240, 36));
+            var hint = LobbyKit.Row(Root, "Turn hint", 8, 0);
+            hint.Pin(new Vector2(.5f, 0), new Vector2(0, 4), new Vector2(200, 40));
             var layout = hint.GetComponent<HorizontalLayoutGroup>();
             layout.childAlignment = TextAnchor.MiddleCenter;
             layout.childForceExpandHeight = false;
-            LobbyKit.Icon(hint, LobbyIcons.Turn, LobbyKit.Muted).Size(26, 26);
-            LobbyKit.Text(hint, "Drag to turn", 19, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(130, 30);
+            // Says what the open view does without getting in its way: Face leaves it click-through.
+            LobbyKit.Face(hint, LobbyKit.TabIdle, 10, LobbyKit.Line, 2);
+            LobbyKit.Icon(hint, LobbyIcons.Turn, LobbyKit.Cyan).Size(24, 24);
+            LobbyKit.Text(hint, "Drag to turn", 19, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).Size(126, 30);
             // While a match starts, the countdown under the tabs takes over.
             if (Menu.Starting) return;
 
-            var card = LobbyKit.Rect(Root, "Next match").Pin(Vector2.zero, Vector2.zero, new Vector2(540, 176));
-            card.Paint(LobbyKit.Panel, true);
-            LobbyKit.Rect(card, "Accent").Place(Vector2.zero, new Vector2(0, 1), Vector2.zero, new Vector2(6, 0)).Paint(LobbyKit.Honey);
+            // The web's match dock: the mode's colour, its art, what GO starts and the GO button.
             bool blocked = Menu.Blocked != null;
-            var title = LobbyKit.Text(card, "NEXT UP  ·  " + LobbyKit.Upper(Menu.Queue) + (blocked ? "  ·  NOT BUILT YET" : ""),
-                18, LobbyKit.Honey, TextAlignmentOptions.TopLeft, FontStyles.Bold);
-            title.characterSpacing = 3;
-            title.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(28, 0), new Vector2(-24, -18));
-            var detail = Wrapped(card, Menu.Describe(), 22, blocked ? LobbyKit.Muted : LobbyKit.Cream);
-            detail.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(28, 84), new Vector2(-24, -48));
-            var change = LobbyKit.LabelButton(card, "CHANGE", LobbyKit.Card, LobbyKit.Cream, 22, () => Menu.Open(LobbyMenu.Play));
-            ((RectTransform)change.transform).Place(Vector2.zero, Vector2.zero, new Vector2(28, 20), new Vector2(228, 76));
-            var go = LobbyKit.LabelButton(card, "GO", LobbyKit.Tomato, LobbyKit.Cream, 30, Menu.Go);
-            ((RectTransform)go.transform).Place(new Vector2(1, 0), new Vector2(1, 0), new Vector2(-264, 20), new Vector2(-24, 76));
+            var colour = LobbyKit.ModeColour(Menu.Mode);
+            var card = LobbyKit.Rect(Root, "Next match").Pin(Vector2.zero, Vector2.zero, new Vector2(560, 212));
+            LobbyKit.Face(card, LobbyKit.Panel, 18, LobbyKit.Line, 3, 5).raycastTarget = true;
+            LobbyKit.Rect(card, "Accent").Place(Vector2.zero, new Vector2(0, 1), new Vector2(14, 18), new Vector2(24, -18))
+                .Paint(colour, 5).raycastTarget = false;
+            var art = LobbyKit.Rect(card, "Art").Pin(new Vector2(0, 1), new Vector2(40, -20), new Vector2(76, 76));
+            LobbyKit.Face(art, colour, 16, LobbyKit.Navy, 3);
+            LobbyKit.ItemImage(art, LobbyKit.ModeArt(Menu.Mode), 66, 10f);
+            var caps = LobbyKit.Caps(card, "Next up  ·  " + Menu.Queue, 15);
+            caps.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(134, -44), new Vector2(-152, -20));
+            var title = LobbyKit.Display(card, LobbyMenu.ModeName(Menu.Mode), 36, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Stroke);
+            // Clear of CHANGE in the corner; a long name shrinks instead.
+            title.enableAutoSizing = true; title.fontSizeMin = 24; title.fontSizeMax = 36;
+            title.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(134, -88), new Vector2(-150, -42));
+            var detail = LobbyKit.Text(card, (blocked ? "Not built yet  ·  " : "") + Menu.Describe(), 19, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
+            detail.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(134, -112), new Vector2(-20, -86));
+            var change = LobbyKit.Pill(card, "CHANGE", "Change", 20, () => Menu.Open(LobbyMenu.Play));
+            ((RectTransform)change.transform).Pin(Vector2.one, new Vector2(-18, -18), new Vector2(120, 40));
+            var go = LobbyKit.Primary(card, "GO", "GO", Menu.Go, 58, 36);
+            ((RectTransform)go.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(18, 20), new Vector2(-18, 98));
             go.interactable = !blocked;
             First = blocked ? change : go;
         }
@@ -188,78 +235,92 @@ namespace Wreckabulary
 
         protected override void Build()
         {
-            var panel = LobbyKit.Rect(Root, "Panel").Fill();
-            panel.Paint(LobbyKit.Page, true);
+            var body = Panel(Vector2.zero, Vector2.one, "Play", "Pick a queue, a mode and a map, then press GO.");
 
-            var queues = LobbyKit.Column(panel, "Queues", 12);
-            queues.Place(Vector2.zero, new Vector2(0, 1), new Vector2(24, 24), new Vector2(304, -24));
-            foreach (var (id, title, body) in Queues)
+            var queues = LobbyKit.Column(body, "Queues", 14);
+            queues.Place(Vector2.zero, new Vector2(0, 1), Vector2.zero, new Vector2(280, 0));
+            foreach (var (id, title, text) in Queues)
             {
                 bool on = Menu.Queue == id;
-                var card = Card(queues, "Queue " + id, title, body, null, on, () => { Menu.Choose(queue: id); Refresh(); Reselect("Queue " + id); });
+                var card = Board(queues, "Queue " + id, title, text, on, () => { Menu.Choose(queue: id); Refresh(); Reselect("Queue " + id); });
                 card.Size(-1, 128);
                 if (on) First = card;
             }
 
-            var main = LobbyKit.Rect(panel, "Choices").Place(Vector2.zero, Vector2.one, new Vector2(332, 136), new Vector2(-28, -20));
+            var main = LobbyKit.Rect(body, "Choices").Place(Vector2.zero, Vector2.one, new Vector2(312, 112), Vector2.zero);
             var column = LobbyKit.Column(main, "Column", 10).Fill();
             LobbyKit.Heading(column, "Mode");
-            var modes = LobbyKit.Row(column, "Modes", 14);
+            var modes = LobbyKit.Row(column, "Modes", 16);
             modes.Size(-1, 196);
-            foreach (var (mode, title, body, foot) in ModesFor(Menu.Queue))
-            {
-                bool on = Menu.Mode == mode;
-                Card(modes, "Mode " + mode, title, body, foot, on, () => { Menu.Choose(mode: mode); Refresh(); Reselect("Mode " + mode); })
-                    .Size(-1, -1, 1);
-            }
+            foreach (var (mode, title, text, foot) in ModesFor(Menu.Queue, Menu.PartySize))
+                ModePoster(modes, mode, title, text, foot, Menu.Mode == mode);
             if (Menu.Mode != LobbyMenu.TutorialMode)
             {
-                LobbyKit.Rect(column, "Gap").Size(-1, 6);
+                LobbyKit.Rect(column, "Gap").Size(-1, 8);
                 LobbyKit.Heading(column, "Map");
-                var maps = LobbyKit.Grid(column, "Maps", new Vector2(260, 204), 14);
+                var maps = LobbyKit.Grid(column, "Maps", new Vector2(260, 204), 18);
+                int index = 0;
                 foreach (var house in GameConfig.Current.Houses)
-                    MapCard(maps, house.Key, house.Value, Menu.Map == house.Key);
+                    MapPoster(maps, house.Key, house.Value, Menu.Map == house.Key, index++);
             }
 
-            var bar = LobbyKit.Rect(panel, "Summary").Place(Vector2.zero, new Vector2(1, 0), new Vector2(332, 24), new Vector2(-28, 116));
-            bar.Paint(LobbyKit.Card, true);
+            var bar = LobbyKit.Rect(body, "Summary").Place(Vector2.zero, new Vector2(1, 0), new Vector2(312, 0), new Vector2(0, 92));
+            LobbyKit.Face(bar, LobbyKit.ChipFill, 18, LobbyKit.Line, 2);
             string blocked = Menu.Blocked;
-            var summary = Wrapped(bar, blocked ?? Menu.Describe(), 23, blocked == null ? LobbyKit.Cream : LobbyKit.Muted);
+            var summary = Wrapped(bar, blocked ?? Menu.Describe(), 22, blocked == null ? LobbyKit.Cream : LobbyKit.Muted);
             summary.alignment = TextAlignmentOptions.MidlineLeft;
-            summary.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(24, 6), new Vector2(-296, -6));
-            var go = LobbyKit.LabelButton(bar, "GO", LobbyKit.Tomato, LobbyKit.Cream, 38, Menu.Go);
-            ((RectTransform)go.transform).Place(new Vector2(1, 0), Vector2.one, new Vector2(-268, 10), new Vector2(-12, -10));
+            summary.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(24, 6), new Vector2(-290, -6));
+            var go = LobbyKit.Primary(bar, "GO", "GO", Menu.Go, 48, 30);
+            ((RectTransform)go.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-268, -36), new Vector2(-12, 36));
             go.interactable = blocked == null;
         }
 
-        static IEnumerable<(string mode, string title, string body, string foot)> ModesFor(string queue)
+        static IEnumerable<(string mode, string title, string body, string foot)> ModesFor(string queue, int humans)
         {
             if (queue == LobbyMenu.Workshop)
             {
-                yield return (LobbyMenu.TutorialMode, "Play & learn", "No pressure, just wordplay. Smash, spell and craft step by step.", "Solo");
+                yield return (LobbyMenu.TutorialMode, "Play & learn", "No pressure, just wordplay. Smash, spell and craft step by step.", Capital(LobbyMenu.Seats(LobbyMenu.TutorialMode, humans)));
                 yield return (LobbyMenu.WorkshopMode, "Creative Workshop", "Build your cozy home from the furniture you spell.", "Solo");
                 yield break;
             }
             bool online = queue == LobbyMenu.Matchmaking;
-            yield return ("Dibs", "Dibs", "A friendly scrap. Last roommate standing wins.", online ? "Free for all" : Capital(LobbyMenu.Seats("Dibs")));
-            yield return ("Duos", "Duos", "Two teams, shared trouble. Revive your buddy.", online ? "2 v 2" : Capital(LobbyMenu.Seats("Duos")));
-            yield return ("MovingDay", "Moving Day", "Spell the furniture and put everything in its room.", online ? "Co-op" : "Solo");
-            yield return ("MovingOut", "Moving Out", "Rescue the keepsakes before the house clears out.", online ? "Co-op" : "Solo");
+            yield return ("Dibs", "Dibs", "A friendly scrap. Last roommate standing wins.", online ? "Free for all" : Capital(LobbyMenu.Seats("Dibs", humans)));
+            yield return ("Duos", "Duos", "Two teams, shared trouble. Revive your buddy.", online ? "2 v 2" : Capital(LobbyMenu.Seats("Duos", humans)));
+            yield return ("MovingDay", "Moving Day", "Spell the furniture and put everything in its room.", online ? "Co-op" : Capital(LobbyMenu.Seats("MovingDay", humans)));
+            yield return ("MovingOut", "Moving Out", "Rescue the keepsakes before the house clears out.", online ? "Co-op" : Capital(LobbyMenu.Seats("MovingOut", humans)));
             if (online) yield return (LobbyMenu.RoomMode, "Private room", "Invite friends with a room code and pick the rules.", "Friends only");
         }
 
-        void MapCard(Transform parent, string id, HouseLayout layout, bool on)
+        void ModePoster(Transform parent, string mode, string title, string text, string foot, bool on)
         {
-            var card = LobbyKit.Button(parent, "Map " + id, on ? Chosen : LobbyKit.Card, () => { Menu.Choose(map: id); Refresh(); Reselect("Map " + id); });
-            var t = card.transform;
-            var plan = LobbyKit.Rect(t, "Plan").Place(Vector2.zero, Vector2.one, new Vector2(16, 52), new Vector2(-16, -14));
-            FloorPlan(plan, layout, on ? LobbyKit.Honey : LobbyKit.Cream, new Vector2(228, 138));
-            var name = LobbyKit.Text(t, layout.Name, 22, on ? LobbyKit.Honey : LobbyKit.Cream, TextAlignmentOptions.BottomLeft, FontStyles.Bold);
-            name.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 14), new Vector2(-18, 0));
-            if (on) LobbyKit.Rect(t, "Mark").Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 5)).Paint(LobbyKit.Honey).raycastTarget = false;
+            var card = Poster(parent, "Mode " + mode, LobbyKit.ModeColour(mode), on, () => { Menu.Choose(mode: mode); Refresh(); Reselect("Mode " + mode); });
+            card.Size(-1, -1, 1);
+            var body = card.Body();
+            var art = LobbyKit.ItemImage(body, LobbyKit.ModeArt(mode), 84, 8f);
+            if (art) art.rectTransform.Pin(new Vector2(1, 0), new Vector2(-6, 6), new Vector2(84, 84));
+            var head = LobbyKit.Display(body, title, 30, LobbyKit.Cream, TextAlignmentOptions.TopLeft, LobbyKit.Ink.Stroke);
+            head.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 0), new Vector2(-14, -14));
+            var line = Wrapped(body, text, 17, LobbyKit.Cream);
+            line.overflowMode = TextOverflowModes.Ellipsis;
+            line.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 70), new Vector2(-14, -54));
+            if (foot != null) Tag(body, foot);
         }
 
-        /// <summary>Draws a map's rooms from above to fit a box. Upper floors are fainter.</summary>
+        void MapPoster(Transform parent, string id, HouseLayout layout, bool on, int index)
+        {
+            // The web alternates its house cards between hot and lime.
+            var card = Poster(parent, "Map " + id, index % 2 == 0 ? LobbyKit.Hot : LobbyKit.Lime, on,
+                () => { Menu.Choose(map: id); Refresh(); Reselect("Map " + id); });
+            var body = card.Body();
+            var plan = LobbyKit.Rect(body, "Plan").Place(Vector2.zero, Vector2.one, new Vector2(22, 54), new Vector2(-22, -18));
+            plan.localRotation = Quaternion.Euler(0, 0, 4f);
+            FloorPlan(plan, layout, Color.white, new Vector2(216, 132));
+            var name = LobbyKit.Display(body, layout.Name, 26, LobbyKit.Cream, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Stroke);
+            name.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 14), new Vector2(-14, 0));
+        }
+
+        /// <summary>Draws a map's rooms from above to fit a box, like the web's plans: rooms with navy
+        /// walls, the garden green. Upper floors are fainter.</summary>
         public static void FloorPlan(RectTransform box, HouseLayout layout, Color colour, Vector2 size)
         {
             if (layout.Rooms.Count == 0) return;
@@ -272,7 +333,9 @@ namespace Wreckabulary
                 var centre = new Vector2((room.MinX + room.MaxX) * .5f, (room.MinZ + room.MaxZ) * .5f);
                 var rect = LobbyKit.Rect(box, room.Name).Pin(new Vector2(.5f, .5f), (centre - middle) * scale,
                     new Vector2(room.MaxX - room.MinX, room.MaxZ - room.MinZ) * scale - new Vector2(3, 3));
-                rect.Paint(new Color(colour.r, colour.g, colour.b, room.FloorY > .5f ? .14f : .32f)).raycastTarget = false;
+                var fill = room.Name.Contains("Garden") ? LobbyKit.Lime : room.Name.Contains("Hall") ? LobbyKit.Sun : colour;
+                rect.Paint(new Color(fill.r, fill.g, fill.b, room.FloorY > .5f ? .5f : 1f), 3).raycastTarget = false;
+                LobbyKit.Frame(rect, LobbyKit.Navy, 3, 3);
             }
         }
     }
@@ -281,6 +344,7 @@ namespace Wreckabulary
     public sealed class LoadoutPage : LobbyPage
     {
         public const string FinishSlot = "Finish";
+        static readonly Color CocoaSoft = new Color(LobbyKit.Cocoa.r, LobbyKit.Cocoa.g, LobbyKit.Cocoa.b, .75f);
         public override string Id => LobbyMenu.Loadout;
         public override LobbyStage.Focus Focus => LobbyStage.Focus.Left;
         public bool ShowingRecipes { get; private set; }
@@ -289,12 +353,15 @@ namespace Wreckabulary
         protected override void Build()
         {
             var body = Side("Loadout");
-            var tabs = LobbyKit.Row((RectTransform)body.parent, "Tabs", 8);
-            tabs.Place(Vector2.one, Vector2.one, new Vector2(-376, -80), new Vector2(-28, -26));
-            var locker = LobbyKit.Chip(tabs, "LOCKER", !ShowingRecipes, () => ShowRecipes(false));
-            locker.Size(170, -1);
-            LobbyKit.Chip(tabs, "RECIPES", ShowingRecipes, () => ShowRecipes(true)).Size(170, -1);
-            if (ShowingRecipes) { First = locker; Recipes(body); }
+            var tabs = LobbyKit.Row((RectTransform)body.parent, "Tabs", 10);
+            tabs.Place(Vector2.one, Vector2.one, new Vector2(-380, -82), new Vector2(-30, -26));
+            var row = tabs.GetComponent<HorizontalLayoutGroup>();
+            row.childAlignment = TextAnchor.MiddleRight;
+            row.childForceExpandHeight = false;
+            var locker = LobbyKit.Tab(tabs, "LOCKER", null, () => ShowRecipes(false), 170, 48, 22);
+            locker.On = !ShowingRecipes;
+            LobbyKit.Tab(tabs, "RECIPES", null, () => ShowRecipes(true), 170, 48, 22).On = ShowingRecipes;
+            if (ShowingRecipes) { First = locker.Button; Recipes(body); }
             else Locker(body);
         }
 
@@ -316,21 +383,35 @@ namespace Wreckabulary
         {
             var wardrobe = GameConfig.Current.Wardrobe;
             var outfit = Menu.Outfit;
-            var slots = LobbyKit.Column(body, "Slots", 6);
-            slots.Place(Vector2.zero, new Vector2(0, 1), Vector2.zero, new Vector2(230, 0));
+            var slots = LobbyKit.Column(body, "Slots", 8);
+            slots.Place(Vector2.zero, new Vector2(0, 1), Vector2.zero, new Vector2(236, 0));
             foreach (string slot in wardrobe.Slots.Append(FinishSlot))
             {
                 string worn = slot == FinishSlot ? SkinOf(outfit) : outfit.PieceIn(slot) ?? "None";
                 var colour = slot == FinishSlot || outfit.PieceIn(slot) == null ? null : wardrobe.ColourFor(outfit, slot);
                 string title = slot == FinishSlot ? "Item finish" : slot;
-                var tile = Tile(slots, "Slot " + slot, title, colour != null ? worn + " · " + colour.Name : worn, Slot == slot, () => Pick(slot));
+                var tile = SlotTile(slots, "Slot " + slot, title, colour != null ? worn + " · " + colour.Name : worn, Slot == slot, () => Pick(slot));
                 tile.Size(-1, 64);
                 if (Slot == slot) First = tile;
             }
             var detail = LobbyKit.Column(body, "Detail", 10);
-            detail.Place(Vector2.zero, Vector2.one, new Vector2(256, 0), Vector2.zero);
+            detail.Place(Vector2.zero, Vector2.one, new Vector2(266, 0), Vector2.zero);
             if (Slot == FinishSlot) Finish(detail);
             else Styles(detail, Slot);
+        }
+
+        /// <summary>The web's wood select: a honey slab with a cocoa edge and a chevron, ringed in sun when open.</summary>
+        static Button SlotTile(Transform parent, string name, string title, string sub, bool on, Action click)
+        {
+            var button = LobbyKit.Button(parent, name, LobbyKit.WoodHi, click, 12, LobbyKit.Cocoa, 3, 3, LobbyKit.WoodLo);
+            var t = button.Body();
+            if (on) LobbyKit.Ring(t, LobbyKit.Sun, 12, 4);
+            var head = LobbyKit.Display(t, title, 22, LobbyKit.Cocoa, TextAlignmentOptions.BottomLeft);
+            head.rectTransform.Place(new Vector2(0, .5f), Vector2.one, new Vector2(16, -2), new Vector2(-36, -4));
+            var line = LobbyKit.Text(t, sub, 16, CocoaSoft, TextAlignmentOptions.TopLeft);
+            line.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), new Vector2(16, 6), new Vector2(-36, -2));
+            LobbyKit.Icon(t, LobbyIcons.Chevron, LobbyKit.Cocoa).rectTransform.Pin(new Vector2(1, .5f), new Vector2(-12, 0), new Vector2(18, 18));
+            return button;
         }
 
         void Styles(RectTransform detail, string slot)
@@ -339,7 +420,7 @@ namespace Wreckabulary
             var outfit = Menu.Outfit;
             LobbyKit.Heading(detail, slot + " · style");
             var choices = wardrobe.Choices(outfit, slot);
-            var chips = LobbyKit.Grid(detail, "Styles", new Vector2(170, 52), 10);
+            var chips = LobbyKit.Grid(detail, "Styles", new Vector2(170, 52), 12);
             foreach (string id in choices)
             {
                 string label = id ?? "None";
@@ -364,20 +445,38 @@ namespace Wreckabulary
             LobbyKit.Rect(detail, "Gap").Size(-1, 6);
             LobbyKit.Heading(detail, slot + " · colour");
             var current = wardrobe.ColourFor(outfit, slot);
-            var swatches = LobbyKit.Grid(detail, "Colours", new Vector2(60, 60), 10);
+            // Room for a chosen swatch's ring and bigger size without touching its neighbours.
+            var swatches = LobbyKit.Grid(detail, "Colours", new Vector2(60, 60), 14);
             foreach (var colour in palette)
                 Swatch(swatches, slot, colour, current?.Id == colour.Id, slot == "Top" && !Menu.Career.Owns("colour", colour.Id));
             if (current != null)
                 Wrapped(detail, "Wearing " + current.Name + (slot == "Top" ? ". More top colours are in the shop." : "."), 18, LobbyKit.Muted, 30);
         }
 
+        /// <summary>The web's colour swatch: a navy-rimmed blob with a shine, greyed with a lock when it's in the shop.</summary>
         void Swatch(Transform parent, string slot, Colourway colour, bool on, bool locked)
         {
-            var button = LobbyKit.Button(parent, "Colour " + colour.Id, on ? LobbyKit.Honey : LobbyKit.Line, () => PickColour(slot, colour, locked));
-            var fill = LobbyKit.Rect(button.transform, "Fill").Place(Vector2.zero, Vector2.one, new Vector2(5, 5), new Vector2(-5, -5));
-            fill.Paint(new Color(colour.R, colour.G, colour.B, locked ? .3f : 1f), true).raycastTarget = false;
+            var button = LobbyKit.Button(parent, "Colour " + colour.Id, LobbyKit.Navy, () => PickColour(slot, colour, locked), 24, null, 0, 3);
+            var body = button.Body();
+            var shade = new Color(colour.R, colour.G, colour.B);
             if (locked)
-                LobbyKit.Icon(fill, LobbyIcons.Cart, LobbyKit.Cream).rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(12, 12), new Vector2(-12, -12));
+            {
+                float grey = shade.grayscale;
+                shade = Color.Lerp(new Color(grey, grey, grey), shade, .4f) * .85f;
+                shade.a = 1f;
+            }
+            var fill = LobbyKit.Rect(body, "Fill").Place(Vector2.zero, Vector2.one, new Vector2(3, 3), new Vector2(-3, -3));
+            fill.Paint(shade, 21).raycastTarget = false;
+            LobbyKit.Rect(fill, "Shine").Pin(new Vector2(.32f, .72f), Vector2.zero, new Vector2(12, 10)).Paint(new Color(1f, 1f, 1f, .67f), 5).raycastTarget = false;
+            if (locked)
+            {
+                var glyph = LobbyKit.Icon(fill, LobbyIcons.Lock, LobbyKit.Cream);
+                glyph.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(14, 14), new Vector2(-14, -14));
+                LobbyKit.Drop(glyph.rectTransform, 2, LobbyKit.Navy);
+            }
+            var press = button.GetComponent<LobbyPress>();
+            press.HoverScale = 1.12f; press.Tilt = 8f;
+            if (on) { press.Scale = 1.14f; LobbyKit.Ring(body, LobbyKit.Sun, 24, 4); }
             button.gameObject.AddComponent<LobbyHint>().Text = colour.Name + (locked ? " · in the shop" : "");
         }
 
@@ -400,7 +499,7 @@ namespace Wreckabulary
         {
             LobbyKit.Heading(detail, "Item finish");
             Wrapped(detail, "How the gear you craft looks in your hands. It never changes what the gear does.", 18, LobbyKit.Muted, 54);
-            var chips = LobbyKit.Grid(detail, "Finishes", new Vector2(170, 52), 10);
+            var chips = LobbyKit.Grid(detail, "Finishes", new Vector2(170, 52), 12);
             string worn = SkinOf(Menu.Outfit);
             foreach (string skin in Finishes)
             {
@@ -423,27 +522,36 @@ namespace Wreckabulary
             intro.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -32), Vector2.zero);
             var view = LobbyKit.Rect(body, "Recipes").Place(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0, -44));
             var list = LobbyKit.Scroll(view, "Scroll", 0);
-            var grid = LobbyKit.Grid(list, "Grid", new Vector2(196, 196), 12);
+            // Room inside the mask for a card that lifts and its drop.
+            list.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(4, 4, 8, 12);
+            var grid = LobbyKit.Grid(list, "Grid", new Vector2(196, 196), 14);
             foreach (var item in GameConfig.Current.Items.Enabled) Recipe(grid, item);
         }
 
+        /// <summary>The web's recipe card: white with a navy edge, the item, its word in wood tiles and a line about it.</summary>
         static void Recipe(Transform parent, ItemDefinition item)
         {
             var card = LobbyKit.Rect(parent, "Recipe " + item.Id);
-            card.Paint(LobbyKit.Card, true).raycastTarget = false;
-            var texture = Resources.Load<Texture2D>("UI/Items/" + item.Id);
-            if (texture)
-            {
-                var icon = LobbyKit.Rect(card, "Icon").Pin(new Vector2(.5f, 1), new Vector2(0, -14), new Vector2(92, 92));
-                var raw = icon.gameObject.AddComponent<RawImage>();
-                raw.texture = texture; raw.raycastTarget = false;
-            }
-            var word = LobbyKit.Text(card, item.Id, 24, LobbyKit.Cream, TextAlignmentOptions.Center, FontStyles.Bold);
-            word.characterSpacing = 6;
-            word.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(8, 52), new Vector2(-8, 84));
-            var blurb = Wrapped(card, Blurb(item.Family), 16, LobbyKit.Muted);
+            // A still, invisible hit box, so the card can lift under the pointer like the web's.
+            card.Paint(Color.clear);
+            var body = LobbyKit.Rect(card, "Body").Fill();
+            LobbyKit.Face(body, Color.white, 16, LobbyKit.Navy, 3, 4);
+            var press = card.gameObject.AddComponent<LobbyPress>();
+            press.Body = body; press.Drop = body.GetComponent<Shadow>(); press.DropRest = 4f;
+            press.Lift = 4f; press.Tilt = 2f; press.Sink = 0f;
+            var icon = LobbyKit.ItemImage(body, item.Id, 80);
+            if (icon) icon.rectTransform.Pin(new Vector2(.5f, 1), new Vector2(0, -14), new Vector2(80, 80));
+            string word = item.Id;
+            float tile = Mathf.Min(26f, (180f - 3f * (word.Length - 1)) / word.Length);
+            var letters = LobbyKit.Row(body, "Letters", 3);
+            letters.Place(Vector2.zero, new Vector2(1, 0), new Vector2(8, 52), new Vector2(-8, 52 + tile + 4));
+            var row = letters.GetComponent<HorizontalLayoutGroup>();
+            row.childAlignment = TextAnchor.MiddleCenter;
+            row.childForceExpandHeight = false;
+            foreach (char letter in word) LobbyKit.LetterTile(letters, letter, tile);
+            var blurb = Wrapped(body, Blurb(item.Family), 15, LobbyKit.CardSub);
             blurb.alignment = TextAlignmentOptions.Top;
-            blurb.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(10, 8), new Vector2(-10, 50));
+            blurb.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(10, 8), new Vector2(-10, 46));
         }
 
         /// <summary>One line per handling family, the same as the web edition's recipe book.</summary>
@@ -475,27 +583,27 @@ namespace Wreckabulary
         {
             var career = Menu.Career;
             var body = Side("Career", "Practice matches count. Online play will add ranked results.");
-            var column = LobbyKit.Column(body, "Column", 12).Fill();
+            var column = LobbyKit.Column(body, "Column", 14).Fill();
 
-            var level = LobbyKit.Row(column, "Level", 20);
+            var level = LobbyKit.Row(column, "Level", 22);
             level.Size(-1, 96);
-            var badge = LobbyKit.Rect(level, "Badge");
-            badge.Paint(LobbyKit.Honey, true);
-            badge.Size(96, 96);
-            var number = LobbyKit.Text(badge, career.Level.ToString(CultureInfo.InvariantCulture), 46, Ink, TextAlignmentOptions.Center, FontStyles.Bold);
-            number.rectTransform.Fill();
+            // Your level on a wood tile, like a letter from the game.
+            LobbyKit.LetterTile(level, career.Level.ToString(CultureInfo.InvariantCulture), 96).name = "Badge";
             var info = LobbyKit.Rect(level, "Info");
             info.Size(-1, -1, 1);
-            var name = LobbyKit.Text(info, career.Name, 30, LobbyKit.Cream, TextAlignmentOptions.TopLeft, FontStyles.Bold);
-            name.rectTransform.Place(new Vector2(0, .5f), Vector2.one, Vector2.zero, new Vector2(0, -4));
+            var name = LobbyKit.Display(info, career.Name, 32, LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
+            name.rectTransform.Place(new Vector2(0, .5f), Vector2.one, new Vector2(0, 4), Vector2.zero);
             int next = Career.XpToNext(career.Level);
-            var bar = LobbyKit.Rect(info, "XP bar").Place(new Vector2(0, .5f), new Vector2(1, .5f), new Vector2(0, -16), new Vector2(0, -2));
-            bar.Paint(LobbyKit.Line, true);
-            LobbyKit.Rect(bar, "Fill").Place(Vector2.zero, new Vector2(Mathf.Clamp01(career.XpIntoLevel / (float)next), 1)).Paint(LobbyKit.Honey, true);
+            var bar = LobbyKit.Rect(info, "XP bar").Place(new Vector2(0, .5f), new Vector2(1, .5f), new Vector2(0, -16), new Vector2(0, 0));
+            bar.Paint(LobbyKit.Line, 8).raycastTarget = false;
+            var fill = LobbyKit.Rect(bar, "Fill").Place(Vector2.zero, new Vector2(Mathf.Clamp01(career.XpIntoLevel / (float)next), 1)).Paint(Color.white, 8);
+            fill.raycastTarget = false;
+            LobbyKit.Gradient(fill, LobbyKit.SunHi, LobbyKit.Sun2);
+            LobbyKit.Frame(bar, LobbyKit.Navy, 8, 2);
             var xp = LobbyKit.Text(info, $"Level {career.Level}  ·  {career.XpIntoLevel} / {next} XP to level {career.Level + 1}", 18, LobbyKit.Muted, TextAlignmentOptions.BottomLeft);
             xp.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), new Vector2(0, 4), new Vector2(0, -22));
 
-            var stats = LobbyKit.Row(column, "Stats", 12);
+            var stats = LobbyKit.Row(column, "Stats", 14);
             stats.Size(-1, 96);
             Stat(stats, "Matches", career.Matches.ToString("N0", CultureInfo.InvariantCulture));
             Stat(stats, "Wins", career.Wins.ToString("N0", CultureInfo.InvariantCulture));
@@ -504,7 +612,7 @@ namespace Wreckabulary
 
             LobbyKit.Rect(column, "Gap").Size(-1, 4);
             LobbyKit.Heading(column, "Recent matches");
-            Row(column, new[] { "MODE", "MAP", "RESULT", "SCORE", "COINS", "XP", "WHEN" }, LobbyKit.Muted, true, 0);
+            Row(column, new[] { "MODE", "MAP", "RESULT", "SCORE", "COINS", "XP", "WHEN" }, LobbyKit.Cyan, true, 0);
             if (career.History.Count == 0)
             {
                 Wrapped(column, "No matches yet. Pick PLAY, then Practice, to start one.", 20, LobbyKit.Muted, 40);
@@ -526,27 +634,28 @@ namespace Wreckabulary
         static string When(long endedAt) => endedAt <= 0 || endedAt > Career.LatestTime ? "-" :
             DateTimeOffset.FromUnixTimeSeconds(endedAt).ToLocalTime().ToString("d MMM HH:mm", CultureInfo.InvariantCulture);
 
+        /// <summary>A white stat card: the number in navy display type over a small caption.</summary>
         static void Stat(Transform parent, string title, string value)
         {
             var tile = LobbyKit.Rect(parent, title);
-            tile.Paint(LobbyKit.Card, true);
+            LobbyKit.Face(tile, Color.white, 16, LobbyKit.Navy, 3, 4);
             tile.Size(-1, -1, 1);
-            var v = LobbyKit.Text(tile, value, 34, LobbyKit.Cream, TextAlignmentOptions.TopLeft, FontStyles.Bold);
+            var v = LobbyKit.Display(tile, value, 36, LobbyKit.Navy, TextAlignmentOptions.TopLeft);
             v.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 0), new Vector2(-12, -12));
-            var t = LobbyKit.Text(tile, LobbyKit.Upper(title), 15, LobbyKit.Muted, TextAlignmentOptions.BottomLeft, FontStyles.Bold);
-            t.characterSpacing = 4;
-            t.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 12), new Vector2(-12, 0));
+            var caption = LobbyKit.Caps(tile, title, 14, TextAlignmentOptions.BottomLeft);
+            caption.color = LobbyKit.CardSub;
+            caption.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 14), new Vector2(-12, 0));
         }
 
         static void Row(Transform parent, string[] cells, Color colour, bool header, int index)
         {
             var row = LobbyKit.Rect(parent, header ? "Header" : "Match");
-            row.Size(-1, header ? 32 : 42);
-            if (!header && index % 2 == 0) row.Paint(LobbyKit.Card, true).raycastTarget = false;
+            row.Size(-1, header ? 30 : 42);
+            if (!header && index % 2 == 0) row.Paint(LobbyKit.Mist(.06f), 10).raycastTarget = false;
             for (int i = 0; i < cells.Length; i++)
             {
-                var cell = LobbyKit.Text(row, cells[i], header ? 15 : 19, colour,
-                    i >= 3 ? TextAlignmentOptions.MidlineRight : TextAlignmentOptions.MidlineLeft, header ? FontStyles.Bold : FontStyles.Normal);
+                var align = i >= 3 ? TextAlignmentOptions.MidlineRight : TextAlignmentOptions.MidlineLeft;
+                var cell = header ? LobbyKit.Caps(row, cells[i], 14, align) : LobbyKit.Text(row, cells[i], 19, colour, align);
                 cell.rectTransform.Place(new Vector2(Columns[i], 0), new Vector2(Columns[i + 1], 1), new Vector2(12, 0), new Vector2(-12, 0));
             }
         }
@@ -555,62 +664,129 @@ namespace Wreckabulary
     /// <summary>The cart: cosmetic finishes and top colours, bought with coins from matches.</summary>
     public sealed class ShopPage : LobbyPage
     {
-        static readonly Dictionary<string, Color> FinishColours = new Dictionary<string, Color>
-        {
-            ["Classic"] = new Color(.85f, .74f, .58f),
-            ["Candy"] = new Color(.96f, .55f, .72f),
-            ["Arcade"] = new Color(.55f, .88f, .42f),
-        };
         string note;
 
         public override string Id => LobbyMenu.Shop;
         public override LobbyStage.Focus Focus => LobbyStage.Focus.Left;
 
+        /// <summary>Each finish's colours, as the web's skin art paints them.</summary>
+        static (Color from, Color to) FinishPaint(string skin) => skin switch
+        {
+            "Candy" => (LobbyKit.Hex(0xff7ac8), LobbyKit.Hex(0x7fe3ff)),
+            "Arcade" => (LobbyKit.Hex(0x3a1fd1), LobbyKit.Hex(0x00e0c6)),
+            _ => (LobbyKit.WoodHi, LobbyKit.WoodLo),
+        };
+
         protected override void Build()
         {
             var body = Side("Shop", "Looks only. Nothing here changes health, damage or speed.");
             var column = LobbyKit.Column(body, "Column", 12).Fill();
-            var wallet = LobbyKit.Row(column, "Wallet", 10);
-            wallet.Size(-1, 40);
+            var wallet = LobbyKit.Row(column, "Wallet", 14);
+            wallet.Size(-1, 50);
             wallet.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
-            LobbyKit.Icon(wallet, LobbyIcons.Coin, LobbyKit.Honey).Size(30, 30);
-            LobbyKit.Text(wallet, Menu.Career.Coins.ToString("N0", CultureInfo.InvariantCulture) + " coins", 24, LobbyKit.Cream,
-                TextAlignmentOptions.MidlineLeft, FontStyles.Bold).Size(180, 36);
-            LobbyKit.Text(wallet, note ?? "Finish matches to earn more.", 19, note != null ? LobbyKit.Honey : LobbyKit.Muted,
+            var chip = LobbyKit.Row(wallet, "Coin chip", 10);
+            var chipLayout = chip.GetComponent<HorizontalLayoutGroup>();
+            chipLayout.padding = new RectOffset(10, 18, 5, 5);
+            chipLayout.childForceExpandHeight = false;
+            LobbyKit.Face(chip, LobbyKit.ChipFill, 10, LobbyKit.ChipEdge, 2);
+            chip.Size(-1, 48);
+            LobbyKit.Coin(chip, 32);
+            LobbyKit.Display(chip, Menu.Career.Coins.ToString("N0", CultureInfo.InvariantCulture), 26, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft).Size(-1, 36);
+            LobbyKit.Text(wallet, note ?? "Finish matches to earn more.", 19, note != null ? LobbyKit.Sun : LobbyKit.Muted,
                 TextAlignmentOptions.MidlineLeft).Size(-1, 36, 1);
 
             LobbyKit.Heading(column, "Item finishes");
-            var finishes = LobbyKit.Grid(column, "Finishes", new Vector2(250, 150), 12);
+            var finishes = LobbyKit.Grid(column, "Finishes", new Vector2(270, 172), 12);
             foreach (var offer in Career.Shop.Where(o => o.Kind == "skin")) Offer(finishes, offer);
             LobbyKit.Heading(column, "Top colours");
-            var colours = LobbyKit.Grid(column, "Colours", new Vector2(250, 150), 12);
+            var colours = LobbyKit.Grid(column, "Colours", new Vector2(270, 172), 12);
             foreach (var offer in Career.Shop.Where(o => o.Kind == "colour")) Offer(colours, offer);
             Wrapped(column, "Click a colour to try it on.", 18, LobbyKit.Muted, 30);
         }
 
+        /// <summary>The web's shop card: white with a navy edge, the art in a wood well, the name and a price tag.</summary>
         void Offer(Transform parent, ShopOffer offer)
         {
             bool owned = Menu.Career.Owns(offer.Kind, offer.Value);
             bool worn = offer.Kind == "skin" ? SkinOf(Menu.Outfit) == offer.Value : Menu.Outfit.ColourOf("Top") == offer.Value;
             var colourway = offer.Kind == "colour" ? GameConfig.Current.Wardrobe.Colour("Top", offer.Value) : null;
-            var card = LobbyKit.Button(parent, "Offer " + offer.Id, worn ? Chosen : LobbyKit.Card, () => TryOn(colourway));
-            var t = card.transform;
-            var swatch = LobbyKit.Rect(t, "Swatch").Pin(new Vector2(0, 1), new Vector2(16, -16), new Vector2(52, 52));
-            var shade = colourway != null ? new Color(colourway.R, colourway.G, colourway.B)
-                : FinishColours.TryGetValue(offer.Value, out var c) ? c : LobbyKit.Cream;
-            swatch.Paint(shade, true).raycastTarget = false;
-            var name = LobbyKit.Text(t, offer.Name, 23, LobbyKit.Cream, TextAlignmentOptions.TopLeft, FontStyles.Bold);
-            name.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(82, 0), new Vector2(-12, -18));
-            var kind = LobbyKit.Text(t, offer.Kind == "skin" ? "Item finish" : "Top colour", 16, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
-            kind.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(82, 0), new Vector2(-12, -48));
-            Button action;
-            if (worn) action = LobbyKit.LabelButton(t, "WEARING", LobbyKit.Line, LobbyKit.Muted, 19, null);
-            else if (owned) action = LobbyKit.LabelButton(t, "WEAR", LobbyKit.Card, LobbyKit.Cream, 19, () => Wear(offer));
-            else action = LobbyKit.LabelButton(t, "BUY  " + offer.Price.ToString("N0", CultureInfo.InvariantCulture), LobbyKit.Honey, Ink, 19, () => Buy(offer));
-            action.name = (worn ? "Wearing " : owned ? "Wear " : "Buy ") + offer.Id;
+            var card = LobbyKit.Button(parent, "Offer " + offer.Id, Color.white, () => TryOn(colourway), 18, LobbyKit.Navy, 3, 5);
+            var press = card.GetComponent<LobbyPress>();
+            press.Lift = 4f; press.Tilt = 1f;
+            var t = card.Body();
+            if (worn) LobbyKit.Ring(t, LobbyKit.Sun, 18, 5);
+            var well = LobbyKit.Rect(t, "Art").Pin(new Vector2(0, 1), new Vector2(14, -14), new Vector2(76, 76));
+            LobbyKit.Face(well, LobbyKit.WoodHi, 12, null, 0, 0, LobbyKit.WoodLo);
+            if (colourway != null) Blob(well, new Color(colourway.R, colourway.G, colourway.B));
+            else FinishDisc(well, offer.Value);
+            var name = LobbyKit.Display(t, LobbyKit.Upper(offer.Name), 22, LobbyKit.Navy, TextAlignmentOptions.TopLeft);
+            name.enableAutoSizing = true; name.fontSizeMin = 14; name.fontSizeMax = 22;
+            name.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(104, -46), new Vector2(-12, -16));
+            var kind = LobbyKit.Text(t, offer.Kind == "skin" ? "Item finish" : "Top colour", 15, LobbyKit.CardSub, TextAlignmentOptions.TopLeft);
+            kind.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(104, -72), new Vector2(-12, -48));
+            var action = worn ? Stamp(t, offer) : owned ? WearChip(t, offer) : PriceTag(t, offer);
             action.interactable = !worn;
-            ((RectTransform)action.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(14, 14), new Vector2(-14, 62));
+            ((RectTransform)action.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(14, 14), new Vector2(-14, 60));
             if (!First && !worn) First = action;
+        }
+
+        /// <summary>A colour offer's paint blob: the colour in a navy rim, with a shine.</summary>
+        static void Blob(RectTransform well, Color colour)
+        {
+            var blob = LobbyKit.Rect(well, "Swatch").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(46, 46));
+            LobbyKit.Face(blob, colour, 23, LobbyKit.Navy, 3);
+            LobbyKit.Rect(blob, "Shine").Pin(new Vector2(.32f, .72f), Vector2.zero, new Vector2(10, 8)).Paint(new Color(1f, 1f, 1f, .67f), 4).raycastTarget = false;
+        }
+
+        /// <summary>A finish offer's art: a disc in the finish's colours with a BAT on it.</summary>
+        static void FinishDisc(RectTransform well, string skin)
+        {
+            var (from, to) = FinishPaint(skin);
+            var disc = LobbyKit.Rect(well, "Finish").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(56, 56));
+            LobbyKit.Face(disc, from, 28, LobbyKit.Navy, 3, 0, to);
+            LobbyKit.ItemImage(disc, "BAT", 42, 20f);
+        }
+
+        /// <summary>The web's price tag: a sun slab with a coin and the price. Short of coins it greys
+        /// but still answers, so the shop can say why.</summary>
+        Button PriceTag(RectTransform card, ShopOffer offer)
+        {
+            bool poor = Menu.Career.Coins < offer.Price;
+            var button = LobbyKit.Button(card, "Buy " + offer.Id, poor ? LobbyKit.Short : LobbyKit.Sun, () => Buy(offer), 10, LobbyKit.Navy, 3, 3);
+            button.GetComponent<LobbyPress>().Tilt = 2f;
+            var content = LobbyKit.Row(button.Body(), "Content", 8);
+            content.Fill();
+            var layout = content.GetComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childForceExpandHeight = false;
+            var ink = poor ? new Color(LobbyKit.Navy.r, LobbyKit.Navy.g, LobbyKit.Navy.b, .5f) : LobbyKit.Navy;
+            LobbyKit.Display(content, "BUY", 22, ink).Size(-1, 30);
+            LobbyKit.Coin(content, 26);
+            LobbyKit.Display(content, offer.Price.ToString("N0", CultureInfo.InvariantCulture), 22, ink).Size(-1, 30);
+            return button;
+        }
+
+        Button WearChip(RectTransform card, ShopOffer offer)
+        {
+            var button = LobbyKit.Button(card, "Wear " + offer.Id, Color.white, () => Wear(offer), 10, LobbyKit.Navy, 3, 3);
+            LobbyKit.Display(button.Body(), "WEAR", 22, LobbyKit.Navy).rectTransform.Fill();
+            var face = button.FaceOf();
+            button.GetComponent<LobbyPress>().Hot = hot => face.color = hot ? LobbyKit.Sun : Color.white;
+            return button;
+        }
+
+        /// <summary>The web's owned stamp: green outline and type, turned a little, and never faded.</summary>
+        static Button Stamp(RectTransform card, ShopOffer offer)
+        {
+            var button = LobbyKit.Button(card, "Wearing " + offer.Id, Color.clear, null, -1);
+            button.GetComponent<LobbyPress>().FadeOff = false;
+            var stamp = LobbyKit.Rect(button.Body(), "Stamp").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(150, 38));
+            stamp.localRotation = Quaternion.Euler(0, 0, 8f);
+            LobbyKit.Frame(stamp, LobbyKit.Owned, 8, 3);
+            var label = LobbyKit.Display(stamp, "WEARING", 20, LobbyKit.Owned);
+            label.characterSpacing = 4;
+            label.rectTransform.Fill();
+            return button;
         }
 
         void TryOn(Colourway colour)
@@ -643,7 +819,7 @@ namespace Wreckabulary
             Menu.Wear(next);
             note = "Wearing " + offer.Name + ".";
             Refresh();
-            // WEAR turns into a disabled WEARING, so a controller lands on the card instead.
+            // WEAR turns into a WEARING stamp, so a controller lands on the card instead.
             Reselect("Offer " + offer.Id);
         }
     }
@@ -651,6 +827,9 @@ namespace Wreckabulary
     /// <summary>The leaderboard: your best score in each mode on this PC.</summary>
     public sealed class TrophyPage : LobbyPage
     {
+        static readonly Color GoldFrom = LobbyKit.Hex(0xffe14d), GoldTo = LobbyKit.Hex(0xfff7c2);
+        static readonly Color RankHi = LobbyKit.Hex(0xfff4a8), RankLo = LobbyKit.Hex(0xe09a00);
+
         public override string Id => LobbyMenu.Trophy;
 
         protected override void Build()
@@ -658,26 +837,52 @@ namespace Wreckabulary
             var career = Menu.Career;
             var body = Panel(new Vector2(.14f, 0), new Vector2(.86f, 1), "Leaderboard",
                 "Your best score in each mode. Online leaderboards arrive with online play.");
-            var column = LobbyKit.Column(body, "Column", 12).Fill();
+            // Padding leaves room for the outline round your rows.
+            var column = LobbyKit.Column(body, "Column", 14, 6).Fill();
             foreach (string mode in LobbyMenu.Modes)
             {
                 bool played = career.Bests.TryGetValue(mode, out int best);
-                var row = LobbyKit.Row(column, "Best " + mode, 18, 16);
-                row.Size(-1, 92);
-                row.Paint(played ? Chosen : LobbyKit.Card, true);
-                LobbyKit.Icon(row, LobbyIcons.Trophy, played ? LobbyKit.Honey : LobbyKit.Line).Size(56, -1);
+                var row = LobbyKit.Row(column, "Best " + mode, 18, 14);
+                row.Size(-1, 88);
+                if (played)
+                {
+                    // The web's first place: a gold row, ringed in hot orange because it's yours.
+                    LobbyKit.Face(row, GoldFrom, 14, LobbyKit.Navy, 3, 3, GoldTo).GetComponent<LobbyGradient>().Set(GoldFrom, GoldTo, true);
+                    LobbyKit.Frame(row, LobbyKit.Hot, 14, 3, "You", 4);
+                }
+                else
+                {
+                    row.Paint(LobbyKit.Card, 14).raycastTarget = false;
+                    LobbyKit.Frame(row, LobbyKit.Line, 14, 2);
+                }
+                var rank = LobbyKit.Rect(row, "Rank");
+                rank.Size(60, 60);
+                if (played) LobbyKit.Face(rank, RankHi, 12, LobbyKit.Navy, 3, 0, RankLo);
+                else rank.Paint(LobbyKit.Card, 12).raycastTarget = false;
+                LobbyKit.Display(rank, played ? "1" : "-", 34, played ? LobbyKit.Navy : LobbyKit.Faded).rectTransform.Fill();
                 var who = LobbyKit.Rect(row, "Who");
                 who.Size(-1, -1, 1);
-                var title = LobbyKit.Text(who, LobbyMenu.ModeName(mode), 27, LobbyKit.Cream, TextAlignmentOptions.BottomLeft, FontStyles.Bold);
-                // Ellipsis drops a line that is taller than its box, and 27 pt is taller than half the row.
-                title.rectTransform.Place(new Vector2(0, .5f), Vector2.one, Vector2.zero, new Vector2(0, 14));
-                var by = LobbyKit.Text(who, played ? "#1  ·  " + career.Name + "  ·  level " + career.Level : "Not played yet", 18,
-                    LobbyKit.Muted, TextAlignmentOptions.TopLeft);
-                by.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), new Vector2(0, 2), Vector2.zero);
-                LobbyKit.Text(row, played ? best.ToString("N0", CultureInfo.InvariantCulture) : "-", 40,
-                    played ? LobbyKit.Honey : LobbyKit.Muted, TextAlignmentOptions.MidlineRight, FontStyles.Bold).Size(220, -1);
+                var title = LobbyKit.Display(who, LobbyMenu.ModeName(mode), 28, played ? LobbyKit.Navy : LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
+                // Ellipsis drops a line that is taller than its box, so the title box reaches above the row's middle.
+                title.rectTransform.Place(new Vector2(0, .5f), Vector2.one, new Vector2(0, -2), new Vector2(0, 14));
+                var by = LobbyKit.Text(who, played ? "#1  ·  " + career.Name + "  ·  level " + career.Level : "Not played yet", 17,
+                    played ? LobbyKit.CardSub : LobbyKit.Faded, TextAlignmentOptions.TopLeft);
+                by.rectTransform.Place(Vector2.zero, new Vector2(1, .5f), Vector2.zero, new Vector2(0, -2));
+                LobbyKit.Display(row, played ? best.ToString("N0", CultureInfo.InvariantCulture) : "-", 40,
+                    played ? LobbyKit.Navy : LobbyKit.Faded, TextAlignmentOptions.MidlineRight).Size(220, -1);
             }
-            Wrapped(column, $"{career.Matches} matches  ·  {career.Wins} wins  ·  level {career.Level}", 20, LobbyKit.Muted, 40);
+
+            // The web's board-best bar.
+            var bar = LobbyKit.Row(column, "Board best", 14, 14);
+            bar.Size(-1, 64);
+            bar.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            LobbyKit.Face(bar, LobbyKit.Navy, 14, LobbyKit.Line, 2);
+            LobbyKit.Icon(bar, LobbyIcons.Trophy, LobbyKit.Sun).Size(32, 32);
+            LobbyKit.Text(bar, $"{career.Matches} matches  ·  {career.Wins} wins  ·  level {career.Level}", 19, LobbyKit.Muted,
+                TextAlignmentOptions.MidlineLeft).Size(-1, 30, 1);
+            LobbyKit.Caps(bar, "Board best", 14, TextAlignmentOptions.MidlineRight).Size(150, 30);
+            string top = career.Bests.Count > 0 ? career.Bests.Values.Max().ToString("N0", CultureInfo.InvariantCulture) : "-";
+            LobbyKit.Display(bar, top, 30, LobbyKit.Sun, TextAlignmentOptions.MidlineRight).Size(140, 40);
         }
     }
 
@@ -741,8 +946,9 @@ namespace Wreckabulary
         {
             var row = LobbyKit.Rect(list, label);
             row.Size(-1, 58);
-            row.Paint(LobbyKit.Card, true).raycastTarget = false;
-            var text = LobbyKit.Text(row, label, 22, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            row.Paint(LobbyKit.Card, 14).raycastTarget = false;
+            var text = LobbyKit.Display(row, label, 24, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            text.characterSpacing = 1;
             text.rectTransform.Place(Vector2.zero, new Vector2(.32f, 1), new Vector2(20, 0), Vector2.zero);
             var controls = LobbyKit.Row(row, "Controls", 8);
             controls.Place(new Vector2(.32f, 0), Vector2.one, new Vector2(0, 7), new Vector2(-10, -7));
@@ -764,13 +970,21 @@ namespace Wreckabulary
 
         void Stepper(RectTransform controls, string name, string value, Action<int> step)
         {
-            var less = LobbyKit.LabelButton(controls, "<", LobbyKit.Card, LobbyKit.Cream, 24, () => { step(-1); Refresh(); Reselect(name + " less"); });
-            less.name = name + " less";
-            less.Size(56, -1);
-            LobbyKit.Text(controls, value, 21, LobbyKit.Cream, TextAlignmentOptions.Center).Size(200, -1);
-            var more = LobbyKit.LabelButton(controls, ">", LobbyKit.Card, LobbyKit.Cream, 24, () => { step(1); Refresh(); Reselect(name + " more"); });
-            more.name = name + " more";
-            more.Size(56, -1);
+            Round(controls, name + " less", true, () => { step(-1); Refresh(); Reselect(name + " less"); });
+            LobbyKit.Display(controls, value, 24, LobbyKit.Sun, TextAlignmentOptions.Center).Size(200, -1);
+            Round(controls, name + " more", false, () => { step(1); Refresh(); Reselect(name + " more"); });
+        }
+
+        /// <summary>A round white step button with a navy chevron that turns sun under the pointer.</summary>
+        static void Round(RectTransform controls, string name, bool back, Action click)
+        {
+            var button = LobbyKit.Button(controls, name, Color.white, click, 22, LobbyKit.Navy, 3, 3);
+            button.Size(44, 44);
+            var glyph = LobbyKit.Icon(button.Body(), LobbyIcons.Chevron, LobbyKit.Navy);
+            glyph.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(11, 11), new Vector2(-11, -11));
+            if (back) glyph.rectTransform.localRotation = Quaternion.Euler(0, 0, 180f);
+            var face = button.FaceOf();
+            button.GetComponent<LobbyPress>().Hot = hot => face.color = hot ? LobbyKit.Sun : Color.white;
         }
 
         void NameField(RectTransform controls)
@@ -779,16 +993,22 @@ namespace Wreckabulary
             // Built inactive so the field finds its text when it first wakes up.
             holder.gameObject.SetActive(false);
             holder.Size(340, -1);
-            holder.Paint(LobbyKit.Line, true);
+            holder.Paint(Color.white, 10);
+            LobbyKit.Frame(holder, LobbyKit.Navy, 10, 3);
             var area = LobbyKit.Rect(holder, "Text area").Place(Vector2.zero, Vector2.one, new Vector2(14, 2), new Vector2(-14, -2));
             area.gameObject.AddComponent<RectMask2D>();
-            var text = LobbyKit.Text(area, "", 22, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            var text = LobbyKit.Text(area, "", 22, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft);
             text.overflowMode = TextOverflowModes.Overflow;
             text.rectTransform.Fill();
             var field = holder.gameObject.AddComponent<TMP_InputField>();
             field.textViewport = area;
             field.textComponent = text;
             field.characterLimit = Career.NameLength;
+            // The caret colour is ignored unless it is marked custom.
+            field.customCaretColor = true;
+            field.caretColor = LobbyKit.Navy;
+            field.caretWidth = 2;
+            field.selectionColor = new Color(LobbyKit.Sun.r, LobbyKit.Sun.g, LobbyKit.Sun.b, .5f);
             field.text = Menu.Career.Name;
             field.onEndEdit.AddListener(value =>
             {

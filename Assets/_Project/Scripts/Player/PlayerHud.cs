@@ -30,7 +30,8 @@ namespace Wreckabulary
         {
             var combat = player.Combat;
             if (combat.IsReviving) return "<color=#7BE07B>REVIVING...</color>";
-            if (player.CanAct && !combat.IsHolding && combat.DownedTeammateNearby())
+            // Gear in hand still revives; a carried prop or player doesn't (GrabOrRevive).
+            if (player.CanAct && !(combat.IsHolding && !combat.Weapon) && combat.DownedTeammateNearby())
                 return "<color=#FFD24A>Hold grab to revive</color>";
             return "";
         }

@@ -294,6 +294,59 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator ACouchPlayerJoinsThePartyAndComesAlong()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Assert.IsTrue(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Join"), "the rail says how to join");
+            yield return Press(GamepadButton.Start);
+            Assert.AreEqual(2, menu.PartySize, "Start on a controller takes a seat");
+            Assert.IsTrue(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Seat 2"), "the rail shows player 2");
+            StringAssert.Contains("2 players + 2 bots", menu.Describe());
+            yield return Press(GamepadButton.Start);
+            Assert.AreEqual(2, menu.PartySize, "pressing Start again doesn't take a second seat");
+
+            Click("GO");
+            yield return TestScenes.WaitForActive(Session.DibsScene);
+            yield return null;
+            var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
+            Assert.AreEqual(2, joins.HumanCount, "the couch player came along");
+            Assert.IsTrue(joins.Players.Any(p => p.Binding is DesktopBinding), "you play on the keyboard and mouse");
+            Assert.IsTrue(joins.Players.Any(p => p.Binding is GamepadBinding g && g.Pad == pad), "player 2 plays on their controller");
+            Assert.AreEqual(4, joins.Players.Count, "bots fill the other seats");
+
+            Assert.IsTrue(Session.GoHome());
+            yield return TestScenes.WaitForActive(Session.HubScene);
+            yield return null;
+            Assert.AreEqual(2, LobbyMenu.Instance.PartySize, "the party is still together back home");
+            yield return Press(GamepadButton.Select);
+            Assert.AreEqual(1, LobbyMenu.Instance.PartySize, "Select leaves the party");
+        }
+
+        [UnityTest]
+        public IEnumerator APartyHasFourSeatsAndAnyoneCanLeave()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            menu.Join(new KeyboardBinding(KeyboardBinding.Side.Right));
+            menu.Join(new ScriptedBinding());
+            menu.Join(new ScriptedBinding());
+            menu.Join(new ScriptedBinding());
+            Assert.AreEqual(LobbyMenu.PartyMax, menu.PartySize, "four seats at most");
+            StringAssert.Contains("4 players", menu.Describe());
+            Assert.IsFalse(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Join"), "no join hint with every seat taken");
+            menu.Choose(mode: "Duos");
+            StringAssert.Contains("2 v 2", menu.Describe());
+
+            Click("Leave 2");
+            yield return null;
+            Assert.AreEqual(3, menu.PartySize);
+            Assert.IsFalse(menu.Party.Any(b => b is KeyboardBinding), "the keyboard's right half left");
+            StringAssert.Contains("3 players and a bot", menu.Describe());
+            Assert.IsTrue(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Join"), "a free seat shows how to join again");
+        }
+
+        [UnityTest]
         public IEnumerator AControllerCanCancelAndStepBack()
         {
             // Long enough that slow frames can't start the match before B.

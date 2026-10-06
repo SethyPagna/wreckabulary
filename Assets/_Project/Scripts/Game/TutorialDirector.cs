@@ -23,7 +23,7 @@ namespace Wreckabulary
         {
             public string text, hint;
             public Func<bool> done;
-            public Action enter;
+            public Action enter, keep;
         }
 
         List<Step> steps;
@@ -49,7 +49,7 @@ namespace Wreckabulary
                 new() { text = "Pick up the letters", hint = "Walk over B, A and T", done = () => batSummoned || joins.Players.Any(p => Has(p, "BAT")) },
                 new() { text = "Spell BAT", hint = $"Hold spell ({ControlHints.Spell}), then let go to summon", done = () => batSummoned },
                 new() { text = "Whack the dummy", hint = $"Attack with your BAT ({ControlHints.Attack})", enter = EnsureDummy, done = () => dummyHits > 0 },
-                new() { text = "Throw the CHAIR", hint = $"Grab it ({ControlHints.Grab}), then throw it ({ControlHints.Attack})", enter = EnsureChair, done = () => thrown },
+                new() { text = "Throw the CHAIR", hint = $"Grab it ({ControlHints.Grab}), then throw it ({ControlHints.Attack})", enter = EnsureChair, keep = EnsureChair, done = () => thrown },
                 new()
                 {
                     text = "Knock out the dummy", hint = "Keep hitting it until its health runs out",
@@ -84,6 +84,8 @@ namespace Wreckabulary
                 hud.SetTitle("", "");
 
             Resupply();
+            // Whatever the step needs comes back if it got smashed first (a broken CHAIR can't be thrown).
+            step.keep?.Invoke();
             if (Time.time > nextTether && Dummy && !Dummy.IsKnockedOut && !Dummy.IsStaggered && !Dummy.IsHeld)
             {
                 nextTether = Time.time + 2f;

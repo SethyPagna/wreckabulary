@@ -848,6 +848,18 @@ button:active {
   margin: 0 5px;
   opacity: 0.5;
 }
+/* The hint folds onto two lines where one line would run under the letter tray,
+   and goes once even two lines would. */
+@media (max-width: 1440px) {
+  .control-hint {
+    max-width: 300px;
+  }
+}
+@media (max-width: 920px) {
+  .control-hint {
+    display: none;
+  }
+}
 kbd {
   font-family: inherit;
   font-weight: 800;
