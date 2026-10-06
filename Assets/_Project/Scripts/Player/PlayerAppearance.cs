@@ -176,8 +176,20 @@ namespace Wreckabulary
 
         void ApplyOutfit(Outfit next, bool save)
         {
+            outfit = Dress(meshes, next);
+            if (save && controller)
+            {
+                PlayerPrefs.SetString("wv.outfit." + controller.Index, outfit.Serialize());
+                PlayerPrefs.Save();
+            }
+        }
+
+        /// <summary>Shows the worn wardrobe meshes and tints them. Also dresses the lobby's
+        /// display avatar. Returns the outfit as worn (repaired if it didn't fit).</summary>
+        public static Outfit Dress(SkinnedMeshRenderer[] meshes, Outfit next)
+        {
             var catalogue = GameConfig.Current.Wardrobe;
-            outfit = catalogue.Sanitize(next).Clone();
+            var outfit = catalogue.Sanitize(next).Clone();
             if (meshes != null)
                 foreach (var renderer in meshes)
                 {
@@ -207,11 +219,7 @@ namespace Wreckabulary
                         renderer.SetPropertyBlock(block, i);
                     }
                 }
-            if (save && controller)
-            {
-                PlayerPrefs.SetString("wv.outfit." + controller.Index, outfit.Serialize());
-                PlayerPrefs.Save();
-            }
+            return outfit;
         }
 
         public string SkinFor(string word) => outfit?.SkinFor(word) ?? Skin.Standard;

@@ -306,6 +306,7 @@ namespace Wreckabulary
             World.FreezeTransient();
             actions.Show(true);
             CameraRig.Shake(0.2f);
+            MatchTally.Finish(true);
         }
 
         void OutOfTime()
@@ -316,6 +317,7 @@ namespace Wreckabulary
             foreach (var p in joins.Players) p.Frozen = true;
             World.FreezeTransient();
             actions.Show(true, "RETRY");
+            MatchTally.Finish(false);
         }
 
         string ChecklistText()

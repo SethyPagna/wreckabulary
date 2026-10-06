@@ -144,6 +144,7 @@ namespace Wreckabulary
             hud.SetTitle(won ? "MOVED OUT!" : "LEFT BEHIND", won ? "Everyone and every keepsake made the van" : "Retry and plan your route before the Movers arrive");
             hud.SetTimer("");
             actions.Show(true, won ? "PLAY AGAIN" : "RETRY");
+            MatchTally.Finish(won);
         }
 
         void CreateVan()

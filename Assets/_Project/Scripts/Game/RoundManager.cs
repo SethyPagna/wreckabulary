@@ -187,6 +187,7 @@ namespace Wreckabulary
             SetPhase(Phase.MatchOver);
             hud.SetTitle($"{WinnerName()} CALLS DIBS!", "Play again or head home");
             actions.Show(true, "PLAY AGAIN");
+            MatchTally.FinishFor(lastWinner);
             MatchWon?.Invoke(lastWinner);
         }
 

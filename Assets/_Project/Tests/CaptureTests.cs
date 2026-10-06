@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -24,6 +25,9 @@ namespace Wreckabulary.Tests
 
         [UnityTest]
         public IEnumerator CaptureHubAndTutorial() => RunWithSynchronousShaders(CaptureHubAndTutorialSequence());
+
+        [UnityTest]
+        public IEnumerator CaptureLobby() => RunWithSynchronousShaders(CaptureLobbySequence());
 
         // UTF can stop an iterator on an unexpected log without disposing it.
         [TearDown]
@@ -135,8 +139,10 @@ namespace Wreckabulary.Tests
             Directory.CreateDirectory(dir);
             Session.Clear();
 
-            // House: two roommates walk in, one sits at the typewriter.
+            // House: two roommates walk in, one sits at the typewriter. The lobby is captured on its own.
             yield return SceneManager.LoadSceneAsync(Session.HubScene);
+            yield return null;
+            if (LobbyMenu.Instance) UnityEngine.Object.Destroy(LobbyMenu.Instance.gameObject);
             yield return null;
             var joins = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>();
             var a = joins.Join(new ScriptedBinding());
@@ -178,6 +184,67 @@ namespace Wreckabulary.Tests
             Session.Clear();
         }
 
+        IEnumerator CaptureLobbySequence()
+        {
+            string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
+            if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
+            Directory.CreateDirectory(dir);
+            Session.Clear();
+            yield return SceneManager.LoadSceneAsync(Session.HubScene);
+            yield return new WaitForSeconds(0.5f);
+            var menu = LobbyMenu.Instance;
+            var pages = new[]
+            {
+                (LobbyMenu.Home, "home"), (LobbyMenu.Play, "play"), (LobbyMenu.Loadout, "loadout"), (LobbyMenu.CareerPage, "career"),
+                (LobbyMenu.Shop, "shop"), (LobbyMenu.Trophy, "trophy"), (LobbyMenu.Settings, "settings"),
+            };
+            for (int i = 0; i < pages.Length; i++)
+            {
+                menu.Open(pages[i].Item1);
+                // The camera slides you aside for the side panels.
+                yield return new WaitForSeconds(1f);
+                yield return CaptureFramed(Path.Combine(dir, $"lobby_{i + 1}_{pages[i].Item2}.png"));
+            }
+            // Every map's backdrop, seen from home.
+            menu.Open(LobbyMenu.Home);
+            foreach (string map in GameConfig.Current.Houses.Keys)
+            {
+                menu.Choose(map: map);
+                // The PLAY page redraws itself after a choice; here Home has to.
+                menu.Open(LobbyMenu.Home);
+                yield return new WaitForSeconds(1f);
+                yield return CaptureFramed(Path.Combine(dir, $"lobby_map_{map}.png"));
+            }
+            Session.Clear();
+        }
+
+        /// <summary>Like <see cref="Capture"/>, but the camera targets the texture first so the UI lays out at its size.</summary>
+        static IEnumerator CaptureFramed(string path)
+        {
+            var cam = Camera.main;
+            var rt = new RenderTexture(1600, 900, 24);
+            var canvases = UnityEngine.Object.FindObjectsByType<Canvas>()
+                .Where(c => c.isRootCanvas && c.renderMode == RenderMode.ScreenSpaceOverlay).ToArray();
+            cam.targetTexture = rt;
+            foreach (var c in canvases)
+            {
+                c.renderMode = RenderMode.ScreenSpaceCamera;
+                c.worldCamera = cam;
+                c.planeDistance = 0.3f;
+            }
+            // Canvas scalers resize in Update.
+            yield return null;
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            var request = new UniversalRenderPipeline.SingleCameraRequest { destination = rt };
+            if (RenderPipeline.SupportsRenderRequest(cam, request)) RenderPipeline.SubmitRenderRequest(cam, request);
+            else cam.Render();
+            cam.targetTexture = null;
+            foreach (var c in canvases)
+                if (c) c.renderMode = RenderMode.ScreenSpaceOverlay;
+            Save(rt, path);
+        }
+
         static void Capture(string path)
         {
             var cam = Camera.main;
@@ -203,6 +270,11 @@ namespace Wreckabulary.Tests
             }
 
             foreach (var c in canvases) c.renderMode = RenderMode.ScreenSpaceOverlay;
+            Save(rt, path);
+        }
+
+        static void Save(RenderTexture rt, string path)
+        {
             var prev = RenderTexture.active;
             RenderTexture.active = rt;
             var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);

@@ -17,6 +17,8 @@ namespace Wreckabulary
 
         public static readonly List<InputBinding> Bindings = new();
         public static string MapId { get; private set; } = "pinwheel";
+        /// <summary>The lobby's last queue and mode, so GO after a match starts the same thing again.</summary>
+        public static string LobbyQueue, LobbyMode;
 
         /// <summary>Best Moving Day stars per level, for this play session.</summary>
         public static readonly Dictionary<int, int> MovingDayStars = new();
@@ -27,6 +29,7 @@ namespace Wreckabulary
             Bindings.Clear();
             MovingDayStars.Clear();
             MapId = "pinwheel";
+            LobbyQueue = LobbyMode = null;
             Match.Reset();
         }
 
