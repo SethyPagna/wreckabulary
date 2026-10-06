@@ -15,9 +15,10 @@ namespace Wreckabulary
     {
         public const string Home = "home", Settings = "settings", Power = "power", Trophy = "trophy",
             Cart = "cart", Coin = "coin", Close = "close", Turn = "turn", Play = "play", Locker = "locker",
-            Badge = "badge", Lock = "lock", Check = "check", Arrow = "arrow", CoinW = "coin-w", Chevron = "chevron";
+            Badge = "badge", Lock = "lock", Check = "check", Arrow = "arrow", CoinW = "coin-w", Chevron = "chevron",
+            Party = "party", Plus = "plus";
         public static readonly string[] All =
-            { Home, Settings, Power, Trophy, Cart, Coin, Close, Turn, Play, Locker, Badge, Lock, Check, Arrow, CoinW, Chevron };
+            { Home, Settings, Power, Trophy, Cart, Coin, Close, Turn, Play, Locker, Badge, Lock, Check, Arrow, CoinW, Chevron, Party, Plus };
         const int Size = 128;
         /// <summary>The web's stroke width 2.3 on its 24-unit grid, as a half width in [-1, 1].</summary>
         const float Half = 2.3f / 24f;
@@ -153,6 +154,12 @@ namespace Wreckabulary
                     return p => Lines(p, G(7.6f, 9.2f), G(9.2f, 15), G(10.8f, 10.9f), G(12, 10.9f), G(13.6f, 15), G(15.2f, 9.2f)) - 1.8f / 24f;
                 case Chevron:
                     return p => Lines(p, G(9, 5.5f), G(15.5f, 12), G(9, 18.5f)) - Half;
+                case Party:
+                    // The web's party chip: a filled figure in front, an outlined one behind on the right.
+                    return p => Union(Union(Circle(p, G(9, 8), 3.2f / 12f), Mathf.Max(Circle(p, G(9, 19.5f), 6.2f / 12f), G(9, 19.5f).y - p.y)),
+                        Mathf.Min(Mathf.Abs(Circle(p, G(17, 9), 2.5f / 12f)), Arc(p, G(16.5f, 19f), 5f / 12f, -6f, 90f)) - Half);
+                case Plus:
+                    return p => Lines(p, G(12, 6), G(12, 18)).Min(Lines(p, G(6, 12), G(18, 12))) - Half;
                 default:
                     throw new ArgumentException("No lobby icon called " + name, nameof(name));
             }

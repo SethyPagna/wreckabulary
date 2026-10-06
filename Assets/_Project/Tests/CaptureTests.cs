@@ -215,12 +215,14 @@ namespace Wreckabulary.Tests
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"lobby_{i + 1}_{pages[i].Item2}.png"));
             }
-            // A couch player in the party rail.
+            // A couch player in the party panel, opened from its chip.
             var couch = new KeyboardBinding(KeyboardBinding.Side.Right);
             menu.Join(couch);
             menu.Open(LobbyMenu.Home);
+            menu.ToggleParty();
             yield return new WaitForSeconds(1f);
             yield return CaptureFramed(Path.Combine(dir, $"lobby_{pages.Length + 1}_party.png"));
+            menu.ToggleParty();
             menu.Leave(couch);
             // Every map's backdrop, seen from home.
             menu.Open(LobbyMenu.Home);

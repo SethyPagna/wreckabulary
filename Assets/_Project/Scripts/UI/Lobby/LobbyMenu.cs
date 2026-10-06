@@ -16,9 +16,10 @@ namespace Wreckabulary
 {
     /// <summary>
     /// The PC lobby, laid out like a shooter's front end (user, 6 Oct 2026): your avatar standing
-    /// in the selected map, home / settings / power and the trophy and cart top left, the
-    /// LOADOUT · PLAY · CAREER pages in the middle, coins top right, the party and friends
-    /// down the right, and lobby messages between them. One page shows at a time.
+    /// in the selected map under dark edge scrims, two segmented icon pills top left (home, settings,
+    /// quit; leaderboard, shop), the LOADOUT · PLAY · CAREER tabs in the middle, coins and the party
+    /// chip top right (the party opens under it), lobby notices top left, and the match dock with GO
+    /// bottom right. One page shows at a time; LB and RB step through them.
     /// </summary>
     public sealed class LobbyMenu : MonoBehaviour
     {
@@ -34,7 +35,15 @@ namespace Wreckabulary
         public static float StartDelay = 3f;
         /// <summary>Seats in a couch party, you included.</summary>
         public const int PartyMax = 4;
-        const float BarHeight = 76f, RailWidth = 300f, FeedWidth = 360f, Gutter = 20f;
+        const float BarHeight = 76f, Gutter = 26f, PartyWidth = 380f, FeedWidth = 420f;
+        /// <summary>Seconds a lobby notice stays up, and its fade at the end.</summary>
+        public const float MessageLife = 8f, MessageFade = .4f;
+        /// <summary>Notices showing at once.</summary>
+        public const int MessagesShown = 3;
+        /// <summary>Set once you have turned your avatar, which retires the "drag to turn" hint.</summary>
+        public const string TurnHintKey = "lobby.turnHint";
+        /// <summary>The pages LB and RB step through: the lobby, the three tabs, then the icons.</summary>
+        public static readonly string[] PageOrder = { Home, Loadout, Play, CareerPage, Shop, Trophy, Settings };
 
         public static LobbyMenu Instance { get; private set; }
 
@@ -60,10 +69,14 @@ namespace Wreckabulary
         /// <summary>The bar button that opens each page, where a keyboard or controller lands when it closes.</summary>
         readonly Dictionary<string, Selectable> openers = new Dictionary<string, Selectable>();
         readonly List<PlayerController> frozen = new List<PlayerController>();
+        /// <summary>The notices showing, newest first, with when each went up.</summary>
+        readonly List<(CanvasGroup card, float posted)> notices = new List<(CanvasGroup, float)>();
         Canvas canvas;
-        RectTransform safe, pageHost, feed, feedList, rail, partyList, status, quitDialog;
-        TextMeshProUGUI coins, initial, partyHeading, statusTitle, statusDetail, statusCount;
+        RectTransform safe, pageHost, feed, rail, partyList, status, quitDialog;
+        TextMeshProUGUI coins, initial, partyHeading, partyCount, statusTitle, statusDetail, statusCount;
         Button power, cancelButton;
+        LobbyTab partyTab;
+        GameObject bottomScrim;
         GameHud hud;
         /// <summary>The pad that pressed GO, which then plays the match.</summary>
         Gamepad goPad;
@@ -117,7 +130,7 @@ namespace Wreckabulary
             Stage.Show(Map, Outfit);
             BuildCanvas();
             BuildBar();
-            BuildRail();
+            BuildParty();
             BuildFeed();
             BuildStatus();
             foreach (var page in new LobbyPage[] { new HomePage(), new LoadoutPage(), new PlayPage(), new CareerScreen(),
@@ -198,65 +211,79 @@ namespace Wreckabulary
                 // Like the HUD's own: without actions a controller can't move or press anything.
                 system.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
+            // Dark fades along the edges, so the bar, the notices and the dock sit on one dark band each
+            // instead of on the bright map (CS2's front end). They never take clicks.
+            LobbyKit.Scrim(transform, "Top scrim", LobbyKit.Edge.Top, 220, .9f, 64);
+            LobbyKit.Scrim(transform, "Right scrim", LobbyKit.Edge.Right, 520, .55f);
+            bottomScrim = LobbyKit.Scrim(transform, "Bottom scrim", LobbyKit.Edge.Bottom, 300, .6f).gameObject;
             safe = LobbyKit.Rect(transform, "Safe area").Fill();
             // Behind everything: dragging on the open view turns your avatar.
             var drag = LobbyKit.Rect(safe, "Turn area").Fill();
             drag.Paint(new Color(0, 0, 0, 0));
-            drag.gameObject.AddComponent<LobbyDrag>().Turned = degrees => Stage.Turn(degrees);
+            var turner = drag.gameObject.AddComponent<LobbyDrag>();
+            turner.Turned = degrees => Stage.Turn(degrees);
+            turner.Started = Turning;
             pageHost = LobbyKit.Rect(safe, "Pages").Place(Vector2.zero, Vector2.one,
-                new Vector2(Gutter, Gutter), new Vector2(-(RailWidth + Gutter * 2), -(BarHeight + Gutter)));
+                new Vector2(Gutter, Gutter), new Vector2(-Gutter, -(BarHeight + 10)));
         }
 
         void BuildBar()
         {
-            // The web's bar: navy fading to nothing over the map.
+            // No slab of its own: the top scrim darkens the map behind the whole bar.
             var bar = LobbyKit.Rect(safe, "Top bar").Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -BarHeight), Vector2.zero);
-            LobbyKit.Gradient(bar.Paint(Color.white), LobbyKit.Bar, new Color(LobbyKit.Bar.r, LobbyKit.Bar.g, LobbyKit.Bar.b, 0f));
-            var left = LobbyKit.Row(bar, "System", 10, 0);
-            left.Place(new Vector2(0, 0), new Vector2(0, 1), new Vector2(18, 8), new Vector2(560, -8));
-            // Click to open, click again to close (user, 6 Oct 2026). Home always goes home.
-            LobbyKit.IconButton(left, LobbyIcons.Home, "Home", () => Open(Home)).Size(52, 52);
-            openers[Settings] = LobbyKit.IconButton(left, LobbyIcons.Settings, "Settings", () => Toggle(Settings)).Size(52, 52);
-            power = LobbyKit.IconButton(left, LobbyIcons.Power, "Quit", AskQuit).Size(52, 52);
-            LobbyKit.Rect(left, "Divider").Paint(LobbyKit.Line).Size(2, 36);
-            openers[Trophy] = LobbyKit.IconButton(left, LobbyIcons.Trophy, "Leaderboard", () => Toggle(Trophy)).Size(52, 52);
-            openers[Shop] = LobbyKit.IconButton(left, LobbyIcons.Cart, "Shop", () => Toggle(Shop)).Size(52, 52);
+            var left = LobbyKit.Row(bar, "System", 12, 0);
+            left.Place(new Vector2(0, 0), new Vector2(0, 1), new Vector2(Gutter, 8), new Vector2(600, -8));
             left.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             left.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
+            // The web's two segmented pills: home, settings and quit (red under the pointer), then the
+            // leaderboard and the shop. Click to open, click again to close (user, 6 Oct 2026); Home always goes home.
+            var system = LobbyKit.Segment(left, "System pill");
+            tabs[Home] = LobbyKit.IconTab(system, LobbyIcons.Home, "Home", () => Open(Home));
+            tabs[Settings] = LobbyKit.IconTab(system, LobbyIcons.Settings, "Settings", () => Toggle(Settings));
+            power = LobbyKit.IconTab(system, LobbyIcons.Power, "Quit", AskQuit, LobbyKit.Hot).Button;
+            var places = LobbyKit.Segment(left, "Places pill");
+            tabs[Trophy] = LobbyKit.IconTab(places, LobbyIcons.Trophy, "Leaderboard", () => Toggle(Trophy));
+            tabs[Shop] = LobbyKit.IconTab(places, LobbyIcons.Cart, "Shop", () => Toggle(Shop));
 
             // PLAY sits exactly in the middle of the screen: equal tabs, centred in their row.
-            var centre = LobbyKit.Row(bar, "Pages", 16, 0);
-            centre.Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(660, BarHeight));
+            var centre = LobbyKit.Row(bar, "Pages", 14, 0);
+            centre.Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(628, BarHeight));
             var row = centre.GetComponent<HorizontalLayoutGroup>();
             row.childAlignment = TextAnchor.MiddleCenter;
             row.childForceExpandHeight = false;
             foreach (var (id, title, icon) in new[] { (Loadout, "LOADOUT", LobbyIcons.Locker), (Play, "PLAY", LobbyIcons.Play), (CareerPage, "CAREER", LobbyIcons.Badge) })
-            {
                 tabs[id] = LobbyKit.Tab(centre, title, icon, () => Toggle(id));
-                openers[id] = tabs[id].Button;
-            }
+            foreach (var kv in tabs) openers[kv.Key] = kv.Value.Button;
 
-            // Coins only: the party lives in the rail, and sound and help live in Settings.
-            var wallet = LobbyKit.Row(bar, "Wallet", 10, 0);
-            wallet.Place(new Vector2(1, 0), new Vector2(1, 1), new Vector2(-(RailWidth + Gutter), 10), new Vector2(-Gutter, -10));
+            // Coins, then the party chip, which opens who's on the couch under it. Sound and help live in Settings.
+            var wallet = LobbyKit.Row(bar, "Wallet", 12, 0);
+            wallet.Place(new Vector2(1, 0), new Vector2(1, 1), new Vector2(-600, 8), new Vector2(-Gutter, -8));
             wallet.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleRight;
             wallet.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             var chip = LobbyKit.Row(wallet, "Coin chip", 10);
-            chip.GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(12, 20, 6, 6);
-            chip.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
-            LobbyKit.Face(chip, LobbyKit.ChipFill, 10, LobbyKit.ChipEdge, 2);
-            chip.Size(-1, 50);
-            LobbyKit.Coin(chip, 34);
-            coins = LobbyKit.Display(chip, "0", 30, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft);
-            coins.Size(-1, 40);
+            var inside = chip.GetComponent<HorizontalLayoutGroup>();
+            inside.padding = new RectOffset(12, 18, 10, 10);
+            inside.childForceExpandHeight = false;
+            LobbyKit.Face(chip, LobbyKit.ChipFill, 12, LobbyKit.ChipEdge, 2);
+            chip.Size(-1, 52);
+            LobbyKit.Coin(chip, 32);
+            coins = LobbyKit.Display(chip, "0", 26, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Stroke);
+            coins.Size(-1, 34);
+            partyTab = LobbyKit.Tab(wallet, "Party", LobbyIcons.Party, ToggleParty, 132, 52, 26, 0);
+            // Tighter than a page tab, so "4/4" fits beside the icon.
+            partyTab.GetComponentInChildren<HorizontalLayoutGroup>().padding = new RectOffset(16, 18, 0, 0);
+            partyCount = partyTab.GetComponentsInChildren<TextMeshProUGUI>(true).First();
         }
 
-        void BuildRail()
+        /// <summary>The party panel under the party chip: you, the couch players, how to join. The chip, Esc or B,
+        /// or opening a page closes it.</summary>
+        void BuildParty()
         {
-            rail = LobbyKit.Rect(safe, "Party and friends").Place(new Vector2(1, 0), Vector2.one,
-                new Vector2(-RailWidth - Gutter, Gutter), new Vector2(-Gutter, -(BarHeight + Gutter)));
-            LobbyKit.Face(rail, LobbyKit.Panel, 18, LobbyKit.Line, 3, 7).raycastTarget = true;
-            var column = LobbyKit.Column(rail, "Rail", 10, 18).Fill();
+            rail = LobbyKit.Column(safe, "Party and friends", 10, 18);
+            rail.Pin(Vector2.one, new Vector2(-Gutter, -(BarHeight + 6)), new Vector2(PartyWidth, 0));
+            rail.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            LobbyKit.PanelFace(rail, 18, 4, 6).raycastTarget = true;
+            var column = rail;
             column.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.UpperLeft;
             partyHeading = LobbyKit.Heading(column, "Party");
             var you = LobbyKit.Row(column, "You", 12, 10).Size(-1, 74);
@@ -270,14 +297,36 @@ namespace Wreckabulary
             who.Size(170, -1, 1);
             LobbyKit.Display(who, Career.Name, 26, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).Size(-1, 32).name = "Name";
             LobbyKit.Text(who, "Level " + Career.Level + "  ·  in the lobby", 17, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 24).name = "Level";
-            partyList = LobbyKit.Column(column, "Couch", 10, 0);
-            LobbyKit.Rect(column, "Gap").Size(-1, 14);
-            LobbyKit.Heading(column, "Friends");
-            var empty = LobbyKit.Text(column, "Friends and other players show up here once online or LAN play is built. Practice matches fill the empty seats with bots.",
-                18, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
-            empty.textWrappingMode = TextWrappingModes.Normal;
-            empty.Size(-1, 150);
+            partyList = LobbyKit.Column(column, "Couch", 8, 0);
+            var friends = LobbyKit.Text(column, "Friends show up here once online or LAN play is built. Bots fill the empty seats.",
+                16, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
+            friends.textWrappingMode = TextWrappingModes.Normal;
+            friends.Size(-1, 44);
             RefreshParty();
+            rail.gameObject.SetActive(false);
+        }
+
+        /// <summary>The party chip: opens the party panel under it, or closes it.</summary>
+        public void ToggleParty() => ShowParty(!rail.gameObject.activeSelf);
+
+        void ShowParty(bool on)
+        {
+            if (!rail) return;
+            // Who's on the couch belongs to the lobby screen: from a page, the chip goes back there first.
+            if (on && Current != Home) Open(Home);
+            rail.gameObject.SetActive(on);
+            if (partyTab) partyTab.On = on;
+            if (on) LobbyPop.On(rail).Play(new Vector2(0, 12));
+        }
+
+        /// <summary>The first drag on the open view: you know how to turn now, so the hint goes for good.</summary>
+        void Turning()
+        {
+            if (PlayerPrefs.HasKey(TurnHintKey)) return;
+            PlayerPrefs.SetString(TurnHintKey, "seen");
+            PlayerPrefs.Save();
+            var hint = pageHost.GetComponentsInChildren<RectTransform>(true).FirstOrDefault(r => r.name == "Turn hint");
+            if (hint) LobbyPop.On(hint).Vanish();
         }
 
         /// <summary>Redraws the couch players under you, and how to join while a seat is free.</summary>
@@ -285,22 +334,23 @@ namespace Wreckabulary
         {
             if (!partyList) return;
             partyHeading.text = $"PARTY  {PartySize} / {PartyMax}";
+            if (partyCount) partyCount.text = $"{PartySize}/{PartyMax}";
             LobbyKit.Clear(partyList);
             for (int i = 0; i < party.Count; i++)
             {
                 var binding = party[i];
                 int seat = i + 2;
-                var row = LobbyKit.Row(partyList, "Seat " + seat, 12, 10).Size(-1, 74);
+                var row = LobbyKit.Row(partyList, "Seat " + seat, 12, 9).Size(-1, 68);
                 row.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
                 row.Paint(LobbyKit.Card, 14);
                 var badge = LobbyKit.Rect(row, "Seat badge");
                 LobbyKit.Face(badge, GameAssets.I ? GameAssets.I.PlayerColor(seat - 1) : LobbyKit.Lime, 12, LobbyKit.Navy, 3, 3);
-                badge.Size(54, 54);
-                LobbyKit.Display(badge, "P" + seat, 26, LobbyKit.Cream, TextAlignmentOptions.Center, LobbyKit.Ink.Stroke).rectTransform.Fill();
+                badge.Size(46, 46);
+                LobbyKit.Display(badge, "P" + seat, 22, LobbyKit.Cream, TextAlignmentOptions.Center, LobbyKit.Ink.Stroke).rectTransform.Fill();
                 var who = LobbyKit.Column(row, "Who", 0, 0);
                 who.Size(-1, -1, 1);
-                LobbyKit.Display(who, "Player " + seat, 24, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).Size(-1, 30);
-                LobbyKit.Text(who, binding is GamepadBinding ? "Controller" : "Right keyboard", 16,
+                LobbyKit.Display(who, "Player " + seat, 22, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).Size(-1, 26);
+                LobbyKit.Text(who, binding is GamepadBinding ? "Controller" : "Right keyboard", 15,
                     LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 22);
                 var leave = LobbyKit.Button(row, "Leave " + seat, Color.white, () => Leave(binding), 17, LobbyKit.Navy, 2, 2);
                 leave.Size(34, 34);
@@ -311,14 +361,19 @@ namespace Wreckabulary
                 leave.gameObject.AddComponent<LobbyHint>().Text = "Leave the party";
             }
             if (party.Count >= PartyMax - 1) return;
-            var join = LobbyKit.Rect(partyList, "Join");
-            join.Size(-1, 100);
-            join.Paint(LobbyKit.Mist(.05f), 14).raycastTarget = false;
+            // A free seat: an empty slot with a plus, and how to take it.
+            var join = LobbyKit.Row(partyList, "Join", 12, 9).Size(-1, 86);
+            join.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            join.Paint(LobbyKit.Mist(.06f), 14).raycastTarget = false;
             LobbyKit.Frame(join, LobbyKit.Line, 14, 2);
-            var how = LobbyKit.Text(join, "Press Start on a controller, or . on the keyboard's right half, to join. Select leaves.", 15,
+            var slot = LobbyKit.Rect(join, "Free seat");
+            LobbyKit.Face(slot, LobbyKit.Mist(.1f), 12, LobbyKit.Line, 2);
+            slot.Size(46, 46);
+            LobbyKit.Icon(slot, LobbyIcons.Plus, LobbyKit.Cyan).rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(10, 10), new Vector2(-10, -10));
+            var how = LobbyKit.Text(join, "Start on a controller, or . on the keyboard's right half, joins. Select leaves.", 15,
                 LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
             how.textWrappingMode = TextWrappingModes.Normal;
-            how.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(14, 6), new Vector2(-14, -6));
+            how.Size(-1, 68, 1);
         }
 
         bool Couch(InputBinding binding) =>
@@ -387,41 +442,44 @@ namespace Wreckabulary
 
         void BuildFeed()
         {
-            // Between the page area and the rail, like a shooter's news and chat column.
-            feed = LobbyKit.Rect(safe, "Messages").Place(new Vector2(1, .38f), Vector2.one,
-                new Vector2(-(RailWidth + Gutter * 2 + FeedWidth), 0), new Vector2(-(RailWidth + Gutter * 2), -(BarHeight + Gutter)));
-            var column = LobbyKit.Column(feed, "Feed", 8, 0).Fill();
-            column.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.UpperLeft;
-            LobbyKit.Heading(column, "Lobby");
-            feedList = LobbyKit.Column(column, "Entries", 6, 0);
+            // Top left under the pills, like a shooter's notices: the newest few, each fading after a while.
+            feed = LobbyKit.Column(safe, "Messages", 8, 0);
+            feed.Pin(new Vector2(0, 1), new Vector2(Gutter, -(BarHeight + 10)), new Vector2(FeedWidth, 0));
+            feed.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         }
 
         void BuildStatus()
         {
             // Just under the PLAY tab, on every page, the way a shooter shows a match being found.
-            status = LobbyKit.Rect(safe, "Starting").Pin(new Vector2(.5f, 1), new Vector2(0, -(BarHeight + 14)), new Vector2(660, 104));
-            LobbyKit.Face(status, LobbyKit.Panel, 18, LobbyKit.Line, 3, 7).raycastTarget = true;
-            LobbyKit.Rect(status, "Accent").Place(Vector2.zero, new Vector2(0, 1), new Vector2(14, 16), new Vector2(24, -16)).Paint(LobbyKit.Sun, 5).raycastTarget = false;
-            statusTitle = LobbyKit.Caps(status, "", 16);
-            statusTitle.alignment = TextAlignmentOptions.TopLeft;
-            statusTitle.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(42, 0), new Vector2(-250, -18));
-            statusDetail = LobbyKit.Text(status, "", 22, LobbyKit.Cream, TextAlignmentOptions.BottomLeft);
-            statusDetail.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(42, 20), new Vector2(-250, 0));
-            statusCount = LobbyKit.Display(status, "", 56, LobbyKit.Sun, TextAlignmentOptions.Center, LobbyKit.Ink.Drop);
-            statusCount.rectTransform.Place(new Vector2(1, 0), Vector2.one, new Vector2(-240, 0), new Vector2(-150, 0));
-            cancelButton = LobbyKit.Pill(status, "CANCEL", "Cancel", 22, CancelStart);
-            ((RectTransform)cancelButton.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-142, -26), new Vector2(-22, 26));
+            status = LobbyKit.Rect(safe, "Starting").Pin(new Vector2(.5f, 1), new Vector2(0, -(BarHeight + 12)), new Vector2(560, 88));
+            LobbyKit.PanelFace(status, 18, 4, 6).raycastTarget = true;
+            LobbyKit.Rect(status, "Accent").Place(Vector2.zero, new Vector2(0, 1), new Vector2(14, 14), new Vector2(24, -14)).Paint(LobbyKit.Sun, 5).raycastTarget = false;
+            statusTitle = LobbyKit.Display(status, "", 30, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Drop);
+            statusTitle.enableAutoSizing = true; statusTitle.fontSizeMin = 20; statusTitle.fontSizeMax = 30;
+            statusTitle.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(40, 42), new Vector2(-206, -8));
+            statusDetail = LobbyKit.Text(status, "", 17, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
+            statusDetail.overflowMode = TextOverflowModes.Ellipsis;
+            statusDetail.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(40, 10), new Vector2(-206, -48));
+            statusCount = LobbyKit.Display(status, "", 44, LobbyKit.Cream, TextAlignmentOptions.Center, LobbyKit.Ink.Stroke);
+            statusCount.rectTransform.Place(new Vector2(1, 0), Vector2.one, new Vector2(-200, 0), new Vector2(-136, 0));
+            cancelButton = LobbyKit.Pill(status, "CANCEL", "Cancel", 20, CancelStart);
+            ((RectTransform)cancelButton.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-130, -24), new Vector2(-16, 24));
             status.gameObject.SetActive(false);
         }
 
         public void Open(string id)
         {
             if (!pages.TryGetValue(id, out var page)) throw new ArgumentException("No lobby page " + id, nameof(id));
+            bool moved = id != Current;
             foreach (var other in pages.Values) other.Root.gameObject.SetActive(other == page);
             Current = id;
+            // A page opens over where the party panel was; the bottom scrim is for Home's dock.
+            if (id != Home) ShowParty(false);
+            if (bottomScrim) bottomScrim.SetActive(id == Home);
             // Drops any colour being tried on in the shop.
             Stage.Dress(Outfit);
             page.Refresh();
+            if (moved) page.Pop();
             Stage.Frame(page.Focus);
             feed.gameObject.SetActive(page.ShowFeed);
             foreach (var kv in tabs) kv.Value.On = kv.Key == id;
@@ -452,18 +510,39 @@ namespace Wreckabulary
         {
             messages.Insert(0, message);
             if (messages.Count > 6) messages.RemoveAt(messages.Count - 1);
-            if (!feedList) return;
-            LobbyKit.Clear(feedList);
-            for (int i = 0; i < messages.Count; i++)
+            if (!feed) return;
+            // A solid navy notice with a sun mark, newest on top; the oldest goes when a fourth arrives.
+            var card = LobbyKit.Rect(feed, "Message");
+            card.SetAsFirstSibling();
+            card.Paint(LobbyKit.Panel, 10).raycastTarget = false;
+            LobbyKit.Frame(card, LobbyKit.ChipEdge, 10, 2);
+            LobbyKit.Rect(card, "Accent").Place(Vector2.zero, new Vector2(0, 1), new Vector2(9, 10), new Vector2(14, -10))
+                .Paint(LobbyKit.Sun, 2).raycastTarget = false;
+            var text = LobbyKit.Text(card, message, 17, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            text.textWrappingMode = TextWrappingModes.Normal;
+            text.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(26, 6), new Vector2(-14, -6));
+            card.Size(-1, Mathf.Max(44f, Mathf.Ceil(text.GetPreferredValues(message, FeedWidth - 40f, 0f).y) + 18f));
+            var fade = card.gameObject.AddComponent<CanvasGroup>();
+            fade.blocksRaycasts = false;
+            notices.Insert(0, (fade, Time.unscaledTime));
+            while (notices.Count > MessagesShown)
             {
-                var card = LobbyKit.Rect(feedList, "Message");
-                var fill = LobbyKit.ChipFill;
-                card.Paint(new Color(fill.r, fill.g, fill.b, .85f - i * .1f), 10).raycastTarget = false;
-                if (i == 0) LobbyKit.Frame(card, LobbyKit.Line, 10, 2);
-                var text = LobbyKit.Text(card, messages[i], 18, i == 0 ? LobbyKit.Cream : LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
-                text.textWrappingMode = TextWrappingModes.Normal;
-                text.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(14, 6), new Vector2(-14, -6));
-                card.Size(-1, messages[i].Length > 40 ? 66 : 44);
+                var old = notices[notices.Count - 1].card;
+                notices.RemoveAt(notices.Count - 1);
+                if (old) { old.gameObject.SetActive(false); Destroy(old.gameObject); }
+            }
+        }
+
+        /// <summary>Fades each notice out at the end of its life.</summary>
+        void AgeNotices()
+        {
+            for (int i = notices.Count - 1; i >= 0; i--)
+            {
+                var (card, posted) = notices[i];
+                float left = MessageLife - (Time.unscaledTime - posted);
+                if (card && left > 0f) { card.alpha = Mathf.Clamp01(left / MessageFade); continue; }
+                if (card) { card.gameObject.SetActive(false); Destroy(card.gameObject); }
+                notices.RemoveAt(i);
             }
         }
 
@@ -611,6 +690,7 @@ namespace Wreckabulary
                 canvas.enabled = !hidden;
             }
             if (hidden) return;
+            AgeNotices();
             PollParty();
             if (Starting)
             {
@@ -618,11 +698,23 @@ namespace Wreckabulary
                 statusCount.text = Mathf.CeilToInt(Mathf.Max(0f, left)).ToString();
                 if (left <= 0f) Launch();
             }
-            // Esc or a pad's B steps back: out of the quit dialog, out of a start, then home.
+            // LB and RB step through the pages, as on a console front end.
+            int step = AnyPad(p => p.rightShoulder) ? 1 : AnyPad(p => p.leftShoulder) ? -1 : 0;
+            if (step != 0 && !quitDialog && !Starting && !Typing)
+            {
+                int at = Array.IndexOf(PageOrder, Current);
+                Open(PageOrder[(at + step + PageOrder.Length) % PageOrder.Length]);
+            }
+            // Esc or a pad's B steps back: out of the quit dialog or the party panel, out of a start, then home.
             var keyboard = Keyboard.current;
             if ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) || AnyPad(p => p.buttonEast))
             {
                 if (quitDialog) CloseQuit();
+                else if (rail && rail.gameObject.activeSelf)
+                {
+                    ShowParty(false);
+                    if (EventSystem.current && partyTab) EventSystem.current.SetSelectedGameObject(partyTab.gameObject);
+                }
                 else if (Starting) CancelStart();
                 // Esc in the name field only leaves the field. The field may have let go of it already
                 // this frame, so the frame before counts too.
@@ -686,7 +778,7 @@ namespace Wreckabulary
             // A click beside the box means stay.
             shade.gameObject.AddComponent<LobbyShade>().Clicked = CloseQuit;
             var box = LobbyKit.Rect(shade, "Box").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(600, 260));
-            LobbyKit.Face(box, LobbyKit.Page, 26, LobbyKit.Line, 4, 8).raycastTarget = true;
+            LobbyKit.PanelFace(box, 28, 5, 8).raycastTarget = true;
             var title = LobbyKit.Display(box, "Leave Wreckabulary?", 40, LobbyKit.Sun, TextAlignmentOptions.Center, LobbyKit.Ink.Drop);
             title.rectTransform.Place(new Vector2(0, .52f), Vector2.one, new Vector2(20, 0), new Vector2(-20, -10));
             var quit = LobbyKit.Danger(box, "QUIT GAME", 26, Application.Quit);

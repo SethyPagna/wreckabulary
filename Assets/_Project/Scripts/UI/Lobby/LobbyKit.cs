@@ -7,15 +7,26 @@ namespace Wreckabulary
 {
     /// <summary>
     /// Colours and builders for the PC lobby, in the web lobby's look (Web/src/style.css) on the CS2
-    /// layout: navy glass panels over the live map (no blue backdrop, user, 6 Oct 2026), white and
-    /// sun type in Lilita One, sun slabs for what's chosen, wood letter tiles, navy outlines and hard
-    /// navy drop shadows. Buttons lift under the pointer and sink when pressed (LobbyPress).
+    /// layout: the live map behind you (no blue backdrop, user, 6 Oct 2026) under dark edge scrims, the
+    /// web's royal panels and cards with navy outlines and hard navy drops, near-opaque navy tabs and
+    /// chips, white and sun type in Lilita One, sun slabs for what's open or chosen, and wood letter
+    /// tiles. Buttons lift under the pointer and sink when pressed (LobbyPress).
     /// </summary>
     public static class LobbyKit
     {
         /// <summary>A web colour. uGUI takes Graphic.color as sRGB even in this linear project, so no .linear.</summary>
         public static Color Hex(uint rgb, float alpha = 1f) =>
             new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, alpha);
+
+        /// <summary>
+        /// The alpha that makes a dark see-through fill over the bright map look as the web's CSS alpha
+        /// does. This project blends UI in linear light, where a navy at the web's alpha comes out pale and
+        /// greyish (tabs read mauve over the beige room); 1 - (1 - a)^2.2 is exact for black and close for navy.
+        /// </summary>
+        public static float WebAlpha(float alpha) => 1f - Mathf.Pow(1f - Mathf.Clamp01(alpha), 2.2f);
+
+        /// <summary>A web colour at a CSS alpha, as it should look over the world (see <see cref="WebAlpha"/>).</summary>
+        public static Color Web(uint rgb, float alpha) => Hex(rgb, WebAlpha(alpha));
 
         /// <summary>
         /// The web's see-through white at this alpha, as it looks over navy. This project blends UI in
@@ -31,17 +42,17 @@ namespace Wreckabulary
         public static readonly Color CardSub = Hex(0x4a5290), Owned = Hex(0x2fa84f), Short = Hex(0xe6e9f7), Focus = Hex(0xedab51);
         public static readonly Color CoinRim = Hex(0xf0a400), CoinRimHi = Hex(0xffe066), CoinInk = Hex(0x8a5a10);
 
-        /// <summary>The top of the bar's fade; it clears to nothing at the bottom.</summary>
-        public static readonly Color Bar = Hex(0x06072f, .85f);
-        /// <summary>Navy glass for panels beside you.</summary>
-        public static readonly Color Panel = Hex(0x0a0e52, .92f);
-        /// <summary>For pages that cover you (PLAY, Settings, Leaderboard): solid, because UI blends in
-        /// linear space and even .975 left a ghost of the avatar through a centred panel.</summary>
-        public static readonly Color Page = Hex(0x0b0e45);
+        /// <summary>Solid navy, for strips and boxes that want the dark face.</summary>
+        public static readonly Color Panel = Hex(0x0a0e52);
+        /// <summary>The web's panel face (style.css --panel-face), top to bottom. Solid: a uGUI drop draws under
+        /// its face, so a see-through face would show its own shadow through itself.</summary>
+        public static readonly Color PanelTop = Hex(0x3159ff), PanelBottom = Hex(0x18229e);
+        /// <summary>The edge scrims' colour: the web's top-bar navy.</summary>
+        public static readonly Color ScrimNavy = Hex(0x06072f);
         public static readonly Color Card = Mist(.122f);
         public static readonly Color Line = Mist(.188f);
-        public static readonly Color TabIdle = Hex(0x0a0e52, .79f), TabHover = Hex(0x151c7a, .9f);
-        public static readonly Color ChipFill = Hex(0x0a0e52, .85f), ChipEdge = Mist(.25f);
+        public static readonly Color TabIdle = Web(0x0a0e52, .79f), TabHover = Web(0x1d2bb0, .9f), TabPress = Hex(0x142092);
+        public static readonly Color ChipFill = Web(0x0a0e52, .85f), ChipEdge = Mist(.25f);
         public static readonly Color PillFill = Mist(.133f), PillEdge = Mist(.333f);
         public static readonly Color Cream = Color.white;
         /// <summary>Second-line text: the web's mist.</summary>
@@ -49,8 +60,11 @@ namespace Wreckabulary
         /// <summary>Locked and disabled text.</summary>
         public static readonly Color Faded = new Color(1f, 1f, 1f, .5f);
         public static readonly Color Honey = Sun, Tomato = Hot;
-        public static readonly Color Shade = Hex(0x04052a, .8f);
-        public const int TabRadius = 6;
+        /// <summary>Behind a centred page or a dialog: the web's 60% navy, as it looks over the map.</summary>
+        public static readonly Color Shade = Web(0x04052a, .6f);
+        public const int TabRadius = 7;
+
+        public enum Edge { Top, Right, Bottom }
 
         public enum Ink { Plain, Stroke, Drop }
 
@@ -211,7 +225,7 @@ namespace Wreckabulary
             press.Body = body;
             if (drop > 0) { press.Drop = body.GetComponent<Shadow>(); press.DropRest = drop; }
             // Keyboard and controller focus: the web's 3px orange ring, a little outside the button.
-            var ring = Frame(body, Focus, Mathf.Max(radius, 0), 3, "Focus", 7);
+            var ring = Frame(body, Focus, Mathf.Max(radius, 0), 4, "Focus", 5);
             if (skew != 0) ring.gameObject.AddComponent<LobbySkew>().Degrees = skew;
             ring.enabled = false;
             press.Ring = ring;
@@ -266,9 +280,9 @@ namespace Wreckabulary
         /// </summary>
         public static Button Primary(Transform parent, string name, string word, Action click, float tile = 62, float arrow = 38)
         {
-            var button = Button(parent, name, PlayHi, click, 16, Navy, 4, 8, Sun2);
+            var button = Button(parent, name, PlayHi, click, 18, Navy, 5, 10, Sun2);
             var press = button.GetComponent<LobbyPress>();
-            press.Sink = 6f; press.DropPressed = 2f;
+            press.Sink = 7f; press.DropPressed = 2f;
             var content = Row(button.Body(), "Content", 7);
             content.Fill();
             var layout = content.GetComponent<HorizontalLayoutGroup>();
@@ -357,23 +371,25 @@ namespace Wreckabulary
         };
 
         /// <summary>A leaning web tab with an icon and a label; LobbyTab.On shows it open.</summary>
-        public static LobbyTab Tab(Transform parent, string title, string icon, Action click, float width = 200, float height = 54, float size = 27)
+        public static LobbyTab Tab(Transform parent, string title, string icon, Action click, float width = 200, float height = 48, float size = 24,
+            float skew = 10)
         {
-            var button = Button(parent, title, TabIdle, click, TabRadius, Line, 2, 0, null, 10);
+            var button = Button(parent, title, TabIdle, click, TabRadius, Line, 2, 0, null, skew);
             var body = button.Body();
             // Only the open tab shows these; LobbyTab turns them on.
             var gradient = body.gameObject.AddComponent<LobbyGradient>();
             gradient.Set(SunHi, Sun2);
             gradient.enabled = false;
-            var drop = Drop(body, 4, Navy);
+            var drop = Drop(body, 5, Navy);
             drop.enabled = false;
-            var content = Row(body, "Content", 10);
+            var content = Row(body, "Content", 8);
             content.Fill();
             var layout = content.GetComponent<HorizontalLayoutGroup>();
             layout.childAlignment = TextAnchor.MiddleCenter;
             layout.childForceExpandHeight = false;
+            layout.padding = new RectOffset(22, 22, 0, 0);
             Image glyph = null;
-            if (icon != null) { glyph = Icon(content, icon, Cream); glyph.Size(26, 26); }
+            if (icon != null) { glyph = Icon(content, icon, Cream); glyph.Size(22, 22); }
             var label = Display(content, Upper(title), size, Cream);
             label.characterSpacing = 3;
             label.Size(-1, height);
@@ -383,10 +399,10 @@ namespace Wreckabulary
             return tab;
         }
 
-        /// <summary>A round white button for the top bar with a navy glyph, and a hint underneath it.</summary>
+        /// <summary>A round white button with a navy glyph (a page's X, leaving the party), and a hint under it.</summary>
         public static Button IconButton(Transform parent, string icon, string hint, Action click)
         {
-            var button = Button(parent, hint, Color.white, click, 26, Navy, 3, 3);
+            var button = Button(parent, hint, Color.white, click, 26, Navy, 4, 4);
             var body = button.Body();
             var glyph = Icon(body, icon, Navy);
             glyph.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(12, 12), new Vector2(-12, -12));
@@ -396,6 +412,138 @@ namespace Wreckabulary
             press.Tilt = 8f;
             press.Hot = hot => face.color = hot ? Sun : Color.white;
             button.gameObject.AddComponent<LobbyHint>().Text = hint;
+            return button;
+        }
+
+        /// <summary>
+        /// One of the top bar's segmented pills: a near-opaque navy capsule with a light edge that holds
+        /// icon cells (<see cref="IconTab"/>) side by side, so a cluster of icons reads as one control.
+        /// </summary>
+        public static RectTransform Segment(Transform parent, string name)
+        {
+            var pill = Row(parent, name, 2, 4);
+            pill.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            Face(pill, TabIdle, 12, Line, 2);
+            return pill;
+        }
+
+        /// <summary>
+        /// A cell in a segmented pill: a white glyph on the pill, royal under the pointer (or the given
+        /// colour), pressed darker, and a sun slab with a navy edge and drop while its page is open. Its
+        /// name shows as a hint. Pages light it through <see cref="LobbyTab.On"/>.
+        /// </summary>
+        public static LobbyTab IconTab(Transform parent, string icon, string name, Action click, Color? hover = null)
+        {
+            var button = Button(parent, name, Color.clear, click, 10, Navy, 2);
+            var body = button.Body();
+            var gradient = body.gameObject.AddComponent<LobbyGradient>();
+            gradient.Set(SunHi, Sun2);
+            gradient.enabled = false;
+            var drop = Drop(body, 3, Navy);
+            drop.enabled = false;
+            var glyph = Icon(body, icon, Cream);
+            glyph.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(9, 9), new Vector2(-9, -9));
+            button.Size(44, 44);
+            // The web's rotate(-8deg) under the pointer; uGUI turns the other way.
+            button.GetComponent<LobbyPress>().Tilt = 8f;
+            button.gameObject.AddComponent<LobbyHint>().Text = name;
+            var tab = button.gameObject.AddComponent<LobbyTab>();
+            tab.Style = LobbyTab.Look.Cell;
+            tab.Radius = 10;
+            if (hover.HasValue) tab.HoverColour = hover.Value;
+            tab.Init(button, body.GetComponent<Image>(), body.Find("Edge").GetComponent<Image>(), gradient, drop, null, glyph);
+            return tab;
+        }
+
+        static readonly System.Collections.Generic.Dictionary<(Edge, int, float, int), Sprite> scrims =
+            new System.Collections.Generic.Dictionary<(Edge, int, float, int), Sprite>();
+
+        /// <summary>
+        /// A dark fade along one edge of the screen, so the chrome there sits on one dark band instead of on
+        /// the bright map (CS2's top bar). Flat at the web's alpha for <paramref name="flat"/> units, then a
+        /// smooth fall to nothing at <paramref name="length"/>; each texel's alpha is converted with
+        /// <see cref="WebAlpha"/>. It never takes clicks.
+        /// </summary>
+        public static Image Scrim(Transform parent, string name, Edge edge, int length, float webAlpha, int flat = 0)
+        {
+            var rect = Rect(parent, name);
+            switch (edge)
+            {
+                case Edge.Top: rect.Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -length), Vector2.zero); break;
+                case Edge.Bottom: rect.Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, length)); break;
+                default: rect.Place(new Vector2(1, 0), Vector2.one, new Vector2(-length, 0), Vector2.zero); break;
+            }
+            var image = rect.gameObject.AddComponent<Image>();
+            image.sprite = ScrimSprite(edge, length, webAlpha, flat);
+            image.color = ScrimNavy;
+            image.raycastTarget = false;
+            return image;
+        }
+
+        static Sprite ScrimSprite(Edge edge, int length, float webAlpha, int flat)
+        {
+            var key = (edge, length, webAlpha, flat);
+            if (scrims.TryGetValue(key, out var sprite) && sprite) return sprite;
+            const int Texels = 256;
+            bool vertical = edge != Edge.Right;
+            var texture = new Texture2D(vertical ? 1 : Texels, vertical ? Texels : 1, TextureFormat.RGBA32, false)
+            { name = "Lobby scrim " + edge, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color32[Texels];
+            for (int i = 0; i < Texels; i++)
+            {
+                // Texel 0 is the bottom (or left) of the texture; turn that into units in from the screen edge.
+                float t = (i + .5f) / Texels;
+                float inward = (edge == Edge.Bottom ? t : 1f - t) * length;
+                float fall = inward <= flat ? 1f : 1f - Mathf.SmoothStep(0f, 1f, (inward - flat) / Mathf.Max(1f, length - flat));
+                pixels[i] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(WebAlpha(webAlpha * fall) * 255f));
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(.5f, .5f), 100);
+            sprite.name = texture.name;
+            scrims[key] = sprite;
+            return sprite;
+        }
+
+        /// <summary>The web's panel and card face: the royal gradient, a navy edge and a hard navy drop.</summary>
+        public static Image PanelFace(RectTransform rect, int radius, int edgeWidth = 4, float drop = 6) =>
+            Face(rect, PanelTop, radius, Navy, edgeWidth, drop, PanelBottom);
+
+        /// <summary>
+        /// A pick in the web's match dock (style.css .dock-pick): the whole card is the button, with the royal
+        /// face, a navy edge and drop, a square of art in the pick's colour (filled by the caller, under
+        /// "Art"), small caps over a title and an optional line, and a CHANGE chip that says what a click does.
+        /// It rises 4 under the pointer with its drop growing, as on the web.
+        /// </summary>
+        public static Button PickCard(Transform parent, string name, Color accent, string caps, string title, string detail,
+            Action click, float art, Color? detailColour = null)
+        {
+            var button = Button(parent, name, PanelTop, click, 17, Navy, 4, 6, PanelBottom);
+            var press = button.GetComponent<LobbyPress>();
+            press.Lift = 4f; press.Sink = 3f; press.DropPressed = 2f;
+            var body = button.Body();
+            var square = Rect(body, "Art").Pin(new Vector2(0, .5f), new Vector2(14, 0), new Vector2(art, art));
+            Face(square, accent, 14, Navy, 3);
+            var chip = Rect(body, "Change chip").Pin(new Vector2(1, .5f), new Vector2(-16, 0), new Vector2(104, 34));
+            // The web's #ffffff22 chip with a #ffffff55 edge, made solid over the face.
+            chip.Paint(Hex(0x4157d4), 10).raycastTarget = false;
+            Frame(chip, Hex(0x6d7ede), 10, 2);
+            var change = Display(chip, "CHANGE", 17, Cream);
+            change.characterSpacing = 2;
+            change.rectTransform.Fill();
+            var words = Column(body, "Words", 0);
+            words.Place(Vector2.zero, Vector2.one, new Vector2(14 + art + 16, 8), new Vector2(-132, -8));
+            var column = words.GetComponent<VerticalLayoutGroup>();
+            column.childAlignment = TextAnchor.MiddleLeft;
+            var kicker = Text(words, Upper(caps), 13, new Color(1f, 1f, 1f, .75f), TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
+            kicker.characterSpacing = 8;
+            kicker.Size(-1, 18);
+            var head = Display(words, title, 32, Cream, TextAlignmentOptions.MidlineLeft, Ink.Stroke);
+            // "Walk-up Apartments" and "Creative Workshop" shrink rather than lose their ends.
+            head.enableAutoSizing = true; head.fontSizeMin = 22; head.fontSizeMax = 32;
+            head.Size(-1, 38);
+            if (!string.IsNullOrEmpty(detail))
+                Text(words, detail, 16, detailColour ?? Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 22);
             return button;
         }
 

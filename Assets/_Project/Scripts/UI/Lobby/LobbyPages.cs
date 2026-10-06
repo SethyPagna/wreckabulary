@@ -12,8 +12,8 @@ namespace Wreckabulary
 {
     /// <summary>
     /// One lobby page. Only one shows at a time, and each redraws itself from the menu's state.
-    /// Pages wear the web lobby's look (LobbyKit): navy panels with sun titles, posters for modes and
-    /// maps, wood tiles, white cards with navy edges and hard drops. Rotations are in uGUI degrees,
+    /// Pages wear the web lobby's look (LobbyKit): royal panels with sun titles, posters for modes and
+    /// maps, wood tiles, cards with navy edges and hard drops. Rotations are in uGUI degrees,
     /// which turn the other way from CSS: the web's rotate(-8deg) is +8 here.
     /// </summary>
     public abstract class LobbyPage
@@ -21,9 +21,11 @@ namespace Wreckabulary
         protected static readonly string[] Finishes = { "Classic", "Candy", "Arcade" };
         /// <summary>The hard drop under cards on a solid navy page, where a navy one wouldn't show.</summary>
         protected static readonly Color Deep = LobbyKit.Hex(0x04052a);
-        /// <summary>The web's see-through card on the navy page, made solid: a uGUI shadow draws under
-        /// its card, so a see-through card would show its own drop through itself.</summary>
-        protected static readonly Color BoardIdle = LobbyKit.Hex(0x292b5c), BoardHover = LobbyKit.Hex(0x3c3e6a);
+        /// <summary>The web's see-through white card on the royal panel, made solid: a uGUI shadow draws
+        /// under its card, so a see-through card would show its own drop through itself.</summary>
+        protected static readonly Color BoardIdle = LobbyKit.Hex(0x445eeb), BoardHover = LobbyKit.Hex(0x556ded);
+        /// <summary>The width of the panel the loadout, career and shop share.</summary>
+        public const float SideWidth = 860f;
 
         public abstract string Id { get; }
         public virtual LobbyStage.Focus Focus => LobbyStage.Focus.Centre;
@@ -43,6 +45,14 @@ namespace Wreckabulary
             Root.gameObject.SetActive(false);
         }
 
+        /// <summary>The page's entrance when it opens: side pages slide in from the right, the others rise a
+        /// little, both fading in. Home just appears.</summary>
+        public void Pop()
+        {
+            if (Id == LobbyMenu.Home) return;
+            LobbyPop.On(Root).Play(Focus == LobbyStage.Focus.Left ? new Vector2(24, 0) : new Vector2(0, -16));
+        }
+
         /// <summary>Redraws the page from the menu's current state.</summary>
         public void Refresh()
         {
@@ -52,7 +62,7 @@ namespace Wreckabulary
             {
                 // Under the panel: clicks on the panel never reach it.
                 var shade = LobbyKit.Rect(Root, "Shade").Fill();
-                shade.Paint(Color.clear);
+                shade.Paint(LobbyKit.Shade);
                 shade.gameObject.AddComponent<LobbyShade>().Clicked = Menu.Close;
             }
             Build();
@@ -68,32 +78,36 @@ namespace Wreckabulary
             if (target) EventSystem.current.SetSelectedGameObject(target.gameObject);
         }
 
-        /// <summary>A web panel: navy with a light edge and a hard drop, its title in sun capitals. Returns the body to fill.</summary>
+        /// <summary>A web panel: the royal face with a navy edge and a hard navy drop, its title in sun capitals.
+        /// Returns the body to fill.</summary>
         protected RectTransform Panel(Vector2 min, Vector2 max, string title, string subtitle = null)
         {
             var panel = LobbyKit.Rect(Root, "Panel").Place(min, max);
-            // Pages that cover you are solid; the side panels are glass over the map.
-            var face = LobbyKit.Face(panel, Focus == LobbyStage.Focus.Centre ? LobbyKit.Page : LobbyKit.Panel, 24, LobbyKit.Line, 3, 7);
-            // A click on the panel stays there instead of turning you.
-            face.raycastTarget = true;
-            var head = LobbyKit.Display(panel, LobbyKit.Upper(title), 44, LobbyKit.Sun, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Drop);
+            // Solid, so neither the map nor its own drop shows through; a click on it stays there instead of turning you.
+            LobbyKit.PanelFace(panel, 28, 5, 8).raycastTarget = true;
+            var head = LobbyKit.Display(panel, LobbyKit.Upper(title), 43, LobbyKit.Sun, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Drop);
             head.characterSpacing = 2;
-            head.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -86), new Vector2(-88, -18));
+            head.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(34, -84), new Vector2(-88, -20));
             // Every page closes from its own corner too, not only from the bar.
             var close = LobbyKit.IconButton(panel, LobbyIcons.Close, "Close page", Menu.Close);
             ((RectTransform)close.transform).Pin(Vector2.one, new Vector2(-20, -20), new Vector2(48, 48));
             float top = 100;
             if (!string.IsNullOrEmpty(subtitle))
             {
-                var sub = LobbyKit.Text(panel, subtitle, 19, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
-                sub.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -124), new Vector2(-88, -92));
-                top = 134;
+                var sub = LobbyKit.Text(panel, subtitle, 17, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
+                sub.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(34, -120), new Vector2(-88, -90));
+                top = 130;
             }
             return LobbyKit.Rect(panel, "Body").Place(Vector2.zero, Vector2.one, new Vector2(32, 28), new Vector2(-32, -top));
         }
 
-        /// <summary>The panel the loadout, career and shop share: docked right, so you stand on the left.</summary>
-        protected RectTransform Side(string title, string subtitle = null) => Panel(new Vector2(.42f, 0), Vector2.one, title, subtitle);
+        /// <summary>The panel the loadout, career and shop share: docked right at a fixed width, so you stand on the left.</summary>
+        protected RectTransform Side(string title, string subtitle = null)
+        {
+            var body = Panel(new Vector2(1, 0), Vector2.one, title, subtitle);
+            ((RectTransform)body.parent).offsetMin = new Vector2(-SideWidth, 0);
+            return body;
+        }
 
         protected static TextMeshProUGUI Wrapped(Transform parent, string text, float size, Color colour, float height = -1)
         {
@@ -186,51 +200,57 @@ namespace Wreckabulary
             id != null && GameConfig.Current.Houses.TryGetValue(id, out var house) ? house.Name : id ?? "";
     }
 
-    /// <summary>Just you in the map, the lobby messages, and what GO will start.</summary>
+    /// <summary>Just you in the map, the lobby notices, and the match dock: what GO will start, and GO.</summary>
     public sealed class HomePage : LobbyPage
     {
         public override string Id => LobbyMenu.Home;
         public override bool ShowFeed => true;
+        /// <summary>The web's match dock width.</summary>
+        public const float DockWidth = 456f;
 
         protected override void Build()
         {
-            var hint = LobbyKit.Row(Root, "Turn hint", 8, 0);
-            hint.Pin(new Vector2(.5f, 0), new Vector2(0, 4), new Vector2(200, 40));
-            var layout = hint.GetComponent<HorizontalLayoutGroup>();
-            layout.childAlignment = TextAnchor.MiddleCenter;
-            layout.childForceExpandHeight = false;
-            // Says what the open view does without getting in its way: Face leaves it click-through.
-            LobbyKit.Face(hint, LobbyKit.TabIdle, 10, LobbyKit.Line, 2);
-            LobbyKit.Icon(hint, LobbyIcons.Turn, LobbyKit.Cyan).Size(24, 24);
-            LobbyKit.Text(hint, "Drag to turn", 19, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).Size(126, 30);
+            // Says what the open view does until you have done it once; no box, so it never reads as a button.
+            if (!PlayerPrefs.HasKey(LobbyMenu.TurnHintKey))
+            {
+                var hint = LobbyKit.Row(Root, "Turn hint", 8, 0);
+                hint.Pin(new Vector2(.5f, 0), new Vector2(0, 6), new Vector2(240, 40));
+                var layout = hint.GetComponent<HorizontalLayoutGroup>();
+                layout.childAlignment = TextAnchor.MiddleCenter;
+                layout.childForceExpandHeight = false;
+                LobbyKit.Icon(hint, LobbyIcons.Turn, LobbyKit.Cyan).Size(26, 26);
+                LobbyKit.Display(hint, "Drag to turn", 22, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Stroke).Size(-1, 30);
+            }
             // While a match starts, the countdown under the tabs takes over.
             if (Menu.Starting) return;
 
-            // The web's match dock: the mode's colour, its art, what GO starts and the GO button.
+            // The web's match dock, bottom right: the mode (a click changes it), the house, and a big GO.
             bool blocked = Menu.Blocked != null;
-            var colour = LobbyKit.ModeColour(Menu.Mode);
-            var card = LobbyKit.Rect(Root, "Next match").Pin(Vector2.zero, Vector2.zero, new Vector2(560, 212));
-            LobbyKit.Face(card, LobbyKit.Panel, 18, LobbyKit.Line, 3, 5).raycastTarget = true;
-            LobbyKit.Rect(card, "Accent").Place(Vector2.zero, new Vector2(0, 1), new Vector2(14, 18), new Vector2(24, -18))
-                .Paint(colour, 5).raycastTarget = false;
-            var art = LobbyKit.Rect(card, "Art").Pin(new Vector2(0, 1), new Vector2(40, -20), new Vector2(76, 76));
-            LobbyKit.Face(art, colour, 16, LobbyKit.Navy, 3);
-            LobbyKit.ItemImage(art, LobbyKit.ModeArt(Menu.Mode), 66, 10f);
-            var caps = LobbyKit.Caps(card, "Next up  ·  " + Menu.Queue, 15);
-            caps.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(134, -44), new Vector2(-152, -20));
-            var title = LobbyKit.Display(card, LobbyMenu.ModeName(Menu.Mode), 36, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Stroke);
-            // Clear of CHANGE in the corner; a long name shrinks instead.
-            title.enableAutoSizing = true; title.fontSizeMin = 24; title.fontSizeMax = 36;
-            title.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(134, -88), new Vector2(-150, -42));
-            var detail = LobbyKit.Text(card, (blocked ? "Not built yet  ·  " : "") + Menu.Describe(), 19, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
-            detail.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(134, -112), new Vector2(-20, -86));
-            var change = LobbyKit.Pill(card, "CHANGE", "Change", 20, () => Menu.Open(LobbyMenu.Play));
-            ((RectTransform)change.transform).Pin(Vector2.one, new Vector2(-18, -18), new Vector2(120, 40));
-            var go = LobbyKit.Primary(card, "GO", "GO", Menu.Go, 58, 36);
-            ((RectTransform)go.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(18, 20), new Vector2(-18, 98));
+            var dock = LobbyKit.Column(Root, "Next match", 12);
+            dock.Pin(new Vector2(1, 0), Vector2.zero, new Vector2(DockWidth, 0));
+            dock.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var mode = LobbyKit.PickCard(dock, "CHANGE", LobbyKit.ModeColour(Menu.Mode), "Next up  ·  " + Capital(Menu.Queue),
+                LobbyMenu.ModeName(Menu.Mode), blocked ? "Not built yet  ·  online play" : Who(), () => Menu.Open(LobbyMenu.Play), 74);
+            mode.Size(-1, 104);
+            LobbyKit.ItemImage(mode.Body().Find("Art"), LobbyKit.ModeArt(Menu.Mode), 64, 10f);
+            if (Menu.Mode != LobbyMenu.TutorialMode)
+            {
+                var house = LobbyKit.PickCard(dock, "Change house", LobbyKit.Hot, "House", MapName(Menu.Map), null,
+                    () => Menu.Open(LobbyMenu.Play), 54);
+                house.Size(-1, 80);
+                LobbyKit.Icon(house.Body().Find("Art"), LobbyIcons.Home, LobbyKit.Cream).rectTransform
+                    .Place(Vector2.zero, Vector2.one, new Vector2(11, 11), new Vector2(-11, -11));
+            }
+            var go = LobbyKit.Primary(dock, "GO", "GO", Menu.Go, 74, 46);
+            go.Size(-1, 116);
             go.interactable = !blocked;
-            First = blocked ? change : go;
+            First = blocked ? mode : go;
         }
+
+        /// <summary>Who plays, or what the workshop modes are for.</summary>
+        string Who() => Menu.Mode == LobbyMenu.TutorialMode ? "The tutorial room"
+            : Menu.Mode == LobbyMenu.WorkshopMode ? "Build and test a home"
+            : Capital(LobbyMenu.Seats(Menu.Mode, Menu.PartySize));
     }
 
     /// <summary>PRACTICE, MATCHMAKING or WORKSHOP, then a mode and a map, then GO back to the lobby.</summary>
@@ -391,7 +411,8 @@ namespace Wreckabulary
         {
             var body = Side("Loadout");
             var tabs = LobbyKit.Row((RectTransform)body.parent, "Tabs", 10);
-            tabs.Place(Vector2.one, Vector2.one, new Vector2(-380, -82), new Vector2(-30, -26));
+            // Left of the page's close button (48 wide, 20 in from the corner).
+            tabs.Place(Vector2.one, Vector2.one, new Vector2(-440, -82), new Vector2(-84, -26));
             var row = tabs.GetComponent<HorizontalLayoutGroup>();
             row.childAlignment = TextAnchor.MiddleRight;
             row.childForceExpandHeight = false;

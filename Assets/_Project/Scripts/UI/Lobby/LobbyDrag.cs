@@ -12,8 +12,10 @@ namespace Wreckabulary
 
         /// <summary>Called with the degrees to turn by.</summary>
         public Action<float> Turned;
+        /// <summary>Called when a drag starts (the lobby retires its "drag to turn" hint after the first).</summary>
+        public Action Started;
 
-        public void OnBeginDrag(PointerEventData data) { }
+        public void OnBeginDrag(PointerEventData data) => Started?.Invoke();
 
         public void OnDrag(PointerEventData data) =>
             Turned?.Invoke(-data.delta.x * DegreesPerPixel * 1080f / Mathf.Max(1, Screen.height));

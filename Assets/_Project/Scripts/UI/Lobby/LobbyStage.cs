@@ -3,6 +3,9 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.UI;
 using Wreckabulary.Art;
 using Wreckabulary.Rules;
 
@@ -11,7 +14,9 @@ namespace Wreckabulary
     /// <summary>
     /// The 3D half of the lobby: the selected map built far from the hub room, your avatar
     /// standing in its most open room (no platform), and a camera that frames you in the
-    /// middle (home) or on the left (loadout). Dragging turns the avatar.
+    /// middle (home) or on the left (loadout). Dragging turns the avatar. While the lobby holds the
+    /// camera it adds a showroom: a dusk sky behind the map, a warm key and a cyan rim light on you,
+    /// and the lobby's grade.
     /// </summary>
     public sealed class LobbyStage : MonoBehaviour
     {
@@ -22,7 +27,22 @@ namespace Wreckabulary
 
         public enum Focus { Centre, Left }
 
+        /// <summary>The top of the lobby sky, which the camera also clears to: plum over apricot at dusk, not
+        /// the hub's teal and never blue (user, 6 Oct 2026).</summary>
+        public static readonly Color SkyTop = LobbyKit.Hex(0x2b1736);
+        static readonly Color SkyMiddle = LobbyKit.Hex(0x6b3f6e), SkyLow = LobbyKit.Hex(0xf2b57a);
+        /// <summary>Where you stand across the screen while a side page fills the right, from 0 (left) to 1.</summary>
+        public const float SideAt = .3f;
+        /// <summary>Above the default look volume (GraphicsOptions.Look), so the lobby grade wins while it shows.</summary>
+        public const int LookPriority = 10;
+        static readonly Vector3 KeyFrom = new Vector3(-1.8f, 2.6f, -2.4f), RimFrom = new Vector3(1.6f, 2.2f, 1.8f);
+
         Transform set, avatarRoot;
+        Canvas sky;
+        Texture2D skyTexture;
+        Volume look;
+        VolumeProfile lookProfile;
+        Light key, rim;
         GameObject avatar;
         SkinnedMeshRenderer[] meshes;
         PlayableGraph graph;
@@ -171,10 +191,103 @@ namespace Wreckabulary
             cam.fieldOfView = FieldOfView;
             cam.nearClipPlane = .1f;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            // A warm evening wash above the walls instead of the hub's teal.
-            cam.backgroundColor = new Color(.93f, .8f, .64f);
+            // The sky covers everything past the room; this only shows if it ever doesn't.
+            cam.backgroundColor = SkyTop;
             GraphicsOptions.ApplyTo(cam);
             cameraTaken = true;
+            Showroom(true);
+        }
+
+        /// <summary>The sky, the lights on you and the lobby grade: on while the lobby holds the camera.</summary>
+        void Showroom(bool on)
+        {
+            if (on && !sky) BuildShowroom();
+            if (sky)
+            {
+                sky.worldCamera = cam;
+                // Past any room, and in front of anything far beyond it (the hub room lies 400 units on).
+                if (cam) sky.planeDistance = Mathf.Min(cam.farClipPlane - 1f, 80f);
+                sky.enabled = on;
+            }
+            if (look) look.enabled = on;
+            if (key) key.enabled = on;
+            if (rim) rim.enabled = on;
+        }
+
+        void BuildShowroom()
+        {
+            // A screen-space-camera canvas drawn first among see-through things: walls in front hide it.
+            var canvasObject = new GameObject("Lobby sky", typeof(RectTransform));
+            canvasObject.transform.SetParent(transform, false);
+            sky = canvasObject.AddComponent<Canvas>();
+            sky.renderMode = RenderMode.ScreenSpaceCamera;
+            sky.sortingOrder = -100;
+            var gradient = LobbyKit.Rect(canvasObject.transform, "Gradient").Fill().gameObject.AddComponent<RawImage>();
+            gradient.texture = skyTexture = SkyTexture();
+            gradient.raycastTarget = false;
+
+            // CS2's showroom grade: a soft navy vignette, the far room a little out of focus, a touch more
+            // contrast and colour, and a faint bloom on the brightest highlights.
+            var volumeObject = new GameObject("Lobby look");
+            volumeObject.transform.SetParent(transform, false);
+            look = volumeObject.AddComponent<Volume>();
+            look.isGlobal = true;
+            look.priority = LookPriority;
+            lookProfile = ScriptableObject.CreateInstance<VolumeProfile>();
+            lookProfile.name = "Lobby look";
+            var vignette = lookProfile.Add<Vignette>(true);
+            vignette.color.Override(LobbyKit.ScrimNavy);
+            vignette.intensity.Override(.32f);
+            vignette.smoothness.Override(.45f);
+            var focus = lookProfile.Add<DepthOfField>(true);
+            focus.mode.Override(DepthOfFieldMode.Gaussian);
+            focus.gaussianStart.Override(5.5f);
+            focus.gaussianEnd.Override(14f);
+            var grade = lookProfile.Add<ColorAdjustments>(true);
+            grade.contrast.Override(8f);
+            grade.saturation.Override(12f);
+            var bloom = lookProfile.Add<Bloom>(true);
+            bloom.threshold.Override(1.1f);
+            bloom.intensity.Override(.25f);
+            look.sharedProfile = lookProfile;
+
+            key = ShowroomLight("Key light", LobbyKit.Hex(0xffd9a0), 5f, 46f);
+            rim = ShowroomLight("Rim light", LobbyKit.Hex(0x6fd4ff), 4f, 30f);
+        }
+
+        Light ShowroomLight(string name, Color colour, float intensity, float angle)
+        {
+            var light = new GameObject(name).AddComponent<Light>();
+            light.transform.SetParent(transform, false);
+            light.type = LightType.Spot;
+            light.color = colour;
+            light.intensity = intensity;
+            light.range = 8f;
+            light.spotAngle = angle;
+            light.innerSpotAngle = angle * .6f;
+            light.shadows = LightShadows.None;
+            return light;
+        }
+
+        /// <summary>The sky's colours top to bottom, in a strip the canvas stretches over the screen.</summary>
+        static Texture2D SkyTexture()
+        {
+            const int Texels = 128;
+            var texture = new Texture2D(1, Texels, TextureFormat.RGBA32, false)
+            { name = "Lobby sky", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var pixels = new Color32[Texels];
+            for (int i = 0; i < Texels; i++)
+            {
+                // Row 0 is the bottom; plum fades to mauve by 55% down, then to apricot at the horizon.
+                float down = 1f - (i + .5f) / Texels;
+                Color colour = down < .55f
+                    ? Color.Lerp(SkyTop, SkyMiddle, Mathf.SmoothStep(0f, 1f, down / .55f))
+                    : Color.Lerp(SkyMiddle, SkyLow, Mathf.SmoothStep(0f, 1f, (down - .55f) / .45f));
+                pixels[i] = colour;
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            return texture;
         }
 
         /// <summary>Gives the camera back to the hub (for exploring or leaving the lobby).</summary>
@@ -189,6 +302,7 @@ namespace Wreckabulary
             }
             if (rig) rig.enabled = rigWasEnabled;
             cameraTaken = false;
+            Showroom(false);
         }
 
         void LateUpdate() => Place(false);
@@ -200,12 +314,26 @@ namespace Wreckabulary
             side = Mathf.Lerp(side, targetSide, snap ? 1f : 1f - Mathf.Exp(-7f * Time.unscaledDeltaTime));
             // Yaw 0 faces the camera.
             if (avatarRoot) avatarRoot.rotation = Quaternion.LookRotation(toCamera.sqrMagnitude > 0 ? toCamera.normalized : Vector3.back) * Quaternion.Euler(0f, yaw, 0f);
+            // The key light from over the camera's left shoulder, the rim from behind on the right.
+            Aim(key, KeyFrom);
+            Aim(rim, RimFrom);
             if (!cameraTaken || !cam) return;
-            // Slide the camera sideways so you stand in the left third while the loadout fills the right.
+            // Slide the camera sideways so you stand at SideAt across the screen while a side page fills the right.
             var right = Vector3.Cross(Vector3.up, -toCamera.normalized);
-            var shift = right * side * .95f;
+            float halfWidth = Mathf.Tan(cam.fieldOfView * .5f * Mathf.Deg2Rad) * cam.aspect;
+            var shift = right * side * ((1f - 2f * SideAt) * toCamera.magnitude * halfWidth);
             var eye = spot + toCamera + Vector3.up * EyeHeight + shift;
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(spot + Vector3.up * LookHeight + shift - eye));
+        }
+
+        /// <summary>Puts a light at an offset from you (x across the camera's view, z away from it) aimed at your chest.</summary>
+        void Aim(Light light, Vector3 from)
+        {
+            if (!light) return;
+            var forward = toCamera.sqrMagnitude > 0 ? -toCamera.normalized : Vector3.forward;
+            var across = Vector3.Cross(Vector3.up, forward);
+            var at = spot + across * from.x + Vector3.up * from.y + forward * from.z;
+            light.transform.SetPositionAndRotation(at, Quaternion.LookRotation(spot + Vector3.up * .6f - at));
         }
 
         void OnDestroy()
@@ -213,6 +341,8 @@ namespace Wreckabulary
             if (graph.IsValid()) graph.Destroy();
             Release();
             TactileMaterials.Release(gameObject);
+            if (lookProfile) Destroy(lookProfile);
+            if (skyTexture) Destroy(skyTexture);
         }
     }
 }

@@ -17,7 +17,7 @@ namespace Wreckabulary.Tests
     /// <summary>The PC lobby on the hub: the map behind you, one page at a time, and PLAY → GO into a match.</summary>
     public class LobbyTests
     {
-        static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey };
+        static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey };
         string[] saved;
         bool hadVolume;
         float savedVolume, savedDelay;
@@ -182,6 +182,18 @@ namespace Wreckabulary.Tests
                 Assert.Greater(DistanceToSegment(rug.position, eye, stage.Spot), 2f, $"{rug.name} at {rug.position} is clear of the view");
             Assert.IsFalse(Object.FindAnyObjectByType<PlayerJoinManager>().AllowJoining, "clicking the hub no longer joins players");
             Assert.IsEmpty(Object.FindAnyObjectByType<PlayerJoinManager>().Players, "bots never stand in the lobby");
+
+            // The showroom: a dusk sky behind the map, the lobby grade over the default look, and lights on you.
+            var sky = stage.GetComponentsInChildren<Canvas>().Single(c => c.name == "Lobby sky");
+            Assert.AreEqual(RenderMode.ScreenSpaceCamera, sky.renderMode, "drawn in the world pass, behind the room");
+            Assert.AreSame(stage.Camera, sky.worldCamera);
+            Assert.IsTrue(sky.enabled);
+            Assert.IsFalse(sky.GetComponent<GraphicRaycaster>(), "the sky never takes clicks");
+            Assert.Greater(stage.Camera.backgroundColor.r, stage.Camera.backgroundColor.g, "a plum dusk: not the hub's teal, and no blue backdrop (user, 6 Oct 2026)");
+            var look = stage.GetComponentsInChildren<Volume>().Single(v => v.name == "Lobby look");
+            Assert.Greater(look.priority, GraphicsOptions.Look.priority, "the lobby grade wins over the default look");
+            Assert.IsTrue(look.sharedProfile.Has<Vignette>() && look.sharedProfile.Has<DepthOfField>());
+            Assert.AreEqual(2, stage.GetComponentsInChildren<Light>().Count(l => l.type == LightType.Spot && l.enabled), "a key and a rim light on you");
         }
 
         [UnityTest]
@@ -191,8 +203,8 @@ namespace Wreckabulary.Tests
             var menu = LobbyMenu.Instance;
             var bar = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Top bar");
             var names = bar.GetComponentsInChildren<Button>().Select(b => b.name).ToArray();
-            CollectionAssert.AreEquivalent(new[] { "Home", "Settings", "Quit", "Leaderboard", "Shop", "LOADOUT", "PLAY", "CAREER" }, names,
-                "no people, sound or help buttons: those live in the rail and Settings");
+            CollectionAssert.AreEquivalent(new[] { "Home", "Settings", "Quit", "Leaderboard", "Shop", "LOADOUT", "PLAY", "CAREER", "Party" }, names,
+                "no sound or help buttons: those live in Settings");
 
             float middle = ScreenX(menu.transform);
             float unit = Screen.width / 1920f * 10f;
@@ -201,8 +213,131 @@ namespace Wreckabulary.Tests
             Assert.Greater(ScreenX(Find("CAREER")), ScreenX(Find("PLAY")));
             foreach (var left in new[] { "Home", "Settings", "Quit", "Leaderboard", "Shop" })
                 Assert.Less(ScreenX(Find(left)), ScreenX(Find("LOADOUT")), $"{left} is on the left");
-            var rail = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Party and friends");
-            Assert.Greater(ScreenX(rail), Screen.width * .75f, "the party and friends rail is on the right");
+            // The web's two segmented pills: home, settings and quit together, then the leaderboard and the shop.
+            Assert.AreSame(Find("Home").transform.parent, Find("Quit").transform.parent, "home, settings and quit share a pill");
+            Assert.AreSame(Find("Leaderboard").transform.parent, Find("Shop").transform.parent, "the leaderboard and shop share one");
+            Assert.AreNotSame(Find("Home").transform.parent, Find("Shop").transform.parent);
+            Assert.Greater(ScreenX(Find("Party")), ScreenX(Find("CAREER")), "the party chip is on the right, by the coins");
+        }
+
+        [UnityTest]
+        public IEnumerator TheBarSitsOnScrimsThatLetClicksThrough()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            foreach (var name in new[] { "Top scrim", "Right scrim", "Bottom scrim" })
+                Assert.IsFalse(menu.GetComponentsInChildren<Image>(true).Single(i => i.name == name).raycastTarget, $"the {name} never takes clicks");
+            Assert.Greater(LobbyKit.WebAlpha(.9f), .99f, "the web's 90% navy, as it looks in linear blending");
+            // A click on the Home cell lands on Home, through the scrim drawn over the map.
+            var home = (RectTransform)Find("Home").transform;
+            var hits = new System.Collections.Generic.List<RaycastResult>();
+            EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = home.TransformPoint(home.rect.center) }, hits);
+            Assert.IsNotEmpty(hits);
+            Assert.IsTrue(hits[0].gameObject.transform.IsChildOf(home), $"the click lands on Home, not on {hits[0].gameObject.name}");
+            Click("PLAY");
+            yield return null;
+            Assert.IsFalse(menu.GetComponentsInChildren<Image>(true).Single(i => i.name == "Bottom scrim").gameObject.activeSelf,
+                "the bottom scrim is for Home's dock only");
+        }
+
+        [UnityTest]
+        public IEnumerator ThePartyChipOpensThePartyUnderIt()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            var panel = menu.GetComponentsInChildren<RectTransform>(true).Single(r => r.name == "Party and friends");
+            Assert.IsFalse(panel.gameObject.activeSelf, "the party stays out of the way until asked for");
+            StringAssert.Contains("1/4", Find("Party").GetComponentInChildren<TMPro.TMP_Text>().text, "the chip counts the party");
+            Click("Party");
+            yield return null;
+            Assert.IsTrue(panel.gameObject.activeSelf, "the chip opens it");
+            Assert.IsTrue(Find("Party").GetComponent<LobbyTab>().On, "and shows it is open");
+            Assert.Greater(ScreenX(panel), Screen.width * .7f, "under the chip, on the right");
+            Click("Party");
+            yield return null;
+            Assert.IsFalse(panel.gameObject.activeSelf, "a second click closes it");
+
+            Click("Party");
+            yield return null;
+            Click("LOADOUT");
+            yield return null;
+            Assert.IsFalse(panel.gameObject.activeSelf, "a page opens over where it was");
+            var corners = new Vector3[4];
+            ((RectTransform)Find("RECIPES").transform).GetWorldCorners(corners);
+            float tabsRight = corners[2].x;
+            ((RectTransform)Find("Close page").transform).GetWorldCorners(corners);
+            Assert.Less(tabsRight, corners[0].x, "the loadout's tabs end before the page's close button");
+            Click("Party");
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, "the party belongs to the lobby screen");
+            Assert.IsTrue(panel.gameObject.activeSelf);
+            yield return Tap(Key.Escape);
+            Assert.IsFalse(panel.gameObject.activeSelf, "Esc closes it first");
+            Assert.AreEqual(LobbyMenu.Home, menu.Current);
+            Assert.AreSame(Find("Party").gameObject, Selected, "with a keyboard or controller back on the chip");
+
+            menu.Join(new ScriptedBinding());
+            StringAssert.Contains("2/4", Find("Party").GetComponentInChildren<TMPro.TMP_Text>().text);
+            Click("Party");
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            foreach (var text in panel.GetComponentsInChildren<TMPro.TMP_Text>().Concat(Find("Party").GetComponentsInChildren<TMPro.TMP_Text>()))
+            {
+                text.ForceMeshUpdate();
+                Assert.IsFalse(text.isTextTruncated, $"\"{text.text}\" fits without an ellipsis");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator TheMatchDockSitsBottomRightWithABigGo()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Canvas.ForceUpdateCanvases();
+            var dock = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Next match");
+            var go = Find("GO");
+            Assert.IsTrue(go.transform.IsChildOf(dock), "GO is in the dock");
+            Assert.IsTrue(Find("CHANGE").transform.IsChildOf(dock), "with what it starts, which a click changes");
+            Assert.IsTrue(Find("Change house").transform.IsChildOf(dock), "and the house");
+            Assert.Greater(ScreenX(dock), Screen.width * .6f, "bottom right, as on the web");
+            var corners = new Vector3[4];
+            dock.GetWorldCorners(corners);
+            Assert.Less(corners[0].y, Screen.height * .1f, "down at the bottom");
+            Assert.AreEqual(116f, ((RectTransform)go.transform).rect.height, 1f, "a big GO");
+            Click("Change house");
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Play, menu.Current, "a pick opens PLAY to change it");
+        }
+
+        [UnityTest]
+        public IEnumerator ShouldersStepThroughThePages()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            yield return Press(GamepadButton.RightShoulder);
+            Assert.AreEqual(LobbyMenu.Loadout, menu.Current, "RB steps right");
+            yield return Press(GamepadButton.RightShoulder);
+            Assert.AreEqual(LobbyMenu.Play, menu.Current);
+            yield return Press(GamepadButton.LeftShoulder);
+            yield return Press(GamepadButton.LeftShoulder);
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, "LB steps back");
+            yield return Press(GamepadButton.LeftShoulder);
+            Assert.AreEqual(LobbyMenu.Settings, menu.Current, "and round to the end");
+        }
+
+        [UnityTest]
+        public IEnumerator NoticesShowTheNewestFewTopLeft()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            for (int i = 1; i <= 5; i++) menu.Post("Notice " + i);
+            yield return null;
+            var feed = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Messages");
+            var cards = feed.Cast<Transform>().Where(t => t.gameObject.activeSelf).ToArray();
+            Assert.AreEqual(LobbyMenu.MessagesShown, cards.Length, "a few at once");
+            StringAssert.Contains("Notice 5", cards[0].GetComponentInChildren<TMPro.TMP_Text>().text, "the newest on top");
+            Assert.Less(ScreenX(feed), Screen.width * .35f, "top left, clear of the dock");
+            Assert.AreEqual("Notice 5", menu.Messages[0], "the lobby still keeps what was said");
         }
 
         [UnityTest]
@@ -372,6 +507,8 @@ namespace Wreckabulary.Tests
         {
             // Rows report themselves flexible, so a sized row must not swallow its column's spare room.
             yield return OpenLobby();
+            Click("Party");
+            yield return null;
             Assert.AreEqual(74f, Height("You", typeof(HorizontalLayoutGroup)), 1f, "your party card");
             Click("PLAY");
             yield return null;
@@ -394,15 +531,19 @@ namespace Wreckabulary.Tests
             EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = new Vector2(Screen.width * .5f, Screen.height * .55f) }, hits);
             Assert.IsNotEmpty(hits);
             Assert.AreEqual("Turn area", hits[0].gameObject.name);
+            Assert.IsTrue(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Turn hint"), "a first visit says how to turn");
 
             float before = stage.Yaw;
             var facing = stage.Avatar.rotation;
+            ExecuteEvents.Execute(hits[0].gameObject, new PointerEventData(EventSystem.current), ExecuteEvents.beginDragHandler);
             ExecuteEvents.Execute(hits[0].gameObject, new PointerEventData(EventSystem.current) { delta = new Vector2(-100f, 0f) }, ExecuteEvents.dragHandler);
             float turn = 100f * LobbyDrag.DegreesPerPixel * 1080f / Mathf.Max(1, Screen.height);
             Assert.AreEqual(Mathf.Repeat(before + turn, 360f), stage.Yaw, .01f);
             yield return new WaitForSeconds(.6f);
             Assert.AreEqual(turn, Quaternion.Angle(facing, stage.Avatar.rotation), 2f, "the avatar turns on the spot");
             Assert.AreEqual(menu.Stage.Spot, stage.Avatar.position, "without moving");
+            Assert.IsFalse(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Turn hint"), "and stops saying so once you have");
+            Assert.IsTrue(PlayerPrefs.HasKey(LobbyMenu.TurnHintKey), "for good");
         }
 
         [UnityTest]
@@ -470,10 +611,11 @@ namespace Wreckabulary.Tests
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
-            Assert.IsTrue(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Join"), "the rail says how to join");
+            Click("Party");
+            Assert.IsTrue(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Join"), "the party panel says how to join");
             yield return Press(GamepadButton.Start);
             Assert.AreEqual(2, menu.PartySize, "Start on a controller takes a seat");
-            Assert.IsTrue(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Seat 2"), "the rail shows player 2");
+            Assert.IsTrue(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Seat 2"), "the party panel shows player 2");
             StringAssert.Contains("2 players + 2 bots", menu.Describe());
             yield return Press(GamepadButton.Start);
             Assert.AreEqual(2, menu.PartySize, "pressing Start again doesn't take a second seat");
@@ -500,6 +642,7 @@ namespace Wreckabulary.Tests
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
+            Click("Party");
             menu.Join(new KeyboardBinding(KeyboardBinding.Side.Right));
             menu.Join(new ScriptedBinding());
             menu.Join(new ScriptedBinding());
@@ -559,6 +702,7 @@ namespace Wreckabulary.Tests
 
             menu.Career.Name = "Zed";
             menu.SaveCareer();
+            Click("Party");
             var badge = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Badge");
             Assert.AreEqual("Z", badge.GetComponentInChildren<TMPro.TMP_Text>().text);
         }
@@ -654,7 +798,10 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(menu.isActiveAndEnabled && menu.GetComponent<Canvas>().enabled, "the lobby steps aside");
             var cam = Camera.main;
             Assert.IsFalse(cam.clearFlags == CameraClearFlags.SolidColor && cam.backgroundColor == lobbyLook,
-                "the workshop shows the hub's own sky, not the lobby's warm wash");
+                "the workshop shows the hub's own sky, not the lobby's");
+            var sky = menu.Stage.GetComponentsInChildren<Canvas>(true).Single(c => c.name == "Lobby sky");
+            Assert.IsFalse(sky.enabled, "the lobby's sky steps aside too");
+            Assert.IsFalse(menu.Stage.GetComponentsInChildren<Volume>(true).Single(v => v.name == "Lobby look").enabled, "and its grade");
 
             CreativeWorkshop.Instance.Close();
             yield return null;
@@ -662,7 +809,8 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(menu.isActiveAndEnabled && menu.GetComponent<Canvas>().enabled, "the lobby comes back");
             Assert.AreEqual(LobbyMenu.Home, menu.Current);
             AssertFramed(menu.Stage, "the camera is yours again");
-            Assert.AreEqual(lobbyLook, menu.Stage.Camera.backgroundColor, "with the lobby's wash");
+            Assert.AreEqual(lobbyLook, menu.Stage.Camera.backgroundColor, "with the lobby's sky");
+            Assert.IsTrue(sky.enabled, "which comes back");
             Find("CHANGE");
             Assert.AreSame(Find("GO").gameObject, Selected, "GO is back, with a controller on it");
         }

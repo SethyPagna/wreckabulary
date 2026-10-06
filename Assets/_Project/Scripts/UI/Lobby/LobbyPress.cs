@@ -28,11 +28,13 @@ namespace Wreckabulary
         public bool FadeOff = true;
         /// <summary>Called when the pointer or a controller arrives or leaves, for colour changes.</summary>
         public Action<bool> Hot;
+        /// <summary>Called when a press starts or ends on the control, for its pressed colour.</summary>
+        public Action<bool> Pressed;
 
         Selectable selectable;
         CanvasGroup fade;
         bool over, down, selected, ringed;
-        bool? wasHot, wasOff;
+        bool? wasHot, wasOff, wasPressed;
 
         static int checkedFrame;
         static bool navigating;
@@ -77,6 +79,8 @@ namespace Wreckabulary
         {
             over = down = false;
             wasHot = null;
+            if (wasPressed == true) Pressed?.Invoke(false);
+            wasPressed = null;
             if (!Body) return;
             Body.anchoredPosition = Vector2.zero;
             Body.localRotation = Quaternion.identity;
@@ -97,6 +101,8 @@ namespace Wreckabulary
                 if (fade) fade.alpha = off && FadeOff ? .45f : 1f;
             }
             if (wasHot != hot) { wasHot = hot; Hot?.Invoke(hot); }
+            bool pressing = !off && down && over;
+            if (wasPressed != pressing) { wasPressed = pressing; Pressed?.Invoke(pressing); }
             if (Ring) Ring.enabled = focus && ringed && !off;
 
             float y = off ? 0f : down && over ? -Sink : hot ? Lift : 0f;
