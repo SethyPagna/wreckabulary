@@ -433,7 +433,7 @@ namespace Wreckabulary
                 var entries = new[]
                 {
                     ("WASD", "move"), ("MOUSE", "aim"),
-                    (ControlHints.KeyOf(keys.Attack), "smash, throw, place"), (ControlHints.KeyOf(keys.Block), "block with a shield"),
+                    (ControlHints.KeyOf(keys.Attack), "smash, throw, place, block"), (ControlHints.KeyOf(keys.Aim), "hold to aim"),
                     (ControlHints.KeyOf(keys.Dodge), "dodge"), (ControlHints.KeyOf(keys.Jump), "jump"),
                     (ControlHints.KeyOf(keys.Spell), "spell"), (ControlHints.KeyOf(keys.Hand1) + " " + ControlHints.KeyOf(keys.Hand2), "switch hand"),
                     (ControlHints.KeyOf(keys.Bag), "hold for bag and map"), (ControlHints.KeyOf(keys.Interact), "pick up, hold to revive"),

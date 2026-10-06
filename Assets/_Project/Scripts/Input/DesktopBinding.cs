@@ -21,7 +21,7 @@ namespace Wreckabulary
         }
 
         public readonly InputActionMap Map = new("Desktop");
-        public readonly InputAction Move, Attack, Block, Jump, Dodge, Interact, Spell, Drop, Hand1, Hand2, Bag, Pause, Up, Down, Start, Point, Look;
+        public readonly InputAction Move, Attack, Aim, Jump, Dodge, Interact, Spell, Drop, Hand1, Hand2, Bag, Pause, Up, Down, Start, Point, Look;
         HoldToFire dropHold;
         readonly List<RaycastResult> uiHits = new();
         PointerEventData uiPointer;
@@ -34,7 +34,7 @@ namespace Wreckabulary
                 .With("Up", "<Keyboard>/w").With("Down", "<Keyboard>/s")
                 .With("Left", "<Keyboard>/a").With("Right", "<Keyboard>/d");
             Attack = Button("Attack", "<Mouse>/leftButton");
-            Block = Button("Block", "<Mouse>/rightButton");
+            Aim = Button("Aim", "<Mouse>/rightButton");
             Jump = Button("Jump", "<Keyboard>/space");
             Dodge = Button("Dodge", "<Keyboard>/leftShift");
             Interact = Button("Interact", "<Keyboard>/e");
@@ -68,7 +68,8 @@ namespace Wreckabulary
             if (Typing) return;
             c.move = Vector2.ClampMagnitude(Move.ReadValue<Vector2>(), 1f);
             c.attack = Attack.WasPressedThisFrame();
-            c.blockHeld = Block.IsPressed();
+            c.attackHeld = Attack.IsPressed();
+            c.aimHeld = Aim.IsPressed();
             c.jump = Jump.WasPressedThisFrame();
             c.dodge = Dodge.WasPressedThisFrame();
             c.grab = Interact.WasPressedThisFrame();
@@ -90,8 +91,8 @@ namespace Wreckabulary
             }
 
             bool overUi = EventSystem.current && EventSystem.current.IsPointerOverGameObject();
-            if (!overUi && (c.attack || c.blockHeld)) overUi = HitsUiNow();
-            if (overUi) c.attack = c.blockHeld = false;
+            if (!overUi && (c.attack || c.attackHeld || c.aimHeld)) overUi = HitsUiNow();
+            if (overUi) c.attack = c.attackHeld = c.aimHeld = false;
 
             if (Mouse.current == null || !Application.isFocused || overUi ||
                 (TouchBinding.Shared.IsOverlayFor(Id) && TouchBinding.Shared.IsAiming)) return;

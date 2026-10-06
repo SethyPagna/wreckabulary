@@ -40,12 +40,16 @@ namespace Wreckabulary
         public bool RestoredFromSession { get; private set; }
         public event Action<PlayerController> Joined;
         Vector3[] layoutSpawns;
+        string[] spawnRooms;
+        Rules.HouseLayout spawnLayout;
 
         public int HumanCount => players.Count(p => p.Binding is not BotBinding);
 
         public void ConfigureLayout(Rules.HouseLayout layout)
         {
             layoutSpawns = layout.Spawns.Select(s => new Vector3(s.X, layout.Room(s.Room).FloorY, s.Z)).ToArray();
+            spawnRooms = layout.Spawns.Select(s => s.Room).ToArray();
+            spawnLayout = layout;
             walkIn = Vector3.zero;
         }
 
@@ -146,8 +150,15 @@ namespace Wreckabulary
         }
 
         public Vector3 SpawnPoint(int index) => layoutSpawns != null && layoutSpawns.Length > 0
-            ? layoutSpawns[index % layoutSpawns.Length]
+            ? RoomySpawn(index % layoutSpawns.Length)
             : spawnPoints != null && spawnPoints.Length > 0 ? spawnPoints[index % spawnPoints.Length].position : new Vector3(index * 2f - 3f, 0f, -2f);
+
+        Vector3 RoomySpawn(int i)
+        {
+            Physics.SyncTransforms();
+            string room = spawnRooms[i];
+            return ShoulderView.RoomySpot(layoutSpawns[i], at => spawnLayout.RoomAt(at.x, at.y + .1f, at.z) == room);
+        }
 
         public bool AnyStartPressed() => players.Any(p => p.Commands.start || (p.Binding != null && p.Binding.StartPressed()));
 

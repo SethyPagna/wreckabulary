@@ -40,10 +40,11 @@ Wreckabulary is a toy-like third-person party game for 1–4 players. Plush room
 
 ## 3. Camera and cursor
 
-- **Position:** third person, centred behind the back, with the whole body in view. The pivot is 1.3 m up, 2.6 m back, with a 64° field of view.
+- **Position:** third person, centred behind the back, with the whole body in view above the letter tray. The pivot is 1 m up, 3.3 m back, with a 64° field of view.
+- **Spawns:** you start a short step clear of walls, facing the open room, so the camera has space.
 - **Aim:** hold right click to move to a closer shoulder view with a narrower field of view.
 - **Cursor:** locked and hidden in a match, with a centre crosshair. It is freed for menus, the bag and the fuse box.
-- **Walls:** the camera pulls in at walls, blocking furniture fades, and upper floors hide when you are below them.
+- **Walls:** the camera pulls in and rises over your head at walls, blocking furniture fades, and upper floors hide when you are below them.
 - **Couch play:** split screen (recommended).
 
 ## 4. UI and HUD layout
@@ -132,8 +133,8 @@ Wreckabulary is a toy-like third-person party game for 1–4 players. Plush room
 |---|---|
 | Rules, art pipeline, modes, 5 houses, lobby, HUD, match cards | Done |
 | Fuse box closes with Tab or right click | Done |
-| Left click does everything; right click aims | Next |
-| Centred camera framing | Next |
+| Left click does everything; right click aims | Done |
+| Centred camera framing | Done |
 | Key rebinding in Settings | Next |
 | Map and image quality (walls, sky, decor, icons, UI sound) | Next |
 | Leg motion, layered animation, world feedback | Planned |

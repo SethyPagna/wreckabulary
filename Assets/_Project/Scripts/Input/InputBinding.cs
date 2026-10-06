@@ -8,7 +8,8 @@ namespace Wreckabulary
     {
         public Vector2 move;
         public bool grab, grabHeld;
-        public bool attack;
+        public bool attack, attackHeld;
+        public bool aimHeld;
         public bool jump, dodge;
         public bool blockHeld;
         public bool drop;

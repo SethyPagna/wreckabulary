@@ -56,8 +56,8 @@ Then open `http://localhost:4173`.
 | Action | Key |
 |---|---|
 | Move / look | WASD / mouse |
-| Use what you hold (punch when empty-handed) | Left click |
-| Block with a PLATE | Hold right click |
+| Attack, throw, place, use; hold to block with a PLATE | Left click |
+| Aim (closer shoulder view) | Hold right click |
 | Pick up / revive | E / hold E |
 | Spell | Q, type the word, Enter. Tab, right click or Esc closes. |
 | Bag, map and recipe book | Hold Tab |

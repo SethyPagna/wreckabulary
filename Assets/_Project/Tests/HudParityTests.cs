@@ -128,10 +128,10 @@ namespace Wreckabulary.Tests
             foreach (Transform child in safe.Find("Touch controls"))
                 Assert.IsFalse(child.name.StartsWith("PLACE"), "No separate place button: " + child.name);
             var keys = safe.Find("Desktop controls/Keys").GetComponent<TMPro.TMP_Text>().text;
-            StringAssert.Contains("smash, throw, place", keys);
+            StringAssert.Contains("smash, throw, place, block", keys, "Left click does it all, blocking with a PLATE too.");
             StringAssert.Contains("mouse aim", keys, "Under the overhead camera the mouse aims.");
             StringAssert.DoesNotContain(">F<", keys);
-            StringAssert.DoesNotContain("block", keys, "Seven entries, like the web's bar.");
+            StringAssert.DoesNotContain("RMB", keys, "Right click aims only in the over-the-shoulder view.");
             Object.Destroy(hud.gameObject);
             Object.Destroy(player.gameObject);
         }

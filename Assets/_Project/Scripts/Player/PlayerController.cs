@@ -161,6 +161,9 @@ namespace Wreckabulary
         {
             LookYaw = Mathf.Atan2(Facing.x, Facing.z);
             LookPitch = ShoulderView.DefaultPitch;
+            if (!ShooterView) return;
+            LookYaw = ShoulderView.OpenYaw(transform.position, LookYaw);
+            Facing = new Vector3(Mathf.Sin(LookYaw), 0f, Mathf.Cos(LookYaw));
         }
 
         void FixedUpdate()

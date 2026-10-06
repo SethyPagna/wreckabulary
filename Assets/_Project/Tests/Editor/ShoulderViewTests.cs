@@ -23,6 +23,32 @@ namespace Wreckabulary.Tests
         }
 
         [Test]
+        public void HoldingAimMovesInToTheShoulderAndBack()
+        {
+            var go = new GameObject("Aim camera", typeof(Camera));
+            try
+            {
+                var lens = go.GetComponent<Camera>();
+                var view = new ShoulderView();
+                var feet = new Vector3(0f, -500f, 0f);
+                view.Place(lens, feet, 0f, ShoulderView.DefaultPitch, .02f);
+                Assert.AreEqual(ShoulderView.FieldOfView, lens.fieldOfView, 1e-3f);
+                var wide = go.transform.position;
+                for (int i = 0; i < 60; i++) view.Place(lens, feet, 0f, ShoulderView.DefaultPitch, .02f, true);
+                Assert.Greater(view.Aim, .99f);
+                Assert.AreEqual(ShoulderView.AimFieldOfView, lens.fieldOfView, .2f);
+                Assert.AreEqual(ShoulderView.AimDistance, view.CurrentDistance, .05f);
+                Assert.Greater(go.transform.position.x, wide.x + .4f, "over the right shoulder");
+                Assert.Greater(go.transform.position.z, wide.z + .8f, "closer behind the back");
+                for (int i = 0; i < 120; i++) view.Place(lens, feet, 0f, ShoulderView.DefaultPitch, .02f);
+                Assert.Less(view.Aim, .01f);
+                Assert.AreEqual(ShoulderView.FieldOfView, lens.fieldOfView, .2f);
+                Assert.AreEqual(ShoulderView.Distance, view.CurrentDistance, .05f);
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test]
         public void ForwardFollowsYawAndPitch()
         {
             Near(Vector3.forward, ShoulderView.Forward(0f, 0f));

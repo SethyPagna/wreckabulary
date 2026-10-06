@@ -326,8 +326,8 @@ namespace Wreckabulary
             hintLooks = looks;
             static string Key(string k) => $"<b><color=#FFF7E8>{k}</color></b>";
             const string dot = "  <alpha=#55>·<alpha=#FF>  ";
-            hintText.text = Key("WASD") + " move" + dot + (looks ? "mouse look" : "mouse aim") + dot + Key("LMB") + " smash, throw, place" + dot
-                + Key("Q") + " spell" + dot + Key("E") + " interact" + dot + Key("Tab") + " bag & map" + dot + Key("Esc") + " pause";
+            hintText.text = Key("WASD") + " move" + dot + (looks ? "mouse look" : "mouse aim") + dot + Key("LMB") + " smash, throw, place, block" + dot
+                + (looks ? Key("RMB") + " aim" + dot : "") + Key("Q") + " spell" + dot + Key("E") + " interact" + dot + Key("Tab") + " bag & map" + dot + Key("Esc") + " pause";
             hint.sizeDelta = new Vector2(470f, Mathf.Max(44f, hintText.GetPreferredValues(hintText.text, 434f, 0f).y + 20f));
         }
 

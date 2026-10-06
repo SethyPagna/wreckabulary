@@ -1437,7 +1437,7 @@ namespace Wreckabulary
                 {
                     ("Move", ControlHints.Move), ("Smash, throw, place", ControlHints.Attack), ("Pick up and revive", ControlHints.Grab),
                     ("Spell and craft", ControlHints.Spell), ("Jump", ControlHints.Jump), ("Dodge", ControlHints.Dodge),
-                    ("Block", ControlHints.Block), ("Drop", ControlHints.Drop), ("Swap hands", ControlHints.Swap),
+                    ("Block", ControlHints.Block), ("Aim", ControlHints.Aim), ("Drop", ControlHints.Drop), ("Swap hands", ControlHints.Swap),
                 })
                     LobbyKit.Text(Setting(list, what), how, 19, LobbyKit.Muted, TextAlignmentOptions.MidlineRight).Size(-1, 30, 1);
                 return;
@@ -1454,7 +1454,8 @@ namespace Wreckabulary
                 ("Move", new[] { "WASD" }, "Left stick"),
                 ("Look and aim", new[] { "MOUSE" }, "Right stick"),
                 ("Smash, throw, place", new[] { ControlHints.KeyOf(keys.Attack) }, "X"),
-                ("Block with a shield", new[] { ControlHints.KeyOf(keys.Block) }, "LT"),
+                ("Block with a shield (hold)", new[] { ControlHints.KeyOf(keys.Attack) }, "LT"),
+                ("Aim (hold)", new[] { ControlHints.KeyOf(keys.Aim) }, "Right stick"),
                 ("Jump", new[] { ControlHints.KeyOf(keys.Jump) }, "A"),
                 ("Dodge", new[] { ControlHints.KeyOf(keys.Dodge) }, "B"),
                 ("Spell a word", new[] { ControlHints.KeyOf(keys.Spell) }, "Hold Y"),
@@ -1539,7 +1540,7 @@ namespace Wreckabulary
             var entries = new[]
             {
                 (new[] { "WASD" }, "move"), (new[] { "MOUSE" }, "aim"),
-                (new[] { ControlHints.KeyOf(keys.Attack) }, "smash, throw, place"), (new[] { ControlHints.KeyOf(keys.Block) }, "block with a shield"),
+                (new[] { ControlHints.KeyOf(keys.Attack) }, "smash, throw, place, block"), (new[] { ControlHints.KeyOf(keys.Aim) }, "hold to aim"),
                 (new[] { ControlHints.KeyOf(keys.Dodge) }, "dodge"), (new[] { ControlHints.KeyOf(keys.Jump) }, "jump"),
                 (new[] { ControlHints.KeyOf(keys.Spell) }, "spell"), (new[] { ControlHints.KeyOf(keys.Hand1), ControlHints.KeyOf(keys.Hand2) }, "switch hand"),
                 (new[] { ControlHints.KeyOf(keys.Bag) }, "hold for bag and map"), (new[] { ControlHints.KeyOf(keys.Interact) }, "pick up, hold to revive"),

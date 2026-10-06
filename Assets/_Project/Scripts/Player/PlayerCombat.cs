@@ -89,7 +89,8 @@ namespace Wreckabulary
             var c = controller.Commands;
             bool free = controller.CanAct && !controller.IsDodging && !deploying && !(controller.Summoner && (controller.Summoner.IsSpelling || controller.Summoner.IsCrafting));
             UpdateRevive(free && c.grabHeld);
-            UpdateBlock(free && c.blockHeld && !reviving);
+            bool shieldInHand = Weapon && Weapon.Shield != null;
+            UpdateBlock(free && (c.blockHeld || (c.attackHeld && shieldInHand)) && !reviving);
             if (!free || reviving) return;
 
             if (c.drop) Drop();

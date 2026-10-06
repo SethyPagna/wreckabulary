@@ -157,7 +157,7 @@ namespace Wreckabulary
         {
             if (!target.IsEliminated) lastFeet = target.transform.position;
             float dt = Time.unscaledDeltaTime;
-            if (lens) view.Place(lens, lastFeet, target.LookYaw, target.LookPitch, dt);
+            if (lens) view.Place(lens, lastFeet, target.LookYaw, target.LookPitch, dt, !target.IsEliminated && target.Commands.aimHeld);
             if (shake > 0f)
             {
                 var t = transform;

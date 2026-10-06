@@ -93,9 +93,96 @@ namespace Wreckabulary.Tests
             var at = lens.transform.position;
             Debug.Log($"THIRD_PERSON feet {feet} camera {at}");
             Assert.AreEqual(feet.x, at.x, .05f, "centred behind, not over a shoulder");
-            Assert.AreEqual(-2.567f, at.z - feet.z, .1f, "behind the player");
-            Assert.AreEqual(2.264f, at.y - feet.y, .1f, "above the player's head");
+            Assert.AreEqual(-3.258f, at.z - feet.z, .1f, "behind the player");
+            Assert.AreEqual(1.776f, at.y - feet.y, .1f, "just above the player's head");
             Assert.AreEqual(0f, Yaw(lens.transform.forward), .5f, "looking the way the player faces");
+        }
+
+        [UnityTest]
+        public IEnumerator TheWholeBodyStandsCentredInView()
+        {
+            var p = Spawn(new LookBinding(), Vector3.zero);
+            yield return Settle();
+            var (feet, head) = BodyInView(p, "FRAMING");
+            Assert.AreEqual(.5f, head.x, .02f, "centred left to right");
+            Assert.Greater(feet.y, .2f, "the feet stand clear of the letter tray");
+            Assert.Less(head.y, .62f, "the head stays below the crosshair line");
+            Assert.Greater(head.y - feet.y, .2f, "the body is big enough to read");
+        }
+
+        (Vector3 feet, Vector3 head) BodyInView(PlayerController p, string tag)
+        {
+            Bounds? body = null;
+            foreach (var r in p.GetComponentsInChildren<Renderer>())
+            {
+                if (!r.enabled || r is not (SkinnedMeshRenderer or MeshRenderer) || r.GetComponentInParent<TMP_Text>()) continue;
+                if (body is { } b) { b.Encapsulate(r.bounds); body = b; }
+                else body = r.bounds;
+            }
+            Assert.IsTrue(body.HasValue, "the avatar has visible meshes");
+            var box = body.Value;
+            var feet = lens.WorldToViewportPoint(new Vector3(box.center.x, box.min.y, box.center.z));
+            var head = lens.WorldToViewportPoint(new Vector3(box.center.x, box.max.y, box.center.z));
+            Debug.Log($"{tag} height {box.size.y:F2} feet {feet.y:F3} head {head.y:F3} x {head.x:F3} distance {rig.ViewDistance:F2}");
+            return (feet, head);
+        }
+
+        [UnityTest]
+        public IEnumerator AWallBehindLiftsTheCameraOverTheHead()
+        {
+            var p = Spawn(new LookBinding(), Vector3.zero);
+            yield return Settle();
+            var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.name = "Test wall";
+            wall.transform.position = new Vector3(0f, 1.65f, -1.2f);
+            wall.transform.localScale = new Vector3(6f, 3.3f, .2f);
+            yield return new WaitForSeconds(1f);
+            Debug.Log($"CLIMB camera {lens.transform.position} distance {rig.ViewDistance:F2}");
+            Assert.Greater(lens.transform.position.y, p.transform.position.y + ShoulderView.PivotHeight + ShoulderView.Lift + .8f, "rises over the head");
+            Assert.Greater(lens.transform.position.z, -1.1f, "still in front of the wall");
+            Object.Destroy(wall);
+            yield return new WaitForSecondsRealtime(1.5f);
+            Assert.AreEqual(ShoulderView.Distance, rig.ViewDistance, .05f, "settles back down behind");
+        }
+
+        [UnityTest]
+        public IEnumerator ACornerSpawnStepsOutForTheCamera()
+        {
+            var back = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            back.transform.position = new Vector3(0f, 1.65f, -1.2f);
+            back.transform.localScale = new Vector3(8f, 3.3f, .2f);
+            var side = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            side.transform.position = new Vector3(-1.2f, 1.65f, 0f);
+            side.transform.localScale = new Vector3(.2f, 3.3f, 8f);
+            Physics.SyncTransforms();
+            yield return null;
+            var spot = ShoulderView.RoomySpot(Vector3.zero, null);
+            Debug.Log($"ROOMY spot {spot} openness {ShoulderView.Openness(Vector3.zero):F2} -> {ShoulderView.Openness(spot):F2}");
+            Assert.Greater(spot.x, .4f, "away from the side wall");
+            Assert.Greater(spot.z, .4f, "away from the back wall");
+            Assert.LessOrEqual(new Vector2(spot.x, spot.z).magnitude, 1.51f, "but only a short step");
+            Assert.AreEqual(0f, spot.y, 1e-3f);
+            var blocked = ShoulderView.RoomySpot(Vector3.zero, at => at.x < .1f);
+            Assert.Less(blocked.x, .1f, "only where the map allows");
+            Object.Destroy(back);
+            Object.Destroy(side);
+        }
+
+        [UnityTest]
+        public IEnumerator SpawningAgainstAWallFacesTheOpenRoom()
+        {
+            var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.name = "Test wall";
+            wall.transform.position = new Vector3(0f, 1.65f, -1.2f);
+            wall.transform.localScale = new Vector3(6f, 3.3f, .2f);
+            Physics.SyncTransforms();
+            var p = Spawn(new LookBinding(), Vector3.zero);
+            yield return Settle();
+            var (feet, head) = BodyInView(p, "OPEN");
+            Assert.AreEqual(ShoulderView.Distance, rig.ViewDistance, .05f, "the camera has its full distance");
+            Assert.AreEqual(.5f, head.x, .02f, "centred left to right");
+            Assert.Greater(feet.y, .2f, "the whole body is in view");
+            Object.Destroy(wall);
         }
 
         [UnityTest]
@@ -349,7 +436,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(ShoulderView.FieldOfView, lens.fieldOfView, .01f);
             float behind = Vector3.Distance(Vector3.Scale(lens.transform.position, new Vector3(1f, 0f, 1f)),
                 Vector3.Scale(tour.Player.transform.position, new Vector3(1f, 0f, 1f)));
-            Assert.That(behind, Is.InRange(.3f, 2.7f), "close behind the roommate");
+            Assert.That(behind, Is.InRange(.3f, ShoulderView.Distance + .1f), "close behind the roommate");
 
             float yaw = tour.Player.LookYaw;
             input.Next.lookDelta = new Vector2(.24f, 0f);

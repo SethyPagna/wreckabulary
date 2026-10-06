@@ -194,6 +194,26 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator HoldingLeftClickWithAPlateRaisesIt()
+        {
+            var p = SpawnPlayer(0, Vector3.zero, out var input);
+            var opponent = SpawnPlayer(1, new Vector3(0f, 0f, 1.1f), out _);
+            yield return Frames(3);
+            EquipPlate(p);
+            yield return Frames(2);
+
+            input.Next.attack = true;
+            input.Next.attackHeld = true;
+            yield return new WaitForSeconds(0.25f);
+            Assert.IsTrue(p.Combat.IsBlocking, "left click is the plate's job: block");
+            Assert.AreEqual(100f, opponent.Health.Current, "and it doesn't punch");
+
+            input.Next.attackHeld = false;
+            yield return Frames(2);
+            Assert.IsFalse(p.Combat.IsBlocking, "letting go lowers it");
+        }
+
+        [UnityTest]
         public IEnumerator PlateInHandStillLetsYouPunch()
         {
             var p = SpawnPlayer(0, Vector3.zero, out var input);
@@ -412,7 +432,7 @@ namespace Wreckabulary.Tests
             var d = DesktopBinding.Shared;
             Assert.AreEqual("keyboard-mouse", d.Id);
             Assert.AreEqual("<Mouse>/leftButton", Path(d.Attack));
-            Assert.AreEqual("<Mouse>/rightButton", Path(d.Block));
+            Assert.AreEqual("<Mouse>/rightButton", Path(d.Aim));
             Assert.AreEqual("<Keyboard>/space", Path(d.Jump));
             Assert.AreEqual("<Keyboard>/leftShift", Path(d.Dodge));
             Assert.AreEqual("<Keyboard>/e", Path(d.Interact));
