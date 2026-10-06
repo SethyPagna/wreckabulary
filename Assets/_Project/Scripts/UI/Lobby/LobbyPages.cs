@@ -316,6 +316,8 @@ namespace Wreckabulary
             plan.localRotation = Quaternion.Euler(0, 0, 4f);
             FloorPlan(plan, layout, Color.white, new Vector2(216, 132));
             var name = LobbyKit.Display(body, layout.Name, 26, LobbyKit.Cream, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Stroke);
+            // A long name ("Walk-up Apartments") shrinks a little to fit the card rather than losing its end.
+            name.enableAutoSizing = true; name.fontSizeMin = 18; name.fontSizeMax = 26;
             name.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(18, 14), new Vector2(-14, 0));
         }
 

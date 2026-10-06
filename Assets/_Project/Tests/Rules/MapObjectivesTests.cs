@@ -10,6 +10,7 @@ namespace Wreckabulary.Rules.Tests
         [TestCase("house_courtyard.json")]
         [TestCase("house_flat.json")]
         [TestCase("house_terrace.json")]
+        [TestCase("house_walkup.json")]
         public void EveryMapHasValidGeometryAndEscapeOrders(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
@@ -25,6 +26,7 @@ namespace Wreckabulary.Rules.Tests
         [TestCase("house_courtyard.json")]
         [TestCase("house_flat.json")]
         [TestCase("house_terrace.json")]
+        [TestCase("house_walkup.json")]
         public void KeepsakesArePhysicalFurnitureAndTheVanRemainsOpen(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
@@ -41,6 +43,7 @@ namespace Wreckabulary.Rules.Tests
         [TestCase("house_courtyard.json")]
         [TestCase("house_flat.json")]
         [TestCase("house_terrace.json")]
+        [TestCase("house_walkup.json")]
         public void MovingDayChecklistUsesKnownFurnitureWordsInExistingRooms(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
@@ -83,6 +86,39 @@ namespace Wreckabulary.Rules.Tests
             CollectionAssert.AreEquivalent(new[] { "Hall", "Landing" }, terrace.NeverClose);
             Assert.IsTrue(terrace.MovingDay.Any(m => terrace.Room(m.Room).FloorY == 3f), "Moving Day sends something upstairs");
             Assert.IsFalse(HomeDesigner.Supports("terrace"));
+        }
+
+        [Test]
+        public void TheWalkUpStacksThreeFloorsOnStairsThatSwitchBack()
+        {
+            var walkup = HouseLayout.FromJson(TestData.Read("house_walkup.json"), "house_walkup.json");
+            CollectionAssert.AreEqual(new[] { 0f, 3f, 6f }, walkup.StoreyFloors());
+            Assert.AreEqual(2, walkup.Stairs.Count);
+            var first = walkup.Stairs.Single(s => s.Lower == "Lobby");
+            var second = walkup.Stairs.Single(s => s.Lower == "Landing1");
+            Assert.AreEqual("Landing1", first.Upper);
+            Assert.AreEqual("Landing2", second.Upper);
+            // The second flight starts beside the top of the first and climbs back the other way, with a walkway between them.
+            Assert.AreEqual(first.ToZ, second.FromZ, .01f);
+            Assert.Less((first.ToZ - first.FromZ) * (second.ToZ - second.FromZ), 0f, "the flights run opposite ways");
+            Assert.GreaterOrEqual(first.MinX - second.MaxX, 1.2f, "room to walk between the flights");
+            var ground = walkup.Rooms.Where(r => r.FloorY == 0f).Select(r => r.Name).ToArray();
+            Assert.IsTrue(walkup.Graph().Connected(ground), "the ground floor works on its own");
+            var firstFloor = walkup.Rooms.Where(r => r.FloorY == 3f).Select(r => r.Name).ToArray();
+            var topFloor = walkup.Rooms.Where(r => r.FloorY == 6f).Select(r => r.Name).ToArray();
+            Assert.IsTrue(walkup.Graph().Connected(topFloor.Append("Landing1").ToArray()), "the top floor is reached from the first-floor landing");
+            foreach (string room in firstFloor.Where(r => r != "Landing1").Concat(ground))
+                Assert.IsFalse(walkup.Graph().Connected(topFloor.Append(room).ToArray()), $"and not from {room}");
+            foreach (string room in ground.Where(r => r != "Lobby"))
+                Assert.IsFalse(walkup.Graph().Connected(firstFloor.Append(room).ToArray()), $"the first floor is not reached from {room}");
+            Assert.IsTrue(walkup.Spawns.All(s => walkup.Room(s.Room).FloorY > 0f), "everyone starts in a flat upstairs");
+            Assert.AreEqual(2, walkup.Spawns.Count(s => walkup.Room(s.Room).FloorY == 6f), "two start on the top floor");
+            Assert.AreEqual(0f, walkup.Room(walkup.ExtractionRoom).FloorY, "the van parks on the ground floor");
+            CollectionAssert.AreEquivalent(new[] { "Lobby", "Landing1", "Landing2" }, walkup.NeverClose);
+            Assert.AreEqual(6f, walkup.Room(walkup.MovingDay.Single(m => m.Word == "BED").Room).FloorY, "the bed goes up two flights");
+            Assert.AreEqual("1ST FLOOR", walkup.StoreyLabel(1));
+            Assert.AreEqual("GreenFlat (2nd floor)", walkup.WithStorey("GreenFlat"));
+            Assert.IsFalse(HomeDesigner.Supports("walkup"));
         }
 
         [Test]
