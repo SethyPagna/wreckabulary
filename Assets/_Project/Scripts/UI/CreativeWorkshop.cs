@@ -139,7 +139,7 @@ namespace Wreckabulary
 
         void BuildUi()
         {
-            mapIds = GameConfig.Current.Houses.Keys.OrderBy(id => id).ToArray();
+            mapIds = GameConfig.Current.Houses.Keys.Where(HomeDesigner.Supports).OrderBy(id => id).ToArray();
             words = GameConfig.Current.Items.All.Where(i => !string.IsNullOrEmpty(i.Model)).Select(i => i.Id).OrderBy(w => w).ToArray();
             canvas = new GameObject("Workshop UI", typeof(RectTransform)).AddComponent<Canvas>();
             canvas.transform.SetParent(transform,false); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 200;

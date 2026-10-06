@@ -130,9 +130,12 @@ namespace Wreckabulary.Rules
         public HomeLayout CreateLayout(string map, string name = "My Cozy House") =>
             new HomeLayout { Map = map, Name = TrimName(name ?? "") };
 
+        /// <summary>The maps a home can be designed on. The web shares this list (home-design.js), so a saved home loads in both.</summary>
+        public static bool Supports(string id) => id == "pinwheel" || id == "courtyard";
+
         HouseLayout House(string id)
         {
-            if (id != "pinwheel" && id != "courtyard") return null;
+            if (!Supports(id)) return null;
             try { return mapFor(id); }
             catch (KeyNotFoundException) { return null; }
         }

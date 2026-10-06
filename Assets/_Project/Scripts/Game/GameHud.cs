@@ -781,7 +781,7 @@ namespace Wreckabulary
                     var outline = rt.gameObject.AddComponent<Outline>(); outline.effectColor = Hex(0xe4d6b2, .7f); outline.effectDistance = new Vector2(1.5f, -1.5f);
                     var label = Text("Name", rt, new Vector2(.5f, .5f), Vector2.zero, Vector2.zero, map.full ? 18f : 12f, Hex(0xead7b3));
                     label.rectTransform.anchorMin = Vector2.zero; label.rectTransform.anchorMax = Vector2.one; label.rectTransform.offsetMin = label.rectTransform.offsetMax = Vector2.zero;
-                    label.text = map.full ? Spaced(box.Name) : box.Name.Substring(0, 1); label.textWrappingMode = TextWrappingModes.Normal;
+                    label.text = map.full ? Spaced(box.Name) : Initial(layout, box.Name); label.textWrappingMode = TextWrappingModes.Normal;
                     map.rooms.Add((box, image, label));
                 }
                 map.layout = layout;
@@ -902,6 +902,10 @@ namespace Wreckabulary
 
         static readonly Regex Words = new("(?<=[a-z])(?=[A-Z])");
         static string Spaced(string name) => Words.Replace(name, " ");
+
+        /// <summary>A room's letter on the small map, or two letters when another room starts the same way (Bedroom, Bathroom).</summary>
+        public static string Initial(HouseLayout layout, string name) =>
+            name.Substring(0, layout.Rooms.Count(r => r.Name[0] == name[0]) > 1 ? Mathf.Min(2, name.Length) : 1);
 
         // ---- Builders ----
 

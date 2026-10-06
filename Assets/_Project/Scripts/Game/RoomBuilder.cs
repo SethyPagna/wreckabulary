@@ -21,6 +21,9 @@ namespace Wreckabulary
             Layout = GameConfig.Current.HouseFor(Session.MapId);
             var oldRoom = GameObject.Find("Room");
             if (oldRoom) oldRoom.SetActive(false);
+            // The scene's wall sign floats over the two original houses; on other maps their walls cut it short.
+            var sign = Session.MapId is "pinwheel" or "courtyard" ? null : GameObject.Find("Sign");
+            if (sign) sign.SetActive(false);
             if (furnitureRoot) furnitureRoot.gameObject.SetActive(false);
             geometry = CreateGeometry(Layout, Session.MapId, transform);
             var joins = GetComponent<PlayerJoinManager>();
@@ -97,6 +100,7 @@ namespace Wreckabulary
                 foreach (var edge in edges.Values) BuildEdge(edge);
                 if (!includeExtras) return;
                 // The pinwheel balcony is a reachable elevated route; the courtyard is intentionally open and flat.
+                // Other maps take their shape from the data alone.
                 if (mapId == "pinwheel")
                 {
                     Block("Playroom balcony", new Vector3(3.25f, 1.55f, 2.5f), new Vector3(1.5f, .3f, 3f), new Color(.7f, .52f, .36f));
@@ -104,7 +108,7 @@ namespace Wreckabulary
                     ramp.transform.rotation = Quaternion.Euler(-40f, 0f, 0f);
                     Decor("Environment/Railing_2m", new Vector3(2.5f, 1.7f, 2.5f), 1f, 90f);
                 }
-                else
+                else if (mapId == "courtyard")
                 {
                     Block("Courtyard path east-west", new Vector3(0f, .008f, 0f), new Vector3(12f, .018f, 2.5f), new Color(.75f, .72f, .59f), false);
                     Block("Courtyard path north-south", new Vector3(0f, .009f, 0f), new Vector3(2.5f, .018f, 12f), new Color(.75f, .72f, .59f), false);

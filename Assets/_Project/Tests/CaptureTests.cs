@@ -29,6 +29,9 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator CaptureLobby() => RunWithSynchronousShaders(CaptureLobbySequence());
 
+        [UnityTest]
+        public IEnumerator CaptureMaps() => RunWithSynchronousShaders(CaptureMapsSequence());
+
         // UTF can stop an iterator on an unexpected log without disposing it.
         [TearDown]
         public void RestoreShaderCompilation()
@@ -221,6 +224,26 @@ namespace Wreckabulary.Tests
                 menu.Open(LobbyMenu.Home);
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"lobby_map_{map}.png"));
+            }
+            Session.Clear();
+        }
+
+        /// <summary>Every map in a two-player Dibs match, where the couch camera frames the whole house.</summary>
+        IEnumerator CaptureMapsSequence()
+        {
+            string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
+            if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
+            Directory.CreateDirectory(dir);
+            foreach (string map in GameConfig.Current.Houses.Keys.ToList())
+            {
+                Session.Clear();
+                Session.SelectMap(map);
+                Match.ModeOverride = "Dibs";
+                Session.Remember(new ScriptedBinding());
+                Session.Remember(new ScriptedBinding());
+                yield return SceneManager.LoadSceneAsync(Session.DibsScene);
+                yield return new WaitForSeconds(1f);
+                yield return CaptureFramed(Path.Combine(dir, $"map_{map}.png"));
             }
             Session.Clear();
         }

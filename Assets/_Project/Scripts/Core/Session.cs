@@ -84,7 +84,9 @@ namespace Wreckabulary
         {
             if (CreativeWorkshop.Instance) { error = "A workshop is already open."; return false; }
             var workshop = new GameObject("Creative Workshop").AddComponent<CreativeWorkshop>();
-            return workshop.Open(mapId ?? MapId, out error);
+            mapId ??= MapId;
+            // Homes are designed on the maps the designer knows; any other selected map opens on the first house.
+            return workshop.Open(Rules.HomeDesigner.Supports(mapId) ? mapId : "pinwheel", out error);
         }
 
         /// <summary>Back to the house, if the house is in the build.</summary>

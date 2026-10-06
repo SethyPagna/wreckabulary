@@ -8,7 +8,8 @@ namespace Wreckabulary.Rules.Tests
     {
         [TestCase("house_pinwheel.json")]
         [TestCase("house_courtyard.json")]
-        public void BothMapsHaveValidGeometryAndEscapeOrders(string file)
+        [TestCase("house_flat.json")]
+        public void EveryMapHasValidGeometryAndEscapeOrders(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
             Assert.IsEmpty(house.Validate(TestData.Catalogue()));
@@ -21,6 +22,7 @@ namespace Wreckabulary.Rules.Tests
 
         [TestCase("house_pinwheel.json")]
         [TestCase("house_courtyard.json")]
+        [TestCase("house_flat.json")]
         public void KeepsakesArePhysicalFurnitureAndTheVanRemainsOpen(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
@@ -35,6 +37,7 @@ namespace Wreckabulary.Rules.Tests
 
         [TestCase("house_pinwheel.json")]
         [TestCase("house_courtyard.json")]
+        [TestCase("house_flat.json")]
         public void MovingDayChecklistUsesKnownFurnitureWordsInExistingRooms(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
@@ -44,6 +47,17 @@ namespace Wreckabulary.Rules.Tests
                 Assert.IsTrue(TestData.Catalogue().TryGet(objective.Word, out _));
                 Assert.IsTrue(house.Rooms.Any(r => r.Name == objective.Room));
             }
+        }
+
+        [Test]
+        public void TheFlatIsOneFloorAroundAHallEveryRoomOpensOnto()
+        {
+            var flat = HouseLayout.FromJson(TestData.Read("house_flat.json"), "house_flat.json");
+            Assert.IsTrue(flat.Rooms.All(r => r.FloorY == 0f), "one floor");
+            CollectionAssert.AreEquivalent(flat.Rooms.Select(r => r.Name).Where(n => n != "Hall"), flat.Graph().Neighbours("Hall"));
+            CollectionAssert.Contains(flat.NeverClose, "Hall");
+            Assert.IsFalse(HomeDesigner.Supports("flat"), "homes are designed only on the maps the web edition knows too");
+            Assert.IsTrue(HomeDesigner.Supports("pinwheel") && HomeDesigner.Supports("courtyard"));
         }
 
         [Test]

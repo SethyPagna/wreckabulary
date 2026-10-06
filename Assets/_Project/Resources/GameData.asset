@@ -18,3 +18,4 @@ MonoBehaviour:
   wardrobe: {fileID: 4900000, guid: c80026463a9647e23b83d5c8fdedad6d, type: 3}
   maps:
   - {fileID: 4900000, guid: d9612c359ed71feffe28a925452d0ac6, type: 3}
+  - {fileID: 4900000, guid: fc57db9dbe50341026cd95d910b4d48b, type: 3}

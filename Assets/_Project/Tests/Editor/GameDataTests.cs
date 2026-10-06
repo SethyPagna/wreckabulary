@@ -137,11 +137,21 @@ namespace Wreckabulary.EditorTests
         [Test]
         public void EveryPieceOfHouseFurnitureHasAModel()
         {
-            foreach (var f in config.House.Furniture)
-            {
-                var item = config.Items.Get(f.Word);
-                Assert.IsNotNull(models.Find(item.Model), $"{f.Word} in {f.Room}");
-            }
+            foreach (var house in config.Houses)
+                foreach (var f in house.Value.Furniture)
+                {
+                    var item = config.Items.Get(f.Word);
+                    Assert.IsNotNull(models.Find(item.Model), $"{f.Word} in {house.Key} {f.Room}");
+                }
+        }
+
+        [Test]
+        public void EveryHouseFileIsAPlayableMap()
+        {
+            // A new house_*.json only reaches the game after Set Up Game Data.
+            var files = System.IO.Directory.GetFiles(GameDataSetup.ConfigFolder, "house_*.json")
+                .Select(path => System.IO.Path.GetFileNameWithoutExtension(path).Substring("house_".Length));
+            CollectionAssert.AreEquivalent(files, config.Houses.Keys);
         }
 
         [Test]
