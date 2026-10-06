@@ -1993,8 +1993,13 @@ async function boot() {
     try {
       const saved = JSON.parse(localStorage.getItem("wreckabulary.profile.v1"));
       if (saved?.wardrobe?.pieces && saved.wardrobe.colours) {
+        // A saved outfit lists everything worn, so an empty optional slot stays empty
+        // rather than picking up the default's hood or satchel.
+        const pieces = { ...saved.wardrobe.pieces };
+        for (const slot of wardrobe.requiredSlots) pieces[slot] ??= profile.pieces[slot];
+        if (pieces.Headwear === "Hood" && pieces.Top !== "Hoodie") pieces.Top = "Hoodie";
         profile = {
-          pieces: { ...profile.pieces, ...saved.wardrobe.pieces },
+          pieces,
           colours: { ...profile.colours, ...saved.wardrobe.colours },
         };
       }

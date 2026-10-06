@@ -60,7 +60,12 @@ for obj in meshes:
     facts.append({'mesh':obj.name,'before':before,'after':len(obj.data.loop_triangles),
                   'morph_targets_retained':morphs,'default':obj.name in default_meshes})
 
-actions=[a for a in bpy.data.actions if any('pose.bones[' in c.data_path for c in a.fcurves)]
+def action_curves(action):
+    # Blender 4.x keeps F-curves on the action; 5.x keeps them in layered channel bags.
+    if hasattr(action,'fcurves'):return list(action.fcurves)
+    return [c for layer in action.layers for strip in layer.strips for bag in strip.channelbags for c in bag.fcurves]
+
+actions=[a for a in bpy.data.actions if any('pose.bones[' in c.data_path for c in action_curves(a))]
 for action in actions:
     imported=action.name.split('|')[-1].split('.')[0]
     action.name=next((name for name in manifest['avatar']['animations']

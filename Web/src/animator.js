@@ -6,7 +6,8 @@ import * as THREE from "three";
 // locomotion -> held pose -> air -> one-shot -> downed. Clip time is driven here,
 // not by the mixer, so walk and run share one stride phase and one-shots can be
 // re-timed to gameplay windows. A posture pass then leans, banks, twists and
-// flinches the spine and head on top of the sampled pose.
+// flinches the spine and head on top of the sampled pose, and turns the legs toward
+// the direction of travel when the player strafes or backpedals.
 
 const UPPER = new Set([
   "spine",
@@ -48,12 +49,19 @@ const POSES = [
   "Place",
 ];
 
-// Locomotion tuning in metres per stride cycle (two steps). The clips are in place.
-const WALK_STRIDE = 1.5,
-  RUN_STRIDE = 3.0,
-  WALK_FULL = 1.2,
+// Locomotion. The clips are in place and the manifest gives each one's planted stride
+// (rig metres per cycle, two steps). The toy's legs are short: planting the feet exactly
+// at top speed would need about seven cycles a second, so STRETCH lets them slide a little
+// for about 2.3 walk and 3.4 run cycles a second at full speed. Old assets without strides
+// keep their original world-metre strides.
+const WALK_FULL = 1.2,
   RUN_FULL = 3.6,
-  TURN_SPEED = 12;
+  TURN_SPEED = 12,
+  STRETCH = { walk: 1.7, run: 2.0 },
+  LEGACY_STRIDE = { walk: 1.5, run: 3.0 },
+  HIP_TURN_MAX = 1.05, // how far the legs turn toward the direction of travel (radians)
+  BACKPEDAL_ON = 1.92, // travel this far from facing runs the cycle backwards...
+  BACKPEDAL_OFF = 1.57; // ...until it comes back inside this
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -64,8 +72,14 @@ const _q = new THREE.Quaternion(),
   _axis = new THREE.Vector3();
 
 export class AvatarAnimator {
-  constructor(avatar, clips) {
+  constructor(avatar, clips, { locomotion = null, scale = 1 } = {}) {
     this.avatar = avatar;
+    const stride = (clip, kind) =>
+      locomotion?.[clip]?.stride
+        ? locomotion[clip].stride * scale * STRETCH[kind]
+        : LEGACY_STRIDE[kind];
+    this.walkStride = stride("Walk_InPlace", "walk");
+    this.runStride = stride("Run_InPlace", "run");
     this.mixer = new THREE.AnimationMixer(avatar);
     this.clips = new Map(clips.map((c) => [c.name, c]));
     this.actions = new Map();
@@ -100,7 +114,14 @@ export class AvatarAnimator {
     this.speed = 0;
     this.accel = 0;
     this.yaw = null;
-    this.turnRate = 0;
+    this.vx = 0;
+    this.vz = 0;
+    this.heading = null;
+    this.pathTurnRate = 0;
+    this.hipTurn = 0;
+    this.backpedal = false;
+    this.runW = 0;
+    this.travel = 1;
     this.flinch = 0;
     this.flinchVelocity = 0;
     this.shot = null;
@@ -154,19 +175,46 @@ export class AvatarAnimator {
     if (this.yaw === null) this.yaw = player.yaw;
     // The mouse-driven player turns 1:1 with the camera, like a shooter; others ease.
     const limit = this.instantTurn ? Infinity : TURN_SPEED * dt;
-    const turn = clamp(wrap(player.yaw - this.yaw), -limit, limit);
-    this.yaw = wrap(this.yaw + turn);
-    this.turnRate += ((dt > 0 ? turn / dt : 0) - this.turnRate) * ease(10, dt);
+    this.yaw = wrap(this.yaw + clamp(wrap(player.yaw - this.yaw), -limit, limit));
     avatar.rotation.y = this.yaw;
 
-    // Ground speed from the engine position, smoothed.
-    let measured = 0;
-    if (this.last && dt > 0)
-      measured = Math.hypot(player.x - this.last.x, player.z - this.last.z) / dt;
+    // Ground velocity from the engine position, smoothed.
+    let mx = 0,
+      mz = 0;
+    if (this.last && dt > 0) {
+      mx = (player.x - this.last.x) / dt;
+      mz = (player.z - this.last.z) / dt;
+      const m = Math.hypot(mx, mz);
+      if (m > 9) (mx *= 9 / m), (mz *= 9 / m);
+    }
     this.last = { x: player.x, z: player.z };
+    this.vx += (mx - this.vx) * ease(12, dt);
+    this.vz += (mz - this.vz) * ease(12, dt);
     const before = this.speed;
-    this.speed += (Math.min(measured, 9) - this.speed) * ease(12, dt);
+    this.speed = Math.hypot(this.vx, this.vz);
     this.accel += ((this.speed - before) / Math.max(dt, 1e-3) - this.accel) * ease(8, dt);
+
+    // Direction of travel against facing. The shooter camera strafes and backpedals the
+    // player while the body keeps facing the aim, so the legs turn toward the travel
+    // direction (the chest turns back in posture), and walking backwards runs the cycle
+    // in reverse. Banking follows the path's curvature, not the mouse.
+    let legTarget = 0;
+    if (this.speed > 0.3) {
+      const heading = Math.atan2(this.vx, this.vz);
+      const rate = this.heading === null || dt <= 0 ? 0 : wrap(heading - this.heading) / dt;
+      this.pathTurnRate += (clamp(rate, -8, 8) - this.pathTurnRate) * ease(6, dt);
+      this.heading = heading;
+      const relative = wrap(heading - this.yaw);
+      if (Math.abs(relative) > BACKPEDAL_ON) this.backpedal = true;
+      else if (Math.abs(relative) < BACKPEDAL_OFF) this.backpedal = false;
+      legTarget = clamp(this.backpedal ? wrap(relative - Math.PI) : relative, -HIP_TURN_MAX, HIP_TURN_MAX);
+      this.travel = Math.cos(relative);
+    } else {
+      this.pathTurnRate -= this.pathTurnRate * ease(6, dt);
+      this.heading = null;
+      this.backpedal = false;
+      this.travel = 1;
+    }
 
     const alive = player.state === "alive";
     const downed = player.state === "downed";
@@ -184,9 +232,12 @@ export class AvatarAnimator {
     } else runW = 1;
     const moving = walkW + runW;
     const cycles = moving
-      ? (walkW * (s / WALK_STRIDE) + runW * (s / RUN_STRIDE)) / moving
+      ? (walkW * (s / this.walkStride) + runW * (s / this.runStride)) / moving
       : 0;
-    this.phase = (this.phase + dt * Math.max(cycles, moving ? 0.6 : 0) * (dodging ? 1.3 : 1)) % 1;
+    const step = dt * Math.max(cycles, moving ? 0.6 : 0) * (dodging ? 1.3 : 1);
+    this.phase = (((this.phase + (this.backpedal ? -step : step)) % 1) + 1) % 1;
+    this.hipTurn += (legTarget * Math.min(1, moving) - this.hipTurn) * ease(10, dt);
+    this.runW = runW;
     this.idleTime += dt;
 
     // Held pose: what the hands are doing.
@@ -330,13 +381,23 @@ export class AvatarAnimator {
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(bodyQ);
     const up = new THREE.Vector3(0, 1, 0);
 
+    // The walk and run clips lean on their own; this adds a little for speed and
+    // acceleration along the facing, and stands a backwards run up straight.
     const lean =
-      clamp(0.035 * speed + 0.04 * this.accel, -0.12, 0.28) + (dodging ? 0.22 : 0);
-    const bank = clamp(-this.turnRate * Math.min(speed, 4.5) * 0.028, -0.22, 0.22);
+      clamp((0.012 * speed + 0.03 * this.accel) * this.travel, -0.1, 0.15) +
+      (this.backpedal ? -0.12 * this.runW : 0) +
+      (dodging ? 0.22 : 0);
+    const bank = clamp(-this.pathTurnRate * Math.min(speed, 4.5) * 0.02, -0.12, 0.12);
     const breathe = Math.sin(this.time * 2.1) * 0.012 * idleW;
     const twist = clamp(wrap(player.yaw - this.yaw), -0.8, 0.8);
     const flinch = clamp(this.flinch, -0.6, 0.6);
+    const legs = live * this.hipTurn;
 
+    // Legs toward the travel direction; spine, chest and head turn back to the aim.
+    this.rotateWorld("pelvis", up, legs);
+    this.rotateWorld("spine", up, -legs * 0.5);
+    this.rotateWorld("chest", up, -legs * 0.35);
+    this.rotateWorld("head", up, -legs * 0.15);
     this.rotateWorld("spine", side, live * (lean * 0.6 - flinch * 0.15));
     this.rotateWorld("chest", side, live * (lean * 0.4 + breathe - flinch * 0.3));
     this.rotateWorld("head", side, live * (-lean * 0.35 - flinch * 0.2));

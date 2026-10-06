@@ -467,12 +467,22 @@ def run_avatar(sel, packs, art_dir, art_rel, library):
         notes.append(f"{module}: {len(new_meshes)} mesh(es) rebound to {rig.name}")
 
     removed_keys = {o.name: strip_zero_shape_keys(o) for o in mesh_objects()}
+    refinements = None
+    if sel["avatar"].get("refine"):
+        # Board-1 look on the same rig and meshes; see refine_avatar.py.
+        import refine_avatar
+        refinements = refine_avatar.refine(rig, library)
     for mat in list(bpy.data.materials):
         if mat.users == 0:
             bpy.data.materials.remove(mat)
     remove_cameras_and_lights()
     if set(bpy.data.actions) != base_actions:
         raise RuntimeError("module import left extra actions behind")
+    authored = None
+    if sel["avatar"].get("author_clips"):
+        # Planted walk/run cycles and readable one-shots under the pack's clip names.
+        import author_clips
+        authored = author_clips.author(rig)
     stray = [o.name for o in mesh_objects() if not o.name.startswith("SK_")]
     if stray:
         raise RuntimeError(f"unexpected non-avatar meshes: {stray}")
@@ -485,6 +495,12 @@ def run_avatar(sel, packs, art_dir, art_rel, library):
                                for a in bpy.data.actions}
     report["zero_shape_keys_removed"] = removed_keys
     report["notes"] = notes
+    if refinements is not None:
+        report["refinements"] = refinements
+    if authored is not None:
+        report["authored_clips"] = authored["replaced"]
+        report["ik_overreach_m"] = authored["ik_overreach_m"]
+        report["locomotion"] = authored["locomotion"]
     report["bytes"] = export_fbx(out_path, animated=True)
     correction = subprocess.run(
         [node, os.path.join(HERE, "correct_pickup_contact.mjs"),
@@ -497,6 +513,28 @@ def run_avatar(sel, packs, art_dir, art_rel, library):
 
 
 # --------------------------------------------------------------------------- main
+
+
+ALL_KINDS = {"items", "letters", "environment", "vfx", "avatar"}
+KIND_OF = {"items": "item", "letters": "letter", "environment": "environment", "vfx": "vfx", "avatar": "avatar"}
+
+
+def merge_library(previous, fresh):
+    """The previous material library with this run's materials and textures laid over it."""
+    materials = {m["name"]: m for m in previous["materials"]}
+    for m in fresh["materials"]:
+        known = materials.get(m["name"])
+        if known:
+            m["sources"] = known["sources"] + [s for s in m["sources"] if s not in known["sources"]]
+        materials[m["name"]] = m
+    textures = dict(previous["textures"])
+    textures.update(fresh["textures"])
+    conflicts = list(previous["conflicts"])
+    conflicts += [c for c in fresh["conflicts"] if c not in conflicts]
+    return {"generator": fresh["generator"],
+            "materials": [materials[n] for n in sorted(materials)],
+            "textures": {n: textures[n] for n in sorted(textures)},
+            "conflicts": conflicts}
 
 
 def main():
@@ -556,20 +594,44 @@ def main():
         rep["source"] = os.path.relpath(rep["source"], packs).replace("\\", "/")
         rep["output"] = os.path.relpath(rep["output"], repo).replace("\\", "/")
 
+    # A partial run (--only avatar, say) merges into the last full reports instead of
+    # replacing them, so the files it didn't rebuild keep their entries and materials.
+    partial = only != ALL_KINDS
+    report_path = os.path.join(data_dir, "build_report.json")
+    materials_path = os.path.join(data_dir, "materials.json")
+    previous = previous_lib = None
+    if partial:
+        if not (os.path.exists(report_path) and os.path.exists(materials_path)):
+            raise RuntimeError("a partial --only run needs the reports from a full run to merge into")
+        with open(report_path, encoding="utf-8") as f:
+            previous = json.load(f)
+        with open(materials_path, encoding="utf-8") as f:
+            previous_lib = json.load(f)
+
     # Material library last: it may call Blender's image API, which a scene reset would clear.
     reset_scene()
     lib = library.write(art_dir, data_dir, art_rel)
+    if partial:
+        lib = merge_library(previous_lib, lib)
+        with open(materials_path, "w", encoding="utf-8") as f:
+            json.dump(lib, f, indent=1)
+        rebuilt = {KIND_OF[k] for k in only}
+        fresh = {(r["kind"], r["name"]): r for r in reports}
+        merged = [fresh.pop((r["kind"], r["name"]), r) if r["kind"] in rebuilt else r for r in previous["files"]]
+        reports = merged + list(fresh.values())
     summary = {
         "generator": "Tools/AssetPipeline/build_assets.py",
         "blender": bpy.app.version_string,
-        "only": sorted(only),
+        "only": sorted(set(previous["only"]) | only) if partial else sorted(only),
         "seconds": round(time.time() - started, 1),
         "files": reports,
         "material_count": len(lib["materials"]),
         "texture_count": len(lib["textures"]),
         "material_conflicts": lib["conflicts"],
     }
-    with open(os.path.join(data_dir, "build_report.json"), "w", encoding="utf-8") as f:
+    if partial:
+        summary["last_partial_run"] = sorted(only)
+    with open(report_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=1)
     print("BUILD_RESULT " + json.dumps({"files": len(reports), "materials": len(lib["materials"]),
                                         "textures": len(lib["textures"]), "conflicts": len(lib["conflicts"]),

@@ -214,7 +214,10 @@ export class Game {
                 ...this.wardrobe,
                 colours: {
                   ...this.wardrobe.colours,
-                  Top: ["pool", "tomato", "sunflower", "grape"][id],
+                  // Roommates never wear the player's colour.
+                  Top: ["pool", "sunflower", "grape", "mint", "tomato"].filter(
+                    (c) => c !== this.wardrobe.colours?.Top,
+                  )[id - 1],
                 },
               },
         ai: id !== 0,

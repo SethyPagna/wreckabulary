@@ -5,6 +5,9 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { MaterialPalette } from "./materials.js";
 import { AvatarAnimator } from "./animator.js";
+// World metres per rig metre. The rig stands about 1 m to the top of the head, so the
+// player is about 1.23 m tall, the size it had when it was fitted to the old hood's bounds.
+export const AVATAR_SCALE = 1.23;
 const ROOM_COLORS = {
   Garden: 0x92b78b,
   Playroom: 0xe1b970,
@@ -555,14 +558,18 @@ export class WorldView {
       const group = new THREE.Group(),
         avatar = this.clone("avatar");
       if (avatar) {
-        const box = new THREE.Box3().setFromObject(avatar),
-          height = box.getSize(new THREE.Vector3()).y;
-        avatar.scale.setScalar(1.42 / height);
-        avatar.position.y = -box.min.y * avatar.scale.x;
+        const box = new THREE.Box3().setFromObject(avatar);
+        // A fixed size, not fitted to the bounds: wardrobe pieces (the hood, a cap) change
+        // the bounds but must never resize the player.
+        avatar.scale.setScalar(AVATAR_SCALE);
+        avatar.position.y = -box.min.y * AVATAR_SCALE;
         group.add(avatar);
         this.applyWardrobe(avatar, p.wardrobe);
         const source = this.models.get("avatar");
-        const animator = new AvatarAnimator(avatar, source.animations ?? []);
+        const animator = new AvatarAnimator(avatar, source.animations ?? [], {
+          locomotion: this.manifest.avatar?.locomotion,
+          scale: AVATAR_SCALE,
+        });
         this.avatarModels.set(p.id, {
           avatar,
           animator,
@@ -625,34 +632,39 @@ export class WorldView {
       this.entities.set(`p${p.id}`, group);
     }
   }
+  // Tints each worn piece's own meshes, as Unity's PlayerAppearance does: a piece shows
+  // its slot's colourway or the slot it borrows from (the Hood takes the Top's), and the
+  // rib cuffs and hems of a fabric_main piece are 25% darker.
   applyWardrobe(avatar, wardrobe = {}) {
-    const selected = new Set(Object.values(wardrobe.pieces ?? {}));
     const config = this.data.wardrobe;
-    const wardrobeKey = JSON.stringify(wardrobe);
+    const colourFor = (piece) => {
+      const from = piece.colourFrom ?? piece.slot;
+      const id = wardrobe.colours?.[from] ?? config.default.colours[from];
+      return config.palettes[from]?.find((c) => c.id === id);
+    };
     avatar.traverse((o) => {
       if (!o.isMesh) return;
       const piece = config.pieces.find(
         (p) => o.name === p.mesh || o.name.startsWith(`${p.mesh}_`),
       );
-      if (piece) o.visible = selected.has(piece.id);
+      const visible = !piece || wardrobe.pieces?.[piece.slot] === piece.id;
+      if (piece) o.visible = visible;
+      const colour = piece?.tint && visible ? colourFor(piece) : null;
+      const tint = piece?.tint?.toLowerCase();
       const originals = Array.isArray(o.material) ? o.material : [o.material];
       const values = originals.map((source) => {
-        const key = `${source.uuid}:${wardrobeKey}`;
+        const name = source.name.toLowerCase();
+        const rib = tint === "fabric_main" && name.includes("fabric_rib");
+        const tinted = colour && (name.includes(tint) || rib);
+        const key = `${source.uuid}:${tinted ? `${colour.id}${rib ? ":rib" : ""}` : "-"}`;
         if (this.wardrobeMaterials.has(key))
           return this.wardrobeMaterials.get(key);
         const copy = source.clone();
-        for (const [slot, palette] of Object.entries(config.palettes)) {
-          const chosen = palette.find((c) => c.id === wardrobe.colours?.[slot]);
-          const def = config.pieces.find(
-            (p) => p.slot === slot && selected.has(p.id),
+        if (tinted)
+          copy.color.setRGB(
+            ...colour.rgb.map((v) => (rib ? v * 0.75 : v)),
+            THREE.SRGBColorSpace,
           );
-          if (
-            chosen &&
-            def?.tint &&
-            source.name.toLowerCase().includes(def.tint.toLowerCase())
-          )
-            copy.color.setRGB(...chosen.rgb, THREE.SRGBColorSpace);
-        }
         copy.userData.viewShared = true;
         this.visualMaterials.add(copy);
         this.wardrobeMaterials.set(key, copy);

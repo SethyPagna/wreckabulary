@@ -39,6 +39,7 @@ manifest = {'version': 1, 'coordinates': 'metres, Y-up, forward +Z',
 only = {kind.strip() for kind in args.only.split(',') if kind.strip()}
 if only and os.path.exists(os.path.join(OUT, 'manifest.json')):
     manifest = json.load(open(os.path.join(OUT, 'manifest.json')))
+    manifest['wardrobe'] = wardrobe          # always the current config, even on a partial run
     if os.path.exists(os.path.join(OUT, 'audit.json')):
         audit = [record for record in json.load(open(os.path.join(OUT, 'audit.json')))['files']
                  if record['kind'] not in only]
@@ -111,12 +112,20 @@ def bounds(objects):
     return lo, hi
 
 
+def action_curves(action):
+    # Blender 4.x keeps F-curves on the action; 5.x keeps them in layered channel bags.
+    if hasattr(action, 'fcurves'):
+        return list(action.fcurves)
+    return [curve for layer in action.layers for strip in layer.strips
+            for bag in strip.channelbags for curve in bag.fcurves]
+
+
 def canonical_actions():
     # FBX imports 17 real skeletal actions and 17 empty shape-key actions. Only
     # actions targeting pose.bones belong in the playable animation library.
     kept = []
     for action in list(bpy.data.actions):
-        if not any('pose.bones[' in curve.data_path for curve in action.fcurves):
+        if not any('pose.bones[' in curve.data_path for curve in action_curves(action)):
             bpy.data.actions.remove(action)
             continue
         action.name = action.name.split('|')[-1]
@@ -224,6 +233,9 @@ for source in report['files']:
         manifest['items'][name] = item
     elif kind == 'avatar':
         item['animations'] = animations
+        if source.get('locomotion'):
+            # Rig metres per cycle with planted feet; the renderer scales by the avatar size.
+            item['locomotion'] = source['locomotion']
         item['meshes'] = [m.name for m in meshes]
         item['bones'] = source['bones']
         default_meshes = {'SK_Head'} | {p['mesh'] for p in wardrobe['pieces'] if p['id'] in wardrobe['default']['pieces'].values()}

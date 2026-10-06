@@ -13,6 +13,21 @@ namespace Wreckabulary
     public sealed class PlayerAppearance : MonoBehaviour
     {
         const string AvatarKey = "Avatar/Avatar";
+
+        /// <summary>Metres per walk and run cycle with planted feet, from author_clips.py
+        /// (build_report.json "locomotion"; NativeAnimationBindingTests keeps these in step).
+        /// The avatar is spawned at its native size, so rig metres are world metres.</summary>
+        public const float WalkStride = .2483f, RunStride = .5176f;
+        // The toy's legs are short: planting every step at gameplay speeds would blur them.
+        // The stride stretches as on the web, and the cadence is capped at the web's top
+        // cadence (about 2.3 walk and 3.5 run cycles a second), so a sprint slides a little.
+        const float WalkStretch = 1.7f, RunStretch = 2f, MinCycles = .6f, MaxWalkCycles = 2.4f, MaxRunCycles = 3.6f;
+
+        /// <summary>Walk or run cycles per second at a ground speed in m/s.</summary>
+        public static float CyclesPerSecond(bool run, float speed) =>
+            Mathf.Clamp(speed / (run ? RunStride * RunStretch : WalkStride * WalkStretch),
+                MinCycles, run ? MaxRunCycles : MaxWalkCycles);
+
         readonly Dictionary<string, AnimationClip> clips = new Dictionary<string, AnimationClip>();
         readonly List<Renderer> oldRenderers = new List<Renderer>();
         PlayerController controller;
@@ -257,7 +272,8 @@ namespace Wreckabulary
             }
             if (!currentPlayable.IsValid()) return;
             if (currentClip == "Walk_InPlace" || currentClip == "Run_InPlace")
-                currentPlayable.SetSpeed(Mathf.Clamp(speed / (currentClip == "Run_InPlace" ? 5f : 2f), .4f, 1.6f));
+                currentPlayable.SetSpeed(CyclesPerSecond(currentClip == "Run_InPlace", speed)
+                    * currentPlayable.GetAnimationClip().length);
             else if (down && currentClip == "Hit_Reaction")
             {
                 // Hold the end of the reaction while down instead of looping the flinch.

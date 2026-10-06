@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEngine;
 using Wreckabulary.Art;
 using Wreckabulary.EditorTools;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary.EditorTests
 {
@@ -62,6 +63,20 @@ namespace Wreckabulary.EditorTests
             var failure = Assert.Throws<InvalidOperationException>(() => ModelLibraryBuilder.Build(report));
             StringAssert.Contains("MissingBindingRegression", failure.Message);
             Assert.AreEqual(before, File.ReadAllText(ImportedArtSettings.ModelLibraryAssetPath));
+        }
+
+        [Test]
+        public void WalkAndRunCadenceFollowsTheAuthoredStrides()
+        {
+            var root = Json.Parse(File.ReadAllText(ImportedArtSettings.ReportPath), "build_report.json");
+            var locomotion = root["files"].Items.Single(file => file["kind"].String() == "avatar")["locomotion"];
+            Assert.That(PlayerAppearance.WalkStride, Is.EqualTo(locomotion["Walk_InPlace"]["stride"].Float()).Within(.0001f));
+            Assert.That(PlayerAppearance.RunStride, Is.EqualTo(locomotion["Run_InPlace"]["stride"].Float()).Within(.0001f));
+            Assert.Greater(PlayerAppearance.CyclesPerSecond(false, 1f), PlayerAppearance.CyclesPerSecond(false, .5f));
+            Assert.Greater(PlayerAppearance.CyclesPerSecond(true, 3.5f), PlayerAppearance.CyclesPerSecond(true, 3f));
+            Assert.That(PlayerAppearance.CyclesPerSecond(true, 6.5f), Is.InRange(3f, 3.6f), "a sprint stays legible");
+            Assert.That(PlayerAppearance.CyclesPerSecond(false, 2.5f), Is.InRange(2f, 2.4f));
+            Assert.That(PlayerAppearance.CyclesPerSecond(false, .05f), Is.GreaterThanOrEqualTo(.6f), "a creep still steps");
         }
     }
 }

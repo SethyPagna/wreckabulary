@@ -62,7 +62,7 @@ namespace Wreckabulary
                 var candidate = Outfit.Deserialize(saved);
                 if (GameConfig.Current.Wardrobe.Problems(candidate).Count == 0) outfit = candidate;
             }
-            preset = outfit.PieceIn("Headwear") == "Hood" ? 2 : outfit.PieceIn("Headwear") == "Cap" ? 1 : 0;
+            preset = outfit.PieceIn("Face") == "Glasses" ? 2 : outfit.PieceIn("Headwear") == "Cap" ? 1 : 0;
             var topPalette = GameConfig.Current.Wardrobe.Palettes["Top"];
             colourIndex = Math.Max(0, topPalette.FindIndex(c => c.Id == outfit.ColourOf("Top")));
             skinIndex = Math.Max(0, Array.IndexOf(SkinNames, outfit.ItemSkins.Values.FirstOrDefault()));
@@ -280,10 +280,10 @@ namespace Wreckabulary
         void SetLook()
         {
             var wardrobe = GameConfig.Current.Wardrobe;
-            outfit = wardrobe.Default.Clone();
+            outfit = wardrobe.Default.Clone();   // Neighbour: the default hoodie, hood up and satchel
             if (preset > 0) outfit.Pieces["Top"] = "Hoodie";
             if (preset == 1) { outfit.Pieces["Headwear"] = "Cap"; outfit.Pieces["Back"] = "Satchel"; }
-            if (preset == 2) { outfit.Pieces["Headwear"] = "Hood"; outfit.Pieces["Face"] = "Glasses"; }
+            if (preset == 2) { outfit.Pieces["Headwear"] = "Hood"; outfit.Pieces["Face"] = "Glasses"; outfit.Pieces.Remove("Back"); }
             var palette = wardrobe.Palettes["Top"];
             outfit.Colours["Top"] = palette[colourIndex % palette.Count].Id;
             foreach (var item in GameConfig.Current.Items.Enabled) outfit.ItemSkins[item.Id] = SkinNames[skinIndex];
@@ -305,7 +305,7 @@ namespace Wreckabulary
         {
             if (mapLabel) mapLabel.text = "HOUSE  /  " + GameConfig.Current.HouseFor(mapIds[mapIndex]).Name;
             if (lookLabel) lookLabel.text = LookNames[preset] + "  ·  " +
-                (GameConfig.Current.Wardrobe.Colour("Top", outfit.ColourOf("Top"))?.Name ?? "Pool Teal");
+                (GameConfig.Current.Wardrobe.Colour("Top", outfit.ColourOf("Top"))?.Name ?? "Tomato");
             if (portraitMapLabel) portraitMapLabel.text = mapLabel.text;
             if (portraitLookLabel) portraitLookLabel.text = lookLabel.text;
             foreach (var button in new[] {classicFinish,portraitFinish}) if (button) button.GetComponentInChildren<TextMeshProUGUI>().text="Item finish: "+SkinNames[skinIndex];

@@ -5,7 +5,7 @@ Unity-ready FBX files plus a material library. Unity never reads the packs direc
 
 | Step | Script | What it does |
 |---|---|---|
-| 1 | `build_assets.py` | Imports each chosen GLB, strips cameras, lights and object clips, restores the authored rest transform, puts item models on the floor, and writes FBX. Merges the avatar and every wardrobe module onto one 22-bone rig with all 17 clips. Writes `materials.json` (authored glTF material values) and the textures (max 512 px). |
+| 1 | `build_assets.py` | Imports each chosen GLB, strips cameras, lights and object clips, restores the authored rest transform, puts item models on the floor, and writes FBX. Merges the avatar and every wardrobe module onto one 22-bone rig with all 17 clips, then runs `refine_avatar.py` and `author_clips.py` when `selection.json` asks for them. Writes `materials.json` (authored glTF material values) and the textures (max 512 px). |
 | 2 | `verify_assets.py` | Re-imports every FBX and checks triangle count, bounds (±1 mm), authored item size (±2 cm), `Grip_R` on items, no camera or light, every material in the library, and all avatar bones and clips. |
 
 `selection.json` lists what gets converted (40 items, 26 letter tiles, 21 house modules,
@@ -22,6 +22,32 @@ BLENDER="C:/Program Files/Blender Foundation/Blender 5.2/blender.exe"
 ```
 
 Tested with Blender 5.2.2 LTS. Add `--only items,letters` to rebuild part of the set.
+Blender 5 keeps an action's F-curves in layered channel bags (`action.fcurves` is
+gone), so scripts that read curves go through a small `action_curves` helper.
+
+### Avatar refine and authored clips
+
+Two optional avatar steps run inside `build_assets.py`, switched on in `selection.json`:
+
+- `"refine": true` runs `refine_avatar.py`. It reworks the merged avatar toward
+  art-direction board 1 on the same 22 bones and the same wardrobe meshes: hood
+  without the crown lobes, hair (its own `hair` material), drawstrings, mitten
+  cuffs, baggier trousers, wider satchel straps and a buckle on the front of the
+  right strap. The report lists what changed under `refinements`.
+- `"author_clips": true` runs `author_clips.py`. The pack's walk and run were a
+  shuffle (the feet slid and the legs never passed), so it authors new Idle,
+  Walk_InPlace, Run_InPlace, Jump_Preview, Swing/Thrust/Throw_OneHand,
+  Hit_Reaction and Celebrate under the same names and lengths, with planted-foot
+  IK. Pickup and Place stay the pack's clips. The report records
+  `authored_clips`, `ik_overreach_m` and `locomotion`: the metres one walk or run
+  cycle covers. `export_web.py` copies `locomotion` into the web manifest. The web
+  animator and Unity's `PlayerAppearance.WalkStride`/`RunStride` set the cadence
+  from it; the EditMode test `WalkAndRunCadenceFollowsTheAuthoredStrides` fails
+  if Unity's constants drift from the report.
+
+After an avatar rebuild, run Unity's *Wreckabulary > Art > Set Up Imported Art*
+(or `-executeMethod Wreckabulary.EditorTools.ArtSetup.Run` in batch) so new
+materials such as `hair` reach the library, then the EditMode and PlayMode tests.
 
 Avatar conversion also requires Node.js on `PATH`. After FBX export,
 `build_assets.py` runs `correct_pickup_contact.mjs`. This offline authoring pass
@@ -100,7 +126,9 @@ python3 Tools/AssetPipeline/promote_mobile_avatar.py --repo .
 
 Run these sequentially. Re-exporting the full avatar invalidates the mobile source
 hash and comparison; regenerate and review the derivative before promoting it.
-The mobile default outfit has 17,660 triangles versus 31,696 full detail, with the
-same six renderers and nine material slots. Neither file verification nor the
+`export_web.py --only avatar` still writes the current wardrobe config into the
+manifest, because the verifier counts the default outfit from it.
+The mobile default outfit has 29,136 triangles versus 52,488 full detail, with the
+same eight renderers and 17 material slots. Neither file verification nor the
 comparison render proves phone frame time or Unity import/build acceptance. See
 `docs/art/SUPPLIED_ASSET_AUDIT.md` for the critical visual assessment and limitations.

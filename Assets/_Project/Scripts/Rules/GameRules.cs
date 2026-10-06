@@ -40,6 +40,9 @@ namespace Wreckabulary.Rules
         public float DodgeCooldown = 1.5f;
         /// <summary>How high a standing jump rises, in metres.</summary>
         public float JumpHeight = 1.1f;
+        /// <summary>How quickly a player on the ground reaches running speed, and stops without input, in m/s².</summary>
+        public float GroundAccel = 36f;
+        public float GroundFriction = 28f;
         public MeleeStats Unarmed = new MeleeStats
         {
             Damage = 8f, Reach = 1.1f, ArcDegrees = 90f, Windup = 0.12f, Active = 0.08f,
@@ -113,6 +116,7 @@ namespace Wreckabulary.Rules
             Need(DodgeInvulnerableSeconds <= DodgeSeconds, "dodge invulnerability can't outlast the dodge");
             Need(DodgeSeconds > 0 && DodgeDistance >= 0, "a dodge needs a duration and a distance");
             Need(JumpHeight > 0, "jumpHeight must be positive");
+            Need(GroundAccel > 0 && GroundFriction > 0, "groundAccel and groundFriction must be positive");
             return problems;
         }
     }
@@ -157,7 +161,8 @@ namespace Wreckabulary.Rules
         {
             "maxHealth", "spawnProtection", "maxLetters", "maxCarried", "maxDeployed", "starterLetters",
             "lettersDroppedPerHit", "furnitureToughness", "craftBase", "craftPerLetter", "craftMoveSpeed", "hitStunMax",
-            "staggerImmunity", "dodgeSeconds", "dodgeInvulnerable", "dodgeDistance", "dodgeCooldown", "jumpHeight", "unarmed",
+            "staggerImmunity", "dodgeSeconds", "dodgeInvulnerable", "dodgeDistance", "dodgeCooldown", "jumpHeight",
+            "groundAccel", "groundFriction", "unarmed",
             "teamSize", "friendlyFire", "downed", "bleedOut", "reviveSeconds", "reviveHealth", "reviveRange",
             "roundsToWin", "respawn", "reconnectGrace", "roundTimeLimit", "clearOut", "notes",
         };
@@ -192,6 +197,8 @@ namespace Wreckabulary.Rules
             r.DodgeDistance = n["dodgeDistance"].Float(r.DodgeDistance);
             r.DodgeCooldown = n["dodgeCooldown"].Float(r.DodgeCooldown);
             r.JumpHeight = n["jumpHeight"].Float(r.JumpHeight);
+            r.GroundAccel = n["groundAccel"].Float(r.GroundAccel);
+            r.GroundFriction = n["groundFriction"].Float(r.GroundFriction);
             if (n.Has("unarmed")) r.Unarmed = ItemCatalogue.ReadMelee(n["unarmed"]);
             r.TeamSize = n["teamSize"].Int(r.TeamSize);
             r.FriendlyFire = n["friendlyFire"].Bool(r.FriendlyFire);
