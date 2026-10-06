@@ -198,6 +198,7 @@ namespace Wreckabulary.Tests
             string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
             if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
             Directory.CreateDirectory(dir);
+            TryLights();
             Session.Clear();
             yield return SceneManager.LoadSceneAsync(Session.HubScene);
             yield return new WaitForSeconds(0.5f);
@@ -237,6 +238,7 @@ namespace Wreckabulary.Tests
         /// <summary>Every map in a two-player Dibs match, where the couch camera frames the whole house.</summary>
         IEnumerator CaptureMapsSequence()
         {
+            TryLights();
             string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
             if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
             Directory.CreateDirectory(dir);
@@ -279,6 +281,27 @@ namespace Wreckabulary.Tests
                 yield return CaptureFramed(Path.Combine(dir, $"map_{map}_solo.png"));
             }
             Session.Clear();
+        }
+
+        /// <summary>Light values to try, from WRECK_LIGHT ("sun=.9;fill=.33;hemi=.52;env=.25;exp=.45"), for calibrating against the web.</summary>
+        static void TryLights()
+        {
+            string asked = Environment.GetEnvironmentVariable("WRECK_LIGHT");
+            if (string.IsNullOrEmpty(asked)) return;
+            foreach (var pair in asked.Split(';'))
+            {
+                var kv = pair.Split('=');
+                if (kv.Length != 2 || !float.TryParse(kv[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v)) continue;
+                switch (kv[0].Trim())
+                {
+                    case "sun": GraphicsOptions.Sun = v; break;
+                    case "fill": GraphicsOptions.Fill = v; break;
+                    case "hemi": GraphicsOptions.Hemisphere = v; break;
+                    case "env": GraphicsOptions.Environment = v; break;
+                    case "exp": GraphicsOptions.SetExposure(v); break;
+                }
+            }
+            Debug.Log($"Capture lights: {asked}");
         }
 
         /// <summary>The capture size: WRECK_CAPTURE_SIZE as "2560x1440", or 1600 x 900.</summary>

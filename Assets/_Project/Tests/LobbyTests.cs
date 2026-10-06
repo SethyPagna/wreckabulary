@@ -351,6 +351,20 @@ namespace Wreckabulary.Tests
             yield return TestScenes.Reset();
             yield return TestScenes.Load(Session.DibsScene);
             Assert.IsTrue(Camera.main.GetUniversalAdditionalCameraData().renderPostProcessing, "match cameras post-process too");
+
+            // The web's lights: its sun over the camera's left shoulder, a cool shadowless fill, a warm-sky/teal-ground ambient.
+            var lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None).Where(l => l.type == LightType.Directional).ToList();
+            var sun = lights.Single(l => l.name == "Sun");
+            Assert.AreEqual(2.85f / Mathf.PI, sun.intensity, 1e-3f, "the web's sun 2.85 in Unity's units");
+            Assert.Greater(sun.transform.forward.x, 0f, "from the left...");
+            Assert.Less(sun.transform.forward.y, -.7f, "...high up...");
+            Assert.Greater(sun.transform.forward.z, 0f, "...and from the camera's side");
+            var fill = lights.Single(l => l.name == "Fill light");
+            Assert.AreEqual(LightShadows.None, fill.shadows);
+            Assert.Greater(fill.color.b, fill.color.r, "a cool fill");
+            Assert.AreEqual(AmbientMode.Trilight, RenderSettings.ambientMode);
+            Assert.Greater(RenderSettings.ambientSkyColor.r, RenderSettings.ambientGroundColor.r, "light from above");
+            Assert.Greater(RenderSettings.ambientGroundColor.b, RenderSettings.ambientGroundColor.r, "a teal bounce from below");
         }
 
         [UnityTest]
