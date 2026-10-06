@@ -19,7 +19,7 @@ Wreckabulary is a toy-like third-person party game for 1–4 players. Plush room
 | Edition | Folder | Status |
 |---|---|---|
 | Unity 6 (main edition, PC first) | repository root | Active development |
-| Browser edition (Three.js) | `Web` | Playable prototype for one player with AI housemates |
+| Browser edition (Three.js) | `Web` | Playable prototype for one player with AI housemates Link" Link: https://wreckabulary.pagna.workers.dev/ |
 
 Both editions read the same JSON rules, recipes, maps and wardrobe from `Assets/_Project/Data/Config`.
 
