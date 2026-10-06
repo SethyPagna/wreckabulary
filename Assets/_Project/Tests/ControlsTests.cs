@@ -427,6 +427,45 @@ namespace Wreckabulary.Tests
         static string Path(InputAction action, int binding = 0) => action.bindings[binding].path;
 
         [Test]
+        public void RebindingSwapsClashesSavesAndResets()
+        {
+            var d = DesktopBinding.Shared;
+            KeyBindings.ResetToDefaults();
+            try
+            {
+                Assert.AreEqual("WASD", ControlHints.MoveKeys);
+                KeyBindings.Assign(d.Jump, 0, "<Keyboard>/f");
+                Assert.AreEqual("<Keyboard>/f", d.Jump.bindings[0].effectivePath);
+                Assert.AreEqual("F", ControlHints.KeyOf(d.Jump), "prompts read the live key");
+                KeyBindings.Assign(d.Spell, 0, "<Keyboard>/f");
+                Assert.AreEqual("<Keyboard>/f", d.Spell.bindings[0].effectivePath);
+                Assert.AreEqual("<Keyboard>/q", d.Jump.bindings[0].effectivePath, "a clash swaps the two keys");
+                StringAssert.Contains("<Keyboard>/f", PlayerPrefs.GetString(KeyBindings.OverridesKey), "saved");
+
+                d.Map.RemoveAllBindingOverrides();
+                KeyBindings.Load(d.Map);
+                Assert.AreEqual("<Keyboard>/f", d.Spell.bindings[0].effectivePath, "loaded back on the next start");
+
+                int up = -1;
+                for (int i = 0; i < d.Move.bindings.Count; i++) if (d.Move.bindings[i].name == "Up") up = i;
+                KeyBindings.Assign(d.Move, up, "<Keyboard>/upArrow");
+                StringAssert.Contains("/", ControlHints.MoveKeys);
+
+                KeyBindings.SetSensitivity(2f);
+                KeyBindings.SetInvertY(true);
+                var look = KeyBindings.Look(new Vector2(10f, 10f));
+                Assert.AreEqual(10f * ShoulderView.MouseSensitivity * 2f, look.x, 1e-5f);
+                Assert.AreEqual(10f * ShoulderView.MouseSensitivity * 2f, look.y, 1e-5f, "inverted: mouse up looks down");
+            }
+            finally { KeyBindings.ResetToDefaults(); }
+            Assert.AreEqual("<Keyboard>/space", d.Jump.bindings[0].effectivePath);
+            Assert.AreEqual("<Keyboard>/q", d.Spell.bindings[0].effectivePath);
+            Assert.AreEqual(1f, KeyBindings.Sensitivity);
+            Assert.IsFalse(KeyBindings.InvertY);
+            Assert.IsFalse(PlayerPrefs.HasKey(KeyBindings.OverridesKey));
+        }
+
+        [Test]
         public void DesktopKeysMatchTheBrief()
         {
             var d = DesktopBinding.Shared;

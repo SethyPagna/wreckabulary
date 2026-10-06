@@ -1443,36 +1443,68 @@ namespace Wreckabulary
                 return;
             }
             var keys = DesktopBinding.Shared;
+            Stepper(Setting(list, "Mouse sensitivity", "How far the view turns with the mouse."), "Sensitivity",
+                Mathf.RoundToInt(KeyBindings.Sensitivity * 100) + "%", step => KeyBindings.SetSensitivity(KeyBindings.Sensitivity + step * KeyBindings.SensitivityStep));
+            Toggle(Setting(list, "Invert Y", "Mouse up looks down."), "Invert", KeyBindings.InvertY, KeyBindings.SetInvertY);
             var heads = LobbyKit.Rect(list, "Columns");
             heads.Size(-1, 24);
-            LobbyKit.Caps(heads, "Keyboard and mouse", 13, TextAlignmentOptions.BottomRight).rectTransform
+            LobbyKit.Caps(heads, "Click a key, then press a new one", 13, TextAlignmentOptions.BottomRight).rectTransform
                 .Place(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(-(12 + PadWidth + 22), 0));
             LobbyKit.Caps(heads, "Controller", 13, TextAlignmentOptions.BottomRight).rectTransform
                 .Place(new Vector2(1, 0), Vector2.one, new Vector2(-(12 + PadWidth), 0), new Vector2(-12, 0));
-            foreach (var (what, caps, pad) in new[]
-            {
-                ("Move", new[] { "WASD" }, "Left stick"),
-                ("Look and aim", new[] { "MOUSE" }, "Right stick"),
-                ("Smash, throw, place", new[] { ControlHints.KeyOf(keys.Attack) }, "X"),
-                ("Block with a shield (hold)", new[] { ControlHints.KeyOf(keys.Attack) }, "LT"),
-                ("Aim (hold)", new[] { ControlHints.KeyOf(keys.Aim) }, "Right stick"),
-                ("Jump", new[] { ControlHints.KeyOf(keys.Jump) }, "A"),
-                ("Dodge", new[] { ControlHints.KeyOf(keys.Dodge) }, "B"),
-                ("Spell a word", new[] { ControlHints.KeyOf(keys.Spell) }, "Hold Y"),
-                ("Switch hands", new[] { ControlHints.KeyOf(keys.Hand1), ControlHints.KeyOf(keys.Hand2) }, "R3"),
-                ("Bag and map (hold)", new[] { ControlHints.KeyOf(keys.Bag) }, (string)null),
-                ("Pick up, hold to revive", new[] { ControlHints.KeyOf(keys.Interact) }, "RT"),
-                ("Drop gear (hold)", new[] { ControlHints.KeyOf(keys.Drop) }, "Hold LB"),
-                ("Pause", new[] { ControlHints.KeyOf(keys.Pause) }, "Start"),
-            })
+            foreach (var (what, action, binding) in KeyBindings.Rows(keys))
             {
                 var controls = Setting(list, what);
-                foreach (string cap in caps) Cap(controls, cap, false);
+                KeyButton(controls, what, action, binding);
                 LobbyKit.Rect(controls, "Gap").Size(14, 10);
-                if (pad != null) Cap(controls, pad, true);
+                if (PadKeys.TryGetValue(what, out var pad)) Cap(controls, pad, true);
                 else LobbyKit.Rect(controls, "No pad").Size(PadWidth, 10);
             }
+            var look = Setting(list, "Look and aim");
+            Cap(look, "MOUSE", false);
+            LobbyKit.Rect(look, "Gap").Size(14, 10);
+            Cap(look, "Right stick", true);
+            var reset = LobbyKit.Pill(Setting(list, "Defaults", "Every key, sensitivity and invert Y."), "Reset controls", "Reset", 20, () =>
+            {
+                KeyBindings.ResetToDefaults();
+                listening = null;
+                Refresh();
+                Reselect("Reset controls");
+            });
+            reset.Size(180, 46);
             Wrapped(list, ControlHints.Players + ".", 17, LobbyKit.Muted, 48);
+        }
+
+        static readonly Dictionary<string, string> PadKeys = new()
+        {
+            ["Move forward"] = "Left stick", ["Smash, throw, place, block"] = "X", ["Aim (hold)"] = "Right stick",
+            ["Jump"] = "A", ["Dodge"] = "B", ["Pick up, hold to revive"] = "RT", ["Spell a word"] = "Hold Y",
+            ["Drop gear (hold)"] = "Hold LB", ["Hand 1"] = "R3", ["Pause"] = "Start",
+        };
+
+        string listening;
+
+        void KeyButton(RectTransform controls, string what, UnityEngine.InputSystem.InputAction action, int binding)
+        {
+            string name = "Rebind " + what;
+            bool waiting = listening == name && KeyBindings.Listening;
+            string text = waiting ? "PRESS A KEY" : KeyBindings.KeyName(action, binding);
+            var button = LobbyKit.Button(controls, name, waiting ? LobbyKit.Sun : Color.white, () =>
+            {
+                listening = name;
+                KeyBindings.Listen(action, binding, () =>
+                {
+                    listening = null;
+                    if (Root) { Refresh(); Reselect(name); }
+                });
+                Refresh();
+                Reselect(name);
+            }, 8, LobbyKit.Navy, 2, 3);
+            button.Size(Mathf.Max(64f, 28f + 12f * text.Length), 40);
+            LobbyKit.Display(button.Body(), text, 19, LobbyKit.Navy).rectTransform
+                .Place(Vector2.zero, Vector2.one, new Vector2(6, 0), new Vector2(-6, 0));
+            var face = button.FaceOf();
+            button.GetComponent<LobbyPress>().Hot = hot => face.color = waiting || hot ? LobbyKit.Sun : Color.white;
         }
 
         static void Cap(Transform parent, string text, bool pad)

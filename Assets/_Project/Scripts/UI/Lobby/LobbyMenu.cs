@@ -653,7 +653,7 @@ namespace Wreckabulary
                 Open(PageOrder[(at + step + PageOrder.Length) % PageOrder.Length]);
             }
             var keyboard = Keyboard.current;
-            if ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) || AnyPad(p => p.buttonEast))
+            if (!KeyBindings.Busy && ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) || AnyPad(p => p.buttonEast)))
             {
                 if (quitDialog) CloseQuit();
                 else if (rail && rail.gameObject.activeSelf)

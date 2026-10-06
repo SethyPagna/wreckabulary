@@ -49,6 +49,7 @@ namespace Wreckabulary
             Start = Button("Start", "<Keyboard>/enter");
             Point = Map.AddAction("Point", InputActionType.PassThrough, "<Mouse>/position", expectedControlLayout: "Vector2");
             Look = Map.AddAction("Look", InputActionType.PassThrough, "<Mouse>/delta", expectedControlLayout: "Vector2");
+            KeyBindings.Load(Map);
             Map.Enable();
         }
 
@@ -65,7 +66,7 @@ namespace Wreckabulary
 
         public override void Read(ref PlayerCommands c)
         {
-            if (Typing) return;
+            if (Typing || KeyBindings.Listening) return;
             c.move = Vector2.ClampMagnitude(Move.ReadValue<Vector2>(), 1f);
             c.attack = Attack.WasPressedThisFrame();
             c.attackHeld = Attack.IsPressed();
@@ -86,7 +87,7 @@ namespace Wreckabulary
             if (Cursor.lockState == CursorLockMode.Locked)
             {
                 var delta = Look.ReadValue<Vector2>();
-                c.lookDelta = new Vector2(delta.x, -delta.y) * ShoulderView.MouseSensitivity;
+                c.lookDelta = KeyBindings.Look(delta);
                 return;
             }
 

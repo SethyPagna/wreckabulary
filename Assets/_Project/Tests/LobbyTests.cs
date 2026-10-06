@@ -584,8 +584,22 @@ namespace Wreckabulary.Tests
                 Assert.IsFalse(root.GetComponentsInChildren<TMPro.TMP_Text>().Any(t => t.text.Contains("Mobile")), "no phone quality level: " + tab);
                 AssertNoEllipsis(root, "Settings " + tab);
                 if (tab == "controls")
-                    Assert.IsTrue(root.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Key " + ControlHints.KeyOf(DesktopBinding.Shared.Attack)),
-                        "keys as key caps");
+                {
+                    var rebind = root.GetComponentsInChildren<UnityEngine.UI.Button>().FirstOrDefault(b => b.name == "Rebind Smash, throw, place, block");
+                    Assert.IsNotNull(rebind, "every key is a button you can rebind");
+                    Assert.IsTrue(rebind.GetComponentsInChildren<TMPro.TMP_Text>().Any(t => t.text == ControlHints.KeyOf(DesktopBinding.Shared.Attack)), "showing the live key");
+                    rebind.onClick.Invoke();
+                    yield return null;
+                    Assert.IsTrue(KeyBindings.Listening, "waits for the new key");
+                    Assert.IsTrue(root.GetComponentsInChildren<TMPro.TMP_Text>().Any(t => t.text == "PRESS A KEY"));
+                    KeyBindings.Stop();
+                    yield return null;
+                    Assert.IsFalse(KeyBindings.Listening);
+                    Assert.IsTrue(DesktopBinding.Shared.Map.enabled, "keys work again after");
+                    Assert.IsNotNull(root.GetComponentsInChildren<RectTransform>().FirstOrDefault(r => r.name == "Sensitivity more"), "mouse sensitivity");
+                    Assert.IsNotNull(root.GetComponentsInChildren<RectTransform>().FirstOrDefault(r => r.name == "Invert on"), "invert Y");
+                    Assert.IsNotNull(root.GetComponentsInChildren<RectTransform>().FirstOrDefault(r => r.name == "Reset controls"));
+                }
             }
             Assert.IsTrue(root.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Step 01"), "how to play in the web's three steps");
 

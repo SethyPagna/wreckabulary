@@ -34,7 +34,7 @@ Wreckabulary is a toy-like third-person party game for 1–4 players. Plush room
 | Jump / dodge | Space / Shift |
 | Pause | Esc |
 
-- **Settings → Controls:** every key can be rebound, with sensitivity and invert Y, saved per player. On-screen prompts always show your current keys.
+- **Settings → Controls:** click a key, press a new one; clashes swap. Mouse sensitivity, invert Y and reset, saved on this PC. On-screen prompts always show your current keys.
 - **Gamepad:** picks words from a list instead of typing.
 - **Touch:** stick, auto-aim and action buttons.
 
@@ -135,7 +135,8 @@ Wreckabulary is a toy-like third-person party game for 1–4 players. Plush room
 | Fuse box closes with Tab or right click | Done |
 | Left click does everything; right click aims | Done |
 | Centred camera framing | Done |
-| Key rebinding in Settings | Next |
+| Key rebinding in Settings (keyboard and mouse) | Done |
+| Gamepad and keyboard-half rebinding | Planned |
 | Map and image quality (walls, sky, decor, icons, UI sound) | Next |
 | Leg motion, layered animation, world feedback | Planned |
 | Apartment tower and famous-building maps | Planned |

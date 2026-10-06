@@ -65,7 +65,7 @@ Then open `http://localhost:4173`.
 | Jump / dodge | Space / Left Shift |
 | Pause | Esc |
 
-Gamepads, keyboard halves and touch screens are supported too.
+Every key can be changed in Settings → Controls, along with mouse sensitivity and invert Y. Gamepads, keyboard halves and touch screens are supported too.
 
 ## Project report
 

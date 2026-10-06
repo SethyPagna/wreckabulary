@@ -96,6 +96,7 @@ namespace Wreckabulary
         bool bagHidden;
         bool touchChosen;
         bool? hintLooks;
+        int hintKeys = -1;
         bool pointerFreed;
         string checklistText = "";
 
@@ -300,7 +301,7 @@ namespace Wreckabulary
             var spell = MakeButton("Spell key", tray, Vector2.one, new Vector2(-98f, -10f), new Vector2(70f, 30f),
                 $"<u>Spell</u> {ControlHints.KeyOf(DesktopBinding.Shared.Spell)}", OpenComposer, Color.clear);
             spell.GetComponentInChildren<TextMeshProUGUI>().fontSize = 12f;
-            var link = MakeButton("Bag link", tray, Vector2.one, new Vector2(-14f, -10f), new Vector2(84f, 30f), "<u>Bag</u> Tab", () => SetBagPinned(!bagPinned), Color.clear);
+            var link = MakeButton("Bag link", tray, Vector2.one, new Vector2(-14f, -10f), new Vector2(84f, 30f), $"<u>Bag</u> {ControlHints.KeyOf(DesktopBinding.Shared.Bag)}", () => SetBagPinned(!bagPinned), Color.clear);
             link.GetComponentInChildren<TextMeshProUGUI>().fontSize = 12f;
             float x0 = (400f - (TilesPerRow * 45f + (TilesPerRow - 1) * 7f)) * .5f;
             for (int i = 0; i < TrayTiles; i++)
@@ -322,12 +323,15 @@ namespace Wreckabulary
 
         void SetHint(bool looks)
         {
-            if (hintLooks == looks) return;
+            if (hintLooks == looks && hintKeys == KeyBindings.Version) return;
             hintLooks = looks;
+            hintKeys = KeyBindings.Version;
+            var keys = DesktopBinding.Shared;
             static string Key(string k) => $"<b><color=#FFF7E8>{k}</color></b>";
             const string dot = "  <alpha=#55>·<alpha=#FF>  ";
-            hintText.text = Key("WASD") + " move" + dot + (looks ? "mouse look" : "mouse aim") + dot + Key("LMB") + " smash, throw, place, block" + dot
-                + (looks ? Key("RMB") + " aim" + dot : "") + Key("Q") + " spell" + dot + Key("E") + " interact" + dot + Key("Tab") + " bag & map" + dot + Key("Esc") + " pause";
+            hintText.text = Key(ControlHints.MoveKeys) + " move" + dot + (looks ? "mouse look" : "mouse aim") + dot + Key(ControlHints.KeyOf(keys.Attack)) + " smash, throw, place, block" + dot
+                + (looks ? Key(ControlHints.KeyOf(keys.Aim)) + " aim" + dot : "") + Key(ControlHints.KeyOf(keys.Spell)) + " spell" + dot + Key(ControlHints.KeyOf(keys.Interact)) + " interact" + dot
+                + Key(ControlHints.KeyOf(keys.Bag)) + " bag & map" + dot + Key(ControlHints.KeyOf(keys.Pause)) + " pause";
             hint.sizeDelta = new Vector2(470f, Mathf.Max(44f, hintText.GetPreferredValues(hintText.text, 434f, 0f).y + 20f));
         }
 
