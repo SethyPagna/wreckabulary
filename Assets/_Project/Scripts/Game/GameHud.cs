@@ -112,8 +112,11 @@ namespace Wreckabulary
             public RectTransform content;
             public readonly List<(RoomBox box, Image fill, TextMeshProUGUI name)> rooms = new();
             public readonly List<(Image dot, TextMeshProUGUI name)> dots = new();
+            public readonly List<GameObject> stairs = new();
+            public TextMeshProUGUI badge;
             public bool full;
             public HouseLayout layout;
+            public int storey = -1;
         }
 
         static Color Hex(int rgb, float a = 1f) => new(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, a);
@@ -567,7 +570,7 @@ namespace Wreckabulary
         {
             UpdateMap(miniMap);
             var layout = Layout;
-            string room = LocalPlayer && layout != null ? layout.RoomAt(LocalPlayer.transform.position.x, LocalPlayer.transform.position.z) : null;
+            string room = LocalPlayer && layout != null ? RoomOf(layout, LocalPlayer) : null;
             roomPill.text = room != null ? Spaced(room) : layout != null ? "House" : "";
             roomPill.transform.parent.gameObject.SetActive(roomPill.text.Length > 0);
             if (checklistText.Length > 0) objective.text = checklistText;
@@ -674,7 +677,7 @@ namespace Wreckabulary
             if (combat.IsHolding && !combat.Weapon) sb.Append("Carrying ").Append(Spaced(combat.Held.name.Replace("(Clone)", "").Trim()));
             effectsText.text = sb.Length > 0 ? sb.ToString() : "<color=#62736A>Nothing active</color>";
             var layout = Layout;
-            var room = layout?.RoomAt(LocalPlayer.transform.position.x, LocalPlayer.transform.position.z);
+            var room = layout != null ? RoomOf(layout, LocalPlayer) : null;
             bagRoom.text = room != null ? Spaced(room) : "";
             UpdateMap(bigMap);
         }
@@ -767,12 +770,21 @@ namespace Wreckabulary
             float extent = Mathf.Max(maxX - minX, maxZ - minZ) * 1.04f;
             float ox = minX - (extent - (maxX - minX)) * .5f, oz = minZ - (extent - (maxZ - minZ)) * .5f;
             Vector2 At(float x, float z) => new((x - ox) / extent, (z - oz) / extent);
-            if (map.layout != layout)
+            // A house with an upstairs shows the floor you're on; the frame stays the whole house's, so it doesn't jump.
+            int storeyCount = layout.StoreyFloors().Count;
+            // On a flight, the same storey the camera is holding, so the map and the view never disagree.
+            var cutaway = StoreyCutaway.Instance;
+            int StoreyOfPlayer(PlayerController who) => cutaway ? cutaway.StoreyOfPlayer(who) : layout.StoreyAt(who.transform.position.y);
+            int storey = LocalPlayer && storeyCount > 1 ? StoreyOfPlayer(LocalPlayer) : 0;
+            if (map.layout != layout || map.storey != storey)
             {
                 foreach (var (_, fill, _) in map.rooms) Destroy(fill.gameObject);
                 map.rooms.Clear();
+                foreach (var flight in map.stairs) Destroy(flight);
+                map.stairs.Clear();
                 foreach (var box in layout.Rooms)
                 {
+                    if (storeyCount > 1 && layout.StoreyOf(box) != storey) continue;
                     var rt = Panel(box.Name, map.content, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), RoomFill);
                     rt.anchorMin = At(box.MinX, box.MinZ); rt.anchorMax = At(box.MaxX, box.MaxZ); rt.offsetMin = rt.offsetMax = Vector2.zero;
                     var image = rt.GetComponent<Image>(); image.sprite = null;
@@ -784,9 +796,30 @@ namespace Wreckabulary
                     label.text = map.full ? Spaced(box.Name) : Initial(layout, box.Name); label.textWrappingMode = TextWrappingModes.Normal;
                     map.rooms.Add((box, image, label));
                 }
+                // Each flight of stairs shows on both floors it joins.
+                foreach (var s in layout.Stairs)
+                {
+                    if (layout.StoreyOf(layout.Room(s.Lower)) != storey && layout.StoreyOf(layout.Room(s.Upper)) != storey) continue;
+                    var rt = Panel("Stairs", map.content, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), Hex(0xe4d6b2, .55f));
+                    rt.anchorMin = At(s.MinX, s.MinZ); rt.anchorMax = At(s.MaxX, s.MaxZ); rt.offsetMin = rt.offsetMax = Vector2.zero;
+                    rt.GetComponent<Image>().sprite = null;
+                    map.stairs.Add(rt.gameObject);
+                }
+                if (!map.badge)
+                {
+                    map.badge = Text("Storey", map.content, new Vector2(0f, 1f), new Vector2(6f, -4f), new Vector2(220f, 22f), map.full ? 16f : 11f, Cream, TextAlignmentOptions.TopLeft);
+                    map.badge.rectTransform.pivot = new Vector2(0f, 1f); map.badge.characterSpacing = 6f;
+                }
+                map.badge.text = storeyCount > 1 ? layout.StoreyLabel(storey) : "";
+                // Rebuilt floors go under the player dots, which already exist after the first floor you saw.
+                int order = 0;
+                foreach (var (_, fill, _) in map.rooms) fill.transform.SetSiblingIndex(order++);
+                foreach (var flight in map.stairs) flight.transform.SetSiblingIndex(order++);
+                map.badge.transform.SetAsLastSibling();
                 map.layout = layout;
+                map.storey = storey;
             }
-            string here = LocalPlayer ? layout.RoomAt(LocalPlayer.transform.position.x, LocalPlayer.transform.position.z) : null;
+            string here = LocalPlayer ? RoomOf(layout, LocalPlayer) : null;
             var schedule = clearOut && clearOut.Running ? clearOut.Schedule : null;
             foreach (var (box, fill, _) in map.rooms)
             {
@@ -813,6 +846,8 @@ namespace Wreckabulary
                 rt.anchorMin = rt.anchorMax = At(p.transform.position.x, p.transform.position.z);
                 rt.sizeDelta = Vector2.one * (map.full ? (you ? 20f : 15f) : (you ? 12f : 8f));
                 image.color = p.IsDowned ? Coral : you ? Hex(0x9ff8d3) : p.Color;
+                // Someone on another floor shows faintly where they are, above or below you.
+                if (storeyCount > 1 && StoreyOfPlayer(p) != storey) image.color = new Color(image.color.r, image.color.g, image.color.b, .4f);
                 label.gameObject.SetActive(map.full);
                 label.text = you ? "You" : p.Name;
             }
@@ -904,6 +939,8 @@ namespace Wreckabulary
         static string Spaced(string name) => Words.Replace(name, " ");
 
         /// <summary>A room's letter on the small map, or two letters when another room starts the same way (Bedroom, Bathroom).</summary>
+        static string RoomOf(HouseLayout layout, PlayerController p) => layout.RoomAt(p.transform.position.x, p.transform.position.y, p.transform.position.z);
+
         public static string Initial(HouseLayout layout, string name) =>
             name.Substring(0, layout.Rooms.Count(r => r.Name[0] == name[0]) > 1 ? Mathf.Min(2, name.Length) : 1);
 

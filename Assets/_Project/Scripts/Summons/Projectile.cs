@@ -83,7 +83,7 @@ namespace Wreckabulary
             foreach (var col in Physics.OverlapSphere(position, blastRadius, ~0, QueryTriggerInteraction.Ignore))
             {
                 var rb = col.attachedRigidbody;
-                if (!rb || !seen.Add(rb)) continue;
+                if (!rb || !seen.Add(rb) || FloorBetween(position, rb.worldCenterOfMass)) continue;
                 float distance = World.Flat(rb.position - position).magnitude;
                 var hit = Hits.Of(owner, rb.position - position, HitSource.Explosion, BlastDamage(damage, edgeDamage, distance, blastRadius), knockback, 0.3f, breakPower, word);
                 if (rb.TryGetComponent(out PlayerHealth victim))
@@ -96,6 +96,21 @@ namespace Wreckabulary
                     if (rb && !rb.isKinematic) rb.AddExplosionForce(knockback * Hits.KnockbackSpeed, position, blastRadius, 0.5f, ForceMode.VelocityChange);
                 }
             }
+        }
+
+        /// <summary>
+        /// A floor (or ceiling, or the underside of stairs) between the blast and a target shields it; walls don't.
+        /// Cast from the target, so a bomb lying on a floor, even sunk a hair into it, still has that floor between it
+        /// and anyone below, and only floors clearly between the two heights count, not the one it's lying on.
+        /// </summary>
+        static bool FloorBetween(Vector3 from, Vector3 to)
+        {
+            var path = from - to;
+            float length = path.magnitude, low = Mathf.Min(from.y, to.y) + .1f, high = Mathf.Max(from.y, to.y) - .1f;
+            if (length < .01f || high <= low) return false;
+            foreach (var hit in Physics.RaycastAll(to, path / length, length, World.GroundMask, QueryTriggerInteraction.Ignore))
+                if (!hit.rigidbody && Mathf.Abs(hit.normal.y) > .7f && hit.point.y > low && hit.point.y < high) return true;
+            return false;
         }
     }
 }

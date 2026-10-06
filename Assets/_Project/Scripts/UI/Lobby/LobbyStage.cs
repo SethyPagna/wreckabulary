@@ -58,11 +58,16 @@ namespace Wreckabulary
             set.SetParent(transform, false);
             var geometry = RoomBuilder.CreateGeometry(layout, mapId, set);
             var room = OpenRoom(layout);
+            // Floors above yours would hide you from the camera.
+            int storey = layout.StoreyOf(room);
+            foreach (Transform group in geometry)
+                for (int above = storey + 1; above < layout.StoreyFloors().Count; above++)
+                    if (group.name == RoomBuilder.StoreyName(above)) group.gameObject.SetActive(false);
             // The arena rug in the middle of your room lies between the camera and you and reads as a stage.
-            foreach (Transform child in geometry)
+            foreach (var child in geometry.GetComponentsInChildren<Transform>(true))
             {
                 var p = set.InverseTransformPoint(child.position);
-                if (child.name == "Environment/Arena_Rug" && p.x > room.MinX && p.x < room.MaxX && p.z > room.MinZ && p.z < room.MaxZ)
+                if (child.name == "Environment/Arena_Rug" && Mathf.Abs(p.y - room.FloorY) < 1f && p.x > room.MinX && p.x < room.MaxX && p.z > room.MinZ && p.z < room.MaxZ)
                 { child.gameObject.SetActive(false); Destroy(child.gameObject); }
             }
             float depth = room.MaxZ - room.MinZ;
@@ -70,7 +75,7 @@ namespace Wreckabulary
             float distance = Mathf.Min(Distance, depth * .62f);
             var local = new Vector3((room.MinX + room.MaxX) * .5f, room.FloorY, Mathf.Min(room.MaxZ - 1.6f, room.MinZ + .45f + distance + depth * .12f));
             toCamera = new Vector3(0f, 0f, -distance);
-            Furnish(layout, local, local + toCamera);
+            Furnish(layout, storey, local, local + toCamera);
             set.position = Origin;
             spot = Origin + local;
             Map = mapId;
@@ -78,11 +83,13 @@ namespace Wreckabulary
             Place(true);
         }
 
-        /// <summary>The room with the most space to stand back in; gardens count.</summary>
+        /// <summary>The map's lobby room if it names one, else the ground-floor room with the most space to stand back in; gardens count.</summary>
         static RoomBox OpenRoom(HouseLayout layout) =>
-            layout.Rooms.OrderByDescending(r => Mathf.Min(r.MaxX - r.MinX, r.MaxZ - r.MinZ)).ThenBy(r => r.Name, System.StringComparer.Ordinal).First();
+            (layout.LobbyRoom != null ? layout.Room(layout.LobbyRoom) : null)
+            ?? layout.Rooms.Where(r => layout.StoreyOf(r) == 0)
+                .OrderByDescending(r => Mathf.Min(r.MaxX - r.MinX, r.MaxZ - r.MinZ)).ThenBy(r => r.Name, System.StringComparer.Ordinal).First();
 
-        void Furnish(HouseLayout layout, Vector3 stand, Vector3 eye)
+        void Furnish(HouseLayout layout, int storey, Vector3 stand, Vector3 eye)
         {
             var library = ModelLibrary.Load();
             if (!library) return;
@@ -90,6 +97,7 @@ namespace Wreckabulary
             decor.SetParent(set, false);
             foreach (var f in layout.Furniture)
             {
+                if (layout.StoreyOf(layout.Room(f.Room)) > storey) continue;
                 var at = new Vector3(f.X, layout.Room(f.Room).FloorY + f.Y, f.Z);
                 // Keep the view from the camera to you clear; a rug spreads wide enough to look like a stage.
                 float clear = f.Word == "RUG" ? 2.2f : 1.1f;

@@ -21,6 +21,10 @@ namespace Wreckabulary
         [SerializeField] float crawlSpeed = 0.25f;
         [Tooltip("After a knock, footing stays loose at least this long so the push carries.")]
         [SerializeField] float minSlide = 0.25f;
+        [Tooltip("Walking follows ground up to this far below the feet, e.g. down a ramp, instead of skipping off it.")]
+        [SerializeField] float stepDown = 0.35f;
+        [Tooltip("The steepest ground, in degrees, that walking sticks to.")]
+        [SerializeField] float maxWalkSlope = 50f;
 
         [Header("Jump and dodge (height, distance and timing are in rules.json)")]
         [Tooltip("A jump or dodge pressed this long before it's possible still happens, e.g. just before landing.")]
@@ -71,7 +75,8 @@ namespace Wreckabulary
 
         float staggerUntil, slideUntil, boostUntil, boost = 1f, slipperyUntil, floatyUntil, autoWalkUntil;
         float jumpWantedUntil, dodgeWantedUntil, dodgeUntil, dodgeSpeed;
-        float lastJumpAt = float.NegativeInfinity, lastGroundedAt = float.NegativeInfinity;
+        float lastJumpAt = float.NegativeInfinity, lastGroundedAt = float.NegativeInfinity, launchedAt = float.NegativeInfinity, lastSlopeAt = float.NegativeInfinity;
+        float footRadius = 0.42f;
         Vector3 dodgeDirection;
         bool tumbling;
         Vector3 autoWalk;
@@ -93,6 +98,7 @@ namespace Wreckabulary
             Combat = GetComponent<PlayerCombat>();
             Summoner = GetComponent<Summoner>();
             colliders = GetComponents<Collider>();
+            if (TryGetComponent<CapsuleCollider>(out var capsule)) footRadius = capsule.radius * transform.lossyScale.x;
             if (handL) handLRest = handL.localPosition;
             if (handR) handRRest = handR.localPosition;
         }
@@ -162,7 +168,8 @@ namespace Wreckabulary
             var v = Body.linearVelocity;
             if (IsDodging)
             {
-                Body.linearVelocity = new Vector3(dodgeDirection.x * dodgeSpeed, v.y, dodgeDirection.z * dodgeSpeed);
+                var dash = dodgeDirection * dodgeSpeed;
+                Body.linearVelocity = new Vector3(dash.x, StickToGround(dash, v.y), dash.z);
                 return;
             }
             if (dodgeUntil > 0f)
@@ -186,7 +193,7 @@ namespace Wreckabulary
                         * (Grounded ? 1f : 0.35f);
 
             var h = Vector3.MoveTowards(new Vector3(v.x, 0f, v.z), input * speed, accel * Time.fixedDeltaTime);
-            Body.linearVelocity = new Vector3(h.x, v.y, h.z);
+            Body.linearVelocity = new Vector3(h.x, StickToGround(h, v.y), h.z);
 
             // Face where the mouse or the right stick aims, otherwise the way you're walking.
             var aim = AimDirection();
@@ -196,6 +203,27 @@ namespace Wreckabulary
         }
 
         bool IsReviving => Combat && Combat.IsReviving;
+
+        /// <summary>
+        /// The vertical speed that keeps a walk on sloped ground: along the slope under the body's centre, closing
+        /// any gap, so a ramp neither bounces you down it nor throws you off its top (the climb's speed is dropped
+        /// when you step off a slope onto flat ground). Elsewhere gravity and contacts do the work, so the climb
+        /// starts as usual at a ramp's foot. Jumps, knocks, launches and real ledges are left alone.
+        /// </summary>
+        float StickToGround(Vector3 horizontal, float vy)
+        {
+            if (Time.time - lastGroundedAt > 0.1f || Time.time - lastJumpAt < 0.25f || Time.time - launchedAt < 0.25f || Time.time < slideUntil) return vy;
+            if (!Physics.Raycast(transform.position + Vector3.up * 0.5f, Vector3.down, out var hit, 0.5f + stepDown, World.GroundMask, QueryTriggerInteraction.Ignore)) return vy;
+            var n = hit.normal;
+            if (n.y < Mathf.Cos(maxWalkSlope * Mathf.Deg2Rad)) return vy;
+            if (n.y < 0.999f) lastSlopeAt = Time.time;
+            else if (vy <= 0.5f || Time.time - lastSlopeAt > 0.3f) return vy;
+            float along = -(n.x * horizontal.x + n.z * horizontal.z) / n.y;
+            // A round foot resting on a slope sits this far above the slope point under its centre.
+            float resting = footRadius * (1f / n.y - 1f);
+            float gap = Mathf.Max(0f, transform.position.y - hit.point.y - resting);
+            return along - gap * 0.5f / Time.fixedDeltaTime;
+        }
 
         /// <summary>Flat direction the right stick or the mouse points; zero when not aiming.</summary>
         Vector3 AimDirection()
@@ -267,6 +295,7 @@ namespace Wreckabulary
             dodgeUntil = 0f;
             Body.linearVelocity = velocity;
             Grounded = false;
+            launchedAt = Time.time;
             squashVel = 6f;
         }
 

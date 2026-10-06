@@ -93,7 +93,9 @@ namespace Wreckabulary
                     // Near the whole-house size, settle on the house centre so the edges don't wobble.
                     focus = Vector3.Lerp(middle, layoutCentre, Mathf.InverseLerp(wholeHouseSize * .7f, wholeHouseSize, size));
                 }
-                focus.y = 0f;
+                // Upstairs, look at the floor you're on rather than the ground.
+                var cutaway = StoreyCutaway.Instance;
+                focus.y = cutaway ? cutaway.FocusY : 0f;
                 // Solo play gets a closer perspective view along the same direction, so
                 // world-aligned controls and pointer aim read the same as the couch view.
                 target = focus + new Vector3(0f, 30f, -22f) * (followLocal ? soloDistance : 1f);

@@ -53,6 +53,8 @@ namespace Wreckabulary
             clearOut = gameObject.AddComponent<ClearOutController>();
             clearOut.Configure(room.Layout, Match.Mode);
             clearOut.ClosureStarted += () => CollapseStarted?.Invoke();
+            deliveries.Layout = room.Layout;
+            deliveries.RoomOpen = r => !clearOut.Running || clearOut.Schedule.PhaseOf(r, clearOut.Elapsed) == RoomPhase.Safe;
             actions = ModeActions.Create(transform, "START WITH AI", StartMatch);
             EnterLobby();
             if (joins.RestoredFromSession && joins.HumanCount > 0) StartMatch();

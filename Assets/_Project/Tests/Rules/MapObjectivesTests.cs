@@ -9,6 +9,7 @@ namespace Wreckabulary.Rules.Tests
         [TestCase("house_pinwheel.json")]
         [TestCase("house_courtyard.json")]
         [TestCase("house_flat.json")]
+        [TestCase("house_terrace.json")]
         public void EveryMapHasValidGeometryAndEscapeOrders(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
@@ -23,6 +24,7 @@ namespace Wreckabulary.Rules.Tests
         [TestCase("house_pinwheel.json")]
         [TestCase("house_courtyard.json")]
         [TestCase("house_flat.json")]
+        [TestCase("house_terrace.json")]
         public void KeepsakesArePhysicalFurnitureAndTheVanRemainsOpen(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
@@ -38,6 +40,7 @@ namespace Wreckabulary.Rules.Tests
         [TestCase("house_pinwheel.json")]
         [TestCase("house_courtyard.json")]
         [TestCase("house_flat.json")]
+        [TestCase("house_terrace.json")]
         public void MovingDayChecklistUsesKnownFurnitureWordsInExistingRooms(string file)
         {
             var house = HouseLayout.FromJson(TestData.Read(file), file);
@@ -58,6 +61,28 @@ namespace Wreckabulary.Rules.Tests
             CollectionAssert.Contains(flat.NeverClose, "Hall");
             Assert.IsFalse(HomeDesigner.Supports("flat"), "homes are designed only on the maps the web edition knows too");
             Assert.IsTrue(HomeDesigner.Supports("pinwheel") && HomeDesigner.Supports("courtyard"));
+        }
+
+        [Test]
+        public void TheTerraceHouseHasAnUpstairsReachedOnlyByItsStairs()
+        {
+            var terrace = HouseLayout.FromJson(TestData.Read("house_terrace.json"), "house_terrace.json");
+            CollectionAssert.AreEqual(new[] { 0f, 3f }, terrace.StoreyFloors());
+            var stairs = terrace.Stairs.Single();
+            Assert.AreEqual("Hall", stairs.Lower);
+            Assert.AreEqual("Landing", stairs.Upper);
+            var downstairs = terrace.Rooms.Where(r => r.FloorY == 0f).Select(r => r.Name).ToArray();
+            Assert.IsTrue(terrace.Graph().Connected(downstairs), "the ground floor works on its own");
+            var upstairs = terrace.Rooms.Where(r => r.FloorY == 3f).Select(r => r.Name).ToArray();
+            Assert.IsTrue(terrace.Graph().Connected(upstairs.Append("Hall").ToArray()), "upstairs is reached from the hall");
+            foreach (string room in downstairs.Where(r => r != "Hall"))
+                Assert.IsFalse(terrace.Graph().Connected(upstairs.Append(room).ToArray()), $"upstairs is not reached from the {room}");
+            Assert.AreEqual(2, terrace.Spawns.Count(s => terrace.Room(s.Room).FloorY == 0f), "two players start downstairs");
+            Assert.AreEqual(2, terrace.Spawns.Count(s => terrace.Room(s.Room).FloorY == 3f), "two players start upstairs");
+            Assert.AreEqual(0f, terrace.Room(terrace.ExtractionRoom).FloorY, "the van parks on the ground floor");
+            CollectionAssert.AreEquivalent(new[] { "Hall", "Landing" }, terrace.NeverClose);
+            Assert.IsTrue(terrace.MovingDay.Any(m => terrace.Room(m.Room).FloorY == 3f), "Moving Day sends something upstairs");
+            Assert.IsFalse(HomeDesigner.Supports("terrace"));
         }
 
         [Test]

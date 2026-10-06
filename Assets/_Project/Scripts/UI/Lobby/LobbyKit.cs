@@ -433,6 +433,24 @@ namespace Wreckabulary
             return rect;
         }
 
+        /// <summary>
+        /// Cards of one design size on a single line that shrinks as a whole to the width it's given (more
+        /// cards, a narrower screen) instead of wrapping onto what's below. Returns the row to add the cards to.
+        /// </summary>
+        public static RectTransform FitRow(Transform parent, string name, Vector2 cell, float spacing, int count)
+        {
+            var area = Rect(parent, name).Size(-1, cell.y);
+            var row = Grid(area, "Cards", cell, spacing);
+            var grid = row.GetComponent<GridLayoutGroup>();
+            grid.constraint = GridLayoutGroup.Constraint.FixedRowCount;
+            grid.constraintCount = 1;
+            row.anchorMin = row.anchorMax = row.pivot = new Vector2(0, 1);
+            row.anchoredPosition = Vector2.zero;
+            row.sizeDelta = new Vector2(Mathf.Max(1, count) * (cell.x + spacing) - spacing, cell.y);
+            area.gameObject.AddComponent<LobbyFit>().Target = row;
+            return row;
+        }
+
         /// <summary>Gives a layout child a preferred size; -1 leaves that axis to the layout.
         /// A given size is fixed: a row or column inside would otherwise report itself flexible
         /// (force-expanded children make a group flexible) and swallow its parent's spare room.</summary>

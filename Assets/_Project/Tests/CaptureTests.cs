@@ -244,6 +244,15 @@ namespace Wreckabulary.Tests
                 yield return SceneManager.LoadSceneAsync(Session.DibsScene);
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"map_{map}.png"));
+                // A house with an upstairs: also one player alone downstairs, with the floors above lifted off.
+                if (GameConfig.Current.HouseFor(map).StoreyFloors().Count < 2) continue;
+                Session.Clear();
+                Session.SelectMap(map);
+                Match.ModeOverride = "Dibs";
+                Session.Remember(new ScriptedBinding());
+                yield return SceneManager.LoadSceneAsync(Session.DibsScene);
+                yield return new WaitForSeconds(1.5f);
+                yield return CaptureFramed(Path.Combine(dir, $"map_{map}_solo.png"));
             }
             Session.Clear();
         }
@@ -260,7 +269,8 @@ namespace Wreckabulary.Tests
             {
                 c.renderMode = RenderMode.ScreenSpaceCamera;
                 c.worldCamera = cam;
-                c.planeDistance = 0.3f;
+                // Just past the near plane: on it, depth precision clips the UI away in bands.
+                c.planeDistance = Mathf.Max(.3f, cam.nearClipPlane + .05f);
             }
             // Canvas scalers resize in Update.
             yield return null;

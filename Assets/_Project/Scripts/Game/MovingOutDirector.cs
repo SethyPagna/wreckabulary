@@ -62,7 +62,7 @@ namespace Wreckabulary
             foreach (var objective in room.Layout.Keepsakes)
             {
                 var prop = room.Originals.Where(s => !keepsakes.Any(k => k.gameObject == s.gameObject))
-                    .Where(s => room.Layout.RoomAt(s.transform.position.x, s.transform.position.z) == objective.Room)
+                    .Where(s => room.Layout.RoomAt(s.transform.position.x, s.transform.position.y, s.transform.position.z) == objective.Room)
                     .OrderBy(s => Vector2.Distance(new Vector2(s.transform.position.x, s.transform.position.z), new Vector2(objective.X, objective.Z)))
                     .First();
                 // Keepsakes can't be accidentally smashed; saving them requires an actual carry and drop.
@@ -123,16 +123,19 @@ namespace Wreckabulary
                 var body = keepsake.GetComponent<Rigidbody>();
                 if (keepsake.transform.position.y < -4f) keepsake.ReturnToStart();
                 bool held = joins.Players.Any(p => p.Combat.Held == body);
-                if (!held && World.Flat(body.worldCenterOfMass - extraction).sqrMagnitude <= 2.4f * 2.4f)
+                if (!held && AtVan(body.worldCenterOfMass))
                     keepsake.Pack();
             }
             var combatants = joins.Players.Select(p => new Combatant(p.Index, p.Team, p.Health.State)).ToArray();
             foreach (int id in WinCheck.Unrevivable(combatants)) World.PlayerById(id)?.Health.Eliminate();
             var survivors = joins.Players.Where(p => !p.IsEliminated).ToArray();
             if (survivors.Length == 0 || TimeLeft <= 0f) Finish(false);
-            else if (PackedCount == KeepsakeCount && survivors.All(p => p.Health.IsAlive &&
-                World.Flat(p.transform.position - extraction).sqrMagnitude <= 2.4f * 2.4f)) Finish(true);
+            else if (PackedCount == KeepsakeCount && survivors.All(p => p.Health.IsAlive && AtVan(p.transform.position))) Finish(true);
         }
+
+        /// <summary>Inside the van circle and on its floor, not on the storey above it.</summary>
+        /// <summary>Beside the van and on its floor: packing and finishing don't reach through a ceiling.</summary>
+        public bool AtVan(Vector3 p) => World.Flat(p - extraction).sqrMagnitude <= 2.4f * 2.4f && Mathf.Abs(p.y - extraction.y) < 1.5f;
 
         void Finish(bool won)
         {

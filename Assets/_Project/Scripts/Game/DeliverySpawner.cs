@@ -1,4 +1,6 @@
+using System.Linq;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -16,6 +18,8 @@ namespace Wreckabulary
         [SerializeField] Vector2 areaX = new(-6.5f, 6.5f);
         [SerializeField] Vector2 areaZ = new(-4.2f, 3.2f);
         [SerializeField] float dropHeight = 6f;
+        /// <summary>How far a box lands from a flight of stairs: half a turned long box (about .73 m) and the rail beside it.</summary>
+        const float StairClearance = .85f;
         [Tooltip("Boxes only arrive while fewer letters than this are in play.")]
         [SerializeField] int minLettersInPlay = 26;
         [SerializeField] float interval = 4f;
@@ -42,13 +46,44 @@ namespace Wreckabulary
             Drop(Collapsing);
         }
 
+        /// <summary>The house being played. With an upstairs, boxes drop into its rooms instead of all landing on the top floor.</summary>
+        public HouseLayout Layout { get; set; }
+        /// <summary>Rooms boxes may drop into (in a house with an upstairs); null means any.</summary>
+        public System.Func<string, bool> RoomOpen { get; set; }
+
         public Smashable Drop(bool hazard)
         {
             var word = words[Random.Range(0, words.Length)];
-            var pos = new Vector3(Random.Range(areaX.x, areaX.y), dropHeight, Random.Range(areaZ.x, areaZ.y));
-            var box = CreateBox(word, pos);
+            var box = CreateBox(word, DropPoint());
             if (hazard) ThrowTracker.Attach(box.gameObject, null, 4f, 3.5f);
             return box;
+        }
+
+        Vector3 DropPoint()
+        {
+            var floors = Layout?.StoreyFloors();
+            if (floors == null || floors.Count < 2)
+                return new Vector3(Random.Range(areaX.x, areaX.y), dropHeight, Random.Range(areaZ.x, areaZ.y));
+            // A big room is likelier than a small one; a metre in from the walls and clear of the stairs, under the floor above.
+            var rooms = Layout.Rooms.Where(r => r.MaxX - r.MinX > 2.5f && r.MaxZ - r.MinZ > 2.5f && (RoomOpen == null || RoomOpen(r.Name))).ToList();
+            if (rooms.Count == 0) rooms = Layout.Rooms.Where(r => r.MaxX - r.MinX > 2.5f && r.MaxZ - r.MinZ > 2.5f).ToList();
+            if (rooms.Count == 0) rooms = Layout.Rooms.ToList();
+            float total = rooms.Sum(r => (r.MaxX - r.MinX) * (r.MaxZ - r.MinZ));
+            RoomBox room = rooms[0];
+            float x = 0f, z = 0f;
+            for (int attempt = 0; attempt < 12; attempt++)
+            {
+                float pick = Random.Range(0f, total);
+                room = rooms.FirstOrDefault(r => (pick -= (r.MaxX - r.MinX) * (r.MaxZ - r.MinZ)) <= 0f) ?? rooms[rooms.Count - 1];
+                float inset = Mathf.Min(1f, (room.MaxX - room.MinX) * .4f), insetZ = Mathf.Min(1f, (room.MaxZ - room.MinZ) * .4f);
+                x = Random.Range(room.MinX + inset, room.MaxX - inset);
+                z = Random.Range(room.MinZ + insetZ, room.MaxZ - insetZ);
+                if (!Layout.Stairs.Any(s => x > s.MinX - StairClearance && x < s.MaxX + StairClearance && z > s.MinZ - StairClearance && z < s.MaxZ + StairClearance)) break;
+                x = (room.MinX + room.MaxX) * .5f; z = (room.MinZ + room.MaxZ) * .5f;
+            }
+            int storey = Layout.StoreyOf(room);
+            float ceiling = storey + 1 < floors.Count ? floors[storey + 1] - .24f : float.PositiveInfinity;
+            return new Vector3(x, Mathf.Min(room.FloorY + dropHeight, ceiling - 1f), z);
         }
 
         public static Smashable CreateBox(string word, Vector3 position)

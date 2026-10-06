@@ -72,9 +72,9 @@ namespace Wreckabulary
                     if (phase == RoomPhase.Filling) { CameraRig.Shake(.2f); ClosureStarted?.Invoke(); }
                 }
                 if (phase == RoomPhase.Warning)
-                    Message = $"MOVERS: {closure.Room} in {Mathf.CeilToInt((float)closure.FillAt - now)}s — follow a doorway out";
+                    Message = $"MOVERS: {Layout.WithStorey(closure.Room)} in {Mathf.CeilToInt((float)closure.FillAt - now)}s — follow a doorway out";
                 else if (phase == RoomPhase.Filling && Message.Length == 0)
-                    Message = $"LEAVE {closure.Room.ToUpperInvariant()} — movers are packing it";
+                    Message = $"LEAVE {Layout.WithStorey(closure.Room).ToUpperInvariant()} — movers are packing it";
             }
             if (Time.time < nextDamage) return;
             // Fixed half-second hazard ticks; damage integrates elapsed time without hit-stun or knockback.
@@ -83,7 +83,7 @@ namespace Wreckabulary
             {
                 if (!p || !p.Health.IsAlive) continue;
                 var at = p.transform.position;
-                string room = Layout.RoomAt(at.x, at.z);
+                string room = Layout.RoomAt(at.x, at.y, at.z);
                 if (room == null) continue;
                 float damage = Schedule.DamagePerSecond(room, now) * .5f;
                 if (damage > 0f) p.Health.ApplyDamage(HitInfo.Hazard(damage));

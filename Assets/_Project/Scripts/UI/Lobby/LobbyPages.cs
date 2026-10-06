@@ -258,7 +258,7 @@ namespace Wreckabulary
             {
                 LobbyKit.Rect(column, "Gap").Size(-1, 8);
                 LobbyKit.Heading(column, "Map");
-                var maps = LobbyKit.Grid(column, "Maps", new Vector2(260, 204), 18);
+                var maps = LobbyKit.FitRow(column, "Maps", new Vector2(260, 204), 18, GameConfig.Current.Houses.Count);
                 int index = 0;
                 foreach (var house in GameConfig.Current.Houses)
                     MapPoster(maps, house.Key, house.Value, Menu.Map == house.Key, index++);
@@ -320,22 +320,45 @@ namespace Wreckabulary
         }
 
         /// <summary>Draws a map's rooms from above to fit a box, like the web's plans: rooms with navy
-        /// walls, the garden green. Upper floors are fainter.</summary>
+        /// walls, the garden green, halls and landings sun. A house with an upstairs shows its storeys side
+        /// by side, ground floor first, each labelled, with the stairs on both floors they join.</summary>
         public static void FloorPlan(RectTransform box, HouseLayout layout, Color colour, Vector2 size)
         {
             if (layout.Rooms.Count == 0) return;
+            const float Gap = 10f, LabelHeight = 16f;
             float minX = layout.Rooms.Min(r => r.MinX), maxX = layout.Rooms.Max(r => r.MaxX);
             float minZ = layout.Rooms.Min(r => r.MinZ), maxZ = layout.Rooms.Max(r => r.MaxZ);
-            float scale = Mathf.Min(size.x / Mathf.Max(1f, maxX - minX), size.y / Mathf.Max(1f, maxZ - minZ));
+            int storeys = layout.StoreyFloors().Count;
+            float label = storeys > 1 ? LabelHeight : 0f;
+            float column = (size.x - Gap * (storeys - 1)) / storeys;
+            float scale = Mathf.Min(column / Mathf.Max(1f, maxX - minX), (size.y - label) / Mathf.Max(1f, maxZ - minZ));
             var middle = new Vector2((minX + maxX) * .5f, (minZ + maxZ) * .5f);
-            foreach (var room in layout.Rooms)
+            var planSize = new Vector2(maxX - minX, maxZ - minZ) * scale;
+            for (int storey = 0; storey < storeys; storey++)
             {
-                var centre = new Vector2((room.MinX + room.MaxX) * .5f, (room.MinZ + room.MaxZ) * .5f);
-                var rect = LobbyKit.Rect(box, room.Name).Pin(new Vector2(.5f, .5f), (centre - middle) * scale,
-                    new Vector2(room.MaxX - room.MinX, room.MaxZ - room.MinZ) * scale - new Vector2(3, 3));
-                var fill = room.Name.Contains("Garden") ? LobbyKit.Lime : room.Name.Contains("Hall") ? LobbyKit.Sun : colour;
-                rect.Paint(new Color(fill.r, fill.g, fill.b, room.FloorY > .5f ? .5f : 1f), 3).raycastTarget = false;
-                LobbyKit.Frame(rect, LobbyKit.Navy, 3, 3);
+                var offset = new Vector2((storey - (storeys - 1) * .5f) * (planSize.x + Gap), -label * .5f);
+                Vector2 At(float x, float z) => offset + (new Vector2(x, z) - middle) * scale;
+                foreach (var room in layout.Rooms)
+                {
+                    if (layout.StoreyOf(room) != storey) continue;
+                    var rect = LobbyKit.Rect(box, room.Name).Pin(new Vector2(.5f, .5f), At((room.MinX + room.MaxX) * .5f, (room.MinZ + room.MaxZ) * .5f),
+                        new Vector2(room.MaxX - room.MinX, room.MaxZ - room.MinZ) * scale - new Vector2(3, 3));
+                    var fill = room.Name.Contains("Garden") ? LobbyKit.Lime
+                        : room.Name.Contains("Hall") || room.Name.Contains("Landing") ? LobbyKit.Sun : colour;
+                    rect.Paint(fill, 3).raycastTarget = false;
+                    LobbyKit.Frame(rect, LobbyKit.Navy, 3, 3);
+                }
+                if (storeys == 1) continue;
+                foreach (var s in layout.Stairs)
+                {
+                    if (layout.StoreyOf(layout.Room(s.Lower)) != storey && layout.StoreyOf(layout.Room(s.Upper)) != storey) continue;
+                    var flight = LobbyKit.Rect(box, "Stairs").Pin(new Vector2(.5f, .5f), At((s.MinX + s.MaxX) * .5f, (s.MinZ + s.MaxZ) * .5f),
+                        new Vector2(s.MaxX - s.MinX, s.MaxZ - s.MinZ) * scale);
+                    flight.Paint(new Color(LobbyKit.Navy.r, LobbyKit.Navy.g, LobbyKit.Navy.b, .55f)).raycastTarget = false;
+                }
+                var name = LobbyKit.Display(box, layout.StoreyLabel(storey), 12, LobbyKit.Cream, TextAlignmentOptions.Center, LobbyKit.Ink.Stroke);
+                name.enableAutoSizing = true; name.fontSizeMin = 7; name.fontSizeMax = 12;
+                name.rectTransform.Pin(new Vector2(.5f, .5f), offset + new Vector2(0f, (planSize.y + label) * .5f), new Vector2(planSize.x + Gap, label));
             }
         }
     }
