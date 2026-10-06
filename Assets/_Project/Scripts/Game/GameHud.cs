@@ -45,6 +45,9 @@ namespace Wreckabulary
         static readonly Color MapBg = Hex(0x193c3b, .92f), MapEdge = Hex(0xf1dfbd), RoomFill = Hex(0xaaad82, .38f);
         static readonly Color RoomHere = Hex(0x9ff8d3, .35f), RoomWarn = Hex(0xe79553), RoomClosed = Hex(0xd85c45, .65f);
         static readonly Color Mint = Hex(0xb7dfc8), Coral = Hex(0xe7785e), Dark = Hex(0x1a2a30, .94f);
+        // Straight on the game, as on the web: light text with a dark edge, and glass hand slots.
+        static readonly Color OnGame = Hex(0xfff7e8), LowHp = Hex(0xff8a6b), Shade = Hex(0x0b1f1f, .8f);
+        static readonly Color Glass = Hex(0x1d2b2b, .28f), GlassActive = Hex(0x1d2b2b, .40f), GlassEdge = Hex(0xfff7e8, .85f), GlassIdle = Hex(0xffffff, .17f);
         static readonly string[] WearSlots = { "Headwear", "Face", "Top", "Gloves", "Bottoms", "Footwear", "Back", "Badge" };
 
         readonly List<PlayerCard> cards = new();
@@ -70,21 +73,25 @@ namespace Wreckabulary
         RoundManager rounds;
         RectTransform safe, side, status, vitals, tray, hint;
         GameObject touchRoot, craftRoot, desktopHints, bagPanel, pauseRoot, crosshair;
-        GameObject typewriterControls, homeButton;
+        GameObject typewriterControls;
         TextMeshProUGUI typewriterChoice;
         TextMeshProUGUI matchTag, matchTitle, matchDetail, roomPill, objective, statusText;
-        TextMeshProUGUI hpValue, shieldText, bagCount, bagPanelCount, wearText, effectsText, bagRoom, touchToggle;
+        TextMeshProUGUI aliveText, hintText, hpValue, shieldText, bagCount, bagPanelCount, wearText, effectsText, bagRoom, touchToggle;
         TextMeshProUGUI craftStatus, buildLabel, playLabel;
-        Image healthFill, craftProgress;
+        Image craftProgress;
         Button buildButton;
         RectTransform playRect;
         MapView miniMap, bigMap;
         Texture2D iconAtlas;
-        Sprite roundSprite, panelSprite;
+        Sprite roundSprite, panelSprite, ringSprite;
         Rect lastSafe;
         int lastWidth, lastHeight;
         float nextRefresh, resumeScale = 1f;
         bool bagPinned;
+        /// <summary>The on-screen buttons come up by themselves on the first real touch, until someone picks in the pause card.</summary>
+        bool touchChosen;
+        /// <summary>The key bar says "mouse look" in the third-person view and "mouse aim" under the overhead camera.</summary>
+        bool? hintLooks;
         /// <summary>Esc in the Hub (which never pauses) lets the cursor go until a click back on the game.</summary>
         bool pointerFreed;
         string checklistText = "";
@@ -112,6 +119,7 @@ namespace Wreckabulary
         {
             public Image face, wear;
             public Outline frame;
+            public Image edge;
             public RawImage icon;
             public TextMeshProUGUI label;
             public GameObject wearTrack;
@@ -158,13 +166,15 @@ namespace Wreckabulary
             }
             roundSprite = MakeShape(true);
             panelSprite = MakeShape(false);
+            ringSprite = MakeShape(false, 3f);
             safe = Rect("Safe HUD", UiCanvas.transform, Vector2.zero, Vector2.zero, Vector2.zero);
             safe.anchorMax = Vector2.one;
             safe.offsetMin = safe.offsetMax = Vector2.zero;
             StyleLegacyText();
             BuildTop(); BuildSide(); BuildStatus(); BuildVitals(); BuildTray(); BuildHint();
             BuildCraftDrawer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause(); BuildCrosshair();
-            ShowTouchControls(Application.isMobilePlatform || Touchscreen.current != null);
+            // A laptop's touchscreen alone doesn't bring the buttons up; a real touch does (R41).
+            ShowTouchControls(Application.isMobilePlatform);
             ApplySafeArea();
         }
 
@@ -185,6 +195,9 @@ namespace Wreckabulary
         {
             var brand = Panel("Brand", safe, new Vector2(0f, 1f), new Vector2(38f, -30f), new Vector2(81f, 81f), new Vector2(0f, 1f), Hex(0xf2d295));
             brand.localRotation = Quaternion.Euler(0f, 0f, 5f);
+            // The browser's brand tile is its pause button; there is no separate one.
+            brand.GetComponent<Image>().raycastTarget = true;
+            brand.gameObject.AddComponent<Button>().onClick.AddListener(TogglePause);
             Text("W", brand, new Vector2(.5f, .5f), new Vector2(-4f, 0f), new Vector2(70f, 70f), 48f, Ink).text = "W<size=55%><color=#B86647>!</color></size>";
             var label = Panel("Match label", safe, new Vector2(0f, 1f), new Vector2(134f, -30f), new Vector2(250f, 84f), new Vector2(0f, 1f), Paper);
             matchTag = Text("Tag", label, new Vector2(0f, 1f), new Vector2(18f, -12f), new Vector2(220f, 18f), 12f, Ink, TextAlignmentOptions.Left);
@@ -216,7 +229,14 @@ namespace Wreckabulary
             side.pivot = Vector2.one;
             var mapFrame = Panel("Minimap", side, new Vector2(0f, 1f), Vector2.zero, new Vector2(252f, 252f), new Vector2(0f, 1f), MapEdge);
             miniMap = MakeMap(mapFrame, false, 7f);
-            var timerPill = Panel("Timer", side, new Vector2(0f, 1f), new Vector2(0f, -262f), new Vector2(118f, 54f), new Vector2(0f, 1f), Teal);
+            // Who's still up, before the timer.
+            var alive = Panel("Alive", side, new Vector2(0f, 1f), new Vector2(0f, -262f), new Vector2(96f, 54f), new Vector2(0f, 1f), Teal);
+            Panel("Head", alive, new Vector2(0f, .5f), new Vector2(21f, 8f), new Vector2(12f, 12f), new Vector2(.5f, .5f), Cream, true);
+            Panel("Shoulders", alive, new Vector2(0f, .5f), new Vector2(21f, -8f), new Vector2(22f, 14f), new Vector2(.5f, .5f), Cream, true);
+            Panel("Head behind", alive, new Vector2(0f, .5f), new Vector2(35f, 10f), new Vector2(10f, 10f), new Vector2(.5f, .5f), Hex(0xfff0d9, .6f), true);
+            aliveText = Text("Count", alive, new Vector2(1f, .5f), new Vector2(-12f, 0f), new Vector2(50f, 40f), 21f, Cream, TextAlignmentOptions.Right);
+            aliveText.rectTransform.pivot = new Vector2(1f, .5f);
+            var timerPill = Panel("Timer", side, new Vector2(0f, 1f), new Vector2(102f, -262f), new Vector2(150f, 54f), new Vector2(0f, 1f), Teal);
             if (timer)
             {
                 // The scene's timer text moves into the pill, so every director keeps calling SetTimer.
@@ -226,8 +246,9 @@ namespace Wreckabulary
                 timer.rectTransform.offsetMin = timer.rectTransform.offsetMax = Vector2.zero;
                 timer.fontSize = 27f; timer.color = Cream; timer.alignment = TextAlignmentOptions.Center;
                 timer.characterSpacing = 4f; timer.raycastTarget = false; timer.textWrappingMode = TextWrappingModes.NoWrap;
+                // A director may have cleared the timer before the pill existed; an empty pill stays hidden.
+                timerPill.gameObject.SetActive(!string.IsNullOrEmpty(timer.text));
             }
-            MakeButton("Pause", side, new Vector2(0f, 1f), new Vector2(128f, -262f), new Vector2(58f, 54f), "II", TogglePause, Paper);
             var room = Panel("Room", side, new Vector2(0f, 1f), new Vector2(0f, -326f), new Vector2(252f, 40f), new Vector2(0f, 1f), Paper);
             roomPill = Text("Room name", room, new Vector2(.5f, .5f), Vector2.zero, new Vector2(240f, 36f), 15f, Ink);
             var goal = Panel("Objective", side, new Vector2(0f, 1f), new Vector2(0f, -376f), new Vector2(252f, 120f), new Vector2(0f, 1f), Paper);
@@ -246,18 +267,25 @@ namespace Wreckabulary
 
         void BuildVitals()
         {
-            vitals = Panel("Vitals", safe, Vector2.zero, new Vector2(39f, 110f), new Vector2(360f, 222f), Vector2.zero, Paper);
-            var you = Text("You", vitals, new Vector2(0f, 1f), new Vector2(24f, -18f), new Vector2(120f, 18f), 14f, Ink, TextAlignmentOptions.Left);
-            you.text = "YOU"; you.characterSpacing = 10f; you.rectTransform.pivot = new Vector2(0f, 1f);
-            shieldText = Text("Shield", vitals, new Vector2(1f, 1f), new Vector2(-24f, -18f), new Vector2(200f, 18f), 12f, Hex(0x3f8c81), TextAlignmentOptions.Right);
-            shieldText.rectTransform.pivot = Vector2.one;
-            hpValue = Text("HP", vitals, new Vector2(0f, 1f), new Vector2(24f, -38f), new Vector2(300f, 50f), 46f, Ink, TextAlignmentOptions.Left);
+            // No card: a cross, the number and two glass hand slots, straight on the game like the web.
+            vitals = Rect("Vitals", safe, Vector2.zero, new Vector2(39f, 110f), new Vector2(360f, 168f));
+            vitals.pivot = Vector2.zero;
+            var cross = Rect("HP cross", vitals, new Vector2(0f, 1f), new Vector2(17f, -40f), new Vector2(33f, 33f));
+            foreach (var (bar, size) in new[] { ("Across", new Vector2(33f, 11f)), ("Down", new Vector2(11f, 33f)) })
+            {
+                var piece = CreateImage(bar, cross, new Vector2(.5f, .5f), Vector2.zero, size, OnGame);
+                var shadow = piece.gameObject.AddComponent<Shadow>(); shadow.effectColor = Shade; shadow.effectDistance = new Vector2(0f, -2f);
+            }
+            hpValue = Text("HP", vitals, new Vector2(0f, 1f), new Vector2(46f, -8f), new Vector2(220f, 64f), 60f, OnGame, TextAlignmentOptions.Left);
             hpValue.rectTransform.pivot = new Vector2(0f, 1f);
-            healthFill = Fill("Health", Panel("Health track", vitals, new Vector2(0f, 1f), new Vector2(24f, -94f), new Vector2(312f, 12f), new Vector2(0f, 1f), Track), Health);
+            OnGameText(hpValue);
+            shieldText = Text("Shield", vitals, new Vector2(0f, 1f), new Vector2(206f, -30f), new Vector2(150f, 22f), 15f, Hex(0x9ff8d3), TextAlignmentOptions.Left);
+            shieldText.rectTransform.pivot = new Vector2(0f, 1f);
+            OnGameText(shieldText);
             for (int i = 0; i < 2; i++)
             {
                 int slot = i;
-                hands[i] = MakeHand($"Hand {i + 1}", vitals, new Vector2(24f + i * 160f, 18f), new Vector2(152f, 86f), i, () => SelectHand(slot));
+                hands[i] = MakeHand($"Hand {i + 1}", vitals, new Vector2(i * 160f, 0f), new Vector2(152f, 86f), i, () => SelectHand(slot));
             }
         }
 
@@ -280,15 +308,37 @@ namespace Wreckabulary
 
         void BuildHint()
         {
-            hint = Panel("Desktop controls", safe, Vector2.zero, new Vector2(39f, 38f), new Vector2(1100f, 44f), Vector2.zero, Teal);
-            var text = Text("Keys", hint, new Vector2(0f, .5f), new Vector2(18f, 0f), new Vector2(1070f, 40f), 14f, Cream, TextAlignmentOptions.Left);
-            text.rectTransform.pivot = new Vector2(0f, .5f);
-            const string dot = "  <alpha=#77>·<alpha=#FF>  ";
-            text.text = "<b>WASD</b> move" + dot + "mouse aim" + dot + "<b>Click</b> smash, throw, place" + dot + "<b>Right click</b> block" + dot + "<b>Shift</b> dodge"
-                + dot + "<b>Space</b> jump" + dot + "<b>Q</b> spell" + dot + "<b>E</b> interact" + dot + "<b>Hold R</b> drop" + dot + "<b>1 / 2</b> hands"
-                + dot + "<b>Tab</b> bag & map" + dot + "<b>Esc</b> pause";
-            hint.sizeDelta = new Vector2(text.GetPreferredValues(text.text).x + 36f, 44f);
+            hint = Panel("Desktop controls", safe, Vector2.zero, new Vector2(39f, 38f), new Vector2(470f, 60f), Vector2.zero, Hex(0x173b3c, .78f));
+            hintText = Text("Keys", hint, new Vector2(0f, .5f), new Vector2(18f, 0f), new Vector2(434f, 56f), 14f, Hex(0xfff0d9, .82f), TextAlignmentOptions.Left);
+            hintText.rectTransform.pivot = new Vector2(0f, .5f);
+            hintText.fontStyle = FontStyles.Normal;
+            hintText.textWrappingMode = TextWrappingModes.Normal;
+            hintText.lineSpacing = 18f;
+            SetHint(false);
             desktopHints = hint.gameObject;
+        }
+
+        /// <summary>
+        /// Folds onto two lines beside the letter tray, as the browser's does. Right click, Shift, Space,
+        /// R and 1/2 still work; the bar lists only what the web's lists.
+        /// </summary>
+        void SetHint(bool looks)
+        {
+            if (hintLooks == looks) return;
+            hintLooks = looks;
+            static string Key(string k) => $"<b><color=#FFF7E8>{k}</color></b>";
+            const string dot = "  <alpha=#55>·<alpha=#FF>  ";
+            hintText.text = Key("WASD") + " move" + dot + (looks ? "mouse look" : "mouse aim") + dot + Key("LMB") + " smash, throw, place" + dot
+                + Key("Q") + " spell" + dot + Key("E") + " interact" + dot + Key("Tab") + " bag & map" + dot + Key("Esc") + " pause";
+            hint.sizeDelta = new Vector2(470f, Mathf.Max(44f, hintText.GetPreferredValues(hintText.text, 434f, 0f).y + 20f));
+        }
+
+        /// <summary>Text straight on the game keeps a dark edge so it reads over a light floor.</summary>
+        static void OnGameText(TMP_Text t)
+        {
+            t.fontStyle |= FontStyles.Bold;
+            t.outlineWidth = .14f;
+            t.outlineColor = new Color32(0x0b, 0x1f, 0x1f, 0xb0);
         }
 
         /// <summary>The web's crosshair: four light ticks round the screen's centre, shown in the third-person view.</summary>
@@ -373,10 +423,6 @@ namespace Wreckabulary
 
         void BuildNavigation()
         {
-            // Sits beside the pause button at the right end of the timer row.
-            homeButton = MakeButton("Return home", safe, Vector2.one, new Vector2(-38f, -292f), new Vector2(58f, 54f), "HOME", GoHome, Paper).gameObject;
-            homeButton.GetComponentInChildren<TextMeshProUGUI>().fontSize = 13f;
-            homeButton.SetActive(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != Session.HubScene);
             var panel = Panel("Typewriter touch menu", safe, new Vector2(.5f, 0f), new Vector2(0f, 262f), new Vector2(580f, 166f), new Vector2(.5f, 0f), Paper);
             typewriterControls = panel.gameObject;
             typewriterChoice = Text("Mode choice", panel, new Vector2(.5f, 1f), new Vector2(0f, -35f), new Vector2(540f, 54f), 25f, Ink);
@@ -446,7 +492,7 @@ namespace Wreckabulary
             MakeButton("Resume", card, new Vector2(.5f, 1f), new Vector2(0f, -150f), new Vector2(380f, 56f), "RESUME", TogglePause);
             MakeButton("Pause home", card, new Vector2(.5f, 1f), new Vector2(0f, -216f), new Vector2(380f, 56f), "BACK TO THE HOUSE", GoHome, Slot);
             touchToggle = MakeButton("Touch switch", card, new Vector2(.5f, 1f), new Vector2(0f, -282f), new Vector2(380f, 56f), "TOUCH CONTROLS: OFF",
-                () => ShowTouchControls(!TouchControlsShown), Slot).GetComponentInChildren<TextMeshProUGUI>();
+                () => { touchChosen = true; ShowTouchControls(!TouchControlsShown); }, Slot).GetComponentInChildren<TextMeshProUGUI>();
             pauseRoot.SetActive(false);
         }
 
@@ -541,6 +587,8 @@ namespace Wreckabulary
             // The round-end slow motion restores time on its own realtime clock; a pause outlasts it.
             if (Paused && Time.timeScale != 0f) { resumeScale = Time.timeScale; Time.timeScale = 0f; }
             if (BagOpen != WantsBag()) RefreshBagPanel();
+            var screen = Touchscreen.current;
+            if (!touchChosen && !TouchControlsShown && screen != null && screen.primaryTouch.press.wasPressedThisFrame) ShowTouchControls(true);
         }
 
         bool WantsBag() => LocalPlayer && !Paused && (bagPinned || (LocalPlayer.Binding is DesktopBinding && DesktopBinding.Shared.Bag.IsPressed()));
@@ -554,6 +602,7 @@ namespace Wreckabulary
             var rig = CameraRig.Instance;
             bool aiming = rig && rig.isActiveAndEnabled && rig.IsThirdPerson && !NeedsPointer;
             if (crosshair && crosshair.activeSelf != aiming) crosshair.SetActive(aiming);
+            if (hintText) SetHint(rig && rig.isActiveAndEnabled && rig.IsThirdPerson);
             if (Time.unscaledTime < nextRefresh) return;
             nextRefresh = Time.unscaledTime + .08f;
             FindLocalPlayer(); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshCraft(); RefreshSkills(); RefreshNavigation();
@@ -568,7 +617,8 @@ namespace Wreckabulary
             if (LocalPlayer && LocalPlayer.isActiveAndEnabled) return;
             LocalPlayer = null;
             foreach (var p in World.Players) if (p && (p.Binding is TouchBinding || p.Binding is DesktopBinding)) { LocalPlayer = p; break; }
-            if (!LocalPlayer) foreach (var p in World.Players) if (p && p.Binding is not ScriptedBinding) { LocalPlayer = p; break; }
+            // Never an AI seat: its HP and hands aren't anyone's at this screen.
+            if (!LocalPlayer) foreach (var p in World.Players) if (p && p.Binding is not ScriptedBinding and not BotBinding) { LocalPlayer = p; break; }
             TouchBinding.Shared.OverlayDesktop = TouchControlsShown && LocalPlayer && LocalPlayer.Binding is DesktopBinding;
             TouchBinding.Shared.OverlayBindingId = TouchControlsShown && LocalPlayer && LocalPlayer.Binding is not TouchBinding ? LocalPlayer.Binding?.Id : null;
         }
@@ -599,7 +649,8 @@ namespace Wreckabulary
             for (int i = 0; current != null && i < current.Count && shown < cards.Count; i++)
             {
                 var p = current[i];
-                if (!p || p == LocalPlayer) continue;
+                // Only couch roommates get a card; the web shows none for AI housemates.
+                if (!p || p == LocalPlayer || p.Binding is BotBinding) continue;
                 var card = cards[shown++];
                 card.root.SetActive(true);
                 card.badge.color = p.Color; card.initial.text = p.Initial.ToString();
@@ -617,14 +668,12 @@ namespace Wreckabulary
             string room = LocalPlayer && layout != null ? RoomOf(layout, LocalPlayer) : null;
             roomPill.text = room != null ? Spaced(room) : layout != null ? "House" : "";
             roomPill.transform.parent.gameObject.SetActive(roomPill.text.Length > 0);
-            if (checklistText.Length > 0) objective.text = checklistText;
-            else
-            {
-                var current = Roster;
-                int up = 0, all = 0;
-                if (current != null) foreach (var p in current) { if (!p) continue; all++; if (!p.IsDowned && !p.IsEliminated) up++; }
-                objective.text = all > 0 ? $"<size=72%><cspace=6>THE HOUSEMATES</cspace></size>\n<b>{up} / {all} UP & ABOUT</b>" : "";
-            }
+            // The head count has its own pill now; the objective card shows only a real objective.
+            objective.text = checklistText;
+            var current = Roster;
+            int up = 0, all = 0;
+            if (current != null) foreach (var p in current) { if (!p) continue; all++; if (!p.IsDowned && !p.IsEliminated) up++; }
+            aliveText.text = all > 0 ? $"{up}/{all}" : "-";
             var goal = (RectTransform)objective.transform.parent;
             goal.gameObject.SetActive(objective.text.Length > 0);
             goal.sizeDelta = new Vector2(252f, Mathf.Clamp(objective.GetPreferredValues(objective.text, 226f, 0f).y + 22f, 48f, 330f));
@@ -634,8 +683,11 @@ namespace Wreckabulary
             vitals.gameObject.SetActive(LocalPlayer);
             if (!LocalPlayer) return;
             var health = LocalPlayer.Health;
-            hpValue.text = health.IsDowned ? $"DOWN <size=40%>{Mathf.CeilToInt(health.BleedOutLeft)}s</size>" : $"{Mathf.CeilToInt(health.Current)} <size=40%>HP</size>";
-            healthFill.fillAmount = health.Fraction; healthFill.color = health.Fraction > .35f ? Health : Low;
+            hpValue.text = health.IsDowned ? $"DOWN <size=40%>{Mathf.CeilToInt(health.BleedOutLeft)}s</size>" : $"{Mathf.CeilToInt(health.Current)}<size=30%> HP</size>";
+            // Low health shows in the number's colour and a pulse, not in colour alone.
+            bool low = health.IsDowned || health.Current < 30f;
+            hpValue.color = low ? LowHp : OnGame;
+            hpValue.rectTransform.localScale = Vector3.one * (low ? 1f + .06f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 5f)) : 1f);
             shieldText.text = health.Bubble > 0f ? $"+{Mathf.CeilToInt(health.Bubble)} SHIELD" : "";
             for (int i = 0; i < 2; i++) ShowHand(hands[i], i, false);
         }
@@ -645,11 +697,12 @@ namespace Wreckabulary
             var gear = combat.GearIn(slot);
             bool active = slot == combat.ActiveSlot;
             bool carrying = active && combat.IsHolding && !combat.Weapon;
-            view.face.color = active ? SlotActive : Slot;
-            view.frame.enabled = active;
+            // The bag panel's slots sit on its paper; the HUD's are glass on the game with a light edge on the hand in use.
+            if (detail) { view.face.color = active ? SlotActive : Slot; view.frame.enabled = active; }
+            else { view.face.color = active ? GlassActive : Glass; view.edge.color = active ? GlassEdge : GlassIdle; }
             string word = gear ? gear.word : carrying ? "Carrying" : null;
             view.label.text = word ?? "Empty hand";
-            view.label.color = word != null ? Ink : Faded;
+            view.label.color = detail ? word != null ? Ink : Faded : word != null ? OnGame : Hex(0xfff7e8, .7f);
             view.icon.texture = gear && itemIcons.TryGetValue(gear.word, out var texture) ? texture : null;
             view.icon.enabled = view.icon.texture;
             if (view.wearTrack)
@@ -1013,19 +1066,30 @@ namespace Wreckabulary
         }
         HandView MakeHand(string label, RectTransform parent, Vector2 position, Vector2 size, int slot, Action onTap, bool detail = false)
         {
-            var rt = Panel(label, parent, Vector2.zero, position, size, Vector2.zero, Slot);
+            var rt = Panel(label, parent, Vector2.zero, position, size, Vector2.zero, detail ? Slot : Glass);
             var view = new HandView { face = rt.GetComponent<Image>() };
             view.face.raycastTarget = true;
             rt.gameObject.AddComponent<Button>().onClick.AddListener(() => onTap());
-            // The browser's 2px ink border on the hand in use.
-            view.frame = rt.gameObject.AddComponent<Outline>();
-            view.frame.effectColor = Ink; view.frame.effectDistance = new Vector2(3f, -3f);
-            var key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(8f, -5f), new Vector2(20f, 18f), 12f, Ink, TextAlignmentOptions.Left);
+            if (detail)
+            {
+                // The browser's 2px ink border on the hand in use.
+                view.frame = rt.gameObject.AddComponent<Outline>();
+                view.frame.effectColor = Ink; view.frame.effectDistance = new Vector2(3f, -3f);
+            }
+            else
+            {
+                // An outline effect would show through the glass, so the edge is a ring of its own.
+                view.edge = CreateImage("Edge", rt, Vector2.zero, Vector2.zero, Vector2.zero, GlassIdle);
+                view.edge.rectTransform.anchorMax = Vector2.one; view.edge.rectTransform.offsetMin = view.edge.rectTransform.offsetMax = Vector2.zero;
+                view.edge.sprite = ringSprite; view.edge.type = Image.Type.Sliced;
+            }
+            var key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(8f, -5f), new Vector2(20f, 18f), 12f, detail ? Ink : OnGame, TextAlignmentOptions.Left);
             key.text = (slot + 1).ToString(); key.rectTransform.pivot = new Vector2(0f, 1f);
             view.icon = Rect("Icon", rt, new Vector2(.5f, 1f), new Vector2(0f, -4f), new Vector2(54f, 50f)).gameObject.AddComponent<RawImage>();
             ((RectTransform)view.icon.transform).pivot = new Vector2(.5f, 1f); view.icon.raycastTarget = false;
             view.label = Text("Word", rt, new Vector2(.5f, 0f), new Vector2(0f, detail ? 16f : 6f), new Vector2(size.x - 10f, 20f), detail ? 15f : 12f, Ink);
             view.label.rectTransform.pivot = new Vector2(.5f, 0f);
+            if (!detail) { OnGameText(key); OnGameText(view.label); }
             if (detail)
             {
                 var track = Panel("Wear", rt, new Vector2(.5f, 0f), new Vector2(0f, 7f), new Vector2(size.x - 24f, 6f), new Vector2(.5f, 0f), Track);
@@ -1042,7 +1106,8 @@ namespace Wreckabulary
             var sprite = Sprite.Create(iconAtlas, new Rect(r.x * sx, iconAtlas.height - (r.y + r.height) * sy, r.width * sx, r.height * sy), new Vector2(.5f, .5f), 100f);
             ownedSprites.Add(sprite); return sprite;
         }
-        Sprite MakeShape(bool circle)
+        /// <summary>A rounded square, a circle, or (with a ring width) only a rounded square's edge.</summary>
+        Sprite MakeShape(bool circle, float ring = 0f)
         {
             const int size = 64;
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = circle ? "HUD circle" : "HUD panel", filterMode = FilterMode.Bilinear };
@@ -1051,9 +1116,12 @@ namespace Wreckabulary
             {
                 float dx = Mathf.Abs(x - 31.5f), dy = Mathf.Abs(y - 31.5f);
                 float distance = circle ? Mathf.Sqrt(dx * dx + dy * dy) - 30f : new Vector2(Mathf.Max(dx - 20f, 0f), Mathf.Max(dy - 20f, 0f)).magnitude - 11f;
-                pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(.5f - distance));
+                float alpha = Mathf.Clamp01(.5f - distance);
+                if (ring > 0f) alpha *= Mathf.Clamp01(.5f + distance + ring);
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
             }
             texture.SetPixels(pixels); texture.Apply(false, true);
+            if (ring > 0f) texture.name = "HUD ring";
             var sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 100f, 0, SpriteMeshType.FullRect, circle ? Vector4.zero : new Vector4(14f, 14f, 14f, 14f));
             ownedSprites.Add(sprite); ownedTextures.Add(texture); return sprite;
         }

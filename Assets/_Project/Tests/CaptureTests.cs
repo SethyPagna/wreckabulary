@@ -250,20 +250,23 @@ namespace Wreckabulary.Tests
                 yield return SceneManager.LoadSceneAsync(Session.DibsScene);
                 yield return new WaitForSeconds(1f);
                 yield return CaptureFramed(Path.Combine(dir, $"map_{map}.png"));
-                // One player alone: in a house with an upstairs, downstairs with the floors above lifted off;
-                // then on every map, followed from behind as a person with a mouse or a controller sees it.
+                // One person with a mouse and AI opponents: the view from behind and the HUD they play with.
+                Session.Clear();
+                Session.SelectMap(map);
+                Match.ModeOverride = "Dibs";
+                Session.Remember(DesktopBinding.Shared);
+                yield return SceneManager.LoadSceneAsync(Session.DibsScene);
+                yield return new WaitForSeconds(1.5f);
+                yield return CaptureFramed(Path.Combine(dir, $"map_{map}_tps.png"));
+                // A house with an upstairs: also one overhead player downstairs, with the floors above lifted off.
+                if (GameConfig.Current.HouseFor(map).StoreyFloors().Count < 2) continue;
                 Session.Clear();
                 Session.SelectMap(map);
                 Match.ModeOverride = "Dibs";
                 Session.Remember(new ScriptedBinding());
                 yield return SceneManager.LoadSceneAsync(Session.DibsScene);
                 yield return new WaitForSeconds(1.5f);
-                if (GameConfig.Current.HouseFor(map).StoreyFloors().Count >= 2)
-                    yield return CaptureFramed(Path.Combine(dir, $"map_{map}_solo.png"));
-                CameraRig.Instance.Follow(World.Players[0]);
-                yield return new WaitForSeconds(1f);
-                yield return CaptureFramed(Path.Combine(dir, $"map_{map}_tps.png"));
-                CameraRig.Instance.Follow(null);
+                yield return CaptureFramed(Path.Combine(dir, $"map_{map}_solo.png"));
             }
             Session.Clear();
         }

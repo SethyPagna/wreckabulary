@@ -43,11 +43,11 @@ namespace Wreckabulary.Tests
             return p;
         }
 
-        static IEnumerator LoadBattle(string mode)
+        static IEnumerator LoadBattle(string mode, InputBinding you = null)
         {
             Session.SelectMap("walkup");
             Match.ModeOverride = mode;
-            Session.Remember(new ScriptedBinding());
+            Session.Remember(you ?? new ScriptedBinding());
             yield return TestScenes.Load(Session.DibsScene);
         }
 
@@ -191,7 +191,8 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator EveryoneStartsInAFlatAndTheMapCountsFloors()
         {
-            yield return LoadBattle("Dibs");
+            // One person at the keyboard with three AI roommates: the HUD and its map are that person's.
+            yield return LoadBattle("Dibs", DesktopBinding.Shared);
             yield return new WaitForSeconds(.5f);
             var layout = Object.FindAnyObjectByType<RoomBuilder>().Layout;
             Assert.AreEqual("Walk-up Apartments", layout.Name);

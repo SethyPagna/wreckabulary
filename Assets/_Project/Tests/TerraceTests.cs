@@ -39,11 +39,11 @@ namespace Wreckabulary.Tests
             return p;
         }
 
-        static IEnumerator LoadBattle(string mode)
+        static IEnumerator LoadBattle(string mode, InputBinding you = null)
         {
             Session.SelectMap("terrace");
             Match.ModeOverride = mode;
-            Session.Remember(new ScriptedBinding());
+            Session.Remember(you ?? new ScriptedBinding());
             yield return TestScenes.Load(Session.DibsScene);
         }
 
@@ -215,7 +215,8 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator TwoStartUpstairsAndTheMapShowsYourFloor()
         {
-            yield return LoadBattle("Dibs");
+            // One person at the keyboard with three AI roommates: the HUD and its map are that person's.
+            yield return LoadBattle("Dibs", DesktopBinding.Shared);
             yield return new WaitForSeconds(.5f);
             var layout = Object.FindAnyObjectByType<RoomBuilder>().Layout;
             Assert.AreEqual("Terrace House", layout.Name);
@@ -230,7 +231,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(2, joins.Players.Count(p => Mathf.Abs(p.transform.position.y) < .3f), "two start downstairs");
             Assert.AreEqual(2, joins.Players.Count(p => Mathf.Abs(p.transform.position.y - 3f) < .3f), "two start upstairs");
 
-            // The small map shows the floor of whoever the HUD follows (a scripted test player never is).
+            // The small map shows the floor of whoever the HUD follows (never an AI or a scripted test player).
             var hud = Object.FindAnyObjectByType<GameHud>();
             yield return TestScenes.WaitUntil(() => hud.LocalPlayer, 2f, "the HUD follows someone");
             TextMeshProUGUI Badge() => hud.GetComponentsInChildren<TextMeshProUGUI>().FirstOrDefault(t => t.name == "Storey" && t.isActiveAndEnabled);

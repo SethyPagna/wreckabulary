@@ -87,9 +87,15 @@ namespace Wreckabulary.Tests
             Assert.IsNull(tray.Find("Letter 11"), "Two rows of five, like the browser bag.");
             Assert.IsNotNull(safe.Find("Side column/Minimap"));
             Assert.IsNotNull(safe.Find("Side column/Timer"));
+            Assert.IsNotNull(safe.Find("Side column/Alive/Count"), "A head count sits before the timer, as on the web.");
             Assert.IsNotNull(safe.Find("Side column/Objective"));
+            Assert.IsNull(safe.Find("Side column/Pause"), "The brand tile is the pause button.");
+            Assert.IsNull(safe.Find("Return home"), "The way home is in the pause card.");
             Assert.IsNotNull(safe.Find("Vitals/Hand 1"));
             Assert.IsNotNull(safe.Find("Vitals/Hand 2"));
+            Assert.IsNull(safe.Find("Vitals").GetComponent<Image>(), "Vitals sit straight on the game, with no card.");
+            Assert.IsNull(safe.Find("Vitals/Health track"));
+            StringAssert.Contains("HP", safe.Find("Vitals/HP").GetComponent<TMPro.TMP_Text>().text);
             Assert.IsTrue(safe.Find("Desktop controls").gameObject.activeSelf, "Desktop shows the key bar.");
             Assert.IsFalse(safe.Find("Touch controls").gameObject.activeSelf, "On-screen buttons are for touch only.");
 
@@ -103,7 +109,7 @@ namespace Wreckabulary.Tests
             tray.Find("Bag link").GetComponent<Button>().onClick.Invoke();
             Assert.IsFalse(hud.BagOpen);
 
-            safe.Find("Side column/Pause").GetComponent<Button>().onClick.Invoke();
+            safe.Find("Brand").GetComponent<Button>().onClick.Invoke();
             Assert.IsTrue(hud.Paused);
             Assert.AreEqual(0f, Time.timeScale);
             safe.Find("Pause/Pause card/Resume").GetComponent<Button>().onClick.Invoke();
@@ -118,10 +124,53 @@ namespace Wreckabulary.Tests
             // SMASH throws and places too, so there is no PLACE button (its name has a "/", so Find can't look it up).
             foreach (Transform child in safe.Find("Touch controls"))
                 Assert.IsFalse(child.name.StartsWith("PLACE"), "No separate place button: " + child.name);
-            StringAssert.Contains("smash, throw, place", safe.Find("Desktop controls/Keys").GetComponent<TMPro.TMP_Text>().text);
-            StringAssert.DoesNotContain("<b>F</b>", safe.Find("Desktop controls/Keys").GetComponent<TMPro.TMP_Text>().text);
+            var keys = safe.Find("Desktop controls/Keys").GetComponent<TMPro.TMP_Text>().text;
+            StringAssert.Contains("smash, throw, place", keys);
+            StringAssert.Contains("mouse aim", keys, "Under the overhead camera the mouse aims.");
+            StringAssert.DoesNotContain(">F<", keys);
+            StringAssert.DoesNotContain("block", keys, "Seven entries, like the web's bar.");
             Object.Destroy(hud.gameObject);
             Object.Destroy(player.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator OnlyCouchRoommatesGetCardsAndTheCountShowsWhoIsUp()
+        {
+            var touch = TouchBinding.Shared;
+            touch.Enabled = true;
+            var you = Spawn(touch);
+            var mate = Spawn(new ScriptedBinding());
+            mate.transform.position = new Vector3(3f, 0f, 0f);
+            var bot = Spawn(new BotBinding());
+            bot.transform.position = new Vector3(-3f, 0f, 0f);
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            hud.SetScoreboard(new[] { you, mate, bot }, _ => 0, 3, false);
+            mate.Health.Eliminate();
+            yield return new WaitForSecondsRealtime(0.12f);
+            Assert.AreSame(you, hud.LocalPlayer);
+            var safe = hud.transform.Find("Safe HUD");
+            Assert.IsTrue(safe.Find("Roommate 1").gameObject.activeSelf, "A couch roommate keeps a card.");
+            StringAssert.Contains("WRECKED", safe.Find("Roommate 1/Status").GetComponent<TMPro.TMP_Text>().text);
+            Assert.IsFalse(safe.Find("Roommate 2").gameObject.activeSelf, "AI housemates get no card, as on the web.");
+            Assert.AreEqual("2/3", safe.Find("Side column/Alive/Count").GetComponent<TMPro.TMP_Text>().text);
+            Assert.IsFalse(safe.Find("Side column/Objective").gameObject.activeSelf, "No filler objective when there's nothing to do.");
+            Object.Destroy(hud.gameObject);
+            foreach (var p in new[] { you, mate, bot }) Object.Destroy(p.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator TouchButtonsWaitForATouchScreen()
+        {
+            var you = Spawn(TouchBinding.Shared);
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            var safe = hud.transform.Find("Safe HUD");
+            Assert.AreEqual(Application.isMobilePlatform, safe.Find("Touch controls").gameObject.activeSelf,
+                "A desktop starts with the key bar, even with a touchscreen plugged in.");
+            Assert.AreEqual(!Application.isMobilePlatform, safe.Find("Desktop controls").gameObject.activeSelf);
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
         }
     }
 }
