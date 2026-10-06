@@ -5,6 +5,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
@@ -20,6 +22,9 @@ namespace Wreckabulary.Tests
         bool hadVolume;
         float savedVolume, savedDelay;
         Gamepad pad;
+        Keyboard keys;
+        InputSettings.EditorInputBehaviorInPlayMode? keysRoute;
+        InputSettings.BackgroundBehavior keysFocus;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -41,6 +46,14 @@ namespace Wreckabulary.Tests
         {
             if (pad != null && pad.added) InputSystem.RemoveDevice(pad);
             pad = null;
+            if (keys != null && keys.added) InputSystem.RemoveDevice(keys);
+            keys = null;
+            if (keysRoute.HasValue)
+            {
+                InputSystem.settings.editorInputBehaviorInPlayMode = keysRoute.Value;
+                InputSystem.settings.backgroundBehavior = keysFocus;
+            }
+            keysRoute = null;
             yield return TestScenes.Reset();
             for (int i = 0; i < Keys.Length; i++)
             {
@@ -112,6 +125,34 @@ namespace Wreckabulary.Tests
             yield return null;
             InputSystem.QueueStateEvent(pad, new GamepadState());
             yield return null;
+        }
+
+        /// <summary>A key press that the lobby reads on the next frame.</summary>
+        IEnumerator Tap(Key key)
+        {
+            if (keys == null)
+            {
+                // In the editor, keys reach play mode only while the Game view has focus, and a batch run has
+                // none: the Input System lets them through regardless only with both of these set.
+                keysRoute = InputSystem.settings.editorInputBehaviorInPlayMode;
+                keysFocus = InputSystem.settings.backgroundBehavior;
+                InputSystem.settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+                InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+                keys = InputSystem.AddDevice<Keyboard>();
+            }
+            keys.MakeCurrent();
+            InputSystem.QueueStateEvent(keys, new KeyboardState(key));
+            yield return null;
+            InputSystem.QueueStateEvent(keys, new KeyboardState());
+            yield return null;
+        }
+
+        /// <summary>A left click that starts and ends on this object, as the event system sends it.</summary>
+        static void ClickOn(GameObject target)
+        {
+            var e = new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left };
+            e.pointerPressRaycast = new RaycastResult { gameObject = target };
+            ExecuteEvents.ExecuteHierarchy(target, e, ExecuteEvents.pointerClickHandler);
         }
 
         static void AssertFramed(LobbyStage stage, string why)
@@ -193,6 +234,123 @@ namespace Wreckabulary.Tests
             Click("Home");
             yield return new WaitForSeconds(1f);
             Assert.AreEqual(.5f, menu.Stage.Camera.WorldToViewportPoint(menu.Stage.Spot).x, .03f, "back in the middle at home");
+        }
+
+        [UnityTest]
+        public IEnumerator BarButtonsToggleTheirPage()
+        {
+            // "clicking to open and clicking to close" (user, 6 Oct 2026).
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            foreach (var (button, page) in new[]
+            {
+                ("LOADOUT", LobbyMenu.Loadout), ("PLAY", LobbyMenu.Play), ("CAREER", LobbyMenu.CareerPage),
+                ("Shop", LobbyMenu.Shop), ("Leaderboard", LobbyMenu.Trophy), ("Settings", LobbyMenu.Settings),
+            })
+            {
+                Click(button);
+                yield return null;
+                Assert.AreEqual(page, menu.Current, $"{button} opens its page");
+                Assert.IsTrue(Find(button).TryGetComponent(out LobbyTab tab) ? tab.On : true, $"{button} shows it is open");
+                Click(button);
+                yield return null;
+                Assert.AreEqual(LobbyMenu.Home, menu.Current, $"{button} again closes it");
+                Assert.AreSame(Find(button).gameObject, Selected, $"a keyboard or controller is back on {button}, not on GO");
+            }
+            Click("Home");
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, "Home stays home");
+        }
+
+        [UnityTest]
+        public IEnumerator PagesCloseFromTheirCornerEscAndTheSpaceRoundThem()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            foreach (var (button, page) in new[] { ("CAREER", LobbyMenu.CareerPage), ("PLAY", LobbyMenu.Play), ("Settings", LobbyMenu.Settings) })
+            {
+                Click(button);
+                yield return null;
+                Click("Close page");
+                yield return null;
+                Assert.AreEqual(LobbyMenu.Home, menu.Current, $"the X closes {page}");
+                Assert.AreSame(Find(button).gameObject, Selected);
+            }
+
+            Click("LOADOUT");
+            yield return null;
+            yield return Tap(Key.Escape);
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, "Esc closes the page");
+            Assert.AreSame(Find("LOADOUT").gameObject, Selected);
+
+            // Centred pages close on a click beside their panel; a click on the panel doesn't.
+            Click("Leaderboard");
+            yield return null;
+            var shade = menu.GetComponentsInChildren<LobbyShade>().Single(s => s.name == "Shade");
+            var panel = menu.GetComponentsInChildren<RectTransform>().First(r => r.name == "Panel");
+            ClickOn(panel.gameObject);
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Trophy, menu.Current, "a click on the panel stays");
+            ClickOn(shade.gameObject);
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, "a click beside it closes it");
+            Assert.AreSame(Find("Leaderboard").gameObject, Selected);
+        }
+
+        [UnityTest]
+        public IEnumerator EscInTheNameFieldKeepsSettingsOpen()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Click("Settings");
+            yield return null;
+            var field = menu.GetComponentsInChildren<TMPro.TMP_InputField>().Single();
+            EventSystem.current.SetSelectedGameObject(field.gameObject);
+            field.ActivateInputField();
+            yield return null;
+            yield return null;
+            Assert.IsTrue(field.isFocused, "typing a name");
+            yield return Tap(Key.Escape);
+            Assert.AreEqual(LobbyMenu.Settings, menu.Current, "Esc leaves the field, not the page");
+            field.DeactivateInputField();
+            EventSystem.current.SetSelectedGameObject(null);
+            yield return null;
+            yield return null;
+            yield return Tap(Key.Escape);
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, "out of the field, Esc closes the page");
+        }
+
+        [UnityTest]
+        public IEnumerator AClickBesideTheQuitBoxMeansStay()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Click("Quit");
+            yield return null;
+            var dialog = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Quit dialog");
+            ClickOn(dialog.Find("Box").gameObject);
+            yield return null;
+            Assert.IsTrue(dialog, "a click on the box itself stays open");
+            ClickOn(dialog.gameObject);
+            yield return null;
+            Assert.IsFalse(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Quit dialog"), "a click beside it closes it");
+            Assert.AreSame(Find("Quit").gameObject, Selected);
+            Assert.AreEqual(Session.HubScene, SceneManager.GetActiveScene().name, "and the game keeps running");
+        }
+
+        [UnityTest]
+        public IEnumerator TheLobbyAndMatchesRenderSmoothedAndToneMapped()
+        {
+            yield return OpenLobby();
+            var asset = (UniversalRenderPipelineAsset)GraphicsSettings.currentRenderPipeline;
+            Assert.AreEqual(4, asset.msaaSampleCount, "MSAA 4x on the PC pipeline");
+            var cam = LobbyMenu.Instance.Stage.Camera;
+            Assert.IsTrue(cam.GetUniversalAdditionalCameraData().renderPostProcessing, "the lobby camera post-processes");
+            Assert.IsTrue(GraphicsOptions.Look, "the shared look volume exists");
+            Assert.IsTrue(GraphicsOptions.Look.sharedProfile.TryGet(out Tonemapping tone) && tone.mode.value == TonemappingMode.ACES, "ACES, as on the web");
+            yield return TestScenes.Reset();
+            yield return TestScenes.Load(Session.DibsScene);
+            Assert.IsTrue(Camera.main.GetUniversalAdditionalCameraData().renderPostProcessing, "match cameras post-process too");
         }
 
         [UnityTest]

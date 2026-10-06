@@ -46,6 +46,7 @@ namespace Wreckabulary
             basePosition = smooth = transform.position;
             // The browser edition's deep teal surrounds the house, so the edges blend into the HUD instead of a void.
             if (TryGetComponent<Camera>(out var camera)) { camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = new Color32(0x17, 0x3a, 0x3d, 0xff); }
+            GraphicsOptions.ApplyTo(camera);
         }
 
         /// <summary>Orthographic size that shows the whole house with a slim margin.</summary>

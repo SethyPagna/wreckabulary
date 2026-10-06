@@ -173,6 +173,7 @@ namespace Wreckabulary
             cam.clearFlags = CameraClearFlags.SolidColor;
             // A warm evening wash above the walls instead of the hub's teal.
             cam.backgroundColor = new Color(.93f, .8f, .64f);
+            GraphicsOptions.ApplyTo(cam);
             cameraTaken = true;
         }
 

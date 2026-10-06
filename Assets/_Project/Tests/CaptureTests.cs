@@ -257,63 +257,137 @@ namespace Wreckabulary.Tests
             Session.Clear();
         }
 
+        /// <summary>The capture size: WRECK_CAPTURE_SIZE as "2560x1440", or 1600 x 900.</summary>
+        static Vector2Int Size()
+        {
+            string asked = Environment.GetEnvironmentVariable("WRECK_CAPTURE_SIZE");
+            var parts = (asked ?? "").Split('x');
+            return parts.Length == 2 && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h) && w > 0 && h > 0
+                ? new Vector2Int(w, h) : new Vector2Int(1600, 900);
+        }
+
+        /// <summary>A free layer the overlay canvases sit on while they are captured.</summary>
+        const int UiLayer = 31;
+
         /// <summary>Like <see cref="Capture"/>, but the camera targets the texture first so the UI lays out at its size.</summary>
         static IEnumerator CaptureFramed(string path)
         {
             var cam = Camera.main;
-            var rt = new RenderTexture(1600, 900, 24);
+            var size = Size();
+            var rt = new RenderTexture(size.x, size.y, 24);
             var canvases = UnityEngine.Object.FindObjectsByType<Canvas>()
                 .Where(c => c.isRootCanvas && c.renderMode == RenderMode.ScreenSpaceOverlay).ToArray();
             cam.targetTexture = rt;
-            foreach (var c in canvases)
-            {
-                c.renderMode = RenderMode.ScreenSpaceCamera;
-                c.worldCamera = cam;
-                // Just past the near plane: on it, depth precision clips the UI away in bands.
-                c.planeDistance = Mathf.Max(.3f, cam.nearClipPlane + .05f);
-            }
+            // Just past the near plane: on it, depth precision clips the UI away in bands.
+            var layers = ToCamera(canvases, cam, Mathf.Max(.3f, cam.nearClipPlane + .05f));
             // Canvas scalers resize in Update.
             yield return null;
             yield return null;
             Canvas.ForceUpdateCanvases();
-            var request = new UniversalRenderPipeline.SingleCameraRequest { destination = rt };
-            if (RenderPipeline.SupportsRenderRequest(cam, request)) RenderPipeline.SubmitRenderRequest(cam, request);
-            else cam.Render();
+            var shot = RenderWithUi(cam, rt);
             cam.targetTexture = null;
-            foreach (var c in canvases)
-                if (c) c.renderMode = RenderMode.ScreenSpaceOverlay;
-            Save(rt, path);
+            ToOverlay(canvases, layers);
+            Save(shot, rt, path);
         }
 
         static void Capture(string path)
         {
             var cam = Camera.main;
-            var rt = new RenderTexture(1600, 900, 24);
-
+            var size = Size();
+            var rt = new RenderTexture(size.x, size.y, 24);
             // Overlay canvases aren't drawn by cameras, so render the HUD through the camera for the capture.
-            var canvases = UnityEngine.Object.FindObjectsByType<Canvas>();
+            var canvases = UnityEngine.Object.FindObjectsByType<Canvas>().Where(c => c.isRootCanvas && c.renderMode == RenderMode.ScreenSpaceOverlay).ToArray();
+            var layers = ToCamera(canvases, cam, 1f);
+            Canvas.ForceUpdateCanvases();
+            var shot = RenderWithUi(cam, rt);
+            ToOverlay(canvases, layers);
+            Save(shot, rt, path);
+        }
+
+        /// <summary>Draws the canvases through the camera, on the capture's UI layer. Returns each object's own layer.</summary>
+        static (GameObject go, int layer)[] ToCamera(Canvas[] canvases, Camera cam, float planeDistance)
+        {
+            var layers = canvases.SelectMany(c => c.GetComponentsInChildren<Transform>(true)).Select(t => (t.gameObject, t.gameObject.layer)).ToArray();
+            foreach (var (go, _) in layers) go.layer = UiLayer;
             foreach (var c in canvases)
             {
                 c.renderMode = RenderMode.ScreenSpaceCamera;
                 c.worldCamera = cam;
-                c.planeDistance = 1f;
+                c.planeDistance = planeDistance;
             }
-            Canvas.ForceUpdateCanvases();
-            var request = new UniversalRenderPipeline.SingleCameraRequest { destination = rt };
-            if (RenderPipeline.SupportsRenderRequest(cam, request))
-                RenderPipeline.SubmitRenderRequest(cam, request);
-            else
-            {
-                cam.targetTexture = rt;
-                cam.Render();
-                cam.targetTexture = null;
-            }
-
-            foreach (var c in canvases) c.renderMode = RenderMode.ScreenSpaceOverlay;
-            Save(rt, path);
+            return layers;
         }
 
-        static void Save(RenderTexture rt, string path)
+        static void ToOverlay(Canvas[] canvases, (GameObject go, int layer)[] layers)
+        {
+            foreach (var c in canvases)
+                if (c) c.renderMode = RenderMode.ScreenSpaceOverlay;
+            foreach (var (go, layer) in layers)
+                if (go) go.layer = layer;
+        }
+
+        /// <summary>
+        /// The world with its post-processing, and the UI on top without it: on screen the UI is an
+        /// overlay that the tone curve never touches, so a capture mustn't tone-map it either. URP clears
+        /// a camera's target even when told not to, so the UI renders on its own, once over black and once
+        /// over white; the difference between the two is its coverage, which lays it over the world.
+        /// </summary>
+        static Texture2D RenderWithUi(Camera cam, RenderTexture rt)
+        {
+            var data = cam.GetUniversalAdditionalCameraData();
+            int mask = cam.cullingMask;
+            var clear = cam.clearFlags;
+            var background = cam.backgroundColor;
+            bool post = data.renderPostProcessing, hdr = cam.allowHDR;
+            cam.cullingMask = mask & ~(1 << UiLayer);
+            Submit(cam, rt);
+            var world = Read(rt);
+            cam.cullingMask = 1 << UiLayer;
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            data.renderPostProcessing = false;
+            cam.allowHDR = false;
+            cam.backgroundColor = Color.black;
+            Submit(cam, rt);
+            var black = Read(rt);
+            cam.backgroundColor = Color.white;
+            Submit(cam, rt);
+            var white = Read(rt);
+            cam.cullingMask = mask;
+            cam.clearFlags = clear;
+            cam.backgroundColor = background;
+            data.renderPostProcessing = post;
+            cam.allowHDR = hdr;
+
+            // The target blends in linear light, so the layers combine there too.
+            var linear = new float[256];
+            for (int i = 0; i < 256; i++) linear[i] = Mathf.GammaToLinearSpace(i / 255f);
+            var pixels = world.GetPixels32();
+            var overBlack = black.GetPixels32();
+            var overWhite = white.GetPixels32();
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                var w = pixels[i];
+                var b = overBlack[i];
+                var o = overWhite[i];
+                pixels[i] = new Color32(Over(linear, w.r, b.r, o.r), Over(linear, w.g, b.g, o.g), Over(linear, w.b, b.b, o.b), 255);
+            }
+            world.SetPixels32(pixels);
+            world.Apply();
+            UnityEngine.Object.Destroy(black);
+            UnityEngine.Object.Destroy(white);
+            return world;
+        }
+
+        /// <summary>One channel of the UI over the world: over black the UI shows its colour times its
+        /// coverage; over white, that plus what it lets through.</summary>
+        static byte Over(float[] linear, byte world, byte overBlack, byte overWhite)
+        {
+            float ui = linear[overBlack];
+            float through = Mathf.Clamp01(linear[overWhite] - ui);
+            return (byte)Mathf.RoundToInt(Mathf.LinearToGammaSpace(Mathf.Clamp01(ui + linear[world] * through)) * 255f);
+        }
+
+        static Texture2D Read(RenderTexture rt)
         {
             var prev = RenderTexture.active;
             RenderTexture.active = rt;
@@ -321,6 +395,25 @@ namespace Wreckabulary.Tests
             tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
             tex.Apply();
             RenderTexture.active = prev;
+            return tex;
+        }
+
+        static void Submit(Camera cam, RenderTexture rt)
+        {
+            var request = new UniversalRenderPipeline.SingleCameraRequest { destination = rt };
+            if (RenderPipeline.SupportsRenderRequest(cam, request))
+            {
+                RenderPipeline.SubmitRenderRequest(cam, request);
+                return;
+            }
+            var target = cam.targetTexture;
+            cam.targetTexture = rt;
+            cam.Render();
+            cam.targetTexture = target;
+        }
+
+        static void Save(Texture2D tex, RenderTexture rt, string path)
+        {
             File.WriteAllBytes(path, tex.EncodeToPNG());
             UnityEngine.Object.Destroy(tex);
             rt.Release();

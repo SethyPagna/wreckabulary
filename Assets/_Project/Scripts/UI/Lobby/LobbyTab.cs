@@ -42,7 +42,7 @@ namespace Wreckabulary
             edge.sprite = LobbyIcons.FrameSprite(LobbyKit.TabRadius, on ? 3 : 2);
             edge.color = on ? LobbyKit.Navy : LobbyKit.Line;
             var ink = on ? LobbyKit.Navy : LobbyKit.Cream;
-            label.color = ink;
+            if (label) label.color = ink;
             if (glyph) glyph.color = ink;
             // The open tab sits a little bigger and doesn't lift; the others lift under the pointer.
             press.Scale = on ? 1.06f : 1f;

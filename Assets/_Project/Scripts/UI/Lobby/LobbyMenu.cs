@@ -57,6 +57,8 @@ namespace Wreckabulary
         readonly KeyboardBinding keyboardRight = new KeyboardBinding(KeyboardBinding.Side.Right);
         readonly Dictionary<string, LobbyPage> pages = new Dictionary<string, LobbyPage>();
         readonly Dictionary<string, LobbyTab> tabs = new Dictionary<string, LobbyTab>();
+        /// <summary>The bar button that opens each page, where a keyboard or controller lands when it closes.</summary>
+        readonly Dictionary<string, Selectable> openers = new Dictionary<string, Selectable>();
         readonly List<PlayerController> frozen = new List<PlayerController>();
         Canvas canvas;
         RectTransform safe, pageHost, feed, feedList, rail, partyList, status, quitDialog;
@@ -66,7 +68,7 @@ namespace Wreckabulary
         /// <summary>The pad that pressed GO, which then plays the match.</summary>
         Gamepad goPad;
         float startAt;
-        bool hidden;
+        bool hidden, typedLastFrame;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Register()
@@ -212,12 +214,13 @@ namespace Wreckabulary
             LobbyKit.Gradient(bar.Paint(Color.white), LobbyKit.Bar, new Color(LobbyKit.Bar.r, LobbyKit.Bar.g, LobbyKit.Bar.b, 0f));
             var left = LobbyKit.Row(bar, "System", 10, 0);
             left.Place(new Vector2(0, 0), new Vector2(0, 1), new Vector2(18, 8), new Vector2(560, -8));
+            // Click to open, click again to close (user, 6 Oct 2026). Home always goes home.
             LobbyKit.IconButton(left, LobbyIcons.Home, "Home", () => Open(Home)).Size(52, 52);
-            LobbyKit.IconButton(left, LobbyIcons.Settings, "Settings", () => Open(Settings)).Size(52, 52);
+            openers[Settings] = LobbyKit.IconButton(left, LobbyIcons.Settings, "Settings", () => Toggle(Settings)).Size(52, 52);
             power = LobbyKit.IconButton(left, LobbyIcons.Power, "Quit", AskQuit).Size(52, 52);
             LobbyKit.Rect(left, "Divider").Paint(LobbyKit.Line).Size(2, 36);
-            LobbyKit.IconButton(left, LobbyIcons.Trophy, "Leaderboard", () => Open(Trophy)).Size(52, 52);
-            LobbyKit.IconButton(left, LobbyIcons.Cart, "Shop", () => Open(Shop)).Size(52, 52);
+            openers[Trophy] = LobbyKit.IconButton(left, LobbyIcons.Trophy, "Leaderboard", () => Toggle(Trophy)).Size(52, 52);
+            openers[Shop] = LobbyKit.IconButton(left, LobbyIcons.Cart, "Shop", () => Toggle(Shop)).Size(52, 52);
             left.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             left.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
 
@@ -228,7 +231,10 @@ namespace Wreckabulary
             row.childAlignment = TextAnchor.MiddleCenter;
             row.childForceExpandHeight = false;
             foreach (var (id, title, icon) in new[] { (Loadout, "LOADOUT", LobbyIcons.Locker), (Play, "PLAY", LobbyIcons.Play), (CareerPage, "CAREER", LobbyIcons.Badge) })
-                tabs[id] = LobbyKit.Tab(centre, title, icon, () => Open(id));
+            {
+                tabs[id] = LobbyKit.Tab(centre, title, icon, () => Toggle(id));
+                openers[id] = tabs[id].Button;
+            }
 
             // Coins only: the party lives in the rail, and sound and help live in Settings.
             var wallet = LobbyKit.Row(bar, "Wallet", 10, 0);
@@ -423,6 +429,25 @@ namespace Wreckabulary
             if (EventSystem.current && first) EventSystem.current.SetSelectedGameObject(first.gameObject);
         }
 
+        /// <summary>A bar tab or icon: opens its page, or closes it when it is the page showing.
+        /// Only the bar toggles; the menu's own redraws call <see cref="Open"/>.</summary>
+        public void Toggle(string id)
+        {
+            if (id == Current && id != Home) Close();
+            else Open(id);
+        }
+
+        /// <summary>Closes the open page (its X, Esc or B, a second click on its button): back home, with
+        /// a keyboard or controller on the button that opens it rather than on GO.</summary>
+        public void Close()
+        {
+            if (Current == null || Current == Home) return;
+            string was = Current;
+            Open(Home);
+            if (EventSystem.current && openers.TryGetValue(was, out var opener) && opener && opener.isActiveAndEnabled)
+                EventSystem.current.SetSelectedGameObject(opener.gameObject);
+        }
+
         public void Post(string message)
         {
             messages.Insert(0, message);
@@ -599,9 +624,14 @@ namespace Wreckabulary
             {
                 if (quitDialog) CloseQuit();
                 else if (Starting) CancelStart();
-                else if (Current != Home) Open(Home);
+                // Esc in the name field only leaves the field. The field may have let go of it already
+                // this frame, so the frame before counts too.
+                else if (Typing || typedLastFrame) { }
+                else Close();
             }
         }
+
+        void LateUpdate() => typedLastFrame = Typing;
 
         static bool AnyPad(Func<Gamepad, ButtonControl> button)
         {
@@ -653,6 +683,8 @@ namespace Wreckabulary
             if (quitDialog) return;
             var shade = quitDialog = LobbyKit.Rect(safe, "Quit dialog").Fill();
             shade.Paint(LobbyKit.Shade);
+            // A click beside the box means stay.
+            shade.gameObject.AddComponent<LobbyShade>().Clicked = CloseQuit;
             var box = LobbyKit.Rect(shade, "Box").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(600, 260));
             LobbyKit.Face(box, LobbyKit.Page, 26, LobbyKit.Line, 4, 8).raycastTarget = true;
             var title = LobbyKit.Display(box, "Leave Wreckabulary?", 40, LobbyKit.Sun, TextAlignmentOptions.Center, LobbyKit.Ink.Drop);

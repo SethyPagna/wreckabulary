@@ -29,6 +29,8 @@ namespace Wreckabulary
         public virtual LobbyStage.Focus Focus => LobbyStage.Focus.Centre;
         /// <summary>True when the lobby messages show beside this page.</summary>
         public virtual bool ShowFeed => false;
+        /// <summary>A centred page: a click in the empty space round its panel closes it.</summary>
+        public virtual bool Modal => false;
         public RectTransform Root { get; private set; }
         /// <summary>Where a keyboard or controller starts on this page.</summary>
         public Selectable First { get; protected set; }
@@ -46,6 +48,13 @@ namespace Wreckabulary
         {
             LobbyKit.Clear(Root);
             First = null;
+            if (Modal)
+            {
+                // Under the panel: clicks on the panel never reach it.
+                var shade = LobbyKit.Rect(Root, "Shade").Fill();
+                shade.Paint(Color.clear);
+                shade.gameObject.AddComponent<LobbyShade>().Clicked = Menu.Close;
+            }
             Build();
         }
 
@@ -69,12 +78,15 @@ namespace Wreckabulary
             face.raycastTarget = true;
             var head = LobbyKit.Display(panel, LobbyKit.Upper(title), 44, LobbyKit.Sun, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Drop);
             head.characterSpacing = 2;
-            head.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -86), new Vector2(-32, -18));
+            head.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -86), new Vector2(-88, -18));
+            // Every page closes from its own corner too, not only from the bar.
+            var close = LobbyKit.IconButton(panel, LobbyIcons.Close, "Close page", Menu.Close);
+            ((RectTransform)close.transform).Pin(Vector2.one, new Vector2(-20, -20), new Vector2(48, 48));
             float top = 100;
             if (!string.IsNullOrEmpty(subtitle))
             {
                 var sub = LobbyKit.Text(panel, subtitle, 19, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
-                sub.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -124), new Vector2(-32, -92));
+                sub.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(32, -124), new Vector2(-88, -92));
                 top = 134;
             }
             return LobbyKit.Rect(panel, "Body").Place(Vector2.zero, Vector2.one, new Vector2(32, 28), new Vector2(-32, -top));
@@ -856,6 +868,7 @@ namespace Wreckabulary
         static readonly Color RankHi = LobbyKit.Hex(0xfff4a8), RankLo = LobbyKit.Hex(0xe09a00);
 
         public override string Id => LobbyMenu.Trophy;
+        public override bool Modal => true;
 
         protected override void Build()
         {
@@ -915,6 +928,7 @@ namespace Wreckabulary
     public sealed class SettingsPage : LobbyPage
     {
         public override string Id => LobbyMenu.Settings;
+        public override bool Modal => true;
 
         // Unity switches full screen at the end of the frame, so the redraw straight after a click
         // would still read the old state; it shows what was asked for instead.
