@@ -15,6 +15,8 @@ namespace Wreckabulary
     public class DesktopBinding : InputBinding
     {
         static DesktopBinding shared;
+        /// <summary>The keyboard is typing a word into the HUD's composer: no player commands come from it meanwhile.</summary>
+        public static bool Typing;
 
         /// <summary>There is one mouse, so there is one desktop player, and a rebind applies everywhere.</summary>
         public static DesktopBinding Shared => shared ??= new DesktopBinding();
@@ -24,6 +26,7 @@ namespace Wreckabulary
         {
             shared?.Map.Dispose();
             shared = null;
+            Typing = false;
         }
 
         public readonly InputActionMap Map = new("Desktop");
@@ -72,6 +75,7 @@ namespace Wreckabulary
 
         public override void Read(ref PlayerCommands c)
         {
+            if (Typing) return;
             c.move = Vector2.ClampMagnitude(Move.ReadValue<Vector2>(), 1f);
             c.attack = Attack.WasPressedThisFrame();
             c.blockHeld = Block.IsPressed();

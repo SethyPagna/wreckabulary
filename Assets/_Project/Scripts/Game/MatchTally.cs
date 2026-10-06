@@ -7,7 +7,7 @@ using Wreckabulary.Rules;
 namespace Wreckabulary
 {
     /// <summary>
-    /// Counts what the local player does in a match (damage dealt, gear crafted) and adds the
+    /// Counts a match (the house's furniture wrecked, the local player's damage and crafts) and adds the
     /// finished match to their <see cref="Career"/>. Every match is practice for now: there is
     /// no online play yet.
     /// </summary>
@@ -17,12 +17,17 @@ namespace Wreckabulary
         static MatchTally current;
         readonly HashSet<PlayerController> watched = new HashSet<PlayerController>();
         PlayerController local;
-        float damage;
-        int crafted;
+        RoomBuilder room;
+        float damage, roundDamage;
+        int crafted, broken, roundCrafted, roundBroken;
 
         /// <summary>The last finished match, for the lobby to announce once.</summary>
         public static MatchRecord LastResult { get; set; }
         public static bool LastWasBest { get; private set; }
+        /// <summary>This round's numbers, for the result card.</summary>
+        public static int RoundBroken => current ? current.roundBroken : 0;
+        public static int RoundCrafted => current ? current.roundCrafted : 0;
+        public static int RoundDamage => current ? Mathf.CeilToInt(current.roundDamage) : 0;
 
         public static Career LoadCareer() => Career.Deserialize(PlayerPrefs.GetString(CareerKey, ""));
 
@@ -62,6 +67,18 @@ namespace Wreckabulary
             }
         }
 
+        void OnEnable() => Smashable.AnyBroken += OnBroken;
+        void OnDisable() => Smashable.AnyBroken -= OnBroken;
+
+        /// <summary>Only the house's own furniture counts, as on the web; delivery boxes and crafted things don't.</summary>
+        void OnBroken(Smashable smashable)
+        {
+            if (!room) room = FindAnyObjectByType<RoomBuilder>();
+            if (!room) return;
+            foreach (var original in room.Originals)
+                if (original == smashable) { broken++; roundBroken++; return; }
+        }
+
         void OnDestroy()
         {
             foreach (var player in watched)
@@ -72,36 +89,47 @@ namespace Wreckabulary
 
         void OnDamaged(PlayerHealth victim, HitInfo hit, HitResult result)
         {
-            if (local && hit.AttackerId == local.Index && victim != local.Health) damage += result.Damage;
+            if (local && hit.AttackerId == local.Index && victim != local.Health) { damage += result.Damage; roundDamage += result.Damage; }
         }
 
-        void OnSummoned(string word) => crafted++;
+        void OnSummoned(string word) { crafted++; roundCrafted++; }
 
-        /// <summary>Called once by the mode when a match ends; "play again" then counts afresh.</summary>
-        public static void Finish(bool won)
+        /// <summary>A new round: the result card counts afresh.</summary>
+        public static void BeginRound()
         {
             if (!current) return;
-            current.Record(won);
+            current.roundBroken = current.roundCrafted = 0;
+            current.roundDamage = 0f;
         }
+
+        /// <summary>A new match, or a retry: the career's count starts again too.</summary>
+        public static void BeginMatch()
+        {
+            if (!current) return;
+            BeginRound();
+            current.broken = current.crafted = 0;
+            current.damage = 0f;
+        }
+
+        /// <summary>Called once by the mode when a match ends; returns what the career paid (null with no local player).</summary>
+        public static MatchRecord Finish(bool won) => current ? current.Record(won) : null;
 
         /// <summary>For Dibs and Duos: whether the winner is on the local player's team.</summary>
-        public static void FinishFor(PlayerController winner)
-        {
-            if (!current) return;
-            current.Record(winner && current.local && winner.Team == current.local.Team);
-        }
+        public static MatchRecord FinishFor(PlayerController winner) =>
+            current ? current.Record(winner && current.local && winner.Team == current.local.Team) : null;
 
-        void Record(bool won)
+        MatchRecord Record(bool won)
         {
-            if (!local) return;
+            if (!local) return null;
             var career = LoadCareer();
-            var record = Career.Reward(Match.Mode, Session.MapId, true, won, 0, crafted, Mathf.RoundToInt(damage),
+            var record = Career.Reward(Match.Mode, Session.MapId, true, won, broken, crafted, Mathf.RoundToInt(damage),
                 DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             LastWasBest = career.Record(record);
             LastResult = record;
             SaveCareer(career);
             // "Play again" in the same scene is a new match.
-            damage = 0; crafted = 0;
+            damage = 0; crafted = 0; broken = 0;
+            return record;
         }
     }
 }

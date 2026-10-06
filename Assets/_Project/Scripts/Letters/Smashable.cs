@@ -31,6 +31,8 @@ namespace Wreckabulary
         /// <summary>Placed Moving Day furniture can't be wrecked.</summary>
         public bool Invulnerable { get; set; }
         public event Action<Smashable> Broken;
+        /// <summary>Any smashable broke (the match tally counts the house's furniture).</summary>
+        public static event Action<Smashable> AnyBroken;
 
         float graceUntil;
 
@@ -87,6 +89,7 @@ namespace Wreckabulary
             GameFeedback.Play(GameCue.Break);
             GameFeedback.Burst("Wood_Splinter", transform.position + Vector3.up * 0.4f, 0.65f);
             Broken?.Invoke(this);
+            AnyBroken?.Invoke(this);
             Destroy(gameObject);
         }
     }

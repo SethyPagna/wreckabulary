@@ -32,6 +32,9 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator CaptureMaps() => RunWithSynchronousShaders(CaptureMapsSequence());
 
+        [UnityTest]
+        public IEnumerator CaptureMatchCards() => RunWithSynchronousShaders(CaptureMatchCardsSequence());
+
         // UTF can stop an iterator on an unexpected log without disposing it.
         [TearDown]
         public void RestoreShaderCompilation()
@@ -337,6 +340,55 @@ namespace Wreckabulary.Tests
                 yield return new WaitForSeconds(1.5f);
                 yield return CaptureFramed(Path.Combine(dir, $"map_{map}_solo.png"));
             }
+            Session.Clear();
+        }
+
+        /// <summary>The web's match cards over one mouse player's view: round chip, composer, pause, help and result.</summary>
+        IEnumerator CaptureMatchCardsSequence()
+        {
+            string dir = Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
+            if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.dataPath, "../Temp/Captures");
+            Directory.CreateDirectory(dir);
+            Session.Clear();
+            Match.ModeOverride = "Dibs";
+            Session.Remember(DesktopBinding.Shared);
+            yield return SceneManager.LoadSceneAsync(Session.DibsScene);
+            yield return new WaitForSeconds(.6f);
+            yield return CaptureFramed(Path.Combine(dir, "cards_1_countdown.png"));
+            float until = Time.realtimeSinceStartup + 8f;
+            while (RoundManager.Instance.Phase != Phase.Playing && Time.realtimeSinceStartup < until) yield return null;
+            yield return new WaitForSeconds(.3f);
+            yield return CaptureFramed(Path.Combine(dir, "cards_2_go_toast.png"));
+
+            var hud = GameHud.Active;
+            var player = hud.LocalPlayer;
+            player.Inventory.Set("BATLESO");
+            player.Summoner.Open();
+            yield return null;
+            hud.TypeWord("bat");
+            yield return new WaitForSecondsRealtime(.2f);
+            yield return CaptureFramed(Path.Combine(dir, "cards_3_composer.png"));
+            player.Summoner.Close();
+            yield return null;
+
+            var safe = hud.transform.Find("Safe HUD");
+            safe.Find("Brand").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            yield return new WaitForSecondsRealtime(.3f);
+            yield return CaptureFramed(Path.Combine(dir, "cards_4_pause.png"));
+            safe.Find("Pause/Pause card/Pause controls").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            yield return new WaitForSecondsRealtime(.3f);
+            yield return CaptureFramed(Path.Combine(dir, "cards_5_help.png"));
+            safe.Find("Pause/Pause help/Help done").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            yield return null;
+
+            hud.ShowResult(new HudResult { Round = 2, Won = true, Heading = "You called dibs!", Broken = 6, Crafted = 3, Damage = 48 }, () => { });
+            yield return new WaitForSecondsRealtime(.5f);
+            yield return CaptureFramed(Path.Combine(dir, "cards_6_round_result.png"));
+            hud.ShowResult(new HudResult { Final = true, Won = true, Heading = "You called dibs!", Broken = 14, Crafted = 6, Damage = 120,
+                Reward = new Wreckabulary.Rules.MatchRecord { Coins = 40, Score = 185, Xp = 60 }, Best = true }, () => { });
+            yield return new WaitForSecondsRealtime(.5f);
+            yield return CaptureFramed(Path.Combine(dir, "cards_7_final_result.png"));
+            hud.HideResult();
             Session.Clear();
         }
 

@@ -71,17 +71,13 @@ namespace Wreckabulary
             if (Finished)
             {
                 hud.SetInstruction("You're ready!", "Heading back to the house...");
-                hud.SetTitle("", "");
                 if (Time.time - finishedAt > finishDelay) Session.GoHome();
                 return;
             }
 
             var step = steps[StepIndex];
-            hud.SetInstruction($"<color=#FFD24A>{StepIndex + 1}/{steps.Count}</color>  {step.text}", step.hint);
-            if (joins.Players.Count == 0)
-                hud.SetTitle("TUTORIAL", ControlHints.Join("join"));
-            else
-                hud.SetTitle("", "");
+            if (joins.Players.Count == 0) hud.SetInstruction(ControlHints.Join("join"), "");
+            else hud.SetInstruction($"<color=#FFD24A>{StepIndex + 1}/{steps.Count}</color>  {step.text}", step.hint);
 
             Resupply();
             // Whatever the step needs comes back if it got smashed first (a broken CHAIR can't be thrown).

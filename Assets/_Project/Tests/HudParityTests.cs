@@ -200,40 +200,131 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator RoundTitlesSitOnAPlaqueThatFitsThem()
+        public IEnumerator AnnouncementsAreToastsAndTheRoundChipCountsDown()
         {
             var you = Spawn(TouchBinding.Shared);
             var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
-            TMPro.TextMeshProUGUI Line(string name)
-            {
-                var line = new GameObject(name, typeof(RectTransform)).AddComponent<TMPro.TextMeshProUGUI>();
-                line.transform.SetParent(hud.transform, false);
-                typeof(GameHud).GetField(name.ToLowerInvariant(), BindingFlags.Instance | BindingFlags.NonPublic).SetValue(hud, line);
-                return line;
-            }
-            var title = Line("Title"); var subtitle = Line("Subtitle");
             yield return null;
-            var plaque = (RectTransform)hud.transform.Find("Title plaque");
-            Assert.IsNotNull(plaque);
-            Assert.AreSame(plaque, title.transform.parent, "The title sits on the plaque.");
-            Assert.AreSame(plaque, subtitle.transform.parent);
-            Assert.IsFalse(plaque.gameObject.activeSelf, "No words, no plaque.");
-
+            Assert.IsNull(hud.transform.Find("Safe HUD/Title plaque"), "No big title plaque: the web announces with a toast.");
             hud.SetTitle("ROUND 1", "Dibs on the living room");
-            Assert.IsTrue(plaque.gameObject.activeSelf);
-            Assert.GreaterOrEqual(plaque.sizeDelta.x, 720f);
-            Assert.GreaterOrEqual(plaque.sizeDelta.y, 120f);
-            var ink = plaque.GetComponent<Image>().color;
-            Assert.AreEqual("173B3C", ColorUtility.ToHtmlStringRGB(ink));
-            Assert.AreEqual(.85f, ink.a, .01f);
-            Assert.AreEqual(0f, title.outlineWidth, "A plaque, not an outline, makes it readable.");
-            float shortWidth = plaque.sizeDelta.x;
-            hud.SetTitle("SOMEBODY WITH A LONG NAME WINS THE ROUND", "3/5");
-            Assert.Greater(plaque.sizeDelta.x, shortWidth, "It grows with its words.");
+            Assert.AreEqual("ROUND 1 · Dibs on the living room", hud.ToastText);
             hud.SetTitle("", "");
-            Assert.IsFalse(plaque.gameObject.activeSelf);
+            Assert.AreEqual("ROUND 1 · Dibs on the living room", hud.ToastText, "No words don't replace a toast.");
+            yield return new WaitForSecondsRealtime(3.1f);
+            Assert.AreEqual("", hud.ToastText, "A toast goes by itself.");
+
+            hud.ShowCountdown(3, "ROUND 1 · LIVING ROOM");
+            Assert.IsTrue(hud.CountdownShown);
+            Assert.AreEqual("3", hud.CountdownText);
+            hud.ShowCountdown(2, "ROUND 1 · LIVING ROOM");
+            Assert.AreEqual("2", hud.CountdownText);
+            hud.ShowGo();
+            Assert.AreEqual("GO", hud.CountdownText);
+            yield return new WaitForSecondsRealtime(1f);
+            Assert.IsFalse(hud.CountdownShown, "GO goes a moment later.");
             Object.Destroy(hud.gameObject);
             Object.Destroy(you.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator PauseHelpAndResultCardsFollowTheWeb()
+        {
+            var you = Spawn(TouchBinding.Shared);
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            var safe = hud.transform.Find("Safe HUD");
+            safe.Find("Brand").GetComponent<Button>().onClick.Invoke();
+            Assert.IsTrue(hud.Paused);
+            var card = safe.Find("Pause/Pause card");
+            Assert.AreEqual("The mess can wait.", card.Find("Heading").GetComponent<TMPro.TMP_Text>().text);
+            StringAssert.Contains("First to", card.Find("Blurb").GetComponent<TMPro.TMP_Text>().text, "The pause card says what the mode is.");
+            card.Find("Pause controls").GetComponent<Button>().onClick.Invoke();
+            Assert.IsTrue(hud.HelpShown);
+            Assert.IsFalse(card.gameObject.activeSelf, "Help takes the pause card's place.");
+            StringAssert.Contains(" HP.", safe.Find("Pause/Pause help/Fine print").GetComponent<TMPro.TMP_Text>().text);
+            safe.Find("Pause/Pause help/Help done").GetComponent<Button>().onClick.Invoke();
+            Assert.IsFalse(hud.Paused, "GOT IT. LET'S PLAY. goes straight back to the game.");
+            Assert.AreEqual(1f, Time.timeScale);
+
+            int nexts = 0;
+            hud.ShowResult(new HudResult { Round = 2, Won = true, Heading = "You called dibs!", Broken = 4, Crafted = 2, Damage = 37 }, () => nexts++);
+            Assert.IsTrue(hud.ResultShown);
+            Assert.IsTrue(hud.NeedsPointer, "The result card wants the mouse.");
+            var result = safe.Find("Result/Result card");
+            Assert.AreEqual("ROUND 2 COMPLETE", result.Find("Eyebrow").GetComponent<TMPro.TMP_Text>().text);
+            Assert.AreEqual("You called dibs!", result.Find("Heading").GetComponent<TMPro.TMP_Text>().text);
+            Assert.AreEqual("4", result.Find("Stats/OBJECTS WRECKED/Number").GetComponent<TMPro.TMP_Text>().text);
+            Assert.AreEqual("37", result.Find("Stats/DAMAGE DEALT/Number").GetComponent<TMPro.TMP_Text>().text);
+            Assert.IsFalse(result.Find("Reward").gameObject.activeSelf, "A round in the middle of a match pays nothing yet.");
+            StringAssert.Contains("NEXT ROUND", result.Find("Next/Body/Label").GetComponent<TMPro.TMP_Text>().text);
+            safe.Find("Brand").GetComponent<Button>().onClick.Invoke();
+            Assert.IsFalse(hud.Paused, "No pause over the result card.");
+            var next = result.Find("Next").GetComponent<Button>();
+            next.onClick.Invoke();
+            next.onClick.Invoke();
+            Assert.AreEqual(1, nexts, "NEXT ROUND acts once.");
+            Assert.IsFalse(hud.ResultShown);
+
+            hud.ShowResult(new HudResult { Final = true, Heading = "One more word. One more chance.",
+                Reward = new Wreckabulary.Rules.MatchRecord { Coins = 12, Score = 70 } }, () => nexts++);
+            Assert.AreEqual("HOUSE PARTY COMPLETE", result.Find("Eyebrow").GetComponent<TMPro.TMP_Text>().text);
+            Assert.IsTrue(result.Find("Reward").gameObject.activeSelf, "The match's pay shows at the end.");
+            Assert.AreEqual("+12", result.Find("Reward/Coins").GetComponent<TMPro.TMP_Text>().text);
+            StringAssert.Contains("PLAY AGAIN", result.Find("Next/Body/Label").GetComponent<TMPro.TMP_Text>().text);
+            hud.HideResult();
+            Assert.AreEqual(1, nexts, "Hiding the card isn't a choice.");
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator KeyboardPlayersTypeTheirWordLikeTheWeb()
+        {
+            var player = Spawn(DesktopBinding.Shared);
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            yield return new WaitForSecondsRealtime(0.12f);
+            Assert.AreSame(player, hud.LocalPlayer);
+            player.Inventory.Set("BA");
+            player.Summoner.Open();
+            yield return null;
+            Assert.IsTrue(hud.ComposerOpen, "Spell opens the composer.");
+            Assert.IsTrue(DesktopBinding.Typing, "Letters go to the word, not to the player.");
+            Assert.AreEqual("Type a word you can make from your letters.", hud.ComposerStatus);
+            hud.TypeWord("ba");
+            yield return null;
+            Assert.AreEqual("Keep going…", hud.ComposerStatus);
+            hud.TypeWord("bat");
+            yield return null;
+            Assert.AreEqual("BAT", hud.ComposerText);
+            Assert.AreEqual("BAT needs T. Smash more furniture.", hud.ComposerStatus);
+            hud.SubmitComposer();
+            yield return null;
+            Assert.AreEqual("You still need some letters.", hud.ComposerStatus);
+            Assert.IsFalse(player.Summoner.IsCrafting);
+            hud.TypeWord("zzz");
+            yield return null;
+            StringAssert.StartsWith("That isn't a recipe.", hud.ComposerStatus);
+            hud.SubmitComposer();
+            yield return null;
+            Assert.AreEqual("That recipe is not available.", hud.ComposerStatus);
+
+            player.Inventory.Set("BAT");
+            hud.TypeWord("bat");
+            yield return null;
+            Assert.AreEqual("BAT is ready. Press Enter!", hud.ComposerStatus);
+            Assert.IsTrue(player.Summoner.IsSpelling, "Typing never spells by itself.");
+            hud.SubmitComposer();
+            Assert.IsTrue(player.Summoner.IsCrafting, "Enter spells it.");
+            Assert.AreEqual("Spelling BAT…", hud.ToastText);
+            yield return null;
+            Assert.IsFalse(hud.ComposerOpen);
+            Assert.IsFalse(DesktopBinding.Typing);
+            player.Summoner.CancelCraft();
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(player.gameObject);
+            yield return null;
+            Assert.IsFalse(DesktopBinding.Typing);
         }
 
         [UnityTest]

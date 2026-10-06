@@ -17,8 +17,9 @@ namespace Wreckabulary
     /// The match HUD, laid out like the browser edition: brand and match label top left; minimap with timer,
     /// room and objective in one column top right; vitals with both hands bottom left; a 5 x 2 letter tray
     /// bottom centre; a desktop key bar; touch buttons only on touch; a hold-Tab bag and map panel; an Esc pause card.
+    /// The web's cards (toast, round chip, spell composer, pause, help and result) are in GameHudCards.cs.
     /// </summary>
-    public class GameHud : MonoBehaviour
+    public partial class GameHud : MonoBehaviour
     {
         [SerializeField] TextMeshProUGUI title, subtitle, timer, scoreboard, instruction, checklist;
         [SerializeField] GameObject checklistPanel;
@@ -31,7 +32,7 @@ namespace Wreckabulary
         /// <summary>The HUD of the scene being played (one per match scene).</summary>
         public static GameHud Active { get; private set; }
         /// <summary>Something on screen wants the mouse pointer, so the third-person view lets the cursor go.</summary>
-        public bool NeedsPointer => pointerFreed || Paused || BagOpen || (craftRoot && craftRoot.activeSelf) || (typewriter && typewriter.User) || ModeActions.AnyShown;
+        public bool NeedsPointer => pointerFreed || Paused || BagOpen || (craftRoot && craftRoot.activeSelf) || (typewriter && typewriter.User) || (modeActions && modeActions.activeSelf) || ResultShown;
         /// <summary>Losing the window pauses a match, as on the web. Batch runs have no window; tests set this.</summary>
         public static bool? PauseOnFocusLossOverride;
         static bool PauseOnFocusLoss => PauseOnFocusLossOverride ?? !Application.isBatchMode;
@@ -61,7 +62,6 @@ namespace Wreckabulary
         const int ChipsPerRow = 6;
 
         readonly List<PlayerCard> cards = new();
-        readonly List<RecipeView> recipes = new();
         readonly List<Sprite> ownedSprites = new();
         readonly List<Texture2D> ownedTextures = new();
         readonly List<TouchStick> sticks = new();
@@ -105,7 +105,7 @@ namespace Wreckabulary
         readonly List<BookCard> bookCards = new();
         readonly List<char> spare = new();
         readonly Dictionary<string, Texture2D> glyphs = new(StringComparer.Ordinal);
-        RectTransform bagColumn, bagLetters, bagHandsRow, bagWearRow, bagEffectsRow, bagMapFrame, bagMapShadow, bagBackdrop, pauseShade, titlePlaque;
+        RectTransform bagColumn, bagLetters, bagHandsRow, bagWearRow, bagEffectsRow, bagMapFrame, bagMapShadow, bagBackdrop, pauseShade;
         CanvasGroup bagFade;
         Sprite hairRing, circleRing, softSprite, lineBox;
         float bagOpenedAt;
@@ -123,14 +123,6 @@ namespace Wreckabulary
             public GameObject root;
             public Image badge, fill;
             public TextMeshProUGUI initial, name, status;
-        }
-        sealed class RecipeView
-        {
-            public Button button;
-            public Image face;
-            public TextMeshProUGUI text;
-            public int index;
-            public RawImage icon;
         }
         sealed class LetterCell
         {
@@ -206,13 +198,11 @@ namespace Wreckabulary
             safe.offsetMin = safe.offsetMax = Vector2.zero;
             StyleLegacyText();
             BuildTop(); BuildSide(); BuildStatus(); BuildVitals(); BuildTray(); BuildHint();
-            BuildCraftDrawer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause(); BuildCrosshair();
+            BuildComposer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause(); BuildCrosshair(); BuildCards();
             // The web hides everything but the brand and match label behind its bag (style.css .hud.bag-open).
             foreach (var part in new[] { side, tray, vitals, hint, status, (RectTransform)craftRoot.transform, (RectTransform)touchRoot.transform, (RectTransform)typewriterControls.transform }
                 .Concat(cards.Select(c => (RectTransform)c.root.transform)))
                 bagHides.Add(part.gameObject.AddComponent<CanvasGroup>());
-            // A countdown would show through the see-through map.
-            if (titlePlaque) bagHides.Add(titlePlaque.gameObject.AddComponent<CanvasGroup>());
             // A laptop's touchscreen alone doesn't bring the buttons up; a real touch does (R41).
             ShowTouchControls(Application.isMobilePlatform);
             ApplySafeArea();
@@ -223,51 +213,12 @@ namespace Wreckabulary
         void StyleLegacyText()
         {
             if (scoreboard) scoreboard.gameObject.SetActive(false);
-            foreach (var line in new[] { title, subtitle })
-            {
-                if (!line) continue;
-                line.raycastTarget = false; line.outlineWidth = 0f; line.alignment = TextAlignmentOptions.Center;
-                line.textWrappingMode = TextWrappingModes.NoWrap; line.overflowMode = TextOverflowModes.Overflow;
-            }
-            if (title) { title.fontSize = 72f; title.color = Cream; }
-            if (subtitle) { subtitle.fontSize = 26f; subtitle.color = Hex(0xfff0d9, .82f); }
-            if (title) BuildTitlePlaque();
+            // Announcements are toasts and the round chip now, as on the web; the scene's big title lines stay hidden.
+            if (title) title.gameObject.SetActive(false);
+            if (subtitle) subtitle.gameObject.SetActive(false);
             // The objective lives in the side column now; the scene's checklist objects stay hidden.
             if (checklist) checklist.gameObject.SetActive(false);
             if (checklistPanel) checklistPanel.SetActive(false);
-        }
-
-        /// <summary>
-        /// Round titles sit on an ink plaque, so a countdown or a winner reads over a cream floor; the bare white title
-        /// with an outline didn't. The plaque fits its words and goes away with them.
-        /// </summary>
-        void BuildTitlePlaque()
-        {
-            var at = title.rectTransform;
-            titlePlaque = Panel("Title plaque", at.parent, at.anchorMin, at.anchoredPosition, new Vector2(720f, 120f), new Vector2(.5f, .5f), Hex(0x173b3c, .85f));
-            titlePlaque.SetSiblingIndex(at.GetSiblingIndex());
-            titlePlaque.GetComponent<Image>().pixelsPerUnitMultiplier = 11f / 24f;
-            void Line(TMP_Text line, float y, float height)
-            {
-                var rt = line.rectTransform;
-                rt.SetParent(titlePlaque, false);
-                rt.anchorMin = new Vector2(0f, y); rt.anchorMax = new Vector2(1f, y); rt.pivot = new Vector2(.5f, y);
-                rt.anchoredPosition = new Vector2(0f, y > .5f ? -8f : 14f); rt.sizeDelta = new Vector2(-60f, height);
-            }
-            Line(title, 1f, 100f);
-            if (subtitle) Line(subtitle, 0f, 40f);
-            FitTitlePlaque();
-        }
-
-        void FitTitlePlaque()
-        {
-            if (!titlePlaque) return;
-            string main = title.text ?? "", sub = subtitle ? subtitle.text ?? "" : "";
-            bool shown = main.Length > 0 || sub.Length > 0;
-            titlePlaque.gameObject.SetActive(shown);
-            if (!shown) return;
-            float width = Mathf.Max(main.Length > 0 ? title.GetPreferredValues(main).x : 0f, sub.Length > 0 ? subtitle.GetPreferredValues(sub).x : 0f) + 96f;
-            titlePlaque.sizeDelta = new Vector2(Mathf.Clamp(width, 720f, 1500f), 10f + (main.Length > 0 ? 110f : 0f) + (sub.Length > 0 ? 56f : 0f));
         }
 
         void BuildTop()
@@ -335,10 +286,14 @@ namespace Wreckabulary
             objective.rectTransform.pivot = new Vector2(0f, 1f); objective.textWrappingMode = TextWrappingModes.Normal;
         }
 
+        /// <summary>The web's status line: a soft cream pill under the round chip that only speaks up for an event.</summary>
         void BuildStatus()
         {
-            status = Panel("Status", safe, new Vector2(.5f, 1f), new Vector2(0f, -168f), new Vector2(630f, 70f), new Vector2(.5f, 1f), Paper);
-            statusText = Text("Status text", status, new Vector2(.5f, .5f), Vector2.zero, new Vector2(600f, 60f), 17f, Ink);
+            status = Rect("Status", safe, new Vector2(.5f, 1f), new Vector2(0f, -140f), new Vector2(525f, 50f));
+            status.pivot = new Vector2(.5f, 1f);
+            SoftShadow(status, Hex(0x183b3c, .08f), 25f, -4f);
+            Paint(Cover("Face", status), LobbyIcons.RoundedSprite(15), Hex(0xfff0dc, .91f));
+            statusText = Text("Status text", status, new Vector2(.5f, .5f), Vector2.zero, new Vector2(475f, 40f), 14f, Ink);
             statusText.textWrappingMode = TextWrappingModes.Normal;
             if (instruction) instruction.gameObject.SetActive(false);
             status.gameObject.SetActive(false);
@@ -375,8 +330,10 @@ namespace Wreckabulary
             head.text = "YOUR LETTERS"; head.characterSpacing = 6f; head.rectTransform.pivot = new Vector2(0f, 1f);
             bagCount = Text("Bag count", tray, new Vector2(0f, 1f), new Vector2(178f, -17f), new Vector2(70f, 20f), 12f, Ink, TextAlignmentOptions.Left);
             bagCount.rectTransform.pivot = new Vector2(0f, 1f);
-            var spell = Text("Spell key", tray, new Vector2(1f, 1f), new Vector2(-104f, -17f), new Vector2(70f, 20f), 12f, Ink, TextAlignmentOptions.Right);
-            spell.text = "<u>Spell</u> Q"; spell.rectTransform.pivot = Vector2.one;
+            // Like the bag link, the spell link opens the composer with a click as well as with its key.
+            var spell = MakeButton("Spell key", tray, Vector2.one, new Vector2(-98f, -10f), new Vector2(70f, 30f),
+                $"<u>Spell</u> {ControlHints.KeyOf(DesktopBinding.Shared.Spell)}", OpenComposer, Color.clear);
+            spell.GetComponentInChildren<TextMeshProUGUI>().fontSize = 12f;
             var link = MakeButton("Bag link", tray, Vector2.one, new Vector2(-14f, -10f), new Vector2(84f, 30f), "<u>Bag</u> Tab", () => SetBagPinned(!bagPinned), Color.clear);
             link.GetComponentInChildren<TextMeshProUGUI>().fontSize = 12f;
             float x0 = (400f - (TilesPerRow * 45f + (TilesPerRow - 1) * 7f)) * .5f;
@@ -443,33 +400,6 @@ namespace Wreckabulary
             Tick("Right", new Vector2(16f, 10f), new Vector2(6f, 2f));
             crosshair = root.gameObject;
             crosshair.SetActive(false);
-        }
-
-        void BuildCraftDrawer()
-        {
-            var rt = Panel("Craft drawer", safe, new Vector2(.5f, 0f), new Vector2(0f, 262f), new Vector2(566f, 400f), new Vector2(.5f, 0f), Paper);
-            craftRoot = rt.gameObject;
-            var heading = Text("Heading", rt, new Vector2(.5f, 1f), new Vector2(0f, -16f), new Vector2(510f, 36f), 27f, Ink);
-            heading.text = "SPELL SOMETHING";
-            craftStatus = Text("Craft status", rt, new Vector2(.5f, 1f), new Vector2(0f, -58f), new Vector2(520f, 40f), 16f, Faded);
-            craftStatus.textWrappingMode = TextWrappingModes.Normal;
-            for (int i = 0; i < 4; i++)
-            {
-                var row = Panel($"Recipe {i + 1}", rt, new Vector2(.5f, 1f), new Vector2(0f, -105f - i * 53f), new Vector2(500f, 46f), new Vector2(.5f, 1f), Slot);
-                var view = new RecipeView { face = row.GetComponent<Image>(), button = row.gameObject.AddComponent<Button>() };
-                view.face.raycastTarget = true;
-                view.icon = Rect("Object preview", row, new Vector2(0f, .5f), new Vector2(28f, 0f), new Vector2(42f, 42f)).gameObject.AddComponent<RawImage>();
-                view.icon.raycastTarget = false;
-                view.text = Text("Recipe", row, new Vector2(.5f, .5f), new Vector2(25f, 0f), new Vector2(412f, 40f), 20f, Ink, TextAlignmentOptions.Left);
-                view.button.onClick.AddListener(() => { if (LocalPlayer && view.index >= 0) LocalPlayer.Summoner.Select(view.index); });
-                recipes.Add(view);
-            }
-            MakeButton("Previous", rt, Vector2.zero, new Vector2(30f, 16f), new Vector2(66f, 48f), "<", () => { if (LocalPlayer) LocalPlayer.Summoner.Step(-1); });
-            MakeButton("Next", rt, new Vector2(1f, 0f), new Vector2(-30f, 16f), new Vector2(66f, 48f), ">", () => { if (LocalPlayer) LocalPlayer.Summoner.Step(1); });
-            buildButton = MakeButton("Build", rt, new Vector2(.5f, 0f), new Vector2(0f, 16f), new Vector2(248f, 48f), "SPELL IT", ConfirmCraft);
-            buildLabel = buildButton.GetComponentInChildren<TextMeshProUGUI>();
-            MakeButton("Cancel", rt, Vector2.one, new Vector2(-8f, -8f), new Vector2(40f, 40f), "X", CancelCraft, Slot);
-            craftRoot.SetActive(false);
         }
 
         void BuildTouchControls()
@@ -686,6 +616,14 @@ namespace Wreckabulary
         {
             if (!LocalPlayer || Paused) return;
             SetBagPinned(false);
+            if (TypedMode)
+            {
+                // A keyboard player gets the word typed into the composer, ready for Enter, as on the web.
+                var summoner = LocalPlayer.Summoner;
+                if (!summoner.IsSpelling) { summoner.Open(); if (!summoner.IsSpelling) return; SyncComposer(); }
+                TypeWord(word);
+                return;
+            }
             LocalPlayer.Summoner.BeginCraft(new WordEntry { word = word });
         }
 
@@ -702,22 +640,6 @@ namespace Wreckabulary
         {
             if (!glyphs.TryGetValue(name, out var texture)) glyphs[name] = texture = Resources.Load<Texture2D>("UI/Glyphs/" + name);
             return texture;
-        }
-
-        void BuildPause()
-        {
-            var shade = Panel("Pause", safe, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(.5f, .5f), Hex(0x0f2827, .45f));
-            shade.anchorMin = Vector2.zero; shade.anchorMax = Vector2.one; shade.offsetMin = shade.offsetMax = Vector2.zero;
-            shade.GetComponent<Image>().raycastTarget = true;
-            pauseRoot = shade.gameObject; pauseShade = shade;
-            var card = Panel("Pause card", shade, new Vector2(.5f, .5f), Vector2.zero, new Vector2(520f, 380f), new Vector2(.5f, .5f), Hex(0xfff0dc, .98f));
-            Text("Heading", card, new Vector2(.5f, 1f), new Vector2(0f, -40f), new Vector2(460f, 60f), 46f, Ink).text = "Paused";
-            Text("Note", card, new Vector2(.5f, 1f), new Vector2(0f, -92f), new Vector2(460f, 30f), 17f, Faded).text = "The house is holding its breath.";
-            MakeButton("Resume", card, new Vector2(.5f, 1f), new Vector2(0f, -150f), new Vector2(380f, 56f), "RESUME", TogglePause);
-            MakeButton("Pause home", card, new Vector2(.5f, 1f), new Vector2(0f, -216f), new Vector2(380f, 56f), "BACK TO THE HOUSE", GoHome, Slot);
-            touchToggle = MakeButton("Touch switch", card, new Vector2(.5f, 1f), new Vector2(0f, -282f), new Vector2(380f, 56f), "TOUCH CONTROLS: OFF",
-                () => { touchChosen = true; ShowTouchControls(!TouchControlsShown); }, Slot).GetComponentInChildren<TextMeshProUGUI>();
-            pauseRoot.SetActive(false);
         }
 
         void AddSkill(Transform parent, TouchAction action, string label, Vector2 position, float diameter, Color accent)
@@ -743,8 +665,9 @@ namespace Wreckabulary
             TouchBinding.Shared.OverlayDesktop = on && LocalPlayer && LocalPlayer.Binding is DesktopBinding;
             TouchBinding.Shared.OverlayBindingId = on && LocalPlayer && LocalPlayer.Binding is not TouchBinding ? LocalPlayer.Binding?.Id : null;
             if (desktopHints) desktopHints.SetActive(!on);
-            if (touchToggle) touchToggle.text = on ? "TOUCH CONTROLS: ON" : "TOUCH CONTROLS: OFF";
-            if (!on && LocalPlayer) LocalPlayer.Summoner.Close();
+            if (touchToggle) touchToggle.text = on ? "Touch controls: on" : "Touch controls: off";
+            // Touch picks a word and a keyboard types one, so a switch either way closes the composer.
+            if (LocalPlayer) LocalPlayer.Summoner.Close();
             ApplySafeArea();
         }
         void JoinOrReady()
@@ -777,6 +700,8 @@ namespace Wreckabulary
         void SetPaused(bool on)
         {
             if (!pauseRoot || on == Paused) return;
+            // The result card is its own pause: NEXT or the way home, nothing over it.
+            if (on && ResultShown) return;
             if (on)
             {
                 resumeScale = Time.timeScale > 0f ? Time.timeScale : 1f;
@@ -787,6 +712,7 @@ namespace Wreckabulary
             else Time.timeScale = resumeScale;
             pauseRoot.SetActive(on);
             pauseRoot.transform.SetAsLastSibling();
+            if (on) OnPauseShown(); else ClearFocus();
             RefreshBagPanel();
         }
 
@@ -799,9 +725,11 @@ namespace Wreckabulary
             bool hub = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == Session.HubScene;
             if (DesktopBinding.Shared.Pause.WasPressedThisFrame())
             {
-                if (Paused) SetPaused(false);
+                if (Paused) { if (HelpShown) ShowHelp(false); else SetPaused(false); }
                 else if (bagPinned) SetBagPinned(false);
                 else if (craftRoot.activeSelf) CancelCraft();
+                // The result card waits for NEXT or the way home; Esc doesn't pause over it.
+                else if (ResultShown) { }
                 else if (hub) pointerFreed = CursorPolicy.Locked;
                 else if (!(typewriter && typewriter.User)) SetPaused(true);
             }
@@ -813,9 +741,10 @@ namespace Wreckabulary
             if (BagOpen != WantsBag()) RefreshBagPanel();
             var screen = Touchscreen.current;
             if (!touchChosen && !TouchControlsShown && screen != null && screen.primaryTouch.press.wasPressedThisFrame) ShowTouchControls(true);
+            UpdateCards();
         }
 
-        bool WantsBag() => LocalPlayer && !Paused && (bagPinned || (LocalPlayer.Binding is DesktopBinding && DesktopBinding.Shared.Bag.IsPressed()));
+        bool WantsBag() => LocalPlayer && !Paused && !ResultShown && (bagPinned || (LocalPlayer.Binding is DesktopBinding && DesktopBinding.Shared.Bag.IsPressed()));
 
         void OnEnable() => Active = this;
 
@@ -828,12 +757,14 @@ namespace Wreckabulary
             if (crosshair && crosshair.activeSelf != aiming) crosshair.SetActive(aiming);
             if (hintText) SetHint(rig && rig.isActiveAndEnabled && rig.IsThirdPerson);
             if (BagOpen && bagFade.alpha < 1f) bagFade.alpha = Mathf.Clamp01((Time.unscaledTime - bagOpenedAt) / .12f);
+            // The composer follows every keystroke, so it redraws each frame.
+            SyncComposer(); RefreshComposer();
             if (Time.unscaledTime < nextRefresh) return;
             nextRefresh = Time.unscaledTime + .08f;
-            FindLocalPlayer(); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshCraft(); RefreshSkills(); RefreshNavigation();
+            FindLocalPlayer(); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshSkills(); RefreshNavigation();
+            FitCards();
             if (BagOpen) RefreshBagContents();
-            // Round start/retry lives in ModeActions. Keep this join control separate so their
-            // canvases cannot overlap after a touch player has joined.
+            // The touch PLAY button joins; once someone has, the mode's own start button (Mode actions) takes over.
             if (playRect) playRect.gameObject.SetActive(!LocalPlayer);
             if (playLabel) playLabel.text = "PLAY";
         }
@@ -1000,7 +931,6 @@ namespace Wreckabulary
             if (bagHidden == open) return;
             bagHidden = open;
             foreach (var group in bagHides) { if (!group) continue; group.alpha = open ? 0f : 1f; group.blocksRaycasts = group.interactable = !open; }
-            ModeActions.Hidden = open;
         }
         void RefreshBagContents()
         {
@@ -1092,36 +1022,6 @@ namespace Wreckabulary
             float side = Mathf.Max(325f, Mathf.Min(area.height * .62f, area.width - 900f));
             bagMapFrame.sizeDelta = Vector2.one * side;
             bagMapShadow.sizeDelta = Vector2.one * (side + 2f * 31f * 75f / 28f);
-        }
-        void RefreshCraft()
-        {
-            if (!LocalPlayer) { craftRoot.SetActive(false); return; }
-            var summon = LocalPlayer.Summoner; bool visible = summon.IsSpelling || summon.IsCrafting; craftRoot.SetActive(visible);
-            if (!visible) { if (TouchBinding.Shared.CraftOpen && !TouchBinding.Shared.CraftPressPending) TouchBinding.Shared.SetCraftOpen(false); return; }
-            bool building = summon.IsCrafting;
-            craftStatus.text = building ? $"Spelling {summon.CraftWord}…  {Mathf.RoundToInt(summon.CraftProgress * 100f)}%" : summon.Ready.Count > 0 ? "Pick a word. Its letters become a real object." : "Smash furniture and find the missing letters.";
-            buildButton.interactable = !building && summon.SelectedWord != null; buildLabel.text = building ? "SPELLING…" : "SPELL IT";
-            int start = Mathf.Max(0, summon.Selected - 1);
-            for (int i = 0; i < recipes.Count; i++)
-            {
-                var view = recipes[i]; view.index = start + i; bool ready = view.index < summon.Ready.Count;
-                view.button.interactable = ready && !building;
-                if (ready)
-                {
-                    var word = summon.Ready[view.index]; bool selected = view.index == summon.Selected;
-                    view.face.color = selected ? Mint : Slot; view.text.color = Ink;
-                    view.text.text = $"{word.word}     <size=70%>{word.word.Length} letters</size>";
-                    view.icon.texture = itemIcons.TryGetValue(word.word, out var texture) ? texture : null;
-                    view.icon.color = Color.white; view.icon.enabled = view.icon.texture;
-                }
-                else
-                {
-                    int hintIndex = view.index - summon.Ready.Count; view.face.color = Hex(0xf7e5c8, .5f); view.text.color = Faded;
-                    view.text.text = hintIndex < summon.Hints.Count ? $"{summon.Hints[hintIndex].entry.word}     <size=70%>find {summon.Hints[hintIndex].missing}</size>" : "";
-                    view.icon.texture = hintIndex < summon.Hints.Count && itemIcons.TryGetValue(summon.Hints[hintIndex].entry.word, out var texture) ? texture : null;
-                    view.icon.color = new Color(1f, 1f, 1f, .45f); view.icon.enabled = view.icon.texture;
-                }
-            }
         }
         void RefreshSkills()
         {
@@ -1277,7 +1177,7 @@ namespace Wreckabulary
             float safeWidth = Mathf.Max(1f, lastSafe.width), safeHeight = Mathf.Max(1f, lastSafe.height);
             var coverMin = new Vector2(-lastSafe.xMin / safeWidth, -lastSafe.yMin / safeHeight);
             var coverMax = new Vector2(1f + (lastWidth - lastSafe.xMax) / safeWidth, 1f + (lastHeight - lastSafe.yMax) / safeHeight);
-            foreach (var cover in new[] { bagBackdrop, pauseShade }) if (cover) { cover.anchorMin = coverMin; cover.anchorMax = coverMax; }
+            foreach (var cover in new[] { bagBackdrop, pauseShade, resultShade }) if (cover) { cover.anchorMin = coverMin; cover.anchorMax = coverMax; }
             bool portrait = lastWidth < lastHeight, touch = TouchControlsShown;
             // Touch screens keep the vitals above the move stick, as the browser's coarse-pointer layout does.
             if (vitals) vitals.anchoredPosition = new Vector2(39f, touch ? (portrait ? 420f : 250f) : 110f);
@@ -1294,18 +1194,18 @@ namespace Wreckabulary
                 playRect.pivot = playRect.anchorMin;
                 playRect.anchoredPosition = portrait ? new Vector2(30f, 340f) : new Vector2(0f, -185f);
             }
-            if (status) status.anchoredPosition = new Vector2(0f, portrait ? -360f : -168f);
+            if (status) status.anchoredPosition = new Vector2(0f, portrait ? -360f : -140f);
             ResizeStatus();
         }
         void ResizeStatus()
         {
             if (!status || !UiCanvas) return;
             float logicalWidth = lastSafe.width / Mathf.Max(.01f, UiCanvas.scaleFactor);
-            float width = Mathf.Min(630f, logicalWidth - 600f);
-            if (width < 360f) width = Mathf.Min(630f, logicalWidth - 64f);
-            var size = statusText.GetPreferredValues(statusText.text, width - 40f, 0f);
-            status.sizeDelta = new Vector2(Mathf.Min(width, size.x + 44f), size.y + 24f);
-            statusText.rectTransform.sizeDelta = new Vector2(Mathf.Min(width, size.x + 44f) - 40f, size.y + 4f);
+            float width = Mathf.Min(525f, logicalWidth - 600f);
+            if (width < 360f) width = Mathf.Min(525f, logicalWidth - 64f);
+            var size = statusText.GetPreferredValues(statusText.text, width - 50f, 0f);
+            status.sizeDelta = new Vector2(Mathf.Min(width, size.x + 50f), size.y + 25f);
+            statusText.rectTransform.sizeDelta = new Vector2(Mathf.Min(width, size.x + 50f) - 46f, size.y + 4f);
         }
         void OnApplicationFocus(bool focused)
         {
@@ -1318,25 +1218,29 @@ namespace Wreckabulary
         void OnDisable()
         {
             TouchBinding.Shared.ReleaseAll();
+            DesktopBinding.Typing = false;
+            if (LocalPlayer) LocalPlayer.Summoner.Typed = false;
             if (bagHidden) HideForBag(false);
             if (Active == this) Active = null;
         }
         void OnDestroy()
         {
             if (Paused) Time.timeScale = resumeScale;
+            UnhookKeyboard();
             foreach (var sprite in ownedSprites) if (sprite) Destroy(sprite);
             foreach (var texture in ownedTextures) if (texture) Destroy(texture);
         }
 
         // ---- What the directors call ----
 
+        /// <summary>An announcement from a mode: a toast, as on the web, once for the same words.</summary>
         public void SetTitle(string text, string sub = "")
         {
-            // Countdowns set the same words every frame; only a change re-measures the plaque.
-            if (title && title.text == text && (!subtitle || subtitle.text == sub)) return;
-            if (title) title.text = text;
-            if (subtitle) subtitle.text = sub;
-            FitTitlePlaque();
+            text ??= ""; sub ??= "";
+            if (text == lastTitle && sub == lastSub) return;
+            lastTitle = text; lastSub = sub;
+            string line = text.Length == 0 ? sub : sub.Length == 0 ? text : text + " · " + sub;
+            if (line.Length > 0) Toast(line);
         }
         public void SetInstruction(string main, string hint = "")
         {
@@ -1502,7 +1406,8 @@ namespace Wreckabulary
         TextMeshProUGUI Text(string label, Transform parent, Vector2 anchor, Vector2 position, Vector2 size, float fontSize, Color color, TextAlignmentOptions alignment = TextAlignmentOptions.Center)
         {
             var text = Rect(label, parent, anchor, position, size).gameObject.AddComponent<TextMeshProUGUI>();
-            text.font = GameAssets.I ? GameAssets.I.font : TMP_Settings.defaultFontAsset; text.fontSize = fontSize; text.fontStyle = FontStyles.Bold;
+            // The lobby's Nunito ExtraBold, so the match reads like the rest of the game.
+            text.font = LobbyFonts.Body ? LobbyFonts.Body : GameFont; text.fontSize = fontSize; text.fontStyle = FontStyles.Normal;
             text.color = color; text.alignment = alignment; text.textWrappingMode = TextWrappingModes.NoWrap; text.raycastTarget = false; return text;
         }
         Button MakeButton(string label, Transform parent, Vector2 anchor, Vector2 position, Vector2 size, string caption, Action action, Color? colour = null)

@@ -18,10 +18,8 @@ namespace Wreckabulary
         [SerializeField] DeliverySpawner deliveries;
         [SerializeField] GameHud hud;
         [SerializeField] float countdownTime = 3f;
-        [SerializeField] float roundOverTime = 3f;
         MatchScore score;
         ClearOutController clearOut;
-        ModeActions actions;
         float phaseStarted, roundStarted;
         PlayerController lastWinner;
         public Phase Phase { get; private set; } = Phase.Lobby;
@@ -34,7 +32,6 @@ namespace Wreckabulary
         public event Action CollapseStarted;
         IReadOnlyList<PlayerController> Players => joins.Players;
         float PhaseTime => Time.unscaledTime - phaseStarted;
-        string ModeName => Match.Mode == "Duos" ? "DUOS" : "DIBS!";
 
         void Awake() => Instance = this;
 
@@ -55,7 +52,6 @@ namespace Wreckabulary
             clearOut.ClosureStarted += () => CollapseStarted?.Invoke();
             deliveries.Layout = room.Layout;
             deliveries.RoomOpen = r => !clearOut.Running || clearOut.Schedule.PhaseOf(r, clearOut.Elapsed) == RoomPhase.Safe;
-            actions = ModeActions.Create(transform, "START WITH AI", StartMatch);
             EnterLobby();
             if (joins.RestoredFromSession && joins.HumanCount > 0) StartMatch();
         }
@@ -78,32 +74,25 @@ namespace Wreckabulary
             switch (Phase)
             {
                 case Phase.Lobby:
-                    hud.SetTitle(ModeName, joins.HumanCount == 0 ? ControlHints.Join("join") : "Press START — solo seats get AI opponents");
+                    hud.SetInstruction(joins.HumanCount == 0 ? ControlHints.Join("join") : "Press START — solo seats get AI opponents", "");
                     hud.SetTimer("");
-                    actions.Show(joins.HumanCount > 0, "START WITH AI");
+                    hud.ShowModeActions(joins.HumanCount > 0, "START WITH AI →", StartMatch);
                     if (joins.HumanCount > 0 && joins.AnyStartPressed()) StartMatch();
                     break;
                 case Phase.Countdown:
                     int left = Mathf.CeilToInt(countdownTime - PhaseTime);
-                    hud.SetTitle(left > 0 ? left.ToString() : ModeName, $"Round {Round} • {room.Layout.Name}");
+                    hud.ShowCountdown(Mathf.Max(1, left), $"ROUND {Round} · {room.Layout.Name.ToUpperInvariant()}");
                     if (PhaseTime >= countdownTime) BeginPlay();
                     break;
                 case Phase.Playing:
-                    if (PhaseTime > .8f) hud.SetTitle("", "");
                     hud.SetTimer(FormatTime(TimeLeft));
-                    hud.SetInstruction(clearOut.Message.Length > 0 ? clearOut.Message : Match.Mode == "Duos"
-                        ? "Last team standing • hold grab beside a downed teammate to revive" : "Last roommate standing",
-                        "Smash furniture for letters • craft gear • escape the Movers");
+                    // The status line only speaks up for the Movers; the objective is in the side column.
+                    hud.SetInstruction(clearOut.Message, "");
                     break;
                 case Phase.RoundOver:
-                    if (PhaseTime >= roundOverTime)
-                    {
-                        if (score.IsOver) EnterMatchOver();
-                        else StartRound();
-                    }
-                    break;
                 case Phase.MatchOver:
-                    if (joins.AnyStartPressed()) StartMatch();
+                    // The result card waits for NEXT ROUND or PLAY AGAIN; a start key works too, after a beat.
+                    if (hud.ResultShown && PhaseTime > 1.6f && joins.AnyStartPressed()) hud.ConfirmResult();
                     break;
             }
             hud.SetScoreboard(Players, WinsOf, Match.Rules.RoundsToWin, Phase != Phase.Lobby);
@@ -139,7 +128,9 @@ namespace Wreckabulary
             score = new MatchScore(Match.Rules.RoundsToWin);
             Round = 0;
             joins.AllowJoining = false;
-            actions.Show(false);
+            hud.ShowModeActions(false);
+            hud.HideResult();
+            MatchTally.BeginMatch();
             StartRound();
         }
 
@@ -147,6 +138,8 @@ namespace Wreckabulary
         {
             Round++;
             Time.timeScale = 1f;
+            hud.HideResult();
+            MatchTally.BeginRound();
             room.ResetRoom();
             clearOut.ResetSchedule();
             deliveries.Running = false;
@@ -161,7 +154,8 @@ namespace Wreckabulary
             SetPhase(Phase.Playing);
             roundStarted = Time.time;
             clearOut.Begin();
-            hud.SetTitle(ModeName, "");
+            hud.ShowGo();
+            if (Round == 1) hud.Toast("Break furniture → collect its letters → spell new gear.");
             foreach (var p in Players) p.Frozen = false;
             deliveries.Running = true;
             deliveries.ResetDrops();
@@ -176,21 +170,24 @@ namespace Wreckabulary
             foreach (var p in Players) p.Frozen = true;
             World.FreezeTransient();
             lastWinner = outcome.State == RoundState.Won ? Players.First(p => p.Team == outcome.WinningTeam) : null;
-            if (!lastWinner) { hud.SetTitle("DRAW!", "Nobody gets dibs • next round shortly"); return; }
-            hud.SetTitle($"{WinnerName()} WINS THE ROUND", $"{score.Wins(lastWinner.Team)}/{score.RoundsToWin}");
-            StartCoroutine(SlowMo());
-            RoundWon?.Invoke(lastWinner);
-        }
-
-        string WinnerName() => Match.Mode == "Duos" ? $"TEAM {lastWinner.Team + 1}" : lastWinner.Name;
-
-        void EnterMatchOver()
-        {
-            SetPhase(Phase.MatchOver);
-            hud.SetTitle($"{WinnerName()} CALLS DIBS!", "Play again or head home");
-            actions.Show(true, "PLAY AGAIN");
-            MatchTally.FinishFor(lastWinner);
-            MatchWon?.Invoke(lastWinner);
+            // The web's lines: your dibs, anyone else's (or a wipe) is one more chance, and the clock is a messy draw.
+            var you = hud.LocalPlayer;
+            bool won = lastWinner && you && lastWinner.Team == you.Team;
+            bool timeUp = !lastWinner && Match.Rules.RoundTimeLimitSeconds > 0f && TimeLeft <= 0f;
+            string heading = won ? "You called dibs!" : timeUp ? "Time’s up. A perfectly messy draw." : "One more word. One more chance.";
+            if (lastWinner)
+            {
+                StartCoroutine(SlowMo());
+                RoundWon?.Invoke(lastWinner);
+            }
+            if (score.IsOver)
+            {
+                SetPhase(Phase.MatchOver);
+                var record = MatchTally.FinishFor(lastWinner);
+                hud.ShowResultSoon(HudResult.Of(Round, true, won, heading, record), StartMatch);
+                MatchWon?.Invoke(lastWinner);
+            }
+            else hud.ShowResultSoon(HudResult.Of(Round, false, won, heading, null), StartRound);
         }
 
         IEnumerator SlowMo()

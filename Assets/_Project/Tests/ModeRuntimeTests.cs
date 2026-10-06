@@ -126,7 +126,6 @@ namespace Wreckabulary.Tests
             bomb.transform.position = winner.transform.position;
             bomb.GetComponent<Rigidbody>().isKinematic = true;
             ThrownGear.Attach(bomb, joins.Players[1]);
-            typeof(RoundManager).GetField("roundOverTime", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(RoundManager.Instance, 10f);
             foreach (var opponent in joins.Players.Where(p => p != winner)) opponent.Health.Eliminate();
             yield return null;
             Assert.AreEqual(Phase.RoundOver, RoundManager.Instance.Phase);

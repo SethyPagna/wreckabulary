@@ -52,7 +52,6 @@ namespace Wreckabulary
         [SerializeField] Room[] rooms;
         [SerializeField] Level[] levels;
         [SerializeField] float countdownTime = 3f;
-        [SerializeField] float resultTime = 5f;
         [Tooltip("Fraction of the time limit left for 3 and 2 stars. Finishing at all is 1 star.")]
         [SerializeField] Vector2 starThresholds = new(0.5f, 0.25f);
 
@@ -65,7 +64,6 @@ namespace Wreckabulary
         readonly StringBuilder sb = new();
         const float DeliveryGap = 1.2f;
         RoomBuilder layoutBuilder;
-        ModeActions actions;
 
         public State Current { get; private set; }
         public int LevelIndex { get; private set; }
@@ -103,8 +101,6 @@ namespace Wreckabulary
             // Boxes drop from 2.5 m, or a metre under the floor above, so none starts inside the ceiling and gets shoved out of it.
             int deliveryStorey = house.StoreyOf(deliveryRoom);
             deliveryDrop = deliveryStorey + 1 < floors.Count ? Mathf.Min(2.5f, floors[deliveryStorey + 1] - .24f - 1f - deliveryRoom.FloorY) : 2.5f;
-            actions = ModeActions.Create(transform, "PLAY AGAIN", Retry);
-            actions.Show(false);
             joins.RespawnKnockedOut = true;
             joins.Joined += ConfigurePlayer;
             StartLevel(0);
@@ -130,7 +126,9 @@ namespace Wreckabulary
             LevelIndex = index;
             StopAllCoroutines();
             layoutBuilder.ResetRoom(furnish: false);
-            actions.Show(false);
+            hud.HideResult();
+            hud.HideCountdown();
+            MatchTally.BeginMatch();
             foreach (var puddle in puddles) if (puddle) Destroy(puddle.gameObject);
             puddles.Clear();
             placed.Clear();
@@ -166,17 +164,16 @@ namespace Wreckabulary
                 case State.Countdown:
                     if (joins.Players.Count == 0)
                     {
-                        hud.SetTitle("MOVING DAY", ControlHints.Join("join"));
+                        hud.HideCountdown();
                         stateStarted = Time.time;
                         break;
                     }
                     int left = Mathf.CeilToInt(countdownTime - t);
-                    hud.SetTitle(left > 0 ? left.ToString() : "GO!", $"Level {LevelIndex + 1}: {CurrentLevel.name}");
+                    hud.ShowCountdown(Mathf.Max(1, left), $"LEVEL {LevelIndex + 1} · {CurrentLevel.name.ToUpperInvariant()}");
                     if (t >= countdownTime) BeginPlay();
                     break;
 
                 case State.Playing:
-                    if (t > 0.8f) hud.SetTitle("", "");
                     TimeLeft -= Time.deltaTime;
                     CheckPlacements();
                     Resupply();
@@ -186,25 +183,23 @@ namespace Wreckabulary
                     break;
 
                 case State.Complete:
-                    if (joins.AnyStartPressed()) Retry();
-                    break;
-
                 case State.OutOfTime:
-                    if (t >= resultTime) StartLevel(LevelIndex);
+                    // The result card waits for PLAY AGAIN; a start key works too, after a beat.
+                    if (hud.ResultShown && t > 1.6f && joins.AnyStartPressed()) hud.ConfirmResult();
                     break;
             }
 
             hud.SetTimer(Current == State.Playing || Current == State.Countdown ? FormatTime(TimeLeft) : "");
             hud.SetChecklist(ChecklistText());
-            hud.SetInstruction(joins.Players.Count == 0 ? ControlHints.Join("join") : "Smash boxes, spell the checklist, put everything in the right room",
-                               "Hold spell to build furniture  •  grab to carry  •  Esc: back to the house");
+            hud.SetInstruction(joins.Players.Count == 0 ? ControlHints.Join("join") : "", "");
             hud.SetScoreboard(joins.Players, _ => 0, 0, false);
         }
 
         void BeginPlay()
         {
             SetState(State.Playing);
-            hud.SetTitle("GO!", "");
+            hud.ShowGo();
+            hud.Toast("Spell the checklist furniture and put each piece in its room.");
             foreach (var p in joins.Players) p.Frozen = false;
             // Don't resupply until the first round of boxes has arrived.
             nextResupply = Time.time + CurrentLevel.items.Length * DeliveryGap + 3f;
@@ -246,6 +241,7 @@ namespace Wreckabulary
                 rb.isKinematic = true;
                 s.Invulnerable = true;
                 Popup.Show($"{s.Word} placed!", rb.worldCenterOfMass + Vector3.up * 1.5f, new Color(0.56f, 0.82f, 0.55f), 4f);
+                hud.Toast($"{s.Word} in its new home. Lovely!");
             }
         }
 
@@ -315,23 +311,21 @@ namespace Wreckabulary
             Stars = fraction >= starThresholds.x ? 3 : fraction >= starThresholds.y ? 2 : 1;
             Session.RecordStars(LevelIndex, Stars);
             SetState(State.Complete);
-            hud.SetTitle("MOVED IN!", $"{Stars} / 3 stars  •  {FormatTime(TimeLeft)} to spare");
             foreach (var p in joins.Players) p.Frozen = true;
             World.FreezeTransient();
-            actions.Show(true);
             CameraRig.Shake(0.2f);
-            MatchTally.Finish(true);
+            var result = HudResult.Of(1, true, true, "Home, sweet home!", MatchTally.Finish(true));
+            result.Detail = $"{Stars} / 3 stars · {FormatTime(TimeLeft)} to spare";
+            hud.ShowResult(result, Retry);
         }
 
         void OutOfTime()
         {
             Stars = 0;
             SetState(State.OutOfTime);
-            hud.SetTitle("OUT OF TIME", "The movers want their truck back. Try again!");
             foreach (var p in joins.Players) p.Frozen = true;
             World.FreezeTransient();
-            actions.Show(true, "RETRY");
-            MatchTally.Finish(false);
+            hud.ShowResult(HudResult.Of(1, true, false, "The truck is leaving. Try a faster route!", MatchTally.Finish(false)), Retry);
         }
 
         string ChecklistText()

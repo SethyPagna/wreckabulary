@@ -27,6 +27,8 @@ namespace Wreckabulary
         public IReadOnlyList<WordEntry> WordsOverride { get; set; }
         /// <summary>Explicit objective IDs placed as furniture. Null keeps legacy Furniture-only override fixtures.</summary>
         public IReadOnlyCollection<string> ChecklistPlacementWords { get; set; }
+        /// <summary>The player types the word into the HUD's composer, so Update leaves the hold-and-release pick alone.</summary>
+        public bool Typed { get; set; }
         IReadOnlyList<WordEntry> Words => WordsOverride ?? (database ? database : GameAssets.I.words).Words;
 
         void Awake()
@@ -64,7 +66,7 @@ namespace Wreckabulary
                 return;
             }
             if (command.spellDown) Open();
-            if (!IsSpelling) return;
+            if (!IsSpelling || Typed) return;
             if (command.up) Step(-1);
             if (command.down) Step(1);
             if (command.grab) { Close(); return; }
@@ -115,6 +117,17 @@ namespace Wreckabulary
             string id = entry.word.ToUpperInvariant();
             foreach (var word in Words) if (word.word == id) return word;
             return null;
+        }
+
+        /// <summary>The recipe a typed word names, or null.</summary>
+        public WordEntry Recipe(string word) => ResolveRecipe(new WordEntry { word = word });
+
+        /// <summary>Some recipe starts with these letters (the composer says "Keep going…").</summary>
+        public bool StartsRecipe(string prefix)
+        {
+            if (string.IsNullOrEmpty(prefix)) return false;
+            foreach (var word in Words) if (word.word.StartsWith(prefix, StringComparison.Ordinal)) return true;
+            return false;
         }
 
         public bool BeginCraft(WordEntry entry)

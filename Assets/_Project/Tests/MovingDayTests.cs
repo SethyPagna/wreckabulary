@@ -177,7 +177,10 @@ namespace Wreckabulary.Tests
             director.TimeLeft = 0.2f;
             yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.OutOfTime, 2f, "out of time");
             Assert.AreEqual(0, director.Stars);
-            yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Countdown, 7f, "retry");
+            var hud = Object.FindAnyObjectByType<GameHud>();
+            Assert.IsTrue(hud.ResultShown, "the result card says the truck is leaving");
+            hud.UiCanvas.transform.Find("Safe HUD/Result/Result card/Next").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Countdown, 2f, "retry");
             Assert.AreEqual(0, director.LevelIndex);
             Assert.AreEqual(director.CurrentLevel.items.Length, director.Remaining.Count, "checklist resets");
         }

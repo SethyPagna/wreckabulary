@@ -25,7 +25,9 @@ namespace Wreckabulary
             var rig = CameraRig.Instance;
             bool own = rig && rig.isActiveAndEnabled && rig.Target == player;
             SetIfChanged(lettersText, own ? "" : LettersLine(), ref lastLetters);
-            SetIfChanged(wheelText, player.Summoner.IsSpelling ? WheelLines() : ContextLine(), ref lastWheel);
+            // The HUD's composer shows the local player's words; the wheel over the head is for couch players.
+            bool composer = GameHud.Active && GameHud.Active.LocalPlayer == player;
+            SetIfChanged(wheelText, player.Summoner.IsSpelling && !composer ? WheelLines() : ContextLine(), ref lastWheel);
         }
 
         /// <summary>What grab does right now, when that isn't obvious: reviving a teammate on the floor.</summary>

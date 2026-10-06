@@ -365,7 +365,12 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(1, rounds.WinsOf(a));
             Assert.AreEqual(0, rounds.WinsOf(b));
 
-            yield return new WaitForSecondsRealtime(3.3f);
+            // The result card waits for NEXT ROUND, as on the web.
+            var hud = Object.FindAnyObjectByType<GameHud>();
+            yield return TestScenes.WaitUntil(() => hud.ResultShown, 3f, "the round's result card");
+            Assert.AreEqual(1, rounds.Round, "no round starts behind the card");
+            hud.UiCanvas.transform.Find("Safe HUD/Result/Result card/Next").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            yield return null;
             Assert.AreEqual(2, rounds.Round);
             Assert.That(rounds.Phase, Is.EqualTo(Phase.Countdown).Or.EqualTo(Phase.Playing));
             Assert.IsFalse(b.IsKnockedOut, "knocked-out players get back up for the next round");
