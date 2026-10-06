@@ -161,7 +161,7 @@ namespace Wreckabulary
             }
             // Walls stand full height around a third-person camera and stay low under the overhead one.
             var rooms = FindAnyObjectByType<RoomBuilder>();
-            if (rooms) rooms.SetTallWalls(target);
+            if (rooms) { rooms.SetTallWalls(target); RoomBuilder.ApplyFog(target); }
             if (StoreyCutaway.Instance) StoreyCutaway.Instance.Refresh();
         }
 

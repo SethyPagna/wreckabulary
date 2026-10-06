@@ -178,7 +178,7 @@ namespace Wreckabulary.Tests
             AssertFramed(stage, "the camera looks at you");
             // No stage: no rug lies on the floor between the camera and you.
             var eye = stage.Camera.transform.position;
-            foreach (var rug in Backdrop(stage).GetComponentsInChildren<Transform>().Where(t => t.name == "RUG" || t.name.EndsWith("_Rug")))
+            foreach (var rug in Backdrop(stage).GetComponentsInChildren<Transform>().Where(t => t.name is "RUG" or "Rug" || t.name.EndsWith("_Rug")))
                 Assert.Greater(DistanceToSegment(rug.position, eye, stage.Spot), 2f, $"{rug.name} at {rug.position} is clear of the view");
             Assert.IsFalse(Object.FindAnyObjectByType<PlayerJoinManager>().AllowJoining, "clicking the hub no longer joins players");
             Assert.IsEmpty(Object.FindAnyObjectByType<PlayerJoinManager>().Players, "bots never stand in the lobby");

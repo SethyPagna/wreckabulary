@@ -1,4 +1,5 @@
 using UnityEngine;
+using Wreckabulary.Art;
 
 namespace Wreckabulary
 {
@@ -15,6 +16,10 @@ namespace Wreckabulary
         public float FloorY, Height;
         /// <summary>Outside the house on one side (or a garden): the taller of the two.</summary>
         public bool Outside;
+        /// <summary>The wood cap along the top, which rides up and down with the wall.</summary>
+        public Transform Trim;
+        /// <summary>Metres per repeat of the wall's texture, so the plaster keeps its scale at either height (zero: plain).</summary>
+        public Vector2 Tile;
 
         public float VisualHeight(bool tall) => tall ? Mathf.Min(Outside ? Exterior : Interior, Height) : Low;
 
@@ -32,6 +37,13 @@ namespace Wreckabulary
             var box = GetComponent<BoxCollider>();
             box.size = new Vector3(1f, Height / h, 1f);
             box.center = new Vector3(0f, (Height - h) * .5f / h, 0f);
+            if (Tile != Vector2.zero && TryGetComponent<MeshFilter>(out var filter)) filter.sharedMesh = Surfaces.Box(scale, Tile, t.localPosition);
+            if (Trim)
+            {
+                var top = Trim.position;
+                top.y = FloorY + h + .04f;
+                Trim.position = top;
+            }
         }
     }
 }

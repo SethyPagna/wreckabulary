@@ -63,11 +63,11 @@ namespace Wreckabulary
             foreach (Transform group in geometry)
                 for (int above = storey + 1; above < layout.StoreyFloors().Count; above++)
                     if (group.name == RoomBuilder.StoreyName(above)) group.gameObject.SetActive(false);
-            // The arena rug in the middle of your room lies between the camera and you and reads as a stage.
+            // A rug in your room lies between the camera and you and reads as a stage.
             foreach (var child in geometry.GetComponentsInChildren<Transform>(true))
             {
                 var p = set.InverseTransformPoint(child.position);
-                if (child.name == "Environment/Arena_Rug" && Mathf.Abs(p.y - room.FloorY) < 1f && p.x > room.MinX && p.x < room.MaxX && p.z > room.MinZ && p.z < room.MaxZ)
+                if (child.name == "Rug" && Mathf.Abs(p.y - room.FloorY) < 1f && p.x > room.MinX && p.x < room.MaxX && p.z > room.MinZ && p.z < room.MaxZ)
                 { child.gameObject.SetActive(false); Destroy(child.gameObject); }
             }
             float depth = room.MaxZ - room.MinZ;
