@@ -50,7 +50,7 @@ namespace Wreckabulary
             string here = layout.RoomAt(at.x, at.y, at.z);
             Vector3 destination = at;
 
-            var downed = World.Players.Where(p => p && p.IsDowned && Teams.AreTeammates(player.Team, p.Team))
+            var downed = World.Players.Where(p => p && p.IsDowned && Teams.AreTeammates(player.Team, p.Team) && WithinReach(layout, p.transform.position))
                 .OrderBy(p => (p.transform.position - at).sqrMagnitude).FirstOrDefault();
             bool evacuating = clearOut && clearOut.Running && here != null &&
                 clearOut.Schedule.PhaseOf(here, clearOut.Elapsed) >= RoomPhase.Warning;
@@ -83,7 +83,7 @@ namespace Wreckabulary
                         ? TilePool.Instance.Active.Where(t => t).OrderBy(t => Cost(t.transform.position, at)).FirstOrDefault() : null;
                     if (opponent && (player.Combat.Weapon || player.Inventory.TotalCount >= 8 || Vector3.Distance(opponent.transform.position, at) < 3f)) target = opponent.transform;
                     else if (tile && !player.Combat.Weapon) target = tile.transform;
-                    else target = FindObjectsByType<Smashable>().Where(s => s && !s.IsBroken && !s.Invulnerable)
+                    else target = FindObjectsByType<Smashable>().Where(s => s && !s.IsBroken && !s.Invulnerable && WithinReach(layout, s.transform.position))
                         .OrderBy(s => Cost(s.transform.position, at)).FirstOrDefault()?.transform ?? opponent?.transform;
                 }
                 if (target)
@@ -107,15 +107,19 @@ namespace Wreckabulary
 
             var waypoint = Waypoint(layout, graph, here, at, destination, clearOut);
             var delta = World.Flat(waypoint - at);
-            var direction = delta.sqrMagnitude > .16f ? delta.normalized : Vector3.zero;
+            // Stop a little short of where you're going, but walk right up to a point on the way there: stopping short
+            // of a doorway's mouth left a bot standing just off to one side of the door for good.
+            bool final = World.Flat(waypoint - destination).sqrMagnitude < .0001f && SameLevel(waypoint, destination);
+            var direction = delta.sqrMagnitude > (final ? .16f : .01f) ? delta.normalized : Vector3.zero;
             if (target && !evacuating && !downed) c.look = new Vector2(target.position.x - at.x, target.position.z - at.z);
             else c.look = new Vector2(direction.x, direction.z);
             if (direction.sqrMagnitude > 0f)
             {
                 // Room graph handles the walls; local steering skirts furniture between doorways. A slope you can
-                // walk up (stairs, a ramp) isn't in the way.
+                // walk up (stairs, a ramp) isn't in the way, and nor is the thing you're after (only it: the whole
+                // house hangs off one root).
                 if (Physics.SphereCast(at + Vector3.up * .4f, .25f, direction, out var hit, .85f, World.GroundMask,
-                    QueryTriggerInteraction.Ignore) && hit.normal.y < .6f && hit.rigidbody != player.Body && (!target || hit.transform.root != target.root))
+                    QueryTriggerInteraction.Ignore) && hit.normal.y < .6f && hit.rigidbody != player.Body && (!target || !hit.transform.IsChildOf(target)))
                 {
                     // Turn aside, but not back onto a flight of stairs you've just stepped off (a door beside the
                     // top, or a rail's end beside the foot, otherwise sends you up and down it).
@@ -144,6 +148,17 @@ namespace Wreckabulary
 
         /// <summary>Close enough in height to hit or revive: not a floor apart.</summary>
         static bool SameLevel(Vector3 a, Vector3 b) => Mathf.Abs(a.y - b.y) < 1.2f;
+
+        /// <summary>
+        /// On a floor or a flight, or low enough to hit from one. Up on a ledge (the playroom balcony) there's no
+        /// way up a bot can find, so it would only stand underneath.
+        /// </summary>
+        static bool WithinReach(HouseLayout layout, Vector3 p)
+        {
+            if (FlightUnder(layout, p) != null) return true;
+            string room = layout.RoomAt(p.x, p.y, p.z);
+            return room == null || p.y - layout.Room(room).FloorY < 1.2f;
+        }
 
         /// <summary>How far a thing feels: a storey up or down costs about six metres of walking to the stairs.</summary>
         static float Cost(Vector3 thing, Vector3 at) => World.Flat(thing - at).magnitude + Mathf.Abs(thing.y - at.y) * 2f;
@@ -177,7 +192,12 @@ namespace Wreckabulary
                     queue.Enqueue(next);
                 }
             }
-            if (!from.ContainsKey(end)) return Around(layout, start, at, Centre(layout.Room(start)));
+            if (!from.ContainsKey(end))
+            {
+                // No open way there: wait in the middle of this room.
+                var middle = Centre(layout.Room(start));
+                return World.Flat(middle - at).sqrMagnitude < .16f ? at : Around(layout, start, at, middle);
+            }
             string step = end;
             while (from[step] != start) step = from[step];
             var door = layout.Doors.FirstOrDefault(d => (d.A == start && d.B == step) || (d.B == start && d.A == step));
@@ -229,8 +249,10 @@ namespace Wreckabulary
                 if (along > -.3f) return Around(layout, here.Name, at, Beside(here, onto, side * Mathf.Sign(across) * (s.Width * .5f + .7f)));
                 return Around(layout, here.Name, at, onto);
             }
-            // Coming down, the only way into the opening is at the top; the railing closes off the rest.
-            if (inLine && along < s.Run + 1.2f && (along > s.Run - 1f || OnFlight(layout, s, at))) return off;
+            // Coming down, the only way into the opening is at the top; the railing closes off the rest. From beside
+            // the lane, a line straight to the foot clips the railing's end, so head into the middle of the top first.
+            if (inLine && along < s.Run + 1.2f && (along > s.Run - 1f || OnFlight(layout, s, at)))
+                return OnFlight(layout, s, at) ? off : top - forward * .5f;
             if (along < s.Run + .3f) return Around(layout, here.Name, at, Beside(here, onto, side * Mathf.Sign(across) * (s.Width * .5f + .7f)));
             return Around(layout, here.Name, at, onto);
         }
@@ -357,11 +379,12 @@ namespace Wreckabulary
         static bool OnFlight(HouseLayout layout, Stairway s, Vector3 at) =>
             s.Covers(at.x, at.z) && at.y > layout.Room(s.Lower).FloorY - .5f && at.y < layout.Room(s.Upper).FloorY + .5f;
 
-        /// <summary>Over a flight of stairs, or within this margin of one.</summary>
+        /// <summary>Over a flight of stairs, or within this margin of one, between its two floors (a flight a storey away is just floor here).</summary>
         static bool NearStairs(HouseLayout layout, Vector3 p, float margin)
         {
             foreach (var s in layout.Stairs)
-                if (p.x > s.MinX - margin && p.x < s.MaxX + margin && p.z > s.MinZ - margin && p.z < s.MaxZ + margin) return true;
+                if (p.y > layout.Room(s.Lower).FloorY - .5f && p.y < layout.Room(s.Upper).FloorY + .5f
+                    && p.x > s.MinX - margin && p.x < s.MaxX + margin && p.z > s.MinZ - margin && p.z < s.MaxZ + margin) return true;
             return false;
         }
 

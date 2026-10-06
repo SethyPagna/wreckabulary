@@ -206,7 +206,7 @@
    "yaw": 90
   },
   {
-   "room": "YellowFlat",
+   "room": "RedFlat",
    "at": [
     5.5,
     3
@@ -214,7 +214,7 @@
    "yaw": 270
   },
   {
-   "room": "RedFlat",
+   "room": "YellowFlat",
    "at": [
     5.5,
     3

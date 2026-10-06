@@ -264,6 +264,16 @@ namespace Wreckabulary.Tests
         public IEnumerator ABotRevivesAPartnerDownOnTheStairs() =>
             BotRevives(downedAt: new Vector3(2f, 1.1f, -2.5f), botAt: new Vector3(-6f, 0f, -4f), "Hall", pinned: true);
 
+        // Just off to one side of the bathroom door, a bot once stood short of the doorway's mouth for good.
+        [UnityTest]
+        public IEnumerator ABotStepsThroughADoorFromJustBesideIt() =>
+            BotRevives(downedAt: new Vector3(1f, 3f, 5.2f), botAt: new Vector3(.3f, 3f, 2.2f), "Bathroom", trips: 0);
+
+        // From beside the top of the flight, the straight way down clips the railing's end; the bot once dithered there.
+        [UnityTest]
+        public IEnumerator ABotGoesDownFromBesideTheTopOfTheFlight() =>
+            BotRevives(downedAt: new Vector3(-.5f, 0f, -5f), botAt: new Vector3(1.3f, 3f, 1.2f), "Hall");
+
         /// <summary>A bot on one floor and its downed partner on the other: it takes the stairs, without dithering on them.</summary>
         static IEnumerator BotRevives(Vector3 downedAt, Vector3 botAt, string room, int trips = 1, bool pinned = false)
         {

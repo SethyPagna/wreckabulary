@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using Wreckabulary.Rules;
@@ -69,17 +70,33 @@ namespace Wreckabulary
             if (rooms.Count == 0) rooms = Layout.Rooms.Where(r => r.MaxX - r.MinX > 2.5f && r.MaxZ - r.MinZ > 2.5f).ToList();
             if (rooms.Count == 0) rooms = Layout.Rooms.ToList();
             float total = rooms.Sum(r => (r.MaxX - r.MinX) * (r.MaxZ - r.MinZ));
+            bool NearStairs(float px, float pz) => Layout.Stairs.Any(s =>
+                px > s.MinX - StairClearance && px < s.MaxX + StairClearance && pz > s.MinZ - StairClearance && pz < s.MaxZ + StairClearance);
             RoomBox room = rooms[0];
             float x = 0f, z = 0f;
-            for (int attempt = 0; attempt < 12; attempt++)
+            bool clear = false;
+            for (int attempt = 0; attempt < 12 && !clear; attempt++)
             {
                 float pick = Random.Range(0f, total);
                 room = rooms.FirstOrDefault(r => (pick -= (r.MaxX - r.MinX) * (r.MaxZ - r.MinZ)) <= 0f) ?? rooms[rooms.Count - 1];
                 float inset = Mathf.Min(1f, (room.MaxX - room.MinX) * .4f), insetZ = Mathf.Min(1f, (room.MaxZ - room.MinZ) * .4f);
                 x = Random.Range(room.MinX + inset, room.MaxX - inset);
                 z = Random.Range(room.MinZ + insetZ, room.MaxZ - insetZ);
-                if (!Layout.Stairs.Any(s => x > s.MinX - StairClearance && x < s.MaxX + StairClearance && z > s.MinZ - StairClearance && z < s.MaxZ + StairClearance)) break;
-                x = (room.MinX + room.MaxX) * .5f; z = (room.MinZ + room.MaxZ) * .5f;
+                clear = !NearStairs(x, z);
+            }
+            if (!clear)
+            {
+                // Unlucky every time, as when only the stairwell is still open: any clear spot on a half-metre grid.
+                // Not the middle of the room, which in the walk-up sits between its two flights.
+                var spots = new List<(RoomBox room, float x, float z)>();
+                foreach (var r in rooms)
+                {
+                    float inset = Mathf.Min(1f, (r.MaxX - r.MinX) * .4f), insetZ = Mathf.Min(1f, (r.MaxZ - r.MinZ) * .4f);
+                    for (float gx = r.MinX + inset; gx <= r.MaxX - inset; gx += .5f)
+                        for (float gz = r.MinZ + insetZ; gz <= r.MaxZ - insetZ; gz += .5f)
+                            if (!NearStairs(gx, gz)) spots.Add((r, gx, gz));
+                }
+                if (spots.Count > 0) (room, x, z) = spots[Random.Range(0, spots.Count)];
             }
             int storey = Layout.StoreyOf(room);
             float ceiling = storey + 1 < floors.Count ? floors[storey + 1] - .24f : float.PositiveInfinity;

@@ -226,8 +226,17 @@ namespace Wreckabulary.Tests
         public IEnumerator ABotTakesBothFlightsDownToReviveItsPartner() =>
             BotRevives(downedAt: new Vector3(-5f, 0f, 0f), botAt: new Vector3(4f, 6f, 2f), "Cafe");
 
-        /// <summary>A bot two floors away from its downed partner: it takes each flight once, in order.</summary>
-        static IEnumerator BotRevives(Vector3 downedAt, Vector3 botAt, string room)
+        // From beside the top of a flight, the straight way down clips the railing's end; bots once dithered there.
+        [UnityTest]
+        public IEnumerator ABotGoesDownTheTopFlightFromBesideIt() =>
+            BotRevives(downedAt: new Vector3(0f, 3f, 4f), botAt: new Vector3(-.8f, 6f, -4.2f), "Landing1", trips: new[] { 0, 1 });
+
+        [UnityTest]
+        public IEnumerator ABotGoesDownTheBottomFlightFromBesideIt() =>
+            BotRevives(downedAt: new Vector3(-1.5f, 0f, 4f), botAt: new Vector3(.8f, 3f, 1.7f), "Lobby", trips: new[] { 1, 0 });
+
+        /// <summary>A bot floors away from its downed partner: it takes each flight it needs once, in order.</summary>
+        static IEnumerator BotRevives(Vector3 downedAt, Vector3 botAt, string room, int[] trips = null)
         {
             yield return LoadBattle("Duos");
             yield return BeginWithBotsStopped();
@@ -272,9 +281,9 @@ namespace Wreckabulary.Tests
             float took = Time.time - started;
             var at = partner.transform.position;
             Debug.Log($"WALKUP_BOT to {room} took {took:F1}s, flights {string.Join("/", timesOn)}x, ended at {at} in {layout.RoomAt(at.x, at.y, at.z)}{trace}");
-            Assert.IsTrue(human.Health.IsAlive, "the bot took both flights and revived its partner");
+            Assert.IsTrue(human.Health.IsAlive, "the bot took the stairs and revived its partner");
             Assert.AreEqual(room, layout.RoomAt(at.x, at.y, at.z), "it revived from the same floor");
-            CollectionAssert.AreEqual(new[] { 1, 1 }, timesOn, "one trip along each flight");
+            CollectionAssert.AreEqual(trips ?? new[] { 1, 1 }, timesOn, "one trip along each flight it needs");
             Assert.Less(took, Match.Rules.ReviveSeconds + 10f, "about 40 m of walking and the revive");
         }
 
@@ -339,6 +348,19 @@ namespace Wreckabulary.Tests
                 Object.Destroy(box.gameObject);
             }
             CollectionAssert.AreEquivalent(new[] { 0, 1, 2 }, storeys, "boxes land on all three floors");
+
+            // With only the stairwell still open, as late in Dibs, boxes still land clear of both flights; the middle
+            // of a landing, where an unlucky drop once fell back to, is between them.
+            var stairwell = new[] { "Lobby", "Landing1", "Landing2" };
+            spawner.RoomOpen = name => stairwell.Contains(name);
+            for (int i = 0; i < 100; i++)
+            {
+                var box = spawner.Drop(false);
+                var at = box.transform.position;
+                CollectionAssert.Contains(stairwell, layout.RoomAt(at.x, at.y, at.z), $"box {i} at {at} lands in the stairwell");
+                Assert.IsFalse(layout.Stairs.Any(s => at.x > s.MinX - .8f && at.x < s.MaxX + .8f && at.z > s.MinZ - .8f && at.z < s.MaxZ + .8f), $"box {i} at {at} is clear of the stairs");
+                Object.Destroy(box.gameObject);
+            }
             Object.Destroy(spawner.gameObject);
         }
     }

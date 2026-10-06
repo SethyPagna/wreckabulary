@@ -55,6 +55,22 @@ namespace Wreckabulary.Rules.Tests
             }
         }
 
+        [TestCase("house_pinwheel.json")]
+        [TestCase("house_courtyard.json")]
+        [TestCase("house_flat.json")]
+        [TestCase("house_terrace.json")]
+        [TestCase("house_walkup.json")]
+        public void DuosClosesAStartRoomOfEachTeamFirst(string file)
+        {
+            var house = HouseLayout.FromJson(TestData.Read(file), file);
+            // Seats take the spawns in join order, and Duos splits them 0, 1, 0, 1.
+            var teams = Teams.Assign(house.Spawns.Count, 2);
+            var closing = house.ClearOutOrders["Duos"].Where(room => house.Spawns.Any(s => s.Room == room))
+                .Select(room => teams[house.Spawns.FindIndex(s => s.Room == room)]).Take(2).ToArray();
+            Assert.AreEqual(2, closing.Length, $"{file}: Duos closes at least two start rooms");
+            Assert.AreNotEqual(closing[0], closing[1], $"{file}: the first two start rooms to close belong to different teams");
+        }
+
         [Test]
         public void TheFlatIsOneFloorAroundAHallEveryRoomOpensOnto()
         {
