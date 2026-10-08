@@ -11,6 +11,7 @@ namespace Wreckabulary
         public PlayerController Owner { get; private set; }
         ItemDefinition definition;
         bool registered;
+        Transform marker;
         readonly Dictionary<int, float> lastLaunch = new();
 
         public static int CountFor(PlayerController owner)
@@ -33,6 +34,7 @@ namespace Wreckabulary
             box.center = Vector3.up * 0.45f;
             box.size = new Vector3(stats.FootprintX + 0.6f, 1.4f, stats.FootprintZ + 0.6f);
             sensor.AddComponent<GearTrigger>().Tool = component;
+            component.BuildMarker();
         }
 
         public static DeployedGear Register(GameObject root, PlayerController owner)
@@ -49,10 +51,29 @@ namespace Wreckabulary
             registered = false;
             Active.Remove(this);
             foreach (var trigger in GetComponentsInChildren<GearTrigger>()) Destroy(trigger.gameObject);
+            if (marker) Destroy(marker.gameObject);
             Destroy(this);
         }
 
         void OnDestroy() => Active.Remove(this);
+
+        void BuildMarker()
+        {
+            marker = new GameObject("Ability marker").transform;
+            marker.SetParent(transform, false);
+            marker.localPosition = Vector3.up * (definition.Size[1] + .035f);
+            var color = GameFeedback.SkillColor(definition.Id);
+            var stats = definition.Deploy;
+            float x = stats.FootprintX * .4f, z = stats.FootprintZ * .4f;
+            SummonEffects.Line(marker, color, new[] { new Vector3(-x, 0f, -z), new Vector3(-x, 0f, z), new Vector3(x, 0f, z), new Vector3(x, 0f, -z) }, true);
+            for (int i = 0; i < 2; i++)
+            {
+                var arrow = new GameObject("Direction chevron").transform;
+                arrow.SetParent(marker, false);
+                float center = (i - .5f) * z;
+                SummonEffects.Line(arrow, color, new[] { new Vector3(-x * .45f, .01f, center - .12f), new Vector3(0f, .01f, center + .15f), new Vector3(x * .45f, .01f, center - .12f) });
+            }
+        }
 
         public void Affect(Collider collider)
         {
@@ -63,11 +84,22 @@ namespace Wreckabulary
                 if (player.Body.linearVelocity.y > 1f || (lastLaunch.TryGetValue(player.Index, out float t) && Time.time - t < 1f)) return;
                 lastLaunch[player.Index] = Time.time;
                 player.Launch(World.Flat(player.Body.linearVelocity) + Vector3.up * stats.Strength);
+                GameFeedback.Play(GameCue.Jump);
+                GameFeedback.Burst("Jump_Arrow", player.transform.position + Vector3.up * .3f, .8f, GameFeedback.SkillColor("BED"), .55f);
             }
             else if (stats.Effect == DeployEffect.SpeedStrip)
             {
                 var motion = new Vector3(player.Commands.move.x, 0f, player.Commands.move.y);
-                if (Vector3.Dot(motion, transform.forward) > 0.1f) player.Boost(stats.Strength, 1.5f);
+                if (Vector3.Dot(motion, transform.forward) > 0.1f)
+                {
+                    player.Boost(stats.Strength, 1.5f);
+                    if (!lastLaunch.TryGetValue(player.Index, out float t) || Time.time - t > .7f)
+                    {
+                        lastLaunch[player.Index] = Time.time;
+                        GameFeedback.Play(GameCue.Boost);
+                        GameFeedback.Burst("Speed_Trail", player.transform.position + Vector3.up * .25f, .7f, GameFeedback.SkillColor("MAT"), .4f);
+                    }
+                }
             }
         }
     }

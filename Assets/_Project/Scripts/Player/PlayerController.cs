@@ -77,6 +77,7 @@ namespace Wreckabulary
         Vector3 autoWalk;
         Collider[] colliders;
         Transform homeParent;
+        Camera aimCamera;
 
         // Visual wobble state
         Vector3 lean, leanVel;
@@ -93,6 +94,7 @@ namespace Wreckabulary
             Combat = GetComponent<PlayerCombat>();
             Summoner = GetComponent<Summoner>();
             colliders = GetComponents<Collider>();
+            aimCamera = Camera.main;
             if (handL) handLRest = handL.localPosition;
             if (handR) handRRest = handR.localPosition;
         }
@@ -134,8 +136,10 @@ namespace Wreckabulary
             {
                 Commands = default;
                 Binding.Read(ref Commands);
+                ReadCameraRelativeCommands();
                 if (Binding is not TouchBinding && TouchBinding.Shared.IsOverlayFor(Binding.Id))
                     TouchBinding.Shared.Merge(ref Commands);
+                if (Time.timeScale <= 0f) Commands = default;
             }
             // Physics steps on its own clock, so hold on to a press until a step can act on it.
             if (Commands.jump) jumpWantedUntil = Time.time + pressBuffer;
@@ -197,6 +201,19 @@ namespace Wreckabulary
 
         bool IsReviving => Combat && Combat.IsReviving;
 
+        void ReadCameraRelativeCommands()
+        {
+            var camera = CameraRig.Instance;
+            if (!camera || Binding is not (DesktopBinding or KeyboardBinding or GamepadBinding)) return;
+            Commands.move = camera.ScreenDirectionToWorld(Commands.move);
+            if (camera.IsFollowing(this) && Binding is GamepadBinding)
+            {
+                var forward = camera.PlanarForward;
+                Commands.look = new Vector2(forward.x, forward.z);
+            }
+            else Commands.look = camera.ScreenDirectionToWorld(Commands.look);
+        }
+
         /// <summary>Flat direction the right stick or the mouse points; zero when not aiming.</summary>
         Vector3 AimDirection()
         {
@@ -205,11 +222,12 @@ namespace Wreckabulary
             if (look.sqrMagnitude > 0.01f) return new Vector3(look.x, 0f, look.y);
             if (!Commands.aimAtPointer) return Vector3.zero;
 
-            var cam = Camera.main;
+            var cam = CameraRig.Instance ? CameraRig.Instance.ViewCamera : aimCamera;
             if (!cam) return Vector3.zero;
             var ray = cam.ScreenPointToRay(Commands.pointer);
             var plane = new Plane(Vector3.up, transform.position + Vector3.up * aimHeight);
-            if (!plane.Raycast(ray, out float distance)) return Vector3.zero;
+            if (!plane.Raycast(ray, out float distance) || distance > 80f)
+                return World.Flat(ray.direction).normalized;
             var to = World.Flat(ray.GetPoint(distance) - transform.position);
             return to.sqrMagnitude > 0.04f ? to : Vector3.zero;
         }
@@ -384,8 +402,16 @@ namespace Wreckabulary
                 visual.rotation = dash * tilt * Quaternion.LookRotation(Facing) * down;
             }
 
-            squashVel += (-squash * 180f - squashVel * 10f) * dt;
-            squash += squashVel * dt;
+            // Bound spring integration during a slow import/capture frame so the body cannot invert or collapse.
+            float springTime = Mathf.Min(dt, .1f);
+            while (springTime > 0f)
+            {
+                float step = Mathf.Min(springTime, 1f / 120f);
+                squashVel += (-squash * 180f - squashVel * 10f) * step;
+                squash += squashVel * step;
+                springTime -= step;
+            }
+            squash = Mathf.Clamp(squash, -.2f, .2f);
             visual.localScale = new Vector3(1f - squash * 0.5f, 1f + squash, 1f - squash * 0.5f);
 
             float speed01 = Mathf.Clamp01(hv.magnitude / moveSpeed);

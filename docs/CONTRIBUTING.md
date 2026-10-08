@@ -18,7 +18,9 @@ ui: add word wheel
 
 ## Unity rules
 
+- Start with **Wreckabulary → Open Current Workspace** and the [authoring guide](UNITY-WORKSPACE.md). Use **Play the opened scene** when testing a scene directly; normal Play starts at the Hub.
 - **One person edits a scene at a time.** Say it in the group chat before opening `LivingRoom.unity`. Prefer building in prefabs and your own test scene.
+- Edit shared houses through the current world prefabs and apply scene overrides deliberately. Legacy prototype generation creates isolated references; it cannot replace production scenes.
 - Always commit `.meta` files together with their assets.
 - Never commit `Library/`, `Temp/` or `Builds/`.
 - Big files (models, textures, audio) go through Git LFS automatically.

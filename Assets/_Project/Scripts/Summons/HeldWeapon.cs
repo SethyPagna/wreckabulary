@@ -62,6 +62,7 @@ namespace Wreckabulary
         public void OnHeld(PlayerCombat user)
         {
             CancelUse();
+            GetComponent<Rigidbody>().interpolation = RigidbodyInterpolation.None;
             inFlight = false;
             holder = user;
             if (TryGetComponent(out DeployedGear deployed)) deployed.Deactivate();
@@ -77,6 +78,7 @@ namespace Wreckabulary
         public void OnReleased()
         {
             CancelUse();
+            GetComponent<Rigidbody>().interpolation = RigidbodyInterpolation.Interpolate;
             inFlight = false;
             holder = null;
             if (definition != null) transform.localScale = Vector3.one;
@@ -87,6 +89,7 @@ namespace Wreckabulary
         public void OnThrown(PlayerController thrower)
         {
             CancelUse();
+            GetComponent<Rigidbody>().interpolation = RigidbodyInterpolation.Interpolate;
             holder = null;
             inFlight = true;
             thrownAt = Time.time;
@@ -127,10 +130,13 @@ namespace Wreckabulary
                 bool firstFrame = true;
                 do
                 {
+                    while (Time.timeScale <= 0f) yield return null;
                     if (!owner.CanAct || owner.IsDodging || user.Weapon != this) break;
                     user.Strike(Stats, word, firstFrame);
                     if (firstFrame)
                     {
+                        GameFeedback.Burst("Speed_Trail", owner.transform.position + Vector3.up * .75f + owner.Facing * .6f,
+                            definition.Family == HandlingFamily.MeleeThrust ? .42f : .7f, GameFeedback.SkillColor(word), .2f);
                         firstFrame = false;
                         Wear(1f, user);
                         if (broken) yield break;
@@ -149,6 +155,7 @@ namespace Wreckabulary
             float ready = Time.time + definition.Use.ChannelSeconds;
             while (Time.time < ready)
             {
+                while (Time.timeScale <= 0f) yield return null;
                 if (!owner || !owner.CanAct || owner.IsDodging || user.Weapon != this) { usingItem = false; yield break; }
                 yield return null;
             }

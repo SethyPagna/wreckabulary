@@ -16,12 +16,14 @@ namespace Wreckabulary
         [SerializeField] TextMeshProUGUI title, subtitle, timer, scoreboard, instruction, checklist;
         [SerializeField] GameObject checklistPanel;
         public Canvas UiCanvas { get; private set; }
-        public bool TouchControlsShown => touchRoot && touchRoot.activeSelf;
+        public bool TouchControlsShown => touchEnabled;
         public PlayerController LocalPlayer { get; private set; }
+        public UIStateController StateController { get; private set; }
 
-        static readonly Color Ink = new(0.12f, 0.18f, 0.19f), Cream = new(0.98f, 0.95f, 0.86f);
-        static readonly Color Mint = new(0.44f, 0.85f, 0.73f), Coral = new(0.96f, 0.47f, 0.38f);
-        static readonly Color Dark = new(0.10f, 0.16f, 0.19f, 0.94f);
+        static readonly Color Ink = new(30f / 255f, 30f / 255f, 36f / 255f), Cream = new(1f, 0.96f, 0.85f);
+        static readonly Color Mint = new(0.29f, 0.88f, 0.74f), Coral = new(1f, 0.40f, 0.35f);
+        static readonly Color Gold = new(209f / 255f, 161f / 255f, 83f / 255f);
+        static readonly Color Dark = new(30f / 255f, 30f / 255f, 36f / 255f, 0.95f);
         readonly List<PlayerCard> cards = new();
         readonly List<RecipeView> recipes = new();
         readonly List<Sprite> ownedSprites = new();
@@ -31,6 +33,13 @@ namespace Wreckabulary
         readonly Dictionary<string, Texture2D> itemIcons = new(StringComparer.Ordinal);
         readonly TextMeshProUGUI[] tileLabels = new TextMeshProUGUI[18];
         readonly Image[] tileFaces = new Image[18];
+        readonly TextMeshProUGUI[] gearLabels = new TextMeshProUGUI[2];
+        readonly RawImage[] gearIcons = new RawImage[2];
+        readonly Image[] gearFaces = new Image[2];
+        readonly Dictionary<GameObject, CanvasGroup> visibility = new();
+        readonly Dictionary<PlayerController, bool> pausedPlayers = new();
+        bool touchEnabled, simulationPaused, inputBlocked, initialized;
+        float previousTimeScale = 1f;
         IReadOnlyList<PlayerController> players;
         Func<PlayerController, int> wins;
         int roundsToWin;
@@ -42,7 +51,7 @@ namespace Wreckabulary
         GameObject desktopHints;
         GameObject typewriterControls, homeButton;
         TextMeshProUGUI typewriterChoice;
-        TextMeshProUGUI bagLabel, heldLabel, craftStatus, buildLabel, playLabel;
+        TextMeshProUGUI bagLabel, craftStatus, buildLabel, playLabel;
         Image craftProgress;
         Button buildButton;
         RectTransform playRect;
@@ -73,7 +82,7 @@ namespace Wreckabulary
             if (!UiCanvas) UiCanvas = gameObject.AddComponent<Canvas>();
             UiCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
             if (!UiCanvas.TryGetComponent<GraphicRaycaster>(out _)) UiCanvas.gameObject.AddComponent<GraphicRaycaster>();
-            var scaler = UiCanvas.GetComponent<CanvasScaler>() ?? UiCanvas.gameObject.AddComponent<CanvasScaler>();
+            if (!UiCanvas.TryGetComponent<CanvasScaler>(out var scaler)) scaler = UiCanvas.gameObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
@@ -83,6 +92,7 @@ namespace Wreckabulary
                 events.GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
             joins = FindFirstObjectByType<PlayerJoinManager>();
+            if (joins) joins.Joined += OnPlayerJoined;
             typewriter = FindFirstObjectByType<Typewriter>();
             iconAtlas = Resources.Load<Texture2D>("UI/ActionIcons");
             foreach (var item in GameConfig.Current.Items.All)
@@ -95,16 +105,32 @@ namespace Wreckabulary
             safe = Rect("Safe HUD", UiCanvas.transform, Vector2.zero, Vector2.zero, Vector2.zero);
             safe.anchorMax = Vector2.one;
             safe.offsetMin = safe.offsetMax = Vector2.zero;
+            StateController = FindFirstObjectByType<UIStateController>();
+            if (!StateController) StateController = new GameObject("UI State Controller").AddComponent<UIStateController>();
+            StateController.Register(UIState.GameplayHUD, safe.gameObject.AddComponent<CanvasGroup>());
+            StateController.StateChanged += OnUiStateChanged;
             StyleLegacyText();
             BuildCards(); BuildBag(); BuildCraftDrawer(); BuildTouchControls();
             BuildNavigation();
+            BuildPauseMenu();
             ShowTouchControls(Application.isMobilePlatform || Touchscreen.current != null);
             ApplySafeArea();
+            initialized = true;
+            OnUiStateChanged(StateController.CurrentState);
         }
 
         void StyleLegacyText()
         {
-            if (scoreboard) scoreboard.gameObject.SetActive(false);
+            if (scoreboard) SetVisible(scoreboard.gameObject, false);
+            foreach (var label in new[] { title, subtitle, timer, instruction, checklist })
+                if (label) { label.transform.SetParent(safe, true); label.color = Cream; }
+            if (checklistPanel)
+            {
+                checklistPanel.transform.SetParent(safe, true);
+                checklistPanel.transform.SetAsFirstSibling();
+                checklistPanel.SetActive(true);
+                SetVisible(checklistPanel, checklist && !string.IsNullOrEmpty(checklist.text));
+            }
             if (title) { title.fontSize = 88f; title.raycastTarget = false; title.rectTransform.sizeDelta = new Vector2(1450f, 170f); }
             if (subtitle) { subtitle.fontSize = 32f; subtitle.raycastTarget = false; }
             if (timer)
@@ -118,14 +144,14 @@ namespace Wreckabulary
             }
             if (checklist)
             {
-                PlaceText(checklist, new Vector2(0f, 1f), new Vector2(35f, -265f), new Vector2(380f, 330f), 27f);
+                PlaceText(checklist, new Vector2(0f, 1f), new Vector2(35f, -356f), new Vector2(380f, 330f), 27f);
                 checklist.rectTransform.pivot = new Vector2(0f, 1f);
             }
             if (checklistPanel)
             {
                 var rt = (RectTransform)checklistPanel.transform;
                 rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f); rt.pivot = new Vector2(0f, 1f);
-                rt.anchoredPosition = new Vector2(20f, -245f); rt.sizeDelta = new Vector2(410f, 365f);
+                rt.anchoredPosition = new Vector2(20f, -340f); rt.sizeDelta = new Vector2(410f, 365f);
                 if (checklistPanel.TryGetComponent<Image>(out var image))
                 { image.sprite = panelSprite; image.type = Image.Type.Sliced; image.color = Dark; image.raycastTarget = false; }
             }
@@ -142,8 +168,8 @@ namespace Wreckabulary
         {
             for (int i = 0; i < 4; i++)
             {
-                var anchor = new Vector2(i < 2 ? 0f : 1f, 1f);
-                var rt = Panel($"Roommate {i + 1}", safe, anchor, new Vector2(i < 2 ? 24f : -24f, -24f - (i % 2) * 76f), new Vector2(282f, 68f), anchor, Dark);
+                var anchor = new Vector2(0f, 1f);
+                var rt = Panel($"Roommate {i + 1}", safe, anchor, new Vector2(24f, -24f - i * 76f), new Vector2(282f, 68f), anchor, Dark);
                 var badge = Panel("Initial badge", rt, new Vector2(0f, 0.5f), new Vector2(12f, 0f), new Vector2(45f, 45f), new Vector2(0f, 0.5f), Mint, true).GetComponent<Image>();
                 var card = new PlayerCard { root = rt.gameObject, badge = badge };
                 card.initial = Text("Initial", badge.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40f, 40f), 28f, Ink);
@@ -152,26 +178,38 @@ namespace Wreckabulary
                 card.status = Text("Status", rt, Vector2.zero, new Vector2(68f, 8f), new Vector2(204f, 21f), 15f, Cream, TextAlignmentOptions.Left);
                 card.status.rectTransform.pivot = Vector2.zero;
                 card.fill = Fill("Health", Panel("Health track", rt, new Vector2(0f, 0.5f), new Vector2(68f, -5f), new Vector2(194f, 8f), new Vector2(0f, 0.5f), new Color(1f, 1f, 1f, 0.12f)), Mint);
-                cards.Add(card); rt.gameObject.SetActive(false);
+                cards.Add(card); SetVisible(rt.gameObject, false);
             }
         }
 
         void BuildBag()
         {
-            var rt = Panel("Letter bag", safe, new Vector2(0.5f, 0f), new Vector2(0f, 20f), new Vector2(544f, 142f), new Vector2(0.5f, 0f), Dark);
+            var rt = Panel("Letter bag", safe, new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(796f, 148f), new Vector2(0.5f, 0f), Dark);
             bagRoot = rt.gameObject;
-            bagLabel = Text("Bag count", rt, new Vector2(0.5f, 1f), new Vector2(0f, -14f), new Vector2(500f, 28f), 18f, Cream);
-            bagLabel.rectTransform.pivot = new Vector2(0.5f, 1f);
+            bagLabel = Text("Bag count", rt, new Vector2(0f, 1f), new Vector2(24f, -14f), new Vector2(512f, 25f), 18f, Gold, TextAlignmentOptions.Left);
+            bagLabel.rectTransform.pivot = new Vector2(0f, 1f);
             for (int i = 0; i < tileLabels.Length; i++)
             {
-                var tile = Panel($"Letter {i + 1}", rt, new Vector2(0f, 1f), new Vector2(23f + (i % 9) * 56f, -48f - (i / 9) * 38f), new Vector2(48f, 32f), new Vector2(0f, 1f), Cream);
+                var tile = Panel($"Letter {i + 1}", rt, new Vector2(0f, 1f), new Vector2(23f + (i % 9) * 56f, -48f - (i / 9) * 42f), new Vector2(48f, 36f), new Vector2(0f, 1f), Cream);
                 tileFaces[i] = tile.GetComponent<Image>();
                 tileLabels[i] = Text("Letter", tile, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44f, 32f), 24f, Ink);
             }
-            heldLabel = Text("Gear", rt, new Vector2(0.5f, 0f), new Vector2(0f, 5f), new Vector2(500f, 24f), 15f, Mint);
-            heldLabel.rectTransform.pivot = new Vector2(0.5f, 0f); bagRoot.SetActive(false);
+            for (int i = 0; i < 2; i++)
+            {
+                int slot = i;
+                var gear = Panel($"Gear slot {i + 1}", rt, Vector2.one, new Vector2(-16f, -16f - i * 61f), new Vector2(228f, 54f), Vector2.one, new Color(1f, 1f, 1f, 0.08f));
+                gearFaces[i] = gear.GetComponent<Image>(); gearFaces[i].raycastTarget = true;
+                var button = gear.gameObject.AddComponent<Button>();
+                button.onClick.AddListener(() => { if (slot == 1 && LocalPlayer && LocalPlayer.CanAct) LocalPlayer.Combat.SwitchGear(); });
+                Text("Slot number", gear, new Vector2(0f, 0.5f), new Vector2(18f, 0f), new Vector2(26f, 34f), 20f, Gold).text = (i + 1).ToString();
+                gearIcons[i] = Rect("Gear icon", gear, new Vector2(0f, 0.5f), new Vector2(55f, 0f), new Vector2(48f, 48f)).gameObject.AddComponent<RawImage>();
+                gearIcons[i].raycastTarget = false;
+                gearLabels[i] = Text("Gear name", gear, new Vector2(0f, 0.5f), new Vector2(84f, 0f), new Vector2(132f, 44f), 18f, Cream, TextAlignmentOptions.Left);
+                gearLabels[i].rectTransform.pivot = new Vector2(0f, 0.5f);
+            }
+            SetVisible(bagRoot, false);
             var hint = Text("Desktop controls", safe, new Vector2(0.5f, 0f), new Vector2(0f, 180f), new Vector2(1030f, 45f), 15f, Cream);
-            hint.text = "WASD move  •  mouse aim  •  click smash  •  SPACE jump  •  SHIFT dash\nE grab/throw  •  hold Q craft  •  F place  •  TAB swap  •  hold R drop  •  right click block";
+            hint.text = "WASD MOVE   •   MMB LOOK   •   CLICK SMASH   •   E GRAB   •   Q CRAFT   •   TAB SWAP   •   ESC PAUSE";
             desktopHints = hint.gameObject;
         }
 
@@ -199,7 +237,7 @@ namespace Wreckabulary
             buildLabel = buildButton.GetComponentInChildren<TextMeshProUGUI>();
             MakeButton("Cancel", rt, Vector2.one, new Vector2(-8f, -8f), new Vector2(40f, 40f), "X", CancelCraft);
             craftProgress = Fill("Building", Panel("Progress track", rt, new Vector2(0.5f, 0f), new Vector2(0f, 76f), new Vector2(500f, 9f), new Vector2(0.5f, 0f), new Color(1f, 1f, 1f, 0.12f)), Mint);
-            craftRoot.SetActive(false);
+            SetVisible(craftRoot, false);
         }
 
         void BuildTouchControls()
@@ -219,7 +257,7 @@ namespace Wreckabulary
             AddSkill(rt, TouchAction.Swap, "SWAP", new Vector2(-503f, 51f), 76f, Cream);
             playLabel = MakeButton("Play or Ready", rt, new Vector2(0.5f, 1f), new Vector2(0f, -185f), new Vector2(200f, 50f), "PLAY", JoinOrReady).GetComponentInChildren<TextMeshProUGUI>();
             playRect = (RectTransform)playLabel.transform.parent;
-            MakeButton("Touch switch", safe, Vector2.one, new Vector2(-22f, -182f), new Vector2(156f, 36f), "TOUCH", () => ShowTouchControls(!TouchControlsShown)).gameObject.SetActive(!Application.isMobilePlatform);
+            SetVisible(MakeButton("Touch switch", safe, Vector2.one, new Vector2(-22f, -80f), new Vector2(132f, 36f), "TOUCH", () => ShowTouchControls(!TouchControlsShown)).gameObject, !Application.isMobilePlatform);
         }
 
         void AddStick(Transform parent, bool aim, Vector2 position, Vector2 anchor, float diameter)
@@ -235,12 +273,7 @@ namespace Wreckabulary
 
         void BuildNavigation()
         {
-            homeButton = MakeButton("Return home", safe, Vector2.one, new Vector2(-22f, -226f), new Vector2(156f, 42f), "HOME", () =>
-            {
-                TouchBinding.Shared.ReleaseAll();
-                Session.GoHome();
-            }).gameObject;
-            homeButton.SetActive(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != Session.HubScene);
+            homeButton = MakeButton("Pause", safe, Vector2.one, new Vector2(-22f, -24f), new Vector2(132f, 42f), "PAUSE", TogglePause).gameObject;
             var panel = Panel("Typewriter touch menu", safe, new Vector2(0.5f, 0f), new Vector2(0f, 178f), new Vector2(580f, 166f), new Vector2(0.5f, 0f), Dark);
             typewriterControls = panel.gameObject;
             typewriterChoice = Text("Mode choice", panel, new Vector2(0.5f, 1f), new Vector2(0f, -35f), new Vector2(540f, 54f), 25f, Cream);
@@ -249,7 +282,80 @@ namespace Wreckabulary
             MakeButton("Next mode", panel, Vector2.zero, new Vector2(162f, 22f), new Vector2(132f, 52f), "NEXT", () => TouchBinding.Shared.Pulse(TouchAction.Down));
             MakeButton("Choose mode", panel, Vector2.zero, new Vector2(306f, 22f), new Vector2(132f, 52f), "SELECT", () => TouchBinding.Shared.Pulse(TouchAction.Grab));
             MakeButton("Leave typewriter", panel, Vector2.zero, new Vector2(450f, 22f), new Vector2(112f, 52f), "BACK", () => { if (typewriter) typewriter.Close(); });
-            typewriterControls.SetActive(false);
+            SetVisible(typewriterControls, false);
+        }
+
+        void BuildPauseMenu()
+        {
+            var canvasObject = new GameObject("Pause canvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvasObject.transform.SetParent(transform, false);
+            var canvasRect = canvasObject.GetComponent<RectTransform>();
+            canvasRect.anchorMin = Vector2.zero; canvasRect.anchorMax = Vector2.one;
+            canvasRect.offsetMin = canvasRect.offsetMax = Vector2.zero;
+            var canvas = canvasObject.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.overrideSorting = true; canvas.sortingOrder = 200;
+            var scaler = canvasObject.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f); scaler.matchWidthOrHeight = 0.5f;
+            var overlay = Panel("Pause backdrop", canvasObject.transform, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, new Color(Ink.r, Ink.g, Ink.b, 0.76f));
+            overlay.anchorMax = Vector2.one; overlay.offsetMin = overlay.offsetMax = Vector2.zero;
+            overlay.GetComponent<Image>().raycastTarget = true;
+            var card = Panel("Pause card", overlay, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620f, 460f), new Vector2(0.5f, 0.5f), Dark);
+            Text("Heading", card, new Vector2(0.5f, 1f), new Vector2(0f, -75f), new Vector2(550f, 70f), 55f, Gold).text = "TAKE A BREATHER";
+            Text("Local match", card, new Vector2(0.5f, 1f), new Vector2(0f, -132f), new Vector2(550f, 35f), 20f, Cream).text = "All roommates are paused";
+            var resume = MakeButton("Resume", card, new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(470f, 68f), "BACK TO THE MESS", () => StateController.TransitionToState(UIState.GameplayHUD));
+            MakeButton("Sound", card, new Vector2(0.5f, 0.5f), new Vector2(0f, -88f), new Vector2(470f, 58f), "TOGGLE SOUND", () => GameFeedback.Muted = !GameFeedback.Muted);
+            MakeButton("Home", card, new Vector2(0.5f, 0.5f), new Vector2(0f, -162f), new Vector2(470f, 58f), "RETURN TO HOUSE", () =>
+            {
+                StateController.TransitionToState(UIState.GameplayHUD);
+                Session.GoHome();
+            });
+            StateController.Register(UIState.PauseMenu, overlay.gameObject.AddComponent<CanvasGroup>(), resume.gameObject);
+        }
+
+        public void TogglePause()
+        {
+            if (!StateController || StateController.CurrentState == UIState.MainMenu) return;
+            StateController.TransitionToState(StateController.CurrentState == UIState.PauseMenu ? UIState.GameplayHUD : UIState.PauseMenu);
+        }
+
+        void OnUiStateChanged(UIState state)
+        {
+            TouchBinding.Shared.ReleaseAll();
+            foreach (var stick in sticks) if (stick) stick.Release();
+            if (state == UIState.PauseMenu)
+            {
+                if (!simulationPaused) { previousTimeScale = Time.timeScale; simulationPaused = true; }
+                Time.timeScale = 0f;
+            }
+            else if (simulationPaused)
+            {
+                simulationPaused = false;
+                Time.timeScale = previousTimeScale;
+            }
+            inputBlocked = state != UIState.GameplayHUD;
+            if (inputBlocked)
+                foreach (var player in World.Players) BlockPlayer(player);
+            else RestoreSimulation();
+        }
+
+        void OnPlayerJoined(PlayerController player)
+        {
+            if (inputBlocked) BlockPlayer(player);
+        }
+
+        void BlockPlayer(PlayerController player)
+        {
+            if (!player || pausedPlayers.ContainsKey(player)) return;
+            pausedPlayers[player] = player.Frozen;
+            player.Frozen = true;
+            player.Commands = default;
+        }
+
+        void RestoreSimulation()
+        {
+            if (simulationPaused) { simulationPaused = false; Time.timeScale = previousTimeScale; }
+            inputBlocked = false;
+            foreach (var pair in pausedPlayers) if (pair.Key) { pair.Key.Frozen = pair.Value; pair.Key.Commands = default; }
+            pausedPlayers.Clear();
         }
 
         void AddSkill(Transform parent, TouchAction action, string label, Vector2 position, float diameter, Color accent)
@@ -269,10 +375,10 @@ namespace Wreckabulary
         public void ShowTouchControls(bool on)
         {
             if (!touchRoot) return;
-            touchRoot.SetActive(on); TouchBinding.Shared.ReleaseAll(); TouchBinding.Shared.Enabled = on;
+            touchEnabled = on; SetVisible(touchRoot, on); TouchBinding.Shared.ReleaseAll(); TouchBinding.Shared.Enabled = on;
             TouchBinding.Shared.OverlayDesktop = on && LocalPlayer && LocalPlayer.Binding is DesktopBinding;
             TouchBinding.Shared.OverlayBindingId = on && LocalPlayer && LocalPlayer.Binding is not TouchBinding ? LocalPlayer.Binding?.Id : null;
-            if (desktopHints) desktopHints.SetActive(!on);
+            if (desktopHints) SetVisible(desktopHints, !on);
             if (!on && LocalPlayer) LocalPlayer.Summoner.Close();
         }
         void JoinOrReady()
@@ -296,14 +402,14 @@ namespace Wreckabulary
 
         void LateUpdate()
         {
-            if (!safe) return;
+            if (!initialized) return;
             if (Screen.width != lastWidth || Screen.height != lastHeight || Screen.safeArea != lastSafe) ApplySafeArea();
             if (Time.unscaledTime < nextRefresh) return;
             nextRefresh = Time.unscaledTime + 0.08f;
             FindLocalPlayer(); RefreshCards(); RefreshBag(); RefreshCraft(); RefreshSkills(); RefreshNavigation();
             // Round start/retry lives in ModeActions. Keep this join control separate so their
             // canvases cannot overlap after a touch player has joined.
-            if (playRect) playRect.gameObject.SetActive(!LocalPlayer);
+            if (playRect) SetVisible(playRect.gameObject, !LocalPlayer);
             if (playLabel) playLabel.text = "PLAY";
         }
         void FindLocalPlayer()
@@ -311,7 +417,7 @@ namespace Wreckabulary
             if (LocalPlayer && LocalPlayer.isActiveAndEnabled) return;
             LocalPlayer = null;
             foreach (var p in World.Players) if (p && (p.Binding is TouchBinding || p.Binding is DesktopBinding)) { LocalPlayer = p; break; }
-            if (!LocalPlayer) foreach (var p in World.Players) if (p && p.Binding is not ScriptedBinding) { LocalPlayer = p; break; }
+            if (!LocalPlayer) foreach (var p in World.Players) if (p && p.Binding is not BotBinding) { LocalPlayer = p; break; }
             TouchBinding.Shared.OverlayDesktop = TouchControlsShown && LocalPlayer && LocalPlayer.Binding is DesktopBinding;
             TouchBinding.Shared.OverlayBindingId = TouchControlsShown && LocalPlayer && LocalPlayer.Binding is not TouchBinding ? LocalPlayer.Binding?.Id : null;
         }
@@ -321,31 +427,41 @@ namespace Wreckabulary
             {
                 var current = players ?? joins?.Players;
                 var card = cards[i]; var p = current != null && i < current.Count ? current[i] : null;
-                card.root.SetActive(p); if (!p) continue;
+                SetVisible(card.root, p); if (!p) continue;
                 card.badge.color = p.Color; card.initial.text = p.Initial.ToString();
-                card.name.text = p.Name + (showWins && wins != null ? $"   {wins(p)}/{roundsToWin}" : "");
+                card.name.text = (p == LocalPlayer ? "YOU" : p.Name) + (showWins && wins != null ? $"   {wins(p)}/{roundsToWin}" : "");
                 card.fill.fillAmount = p.Health.Fraction; card.fill.color = p.Health.Fraction > 0.35f ? Mint : Coral;
-                card.status.text = p.IsEliminated ? "WRECKED" : p.IsDowned ? $"REVIVE ME  {Mathf.CeilToInt(p.Health.BleedOutLeft)}s" : $"{Mathf.CeilToInt(p.Health.Current)} HP   {p.Inventory.TotalCount}/{p.Inventory.Capacity} letters";
+                card.status.text = p.IsEliminated ? "WRECKED" : p.IsDowned ? $"REVIVE  {Mathf.CeilToInt(p.Health.BleedOutLeft)}s" : $"{Mathf.CeilToInt(p.Health.Current)} HP";
             }
         }
         void RefreshBag()
         {
-            bagRoot.SetActive(LocalPlayer); if (!LocalPlayer) return;
+            SetVisible(bagRoot, LocalPlayer); if (!LocalPlayer) return;
             var inv = LocalPlayer.Inventory;
-            bagLabel.text = $"YOUR LETTER BAG   {inv.TotalCount}/{inv.Capacity}" + (inv.ReservedCount > 0 ? $"   ({inv.ReservedCount} building)" : "");
+            bagLabel.text = $"LETTERS    {inv.TotalCount}/{inv.Capacity}" + (inv.ReservedCount > 0 ? $"    {inv.ReservedCount} BUILDING" : "");
             for (int i = 0; i < tileLabels.Length; i++)
             {
                 bool occupied = i < inv.Count; tileFaces[i].color = occupied ? Cream : new Color(0.98f, 0.95f, 0.86f, 0.12f);
-                tileLabels[i].text = occupied ? inv.Letters[i].ToString() : ""; tileFaces[i].gameObject.SetActive(i < inv.Capacity);
+                tileLabels[i].text = occupied ? inv.Letters[i].ToString() : ""; SetVisible(tileFaces[i].gameObject, i < inv.Capacity);
             }
             var weapon = LocalPlayer.Combat.Weapon;
             var spare = LocalPlayer.Combat.StoredGear;
-            heldLabel.text = LocalPlayer.Combat.IsHolding ? (weapon ? $"IN HAND: {weapon.word}" + (spare ? $"   •   SPARE: {spare.word}   •   SWAP" : "   •   attack to use") : "FURNITURE   •   GRAB to throw   •   HOLD DROP") : spare ? $"SPARE: {spare.word}   •   SWAP to equip" : "Empty hands   •   smash furniture for letters";
+            RefreshGear(0, weapon ? weapon.word : LocalPlayer.Combat.IsHolding ? "FURNITURE" : null);
+            RefreshGear(1, spare ? spare.word : null);
+        }
+
+        void RefreshGear(int slot, string word)
+        {
+            gearLabels[slot].text = word ?? (slot == 0 ? "EMPTY HANDS" : "EMPTY SLOT");
+            gearLabels[slot].color = word == null ? new Color(Cream.r, Cream.g, Cream.b, 0.45f) : Cream;
+            gearFaces[slot].color = word == null ? new Color(1f, 1f, 1f, 0.04f) : new Color(Gold.r, Gold.g, Gold.b, 0.22f);
+            gearIcons[slot].texture = word != null && itemIcons.TryGetValue(word, out var icon) ? icon : null;
+            gearIcons[slot].enabled = gearIcons[slot].texture;
         }
         void RefreshCraft()
         {
-            if (!LocalPlayer) { craftRoot.SetActive(false); return; }
-            var summon = LocalPlayer.Summoner; bool visible = summon.IsSpelling || summon.IsCrafting; craftRoot.SetActive(visible);
+            if (!LocalPlayer) { SetVisible(craftRoot, false); return; }
+            var summon = LocalPlayer.Summoner; bool visible = summon.IsSpelling || summon.IsCrafting; SetVisible(craftRoot, visible);
             if (!visible) { if (TouchBinding.Shared.CraftOpen && !TouchBinding.Shared.CraftPressPending) TouchBinding.Shared.SetCraftOpen(false); return; }
             bool building = summon.IsCrafting;
             craftStatus.text = building ? $"BUILDING {summon.CraftWord}…  {Mathf.RoundToInt(summon.CraftProgress * 100f)}%" : summon.Ready.Count > 0 ? "Pick a word. Its letters become a real object." : "Smash furniture and find the missing letters.";
@@ -403,7 +519,7 @@ namespace Wreckabulary
         void RefreshNavigation()
         {
             bool usingMenu = typewriter && LocalPlayer && typewriter.User == LocalPlayer;
-            typewriterControls.SetActive(usingMenu);
+            SetVisible(typewriterControls, usingMenu);
             if (!usingMenu) return;
             var mode = typewriter.Modes[typewriter.Selected];
             typewriterChoice.text = mode.label + "\n<size=65%>" + mode.blurb + "</size>";
@@ -444,15 +560,17 @@ namespace Wreckabulary
             if (focused) return; TouchBinding.Shared.ReleaseAll();
             foreach (var stick in sticks) if (stick) stick.Release(); if (LocalPlayer) LocalPlayer.Summoner.Close();
         }
-        void OnDisable() => TouchBinding.Shared.ReleaseAll();
+        void OnDisable() { TouchBinding.Shared.ReleaseAll(); RestoreSimulation(); }
         void OnDestroy()
         {
+            if (joins) joins.Joined -= OnPlayerJoined;
+            if (StateController) StateController.StateChanged -= OnUiStateChanged;
             foreach (var sprite in ownedSprites) if (sprite) Destroy(sprite);
             foreach (var texture in ownedTextures) if (texture) Destroy(texture);
         }
         public void SetTitle(string text, string sub = "") { if (title) title.text = text; if (subtitle) subtitle.text = sub; }
         public void SetInstruction(string main, string hint = "") { if (instruction) instruction.text = string.IsNullOrEmpty(hint) ? main : $"{main}\n<size=70%><color=#FFF4E0CC>{hint}</color></size>"; }
-        public void SetChecklist(string text) { if (checklist) checklist.text = text; if (checklistPanel) checklistPanel.SetActive(!string.IsNullOrEmpty(text)); }
+        public void SetChecklist(string text) { if (checklist) { checklist.text = text; SetVisible(checklist.gameObject, !string.IsNullOrEmpty(text)); } if (checklistPanel) SetVisible(checklistPanel, !string.IsNullOrEmpty(text)); }
         public void SetTimer(string text) { if (timer) timer.text = text; }
         public void SetScoreboard(IReadOnlyList<PlayerController> currentPlayers, Func<PlayerController, int> currentWins, int targetWins, bool winsVisible)
         { players = currentPlayers; wins = currentWins; roundsToWin = targetWins; showWins = winsVisible; }
@@ -465,6 +583,17 @@ namespace Wreckabulary
             var r = bounds[(int)action]; float sx = iconAtlas.width / 1254f, sy = iconAtlas.height / 1254f;
             var sprite = Sprite.Create(iconAtlas, new Rect(r.x * sx, iconAtlas.height - (r.y + r.height) * sy, r.width * sx, r.height * sy), new Vector2(0.5f, 0.5f), 100f);
             ownedSprites.Add(sprite); return sprite;
+        }
+        void SetVisible(GameObject target, bool visible)
+        {
+            if (!target) return;
+            if (!visibility.TryGetValue(target, out var group) || !group)
+            {
+                if (!target.TryGetComponent<CanvasGroup>(out group)) group = target.AddComponent<CanvasGroup>();
+                visibility[target] = group;
+            }
+            group.alpha = visible ? 1f : 0f;
+            group.interactable = group.blocksRaycasts = visible;
         }
         Sprite MakeShape(bool circle)
         {

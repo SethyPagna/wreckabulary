@@ -41,20 +41,32 @@ namespace Wreckabulary
             var visual = new GameObject(item.Id + " protection");
             visual.transform.SetParent(owner.visual ? owner.visual : owner.transform, false);
             visual.transform.localPosition = Vector3.up * 0.8f;
-            // A wire bubble keeps the body visible instead of hiding it under an opaque sphere.
-            var line = visual.AddComponent<LineRenderer>();
-            line.useWorldSpace = false;
-            line.loop = true;
-            line.positionCount = 32;
-            line.startWidth = line.endWidth = 0.025f;
-            line.sharedMaterial = GameAssets.I.Tinted(new Color(0.4f, 0.8f, 1f));
-            for (int i = 0; i < 32; i++)
+            // Three open rings remain readable from a behind-the-player camera without concealing the avatar.
+            var color = GameFeedback.SkillColor(item.Id);
+            var ringColor = Color.Lerp(color, Color.white, .45f);
+            var front = SummonEffects.Ring(visual.transform, "Foam front", ringColor, .72f, Quaternion.identity);
+            var cross = SummonEffects.Ring(visual.transform, "Foam cross", ringColor, .72f, Quaternion.Euler(0f, 90f, 0f));
+            var equator = SummonEffects.Ring(visual.transform, "Foam equator", ringColor, .72f, Quaternion.Euler(90f, 0f, 0f));
+            front.startWidth = front.endWidth = cross.startWidth = cross.endWidth = equator.startWidth = equator.endWidth = .018f;
+            var camera = Camera.main;
+            var bubbles = new Transform[7];
+            for (int i = 0; i < bubbles.Length; i++)
             {
-                float a = i * Mathf.PI * 2f / 32f;
-                line.SetPosition(i, new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * 0.7f);
+                float angle = i * Mathf.PI * 2f / bubbles.Length;
+                var bubble = SummonEffects.Ring(visual.transform, "Foam bubble", Color.Lerp(color, Color.white, .55f), .075f + .02f * (i % 3), Quaternion.identity);
+                bubble.transform.localPosition = new Vector3(Mathf.Cos(angle) * .64f, Mathf.Sin(angle * 2f) * .42f, Mathf.Sin(angle) * .64f);
+                bubble.startWidth = bubble.endWidth = .016f;
+                bubbles[i] = bubble.transform;
             }
+            GameFeedback.Play(GameCue.Protect);
+            GameFeedback.Burst("Foam_Cloud", owner.transform.position + Vector3.up * .9f, .85f, color, .55f);
             var life = SummonedThing.Attach(visual, item.Id, owner, use.Seconds);
             life.ReturnsLetters = false;
+            life.Tick = () =>
+            {
+                if (!camera) return;
+                foreach (var bubble in bubbles) if (bubble) bubble.rotation = camera.transform.rotation;
+            };
             life.KeepAlive = () => owner && owner.Health.OwnsBubble(token) && owner.Health.Bubble > 0f;
             life.Ended = () => { if (owner) owner.Health.ClearOwnedBubble(token); };
         }

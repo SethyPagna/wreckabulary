@@ -187,6 +187,7 @@ namespace Wreckabulary.Tests
         {
             yield return TestScenes.Reset();
             yield return TestScenes.Load(Session.HubScene);
+            yield return TestScenes.ExploreHouse();
             Object.FindAnyObjectByType<PlayerJoinManager>().Join(new ScriptedBinding());
             var typewriter = Object.FindAnyObjectByType<Typewriter>();
             int index = typewriter.Modes.Select((m, i) => (m, i)).First(x => x.m.scene == Session.MovingDayScene).i;

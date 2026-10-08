@@ -17,6 +17,13 @@ namespace Wreckabulary
         AudioSource beep;
         static AudioClip beepClip;
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetAudio()
+        {
+            if (beepClip) Destroy(beepClip);
+            beepClip = null;
+        }
+
         public static void Attach(HeldWeapon gear, PlayerController owner)
         {
             if (gear.TryGetComponent(out ThrownGear old)) old.StopTracking();
@@ -76,16 +83,20 @@ namespace Wreckabulary
                 return;
             }
             float progress = Mathf.Clamp01((Time.time - thrownAt) / stats.FuseSeconds);
-            float radius = Mathf.Lerp(0.3f, stats.Radius, progress);
+            float radius = stats.Radius;
+            ring.startWidth = ring.endWidth = .035f + .025f * (.5f + .5f * Mathf.Sin(progress * Mathf.PI * 12f));
+            Vector3 center = transform.position;
+            if (Physics.Raycast(center, Vector3.down, out var ground, 30f, World.GroundMask, QueryTriggerInteraction.Ignore)) center.y = ground.point.y;
             for (int i = 0; i < 48; i++)
             {
                 float angle = i * Mathf.PI * 2f / 48f;
-                ring.SetPosition(i, transform.position + new Vector3(Mathf.Cos(angle) * radius, 0.05f, Mathf.Sin(angle) * radius));
+                ring.SetPosition(i, center + new Vector3(Mathf.Cos(angle) * radius, 0.05f, Mathf.Sin(angle) * radius));
             }
             if (Time.time >= nextBeep)
             {
                 nextBeep = Time.time + Mathf.Lerp(0.6f, 0.12f, progress);
-                beep.Play();
+                if (!GameFeedback.Muted) beep.Play();
+                GameFeedback.Burst("Bomb_Warning", transform.position + Vector3.up * .4f, .4f, GameFeedback.SkillColor("BOMB"), .18f);
             }
             if (Time.time < explodeAt) return;
             done = true;

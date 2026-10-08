@@ -21,7 +21,7 @@ The project contains a Unity edition and a standalone HTML/Three.js edition. Uni
 | Moving Out | Carry marked keepsakes to the van, then gather every surviving roommate there alive before the house clears out. |
 | Tutorial | Guided Unity exercises and a browser practice space for smashing, collecting, crafting and handling gear. |
 
-The creative room editor, custom room saves and online multiplayer are future work. The hub currently provides exploration, mode/map selection and cosmetic choices.
+The in-game creative room editor, custom room saves and online multiplayer are future work. The hub currently provides exploration, mode/map selection and cosmetic choices. Developers can edit the current Unity scenes, house prefabs and character through the [Unity workspace](docs/UNITY-WORKSPACE.md).
 
 ## Run the browser edition
 
@@ -55,7 +55,11 @@ git lfs pull
 git lfs fsck
 ```
 
-Add this checkout to Unity Hub and activate Unity Personal on the machine running the editor. After import, choose **Wreckabulary → Set Up Art and Data** to refresh generated material/model libraries, animation references and map data. Open `Assets/_Project/Scenes/Hub.unity`, press Play, join through the front-door UI or a join button, choose a map and mode, then start. The typewriter offers the same mode choices. Scene names such as `LivingRoom` select a runtime map; they are not separate content maps.
+Add this checkout to Unity Hub and use an activated editor. After import, choose **Wreckabulary → Open Current Workspace**. Its buttons open the current Hub, arena, Moving Day and tutorial scenes, Player prefab, house prefabs and UI sources. **Play starts at the Hub**; enable **Play the opened scene** to test the scene you are editing. Existing dirty or named scenes stay open when the editor starts.
+
+In Play, join through the front-door UI or a join button, choose a map and mode, then start. The typewriter offers the same mode choices. `LivingRoom.unity` is the arena scene; Pinwheel House and Garden Courtyard are editable world prefabs. Follow the [authoring guide](docs/UNITY-WORKSPACE.md) for scene overrides, map rules and UI editing.
+
+Use **Wreckabulary → Set Up Art and Data** when refreshing imported material/model libraries, animation references or shared data. **Authoring → Upgrade Current Scenes** adds missing authoring assets and preserves upgraded scene edits; it saves local backups under `Logs/authoring-backups`.
 
 [Cloud setup instructions](Tools/CloudSetup/README.md) provide the pinned .NET installer and Unity verification script. With .NET 9 installed, the rules suite runs without Unity:
 
@@ -71,13 +75,13 @@ bash Tools/CloudSetup/verify-unity.sh
 bash Tools/CloudSetup/verify-unity.sh --build
 ```
 
-The verification script prepares data/art libraries and runs EditMode and PlayMode tests; `--build` also attempts Linux PC and Unity Web builds. Other build menu entries cover Windows and Android when their modules are installed. Run generation/build steps sequentially. **Wreckabulary → Rebuild Prototype** overwrites generated scenes and prefabs; preserve manual scene edits before using it.
+The verification script prepares data/art libraries and runs EditMode and PlayMode tests; `--build` also attempts Linux PC and Unity Web builds. Other build menu entries cover Windows and Android when their modules are installed. Run generation/build steps sequentially. Historical generation is under **Wreckabulary → Legacy → Generate Isolated Prototype Reference** and writes separate references under `Assets/_Project/Editor/Legacy/Generated`. `PrototypeBuilder.BuildAll` is bootstrap-only and refuses to overwrite existing production assets.
 
 ## Controls
 
 | Action | Unity desktop | Browser desktop |
 | --- | --- | --- |
-| Move / aim | WASD / mouse | WASD or arrows / mouse; movement follows the camera |
+| Move / aim | WASD / mouse; movement follows the camera | WASD or arrows / mouse; movement follows the camera |
 | Attack / use held gear | Left mouse button | Left mouse button or J |
 | Block with PLATE | Hold right mouse button | Hold right mouse button or K |
 | Interact / revive | E; hold beside a downed teammate | E; hold beside a downed teammate |
@@ -87,17 +91,19 @@ The verification script prepares data/art libraries and runs EditMode and PlayMo
 | Drop | Hold R briefly | R |
 | Throw what's held | E; BALL/BOMB also throw when used | G |
 | Jump / dodge | Space / Left Shift | Space / Shift |
-| Start / return | Enter / Esc or HOME | On-screen start / Esc pauses; HOME returns |
+| Start / pause / return | Enter / Esc pauses / HOME returns | On-screen start / Esc pauses; HOME returns |
 
-Unity also supports gamepads and two keyboard halves; [ControlHints.cs](Assets/_Project/Scripts/Input/ControlHints.cs) and the on-screen hints show their bindings. On touch, use the movement/aim controls and labelled action buttons. Browser touch attacks use nearby-target auto-aim. Phone layout checks do not establish a tested Android or iOS build.
+For the single-seat Unity camera, hold middle mouse and drag to look around. Unity also supports gamepads and two keyboard halves; [ControlHints.cs](Assets/_Project/Scripts/Input/ControlHints.cs) and the on-screen hints show their bindings. On touch, use the movement/aim controls and labelled action buttons. Browser touch attacks use nearby-target auto-aim. Phone layout checks do not establish a tested Android or iOS build.
 
 ## Art and verification limits
 
 The source pack includes **40 items, 26 letter tiles, 21 house modules, 10 VFX meshes and one modular avatar**. See the [critical supplied-asset audit](docs/art/SUPPLIED_ASSET_AUDIT.md), [contact sheet](docs/art/SUPPLIED_ITEMS_CONTACT_SHEET.png), and [asset pipeline](Tools/AssetPipeline/README.md).
 
-The avatar contains 63,110 triangles across all wardrobe modules; its default outfit uses 31,696 triangles. The accepted reduced browser export uses 17,660 default-outfit triangles and passes interchange/animation checks. Unity deformation checks and device profiling remain open; those counts are not FPS results. Model import rotations, grip points, exact-letter destruction and simple gameplay colliders must survive visual changes. Generated concept images and UI raster art are separate from the supplied 3D meshes.
+The supplied avatar contains 63,110 triangles across all wardrobe modules; the reference outfit uses 31,696 triangles. The accepted reduced browser export uses 17,660 reference-outfit triangles and passes interchange/animation checks. Native Unity animation and miniature-gear grip checks now have test and screenshot evidence. Device profiling remains open; triangle counts are not FPS results. Model import rotations, grip points, exact-letter destruction and simple gameplay colliders must survive visual changes. Generated concept images and UI raster art are separate from the supplied 3D meshes.
 
-The cloud editor currently exits with **code 198 because Unity Personal is not activated there**. Source compilation against official Unity assemblies and engine-free rules tests do not establish Unity import, PlayMode behavior, captures or successful platform builds. Check [the progress record](docs/progress/WRECKABULARY.md) for the latest actual test counts, browser evidence and outstanding checks.
+The local Windows presentation checkpoint on **8–9 October 2026** passed native import, **187 EditMode tests** and **132 PlayMode/capture cases** using the latest result per test across the full suite and focused reruns. Thirteen rendered frames cover the camera, UI, local two-seat play and representative effects. The Windows build succeeded with zero errors and passed a startup smoke check. See the [native verification record](docs/reviews/UNITY-PRESENTATION-2026-10-08.md), [screenshot gallery](docs/reviews/evidence/unity-2026-10-08/index.html) and [current progress](docs/progress/WRECKABULARY.md).
+
+The **1 October cloud checkpoint** had a separate Unity Personal activation failure, exit 198; it does not describe this licensed Windows editor. Physical controller/mobile testing, other platform builds and device performance retain their own verification scope.
 
 ## Project and documents
 
@@ -107,11 +113,13 @@ The cloud editor currently exits with **code 198 because Unity Personal is not a
 | `Assets/_Project/Scripts/Rules` | Engine-free health, inventory/economy, room and match contracts |
 | `Assets/_Project/Scripts` | Unity movement, combat, modes, imported visuals, controls and UI |
 | `Assets/_Project/Art/Imported` | Supplied art converted to Unity FBX/textures |
+| `Assets/_Project/Scenes`, `Resources/Worlds` | Current editable scenes and shared house prefabs under `_Project` |
 | `Assets/_Project/Tests` | Rules and Unity regression suites |
 | `Web` | Standalone HTML edition, mechanics tests and Chromium checks |
 | `Tools/AssetPipeline`, `Tools/CloudSetup` | Repeatable art conversion and environment verification |
 
 - [Production plan](docs/PLAN.md) and [progress](docs/progress/WRECKABULARY.md)
+- [Current Unity workspace and authoring guide](docs/UNITY-WORKSPACE.md)
 - [Game design](docs/GDD.md) and [roadmap](docs/ROADMAP.md)
 - [Team workflow](docs/CONTRIBUTING.md), [asset provenance](docs/ASSETS.md), and [contributions](docs/CONTRIBUTIONS.md)
 

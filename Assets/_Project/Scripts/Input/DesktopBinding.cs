@@ -27,7 +27,7 @@ namespace Wreckabulary
         }
 
         public readonly InputActionMap Map = new("Desktop");
-        public readonly InputAction Move, Attack, Block, Jump, Dodge, Interact, Spell, Drop, Deploy, Swap, Up, Down, Start, Point;
+        public readonly InputAction Move, Attack, Block, Jump, Dodge, Interact, Spell, Drop, Deploy, Swap, Up, Down, Start, Point, Orbit, OrbitDelta;
         HoldToFire dropHold;
         readonly List<RaycastResult> uiHits = new();
         PointerEventData uiPointer;
@@ -52,6 +52,8 @@ namespace Wreckabulary
             Down = Button("Down", "<Keyboard>/s", "<Mouse>/scroll/down");
             Start = Button("Start", "<Keyboard>/enter");
             Point = Map.AddAction("Point", InputActionType.PassThrough, "<Mouse>/position", expectedControlLayout: "Vector2");
+            Orbit = Button("Orbit", "<Mouse>/middleButton");
+            OrbitDelta = Map.AddAction("OrbitDelta", InputActionType.PassThrough, "<Mouse>/delta", expectedControlLayout: "Vector2");
             Map.Enable();
         }
 
@@ -88,6 +90,13 @@ namespace Wreckabulary
             // Hover state can be a frame behind a pointer moved and pressed in the same update.
             if (!overUi && (c.attack || c.blockHeld)) overUi = HitsUiNow();
             if (overUi) c.attack = c.blockHeld = false;
+
+            if (Time.timeScale <= 0f) { c.move = Vector2.zero; c.attack = c.blockHeld = false; return; }
+            if (!overUi && Application.isFocused && Orbit.IsPressed())
+            {
+                c.orbit = OrbitDelta.ReadValue<Vector2>();
+                return;
+            }
 
             // Aim only while the pointer is over the game, so alt-tabbing away doesn't spin the player.
             if (Mouse.current == null || !Application.isFocused || overUi ||

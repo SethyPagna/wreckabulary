@@ -1,6 +1,40 @@
 # Wreckabulary progress
 
-## Resume here
+## Current editable Unity workspace — 9 October 2026
+
+The saved Hub, arena, Moving Day and Tutorial scenes now contain current presentation assets. Both house maps are editable prefabs; runtime and round resets preserve authored furniture. Player.prefab includes the imported avatar, and editor-only scene previews disappear on Play. Legacy scene geometry and labels are preserved outside live scenes under Editor/Legacy. The historical prototype factory cannot overwrite production assets.
+
+Use **Wreckabulary → Open Current Workspace**, or the wrapper's **OPEN-LATEST-UNITY.cmd**. [Editing guide](../UNITY-WORKSPACE.md) identifies the actual scene, prefab, UI and JSON sources. [Authoring evidence](../reviews/UNITY-AUTHORING-2026-10-09.md) records the migration and native verification; [current images](../reviews/evidence/unity-authoring-2026-10-09/index.html) show saved scenes and Play mode.
+
+Final native checks: **201 EditMode passed**, **137 latest PlayMode/capture cases passed**, zero failures. Two older explicit capture fixtures remain skipped. The refreshed Windows build succeeded with zero errors and a clean startup smoke. Local uncommitted snapshot: `Logs/checkpoints/2026-10-09-authoring-final/`. The earlier presentation checkpoint below is retained as history.
+
+## Current Windows checkpoint — 8–9 October 2026
+
+Maintained checkout: `wreckabulary`, branch `main`, baseline `4ae98b0`. The separate
+`wreckabulary-james-v1` extraction was not edited. Unity **6000.6.3f1** is licensed
+on this PC. Git LFS models/fonts/textures are hydrated, setup/import succeeded,
+and the previous cloud activation gate no longer describes this local checkout.
+
+The [Unity presentation record](../reviews/UNITY-PRESENTATION-2026-10-08.md) covers
+the centered third-person camera, HUD/menu, CanvasGroup transitions, cached
+billboards, generated UI art, inventory UXML/USS, miniature grips, animation,
+furniture wear and skill feedback. The [native screenshot gallery](../reviews/evidence/unity-2026-10-08/index.html)
+contains thirteen rendered frames at 16:9 and 21:9.
+
+Native evidence: **187 EditMode passed**; **132 PlayMode/capture cases passed**
+using the latest result per test across the full suite and focused reruns.
+Two older explicit capture fixtures were not run; the new two-journey capture
+suite ran separately without batchmode. Online multiplayer and device performance
+are not inferred from the two-seat local match. The inventory screen is a layout
+deliverable, with application binding intentionally separate.
+
+Windows build succeeded with zero errors: `Builds/Windows/Wreckabulary.exe`.
+Its startup smoke was responsive with no logged exceptions/errors. The source
+snapshot is under `Logs/checkpoints/2026-10-08-presentation-final/`; the linked
+record documents its baseline and limits. Changes are local and uncommitted.
+The earlier cloud record below remains history.
+
+## Earlier cloud checkpoint — 1 October 2026
 
 Work on `feature/wreckabulary-production`, based on the latest laptop commit
 `6030d6b` from `codex/latest-wreckabulary-2026-10-01`. Read [the production plan](../PLAN.md)

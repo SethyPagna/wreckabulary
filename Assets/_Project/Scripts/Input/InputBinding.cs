@@ -28,6 +28,9 @@ namespace Wreckabulary
         /// <summary>Mouse aim: when set, the player turns to face <see cref="pointer"/>, a screen position.</summary>
         public bool aimAtPointer;
         public Vector2 pointer;
+        /// <summary>Camera orbit: mouse pixel delta, or a normalized stick when orbitIsRate is true.</summary>
+        public Vector2 orbit;
+        public bool orbitIsRate;
     }
 
     /// <summary>One player's input source: keyboard and mouse, a gamepad, half a keyboard, or a script in tests.</summary>
@@ -175,6 +178,8 @@ namespace Wreckabulary
             c.move = Vector2.ClampMagnitude(stick + Pad.dpad.ReadValue(), 1f);
             var look = Pad.rightStick.ReadValue();
             c.look = look.magnitude < 0.3f ? Vector2.zero : look;
+            c.orbit = c.look;
+            c.orbitIsRate = true;
 
             c.grab = Pad.rightTrigger.wasPressedThisFrame;
             c.grabHeld = Pad.rightTrigger.isPressed;

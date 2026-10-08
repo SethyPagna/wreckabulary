@@ -171,12 +171,12 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(player.Frozen);
             var menu = hud.transform.Find("Safe HUD/Typewriter touch menu");
             Assert.IsNotNull(menu);
-            Assert.IsTrue(menu.gameObject.activeSelf, "A frozen mode-select player still needs touch controls.");
+            Assert.AreEqual(1f, menu.GetComponent<CanvasGroup>().alpha, "A frozen mode-select player still needs touch controls.");
             Assert.IsNotNull(menu.Find("Previous mode"));
             Assert.IsNotNull(menu.Find("Next mode"));
             Assert.IsNotNull(menu.Find("Choose mode"));
             Assert.IsNotNull(menu.Find("Leave typewriter"));
-            Assert.IsTrue(hud.transform.Find("Safe HUD/Return home").gameObject.activeSelf);
+            Assert.IsNotNull(hud.transform.Find("Safe HUD/Pause"));
             int selected = typewriter.Selected;
             touch.Pulse(TouchAction.Down);
             yield return null;

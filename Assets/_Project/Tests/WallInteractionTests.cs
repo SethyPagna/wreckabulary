@@ -53,6 +53,32 @@ namespace Wreckabulary.Tests
             return prop;
         }
 
+        static void Place(Smashable prop, Vector3 position)
+        {
+            // ClosestPoint reads Transform state before the next physics step; teleport both representations together.
+            prop.transform.position = position;
+            prop.GetComponent<Rigidbody>().position = position;
+        }
+
+        static string InteractionSnapshot(PlayerController player, Smashable prop)
+        {
+            var body = prop.GetComponent<Rigidbody>();
+            var collider = prop.GetComponent<Collider>();
+            var chest = player.transform.position + Vector3.up * .8f;
+            var destination = collider.ClosestPoint(chest);
+            var delta = destination - chest;
+            var detail = new System.Text.StringBuilder()
+                .Append("Chest=").Append(chest.ToString("F3"))
+                .Append(" prop Transform=").Append(prop.transform.position.ToString("F3"))
+                .Append(" Rigidbody=").Append(body.position.ToString("F3"))
+                .Append(" collider=").Append(collider.bounds.center.ToString("F3"))
+                .Append(" closest=").Append(destination.ToString("F3"));
+            foreach (var hit in Physics.RaycastAll(chest, delta.normalized, delta.magnitude,
+                World.GroundMask & Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                detail.Append(" hit=").Append(hit.collider.name).Append('@').Append(hit.point.ToString("F3"));
+            return detail.ToString();
+        }
+
         [UnityTest]
         public IEnumerator MeleeCannotHitTheNextRoomThroughAWallButWorksThroughItsDoor()
         {
@@ -80,10 +106,11 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(100f, prop.Health);
 
             Place(attacker, new Vector3(0f, 0f, 3.5f));
-            prop.GetComponent<Rigidbody>().position = new Vector3(0f, .5f, 4.5f);
+            Place(prop, new Vector3(0f, .5f, 4.5f));
             Physics.SyncTransforms();
             attacker.Combat.Strike(attacker.Health.Rules.Unarmed, null);
-            Assert.AreEqual(100f - attacker.Health.Rules.Unarmed.BreakPower * Smashable.HealthPerBreakPower, prop.Health);
+            Assert.AreEqual(100f - attacker.Health.Rules.Unarmed.BreakPower * Smashable.HealthPerBreakPower,
+                prop.Health, InteractionSnapshot(attacker, prop));
             yield return null;
         }
 
@@ -97,9 +124,9 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(player.Combat.IsHolding);
 
             Place(player, new Vector3(0f, 0f, 3.5f));
-            prop.GetComponent<Rigidbody>().position = new Vector3(0f, .5f, 4.5f);
+            Place(prop, new Vector3(0f, .5f, 4.5f));
             Physics.SyncTransforms();
-            Assert.IsTrue(player.Combat.TryGrab());
+            Assert.IsTrue(player.Combat.TryGrab(), InteractionSnapshot(player, prop));
             Assert.AreSame(prop.GetComponent<Rigidbody>(), player.Combat.Held);
             yield return null;
         }

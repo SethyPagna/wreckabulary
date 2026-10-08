@@ -83,7 +83,7 @@ namespace Wreckabulary
 
         void Update()
         {
-            if (!AllowJoining || players.Count >= maxPlayers) return;
+            if (Time.timeScale <= 0f || !AllowJoining || players.Count >= maxPlayers) return;
 
             // Keyboard and mouse and the left keyboard half both use WASD, so only one of them can play.
             if (!HasJoined(keyboardLeft.Id)) TryJoin(DesktopBinding.Shared);

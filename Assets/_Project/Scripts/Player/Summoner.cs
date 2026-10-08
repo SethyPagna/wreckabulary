@@ -47,6 +47,7 @@ namespace Wreckabulary
 
         void Update()
         {
+            if (Time.timeScale <= 0f) return;
             if (!controller.CanAct || controller.IsDodging) { CancelCraft(); Close(); return; }
             var command = controller.Commands;
             if (IsCrafting)

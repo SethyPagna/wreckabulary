@@ -22,7 +22,7 @@ namespace Wreckabulary
         MatchScore score;
         ClearOutController clearOut;
         ModeActions actions;
-        float phaseStarted, roundStarted;
+        float phaseElapsed, roundStarted;
         PlayerController lastWinner;
         public Phase Phase { get; private set; } = Phase.Lobby;
         public int Round { get; private set; }
@@ -33,7 +33,9 @@ namespace Wreckabulary
         public event Action<PlayerController> MatchWon;
         public event Action CollapseStarted;
         IReadOnlyList<PlayerController> Players => joins.Players;
-        float PhaseTime => Time.unscaledTime - phaseStarted;
+        float PhaseTime => phaseElapsed;
+        bool AcceptsStartInput => !hud || !hud.StateController ||
+            (hud.StateController.CurrentState == UIState.GameplayHUD && !hud.StateController.IsTransitioning);
         string ModeName => Match.Mode == "Duos" ? "DUOS" : "DIBS!";
 
         void Awake() => Instance = this;
@@ -67,19 +69,21 @@ namespace Wreckabulary
         void SetPhase(Phase phase)
         {
             Phase = phase;
-            phaseStarted = Time.unscaledTime;
+            phaseElapsed = 0f;
             joins.RespawnKnockedOut = phase == Phase.Lobby;
         }
 
         void Update()
         {
+            if (Time.timeScale <= 0f) return;
+            phaseElapsed += Time.unscaledDeltaTime;
             switch (Phase)
             {
                 case Phase.Lobby:
                     hud.SetTitle(ModeName, joins.HumanCount == 0 ? ControlHints.Join("join") : "Press START — solo seats get AI opponents");
                     hud.SetTimer("");
                     actions.Show(joins.HumanCount > 0, "START WITH AI");
-                    if (joins.HumanCount > 0 && joins.AnyStartPressed()) StartMatch();
+                    if (AcceptsStartInput && joins.HumanCount > 0 && joins.AnyStartPressed()) StartMatch();
                     break;
                 case Phase.Countdown:
                     int left = Mathf.CeilToInt(countdownTime - PhaseTime);
@@ -101,7 +105,7 @@ namespace Wreckabulary
                     }
                     break;
                 case Phase.MatchOver:
-                    if (joins.AnyStartPressed()) StartMatch();
+                    if (AcceptsStartInput && joins.AnyStartPressed()) StartMatch();
                     break;
             }
             hud.SetScoreboard(Players, WinsOf, Match.Rules.RoundsToWin, Phase != Phase.Lobby);
@@ -109,7 +113,7 @@ namespace Wreckabulary
 
         void LateUpdate()
         {
-            if (Phase != Phase.Playing) return;
+            if (Time.timeScale <= 0f || Phase != Phase.Playing) return;
             var combatants = Players.Select(p => new Combatant(p.Index, p.Team, p.Health.State)).ToArray();
             foreach (int id in WinCheck.Unrevivable(combatants)) World.PlayerById(id)?.Health.Eliminate();
             var outcome = WinCheck.Evaluate(Players.Select(p => new Combatant(p.Index, p.Team, p.Health.State)));
@@ -130,7 +134,7 @@ namespace Wreckabulary
 
         public void StartMatch()
         {
-            if (joins.HumanCount == 0) return;
+            if (Time.timeScale <= 0f || joins.HumanCount == 0) return;
             StopAllCoroutines();
             joins.EnsureOpponents();
             joins.AssignTeams();
@@ -193,7 +197,12 @@ namespace Wreckabulary
         IEnumerator SlowMo()
         {
             Time.timeScale = .35f;
-            yield return new WaitForSecondsRealtime(.9f);
+            float elapsed = 0f;
+            while (elapsed < .9f)
+            {
+                yield return null;
+                if (Time.timeScale > 0f) elapsed += Time.unscaledDeltaTime;
+            }
             Time.timeScale = 1f;
         }
 

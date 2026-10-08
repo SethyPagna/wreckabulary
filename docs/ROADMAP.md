@@ -12,7 +12,7 @@ The goal is a complete local house game: four modes with clear objectives and re
 | Modes | Dibs, Duos, Moving Day, Moving Out, plus tutorial; AI supports solo starts |
 | Presentation | Supplied furniture/letters/avatar, modular wardrobe, item skins, HUD, touch actions and sound/effect cues |
 | Browser | Standalone bundled Three.js edition using the canonical JSON, mechanics tests and real Chromium checks |
-| Unity workflow | Pinned 6000.6.3f1 setup, regression suites, compile checks and repeatable platform build entry points |
+| Unity workflow | Pinned 6000.6.3f1, current scene/prefab workspace, native regression suites and repeatable platform build entry points |
 
 “Implemented in source” is not a passed platform release gate. The browser has one human with AI housemates; Unity has local roommate seats. Online play and a creative save/load editor are not implemented.
 
@@ -20,7 +20,7 @@ The goal is a complete local house game: four modes with clear objectives and re
 
 | Priority | Work | Done when |
 | --- | --- | --- |
-| 1 | Activate and exercise Unity | Unity Personal is activated on the editor machine; actual import, EditMode and PlayMode suites complete with saved results |
+| 1 | Maintain native regressions | Changes pass actual import, EditMode and PlayMode suites with saved results on the activated editor |
 | 1 | Validate complete mode loops | Start, objective progress, win/loss/draw, next round, retry and home work on both maps; no crafting, slot or transient-state leak |
 | 1 | Validate controls and navigation | Mouse/UI clicks do not also attack; keyboard/controller prompts agree; touch can move, aim, use gear, craft/cancel, select modes and exit every screen |
 | 1 | Accept supplied art | All required meshes/materials/rig clips import correctly; exact-letter destruction, authored root rotations and grip contracts survive play |
@@ -29,11 +29,13 @@ The goal is a complete local house game: four modes with clear objectives and re
 | 2 | Produce tested builds | Linux/Windows PC, Unity Web and Android builds succeed with matching modules and run on their intended platforms; iOS requires a supported Mac workflow |
 | 2 | Review visuals and balance | Gameplay captures show readable glyphs, targets, danger and doorways; both maps have useful routes and no dominant recipe or unwinnable objective |
 
-**Current Unity blocker:** the cloud editor exits with code 198 because Unity Personal is not activated there. Native source compilation and engine-free rules tests remain useful checks, but they do not satisfy Unity execution or build gates. Chromium viewport/touch smoke checks do not certify mobile hardware performance.
+The local **8–9 October 2026** presentation checkpoint has licensed Unity import, 187 EditMode passes, 132 latest PlayMode/capture passes, thirteen rendered screenshots and a successful Windows build/startup smoke. See the [native verification record](reviews/UNITY-PRESENTATION-2026-10-08.md) and [current authoring workspace](UNITY-WORKSPACE.md). The earlier cloud exit-198 activation failure is scoped to the 1 October environment. Other platform builds, physical input devices and mobile performance still need their own evidence.
 
-The supplied avatar starts at 31,696 triangles for its default outfit. The accepted reduced browser export is 17,660 default triangles and passes interchange/animation checks; Unity deformation and complete scene profiling remain open. Use the [critical asset audit](art/SUPPLIED_ASSET_AUDIT.md) and actual measurements to choose further reductions; do not convert a triangle count into an FPS claim.
+The supplied avatar's reference outfit has 31,696 triangles. The accepted reduced browser export is 17,660 reference-outfit triangles and passes interchange/animation checks; native Unity animation and grip checks now have evidence. Further reductions and complete scene profiling remain separate work. Use the [critical asset audit](art/SUPPLIED_ASSET_AUDIT.md) and actual measurements to choose further reductions; do not convert a triangle count into an FPS claim.
 
 ## Creative home editor: next feature slice
+
+This is an in-game feature. The developer-facing Unity scene and prefab authoring workspace already supports editing the current assets.
 
 1. Add an explicit Creative mode with a curated prop palette and a connected house/garden editing space.
 2. Provide snap, rotate, place, remove and undo on mouse, controller and touch.

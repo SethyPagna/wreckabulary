@@ -1,11 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
-using Wreckabulary.Art;
-using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    public enum GameCue { Pickup, Break, Craft, Hit, Block, Jump, Dodge, Swing, Out }
+    public enum GameCue { Pickup, Break, Craft, Hit, Block, Jump, Dodge, Swing, Out, Protect, Boost, Blast }
 
     /// <summary>Small tactile cues generated locally; no audio files or provider connection required.</summary>
     public static class GameFeedback
@@ -51,12 +49,14 @@ namespace Wreckabulary
             {
                 GameCue.Pickup => 670, GameCue.Craft => 430, GameCue.Break => 140,
                 GameCue.Hit => 170, GameCue.Block => 520, GameCue.Jump => 310,
-                GameCue.Dodge => 260, GameCue.Out => 400, _ => 230
+                GameCue.Dodge => 260, GameCue.Out => 400, GameCue.Protect => 760,
+                GameCue.Boost => 340, GameCue.Blast => 85, _ => 230
             };
             float high = cue switch
             {
                 GameCue.Pickup => 1050, GameCue.Craft => 1050, GameCue.Jump => 750,
-                GameCue.Dodge => 680, GameCue.Out => 130, _ => low * 0.45f
+                GameCue.Dodge => 680, GameCue.Out => 130, GameCue.Protect => 1150,
+                GameCue.Boost => 980, _ => low * 0.45f
             };
             var samples = new float[Mathf.CeilToInt(rate * seconds)];
             var noise = new System.Random(19 + (int)cue);
@@ -67,7 +67,7 @@ namespace Wreckabulary
                 phase += Mathf.Lerp(low, high, t) * Mathf.PI * 2f / rate;
                 float envelope = Mathf.Min(1f, t * 35f) * Mathf.Pow(1f - t, 2.5f);
                 float wave = Mathf.Sin(phase) * 0.7f + Mathf.Sin(phase * 2.01f) * 0.15f;
-                if (cue is GameCue.Break or GameCue.Hit or GameCue.Swing)
+                if (cue is GameCue.Break or GameCue.Hit or GameCue.Swing or GameCue.Blast)
                     wave += ((float)noise.NextDouble() * 2f - 1f) * 0.24f;
                 samples[i] = wave * envelope;
             }
@@ -77,20 +77,22 @@ namespace Wreckabulary
 
         public static void Burst(string model, Vector3 position, float size = 0.4f)
         {
-            var library = ModelLibrary.Load();
-            string key = "VFX/" + model;
-            if (!library || !library.Find(key)) return;
-            var root = new GameObject(model + " cue");
-            root.transform.SetParent(World.Transient, false);
-            root.transform.position = position;
-            var copy = ModelVisual.Spawn(key, root.transform);
-            var bounds = ModelVisual.BoundsIn(root.transform, copy);
-            float longest = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
-            float scale = size / Mathf.Max(0.01f, longest);
-            root.transform.localScale = Vector3.one * scale;
-            copy.transform.localPosition -= bounds.center;
-            root.AddComponent<FeedbackBurst>();
+            FeedbackBurst.Play(model, position, size);
         }
+
+        public static void Burst(string model, Vector3 position, float size, Color tint, float seconds = 0.45f) =>
+            FeedbackBurst.Play(model, position, size, tint, seconds);
+
+        public static Color SkillColor(string word) => word switch
+        {
+            "FOAM" => new Color(.43f, .88f, 1f),
+            "SOAP" => new Color(.40f, .84f, .91f),
+            "BED" => new Color(.74f, .60f, 1f),
+            "MAT" => new Color(.48f, .92f, .62f),
+            "BOMB" => new Color(1f, .42f, .22f),
+            "PLATE" => new Color(1f, .83f, .42f),
+            _ => new Color(1f, .77f, .37f)
+        };
     }
 
 }
