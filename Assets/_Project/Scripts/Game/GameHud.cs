@@ -54,7 +54,6 @@ namespace Wreckabulary
         readonly List<Texture2D> ownedTextures = new();
         readonly List<TouchStick> sticks = new();
         readonly Dictionary<TouchAction, (TouchActionButton button, TextMeshProUGUI label)> skillButtons = new();
-        readonly Dictionary<string, Texture2D> itemIcons = new(StringComparer.Ordinal);
         readonly StringBuilder sb = new();
         const int TrayTiles = 10, TilesPerRow = 5;
         readonly LetterCell[] trayCells = new LetterCell[TrayTiles], bagCells = new LetterCell[TrayTiles];
@@ -174,11 +173,6 @@ namespace Wreckabulary
             clearOut = FindFirstObjectByType<ClearOutController>();
             rounds = FindFirstObjectByType<RoundManager>();
             iconAtlas = Resources.Load<Texture2D>("UI/ActionIcons");
-            foreach (var item in GameConfig.Current.Items.All)
-            {
-                var icon = Resources.Load<Texture2D>("UI/Items/" + item.Id);
-                if (icon) itemIcons[item.Id] = icon;
-            }
             roundSprite = MakeShape(true);
             panelSprite = MakeShape(false);
             ringSprite = MakeShape(false, 3f);
@@ -517,7 +511,7 @@ namespace Wreckabulary
                 wearChips.Add((chip.gameObject, GlyphImage("Glyph", chip, new Vector2(.5f, .5f), Vector2.zero, 28f, slot, BagInk)));
             }
             bagEffectsRow = Row("Effects");
-            foreach (var effect in new[] { "Effect 1", "Effect 2", "Effect 3" })
+            foreach (var effect in new[] { "Effect 1", "Effect 2", "Effect 3", "Effect 4" })
             {
                 var chip = MakeChip(effect, bagEffectsRow);
                 var icon = GlyphImage("Glyph", chip, new Vector2(.5f, .5f), Vector2.zero, 28f, "bubble", BagInk);
@@ -622,7 +616,7 @@ namespace Wreckabulary
             card.button.onClick.AddListener(() => SpellFromBook(word));
             var icon = Rect("Picture", root, new Vector2(.5f, 1f), new Vector2(0f, -12f), new Vector2(58f, 58f)).gameObject.AddComponent<RawImage>();
             ((RectTransform)icon.transform).pivot = new Vector2(.5f, 1f); icon.raycastTarget = false;
-            icon.texture = itemIcons.TryGetValue(word, out var picture) ? picture : null; icon.enabled = icon.texture;
+            Wreckabulary.UI.ItemArt.Apply(icon, word);
             float tile = word.Length > 6 ? 13f : 16f, step = tile + 2.5f, x0 = -(word.Length * step - 2.5f) * .5f;
             for (int i = 0; i < word.Length; i++)
             {
@@ -861,7 +855,7 @@ namespace Wreckabulary
                 view.face.color = active ? GlassActive : Glass; view.edge.color = active ? GlassEdge : GlassIdle;
                 view.label.text = word ?? "Empty hand"; view.label.color = word != null ? OnGame : Hex(0xfff7e8, .7f);
             }
-            view.icon.texture = gear && itemIcons.TryGetValue(gear.word, out var texture) ? texture : null;
+            Wreckabulary.UI.ItemArt.Apply(view.icon, gear ? gear.word : null);
             view.icon.enabled = view.icon.texture;
             if (view.wearTrack)
             {
@@ -943,21 +937,27 @@ namespace Wreckabulary
                 }
             for (int i = worn; i < wearChips.Count; i++) wearChips[i].root.SetActive(false);
             int effects = 0;
-            void Effect(Texture picture, Color tint, float seconds)
+            void Effect(Texture picture, Color tint, float seconds, Rect? uv = null)
             {
                 var (root, icon, badge, count) = effectChips[effects++];
                 root.SetActive(true); icon.texture = picture; icon.color = tint;
+                icon.uvRect = uv ?? new Rect(0f, 0f, 1f, 1f);
                 badge.SetActive(seconds > 0f); count.text = Mathf.CeilToInt(seconds).ToString();
             }
             var health = LocalPlayer.Health;
             if (health.Bubble > 0f) Effect(Glyph("bubble"), Hex(0x9fe3ff), health.BubbleLeft);
             if (LocalPlayer.BoostLeft > 0f) Effect(Glyph("speed"), Hex(0xb9ffb0), LocalPlayer.BoostLeft);
+            if (LocalPlayer.SlowLeft > 0f)
+            {
+                bool clock = Wreckabulary.UI.ItemArt.TryGet("CLOCK", out var slowIcon, out var slowUv);
+                Effect(clock ? slowIcon : Glyph("timer"), clock ? Color.white : Hex(0xcdb4ff), LocalPlayer.SlowLeft, slowUv);
+            }
             var combat = LocalPlayer.Combat;
             if (combat.IsHolding && !combat.Weapon)
             {
                 var held = combat.Held.name.Replace("(Clone)", "").Trim().ToUpperInvariant();
-                bool pictured = itemIcons.TryGetValue(held, out var picture);
-                Effect(pictured ? picture : Glyph("carry"), pictured ? Color.white : BagInk, 0f);
+                bool pictured = Wreckabulary.UI.ItemArt.TryGet(held, out var picture, out var heldUv);
+                Effect(pictured ? picture : Glyph("carry"), pictured ? Color.white : BagInk, 0f, heldUv);
             }
             for (int i = effects; i < effectChips.Count; i++) effectChips[i].root.SetActive(false);
             RefreshBook(inv);

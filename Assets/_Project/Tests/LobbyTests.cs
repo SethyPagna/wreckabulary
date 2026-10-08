@@ -1092,6 +1092,19 @@ namespace Wreckabulary.Tests
             Assert.LessOrEqual(bounds.max.y, list.viewport.rect.yMax + .5f);
         }
 
+        [TestCase("APPLE", "Restore 30 HP")]
+        [TestCase("WATER", "Restore 18 HP")]
+        [TestCase("CAKE", "Restore 50 HP")]
+        [TestCase("SODA", "speed")]
+        [TestCase("SHIELD", "All-around")]
+        [TestCase("FAN", "Forward gust")]
+        [TestCase("CLOCK", "Slowing field")]
+        [TestCase("PIE", "One throw")]
+        public void RecipeDescriptionExplainsItsActualEffect(string id, string expected)
+        {
+            StringAssert.Contains(expected, LoadoutPage.Blurb(GameConfig.Current.Items.Get(id)));
+        }
+
         [UnityTest]
         public IEnumerator RecipeDetailFollowsTheCardYouPick()
         {
@@ -1107,7 +1120,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(item.Id, menu.Page<LoadoutPage>().Pinned);
             var detail = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Recipe detail");
             Assert.IsTrue(detail.GetComponentsInChildren<RawImage>().Any(r => r.name == "Art " + item.Id), "the strip shows the card you picked");
-            Assert.AreEqual(LoadoutPage.Blurb(item.Family), detail.GetComponentsInChildren<TMPro.TMP_Text>().Single(t => t.name == "Blurb").text);
+            Assert.AreEqual(LoadoutPage.Blurb(item), detail.GetComponentsInChildren<TMPro.TMP_Text>().Single(t => t.name == "Blurb").text);
             Assert.AreSame(Find("Recipe " + item.Id).gameObject, Selected, "a keyboard or controller stays on the card");
         }
 

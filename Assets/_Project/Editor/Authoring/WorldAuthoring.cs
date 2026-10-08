@@ -342,8 +342,10 @@ namespace Wreckabulary.EditorTools
             AssetDatabase.SaveAssets();
         }
 
-        static void PersistAssets(GameObject root, string assetStem)
+        public static void PersistAssets(GameObject root, string assetStem)
         {
+            if (!root) throw new ArgumentNullException(nameof(root));
+            if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Persist authored dependencies outside Play mode.");
             bool legacy = assetStem.StartsWith("legacy_", StringComparison.Ordinal);
             string materialFolder = legacy ? LegacyDependencyFolder + "/Materials" : MaterialFolder;
             string meshFolder = legacy ? LegacyDependencyFolder + "/Meshes" : MeshFolder;

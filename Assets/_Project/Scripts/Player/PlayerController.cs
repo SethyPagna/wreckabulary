@@ -1,4 +1,5 @@
 using TMPro;
+using System.Collections.Generic;
 using UnityEngine;
 using Wreckabulary.Rules;
 
@@ -73,7 +74,10 @@ namespace Wreckabulary
 
         public event System.Action<PlayerController> Jumped, Dodged;
 
-        float staggerUntil, slideUntil, boostUntil, boost = 1f, slipperyUntil, floatyUntil, autoWalkUntil;
+        float staggerUntil, slideUntil, slipperyUntil, floatyUntil, autoWalkUntil;
+        float slowUntil, slow = 1f;
+        readonly Dictionary<float, float> boosts = new();
+        readonly List<float> expiredBoosts = new();
         float jumpWantedUntil, dodgeWantedUntil, dodgeUntil, dodgeSpeed;
         float lastJumpAt = float.NegativeInfinity, lastGroundedAt = float.NegativeInfinity, launchedAt = float.NegativeInfinity, lastSlopeAt = float.NegativeInfinity;
         float footRadius = 0.42f;
@@ -208,7 +212,7 @@ namespace Wreckabulary
                       : rooted ? Vector3.zero
                       : new Vector3(Commands.move.x, 0f, Commands.move.y);
             var shield = Health ? Health.RaisedShield : null;
-            float speed = moveSpeed * MoveScale * (Time.time < boostUntil ? boost : 1f) * (IsDowned ? crawlSpeed : 1f)
+            float speed = moveSpeed * MoveScale * CurrentBoost() * (Time.time < slowUntil ? slow : 1f) * (IsDowned ? crawlSpeed : 1f)
                         * (shield != null ? shield.MoveSpeedMultiplier : 1f);
             var rules = Health ? Health.Rules : null;
             float rate = rules == null ? acceleration : input.sqrMagnitude > 0.0001f ? rules.GroundAccel : rules.GroundFriction;
@@ -309,8 +313,38 @@ namespace Wreckabulary
             squashVel = 6f;
         }
 
-        public void Boost(float multiplier, float seconds) { boost = multiplier; boostUntil = Time.time + seconds; }
-        public float BoostLeft => Mathf.Max(0f, boostUntil - Time.time);
+        public void Boost(float multiplier, float seconds)
+        {
+            if (multiplier <= 1f || seconds <= 0f) return;
+            float until = Time.time + seconds;
+            if (!boosts.TryGetValue(multiplier, out float previous) || until > previous) boosts[multiplier] = until;
+        }
+        public float BoostLeft
+        {
+            get
+            {
+                float until = Time.time;
+                foreach (var effect in boosts) until = Mathf.Max(until, effect.Value);
+                return until - Time.time;
+            }
+        }
+        float CurrentBoost()
+        {
+            float strongest = 1f;
+            expiredBoosts.Clear();
+            foreach (var effect in boosts)
+                if (effect.Value <= Time.time) expiredBoosts.Add(effect.Key);
+                else strongest = Mathf.Max(strongest, effect.Key);
+            foreach (float expired in expiredBoosts) boosts.Remove(expired);
+            return strongest;
+        }
+        public float SlowLeft => Mathf.Max(0f, slowUntil - Time.time);
+        public void Slow(float multiplier, float seconds)
+        {
+            if (multiplier <= 0f || multiplier >= 1f || seconds <= 0f) return;
+            slow = Time.time < slowUntil ? Mathf.Min(slow, multiplier) : multiplier;
+            slowUntil = Time.time + seconds;
+        }
         public void MakeSlippery(float seconds) => slipperyUntil = Time.time + seconds;
         public void MakeFloaty(float seconds) => floatyUntil = Time.time + seconds;
 
@@ -381,7 +415,10 @@ namespace Wreckabulary
             transform.position = position;
             Body.position = position;
             Body.linearVelocity = Vector3.zero;
-            staggerUntil = slideUntil = boostUntil = slipperyUntil = floatyUntil = autoWalkUntil = 0f;
+            staggerUntil = slideUntil = slipperyUntil = floatyUntil = autoWalkUntil = 0f;
+            boosts.Clear();
+            slowUntil = 0f;
+            slow = 1f;
             jumpWantedUntil = dodgeWantedUntil = dodgeUntil = 0f;
             lastJumpAt = float.NegativeInfinity;
             MoveScale = 1f;

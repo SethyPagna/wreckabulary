@@ -897,7 +897,7 @@ namespace Wreckabulary
             string word = item.Id;
             float size = Mathf.Min(38f, (320f - 5f * (word.Length - 1)) / word.Length);
             for (int i = 0; i < word.Length; i++) LobbyKit.LetterTile(tiles, word[i], size, (i - (word.Length - 1) / 2f) * 2f);
-            var blurb = LobbyKit.Display(words, Blurb(item.Family), 22, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            var blurb = LobbyKit.Display(words, Blurb(item), 22, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
             blurb.name = "Blurb";
             blurb.enableAutoSizing = true; blurb.fontSizeMin = 15; blurb.fontSizeMax = 22;
             blurb.Size(-1, 30);
@@ -908,6 +908,20 @@ namespace Wreckabulary
             LobbyKit.Kbd(how, "Q");
             LobbyKit.Text(how, "and type it, then", 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 28);
             LobbyKit.Kbd(how, "ENTER");
+        }
+
+        public static string Blurb(ItemDefinition item)
+        {
+            if (item.Use?.Effect == UseEffect.Heal)
+                return $"Restore {item.Use.Amount:0} HP · {item.Use.ChannelSeconds:0.##}s to use";
+            if (item.Use?.Effect == UseEffect.Speed)
+                return $"{item.Use.Amount:0.##}× speed · {item.Use.Seconds:0.#} seconds";
+            if (item.Shield?.FrontArcDegrees >= 360f) return "All-around block · hold to raise";
+            if (item.Deploy?.Effect == DeployEffect.WindField) return "Forward gust · pushes everyone";
+            if (item.Deploy?.Effect == DeployEffect.SlowField) return "Slowing field · affects everyone";
+            if (item.Thrown?.FuseSeconds > 0f) return "Delayed blast · clear the room";
+            if (item.Consumable && item.Thrown != null) return "One throw · one splat";
+            return Blurb(item.Family);
         }
 
         public static string Blurb(HandlingFamily family) => family switch

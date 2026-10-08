@@ -198,7 +198,7 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(typewriter.Choose(index), "one roommate can play Moving Day");
             yield return TestScenes.WaitForActive(Session.MovingDayScene);
             var p = Object.FindAnyObjectByType<PlayerJoinManager>().Players.Single();
-            Assert.AreEqual(12, p.Summoner.WordsOverride.Count, "the word wheel offers objectives and creative tools");
+            Assert.AreEqual(24, p.Summoner.WordsOverride.Count, "the word wheel offers objectives and creative tools");
         }
     }
 }

@@ -43,7 +43,7 @@ namespace Wreckabulary.Tests
         {
             CollectionAssert.AreEquivalent(GameConfig.Current.Items.Enabled.Select(i => i.Id).ToArray(),
                 GameAssets.I.words.Words.Select(w => w.word).ToArray());
-            Assert.AreEqual(12, GameAssets.I.words.Words.Count);
+            Assert.AreEqual(24, GameAssets.I.words.Words.Count);
             Assert.IsNull(GameAssets.I.words.Find("ARMOR"));
             Assert.IsNull(GameAssets.I.words.Find("AXE"));
         }

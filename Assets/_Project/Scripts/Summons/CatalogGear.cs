@@ -24,6 +24,7 @@ namespace Wreckabulary
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             var gear = root.AddComponent<HeldWeapon>();
             gear.Configure(item);
+            if (item.Shield != null && item.Shield.FrontArcDegrees >= 359f) root.AddComponent<HeldShieldAura>();
             var materials = MaterialLibrary.Load();
             if (materials) materials.ApplySkin(root, Skin.Standard);
             return gear;
@@ -33,8 +34,24 @@ namespace Wreckabulary
         {
             var use = item.Use;
             if (use == null) return;
-            if (use.Effect == UseEffect.Heal) { owner.Health.Heal(use.Amount); return; }
-            if (use.Effect == UseEffect.Speed) { owner.Boost(use.Amount, use.Seconds); return; }
+            if (use.Effect == UseEffect.Heal)
+            {
+                float restored = owner.Health.Heal(use.Amount);
+                if (restored > 0f)
+                {
+                    Popup.Show("+" + Mathf.CeilToInt(restored), owner.OverheadPosition, GameFeedback.SkillColor(item.Id), 2.5f);
+                    GameFeedback.Play(GameCue.Heal);
+                    GameFeedback.Burst("Foam_Cloud", owner.transform.position + Vector3.up, .65f, GameFeedback.SkillColor(item.Id), .5f);
+                }
+                return;
+            }
+            if (use.Effect == UseEffect.Speed)
+            {
+                owner.Boost(use.Amount, use.Seconds);
+                GameFeedback.Play(GameCue.Boost);
+                GameFeedback.Burst("Speed_Trail", owner.transform.position + Vector3.up * .4f, 1f, GameFeedback.SkillColor(item.Id), .6f);
+                return;
+            }
             if (use.Effect != UseEffect.Bubble) return;
             int token = owner.Health.GiveOwnedBubble(use.Amount, use.Seconds);
             var visual = new GameObject(item.Id + " protection");

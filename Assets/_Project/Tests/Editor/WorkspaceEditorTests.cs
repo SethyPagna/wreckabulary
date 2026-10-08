@@ -121,20 +121,31 @@ namespace Wreckabulary.Tests.Editor
             var scene = stage != null ? stage.scene : SceneManager.GetActiveScene();
             var visibility = SceneVisibilityManager.instance;
             var visible = scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<CutawaySurface>(true))
-                .Where(surface => surface.Kind != CutawayKind.UpperWall && !visibility.IsHidden(surface.gameObject))
+                .Where(surface => surface.Kind != CutawayKind.UpperWall)
                 .Select(surface => surface.gameObject).ToArray();
             Assert.GreaterOrEqual(visible.Length, 2, "The current saved world contains editable ceiling sections.");
+            var previousVisibility = visible.Select(ceiling => visibility.IsHidden(ceiling)).ToArray();
             var prehidden = visible[0];
             var owned = visible[1];
             var window = ScriptableObject.CreateInstance<WorkspaceWindow>();
             bool observed = false, restored = false, preserved = false;
+
+            void RestorePreviousVisibility()
+            {
+                for (int i = 0; i < visible.Length; i++)
+                {
+                    if (!visible[i]) continue;
+                    if (previousVisibility[i]) visibility.Hide(visible[i], false);
+                    else visibility.Show(visible[i], false);
+                }
+            }
 
             void ObserveClosing()
             {
                 observed = true;
                 restored = !visibility.IsHidden(owned);
                 preserved = visibility.IsHidden(prehidden);
-                foreach (var ceiling in visible) if (ceiling) visibility.Show(ceiling, false);
+                RestorePreviousVisibility();
             }
             void SceneClosing(Scene closing, bool removingScene) { if (closing == scene) ObserveClosing(); }
             void PrefabClosing(PrefabStage closing) { if (closing == stage) ObserveClosing(); }
@@ -143,6 +154,7 @@ namespace Wreckabulary.Tests.Editor
             else EditorSceneManager.sceneClosing += SceneClosing;
             try
             {
+                visibility.Show(owned, false);
                 visibility.Hide(prehidden, false);
                 typeof(WorkspaceWindow).GetMethod("HideCeilings", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(window, null);
                 Assert.IsTrue(visibility.IsHidden(owned));
@@ -157,7 +169,7 @@ namespace Wreckabulary.Tests.Editor
                 EditorSceneManager.sceneClosing -= SceneClosing;
                 PrefabStage.prefabStageClosing -= PrefabClosing;
                 UnityEngine.Object.DestroyImmediate(window);
-                foreach (var ceiling in visible) if (ceiling) visibility.Show(ceiling, false);
+                RestorePreviousVisibility();
                 if (prefab && PrefabStageUtility.GetCurrentPrefabStage() == stage) StageUtility.GoToMainStage();
             }
         }

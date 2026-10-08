@@ -11,6 +11,9 @@ namespace Wreckabulary
         ItemDefinition definition;
         bool registered;
         Transform marker;
+        readonly Transform[] chevrons = new Transform[2];
+        DeployedPowerField field;
+        float expires;
         readonly Dictionary<int, float> lastLaunch = new();
 
         public static int CountFor(PlayerController owner)
@@ -25,7 +28,14 @@ namespace Wreckabulary
             var component = Register(gear.gameObject, owner);
             component.definition = gear.Definition;
             var stats = component.definition.Deploy;
+            component.expires = stats.LifetimeSeconds > 0f ? Time.time + stats.LifetimeSeconds : float.PositiveInfinity;
             if (stats.Effect == DeployEffect.Cover) return;
+            if (stats.Effect is DeployEffect.WindField or DeployEffect.SlowField)
+            {
+                component.field = gear.gameObject.AddComponent<DeployedPowerField>();
+                component.field.Configure(component.definition);
+                return;
+            }
             var sensor = new GameObject("Tool area");
             sensor.transform.SetParent(gear.transform, false);
             var box = sensor.AddComponent<BoxCollider>();
@@ -50,11 +60,28 @@ namespace Wreckabulary
             registered = false;
             Active.Remove(this);
             foreach (var trigger in GetComponentsInChildren<GearTrigger>()) Destroy(trigger.gameObject);
+            if (field) { field.enabled = false; Destroy(field); }
             if (marker) Destroy(marker.gameObject);
             Destroy(this);
         }
 
         void OnDestroy() => Active.Remove(this);
+
+        void Update()
+        {
+            if (!registered || definition == null) return;
+            if (Time.time >= expires)
+            {
+                registered = false;
+                Active.Remove(this);
+                if (TryGetComponent<HeldWeapon>(out var gear)) gear.Break();
+                return;
+            }
+            if (definition.Deploy.Effect != DeployEffect.SpeedStrip || !marker) return;
+            float run = definition.Deploy.FootprintZ * .7f;
+            for (int i = 0; i < chevrons.Length; i++)
+                if (chevrons[i]) chevrons[i].localPosition = Vector3.forward * ((Mathf.Repeat(Time.time * 1.2f + i * .5f, 1f) - .5f) * run);
+        }
 
         void BuildMarker()
         {
@@ -69,7 +96,8 @@ namespace Wreckabulary
             {
                 var arrow = new GameObject("Direction chevron").transform;
                 arrow.SetParent(marker, false);
-                float center = (i - .5f) * z;
+                chevrons[i] = arrow;
+                float center = stats.Effect == DeployEffect.SpeedStrip ? 0f : (i - .5f) * z;
                 SummonEffects.Line(arrow, color, new[] { new Vector3(-x * .45f, .01f, center - .12f), new Vector3(0f, .01f, center + .15f), new Vector3(x * .45f, .01f, center - .12f) });
             }
         }

@@ -32,6 +32,8 @@ namespace Wreckabulary
         string actionClip;
         bool fullBodyAction;
         float actionUntil;
+        float actionStarted, actionDuration, blockReactionUntil;
+        bool itemUsePose, eating, suppressReleasePose;
         bool wasHolding;
         bool initialized;
         Outfit outfit;
@@ -39,6 +41,7 @@ namespace Wreckabulary
         Quaternion[] postureBase, postureWritten;
         Vector3 lastVelocity;
         float lean, bank;
+        ItemContactPose itemContact;
 
         public const float WalkStride = .2483f, RunStride = .5176f;
         const float WalkStretch = 1.7f, RunStretch = 2f, MinCycles = .6f, MaxWalkCycles = 2.4f, MaxRunCycles = 3.6f;
@@ -59,6 +62,7 @@ namespace Wreckabulary
         public string LocomotionClip => locomotion?.Current;
         public string UpperBodyClip => upperBody?.Current;
         public float UpperBodyWeight => poseWeight;
+        public bool IsUsingItemPose => itemUsePose && Time.time < actionUntil;
 
         /// <summary>The unsaved presentation look; shared rules defaults and saved player choices remain independent.</summary>
         public static Outfit DefaultPresentationOutfit()
@@ -116,6 +120,7 @@ namespace Wreckabulary
                 }
             }
             blinkAt = Time.time + 2.2f + controller.Index * .31f;
+            itemContact = new ItemContactPose(model, gripR, face, gripCorrectionR);
             animator.applyRootMotion = false;
             // Gameplay gear follows these animated sockets even when the avatar is outside the camera frustum.
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -252,12 +257,24 @@ namespace Wreckabulary
         public void Play(string clipName, float duration = .5f)
         {
             if (!clips.ContainsKey(clipName)) return;
+            itemUsePose = false;
             actionClip = clipName;
             fullBodyAction = clipName is "Idle" or "Walk_InPlace" or "Jump_Preview" or "Run_InPlace" or "Hit_Reaction" or "Celebrate";
-            actionUntil = Time.time + Mathf.Max(.05f, duration);
+            actionStarted = Time.time;
+            actionDuration = Mathf.Max(.05f, duration);
+            actionUntil = actionStarted + actionDuration;
             (fullBodyAction ? locomotion : upperBody)?.Set(clipName, true);
             poseWeight = fullBodyAction ? 0f : 1f;
             if (layers.IsValid()) layers.SetInputWeight(1, poseWeight);
+        }
+
+        /// <summary>Fit the authored hand-to-mouth motion to the actual use channel; food adds a small bite nod.</summary>
+        public void PlayItemUse(ItemDefinition item, float duration)
+        {
+            Play("Drink_Consumable", duration);
+            itemUsePose = true;
+            eating = item?.Id is "APPLE" or "CAKE";
+            suppressReleasePose = true;
         }
 
         void OnJumped(PlayerController _) => Play("Jump_Preview", .45f);
@@ -265,6 +282,7 @@ namespace Wreckabulary
 
         void OnDamaged(PlayerHealth _, HitInfo __, HitResult result)
         {
+            if (result.Blocked) blockReactionUntil = Time.time + .22f;
             if (result.Landed && !result.Blocked && result.Damage > 0f && !result.BecameDowned && !result.BecameEliminated)
                 Play("Hit_Reaction", Mathf.Clamp(result.HitStun, .25f, .45f));
         }
@@ -280,8 +298,18 @@ namespace Wreckabulary
             if (!initialized || !controller) return;
             bool holding = controller.Combat && controller.Combat.IsHolding;
             bool blocking = controller.Combat && controller.Combat.IsBlocking;
-            if (!controller.IsKnockedOut && holding && !wasHolding) Play("Pickup", .28f);
-            if (!controller.IsKnockedOut && !holding && wasHolding) Play("Throw_OneHand", .35f);
+            if (itemUsePose && (!holding || !controller.Combat.Weapon || !controller.Combat.Weapon.IsUsing))
+            {
+                itemUsePose = false;
+                actionUntil = 0f;
+            }
+            if (!controller.IsKnockedOut && holding && !wasHolding && !itemUsePose) Play("Pickup", .28f);
+            if (!controller.IsKnockedOut && !holding && wasHolding)
+            {
+                if (!suppressReleasePose) Play("Throw_OneHand", .35f);
+                suppressReleasePose = false;
+            }
+            if (holding && !itemUsePose) suppressReleasePose = false;
             wasHolding = holding;
             var velocity = controller.Body ? controller.Body.linearVelocity : Vector3.zero;
             float speed = new Vector2(velocity.x, velocity.z).magnitude;
@@ -310,6 +338,9 @@ namespace Wreckabulary
                 : holding ? (controller.Combat.Weapon && controller.Combat.Weapon.Definition?.IsTwoHanded != true
                     ? "Hold_OneHand" : "Carry_TwoHand") : null;
             if (pose != null) upperBody?.Set(pose);
+            if (upperBody != null && upperBody.Playable.IsValid())
+                upperBody.Playable.SetSpeed(acting && !fullBodyAction
+                    ? upperBody.Playable.GetAnimationClip().length / actionDuration : 1f);
             float dt = Time.deltaTime;
             poseWeight = Mathf.MoveTowards(poseWeight, pose == null ? 0f : 1f, dt * 10f);
             if (layers.IsValid()) layers.SetInputWeight(1, poseWeight);
@@ -319,15 +350,21 @@ namespace Wreckabulary
         {
             if (!initialized || !controller) return;
             Posture();
+            float useProgress = actionDuration > 0f ? Mathf.Clamp01((Time.time - actionStarted) / actionDuration) : 0f;
+            Quaternion itemRotation = Quaternion.identity;
+            bool contact = itemContact != null && itemContact.Apply(controller, itemUsePose, eating, useProgress, out itemRotation);
             // Animated mitten transforms retain the existing combat sockets and miniature item grip offsets.
             if (gripL && controller.handL) controller.handL.SetPositionAndRotation(gripL.position, gripL.rotation * gripCorrectionL);
             if (gripR && controller.handR) controller.handR.SetPositionAndRotation(gripR.position, gripR.rotation * gripCorrectionR);
+            if (contact && controller.Combat && controller.Combat.Weapon)
+                controller.Combat.Weapon.SetPoseRotation(Quaternion.Inverse(controller.handR.rotation) * itemRotation);
             if (!face) return;
             float now = Time.time;
             if (now > blinkAt + .18f) blinkAt = now + 2.8f + controller.Index * .23f;
             float blink = now < blinkAt ? 0f : Mathf.Sin(Mathf.Clamp01((now - blinkAt) / .18f) * Mathf.PI) * 100f;
             if (blinkShape >= 0) face.SetBlendShapeWeight(blinkShape, controller.IsKnockedOut ? 78f : blink);
-            bool exerting = controller.IsDodging || controller.IsStaggered || (controller.Combat && controller.Combat.IsChanneling);
+            bool exerting = controller.IsDodging || controller.IsStaggered ||
+                (controller.Combat && (controller.Combat.IsChanneling || controller.Combat.IsBlocking));
             expression = Mathf.MoveTowards(expression, exerting ? 0f : 55f, Time.deltaTime * 180f);
             if (browShape >= 0) face.SetBlendShapeWeight(browShape, expression);
         }
@@ -351,6 +388,10 @@ namespace Wreckabulary
             var side = Vector3.Cross(Vector3.up, forward);
             bool live = !controller.IsDowned && !controller.IsEliminated;
             float targetLean = live ? Mathf.Clamp(Vector3.Dot(accel, forward) * .012f + velocity.magnitude * .02f, -.12f, .2f) : 0f;
+            if (live && controller.BoostLeft > 0f && velocity.sqrMagnitude > .5f) targetLean += .06f;
+            if (live && controller.Combat && controller.Combat.IsBlocking) targetLean += .05f;
+            if (live && Time.time < blockReactionUntil)
+                targetLean -= Mathf.Sin((1f - (blockReactionUntil - Time.time) / .22f) * Mathf.PI) * .15f;
             float targetBank = live ? Mathf.Clamp(-Vector3.Dot(accel, side) * .01f, -.12f, .12f) : 0f;
             float k = 1f - Mathf.Exp(-8f * dt);
             lean = Mathf.Lerp(lean, targetLean, k);
@@ -362,6 +403,12 @@ namespace Wreckabulary
                 var tilt = Quaternion.AngleAxis(lean * share * Mathf.Rad2Deg, side)
                     * Quaternion.AngleAxis(bank * share * Mathf.Rad2Deg, forward);
                 bone.rotation = tilt * bone.rotation;
+                if (itemUsePose && eating && bone.name == "head")
+                {
+                    float progress = Mathf.Clamp01((Time.time - actionStarted) / actionDuration);
+                    float bite = Mathf.Sin(progress * Mathf.PI) * Mathf.Sin(progress * Mathf.PI * 4f) * 5f;
+                    bone.localRotation *= Quaternion.Euler(bite, 0f, 0f);
+                }
                 postureWritten[i] = bone.localRotation;
             }
         }

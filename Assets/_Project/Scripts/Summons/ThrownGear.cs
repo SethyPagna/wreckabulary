@@ -10,7 +10,7 @@ namespace Wreckabulary
         PlayerController owner;
         ThrownStats stats;
         float thrownAt, explodeAt, nextBeep;
-        bool done;
+        bool done, ignoringThrower;
         readonly HashSet<Rigidbody> hitTargets = new();
         LineRenderer ring;
         AudioSource beep;
@@ -32,6 +32,7 @@ namespace Wreckabulary
             tracker.stats = gear.Definition.Thrown;
             tracker.thrownAt = Time.time;
             tracker.IgnoreThrower(true);
+            if (!tracker.stats.Recoverable) gear.MarkSpent();
             if (tracker.stats.FuseSeconds <= 0f) return;
             gear.MarkSpent();
             tracker.explodeAt = Time.time + tracker.stats.FuseSeconds;
@@ -56,7 +57,8 @@ namespace Wreckabulary
 
         void IgnoreThrower(bool ignored)
         {
-            if (!owner) return;
+            if (!owner || ignoringThrower == ignored) return;
+            ignoringThrower = ignored;
             foreach (var mine in GetComponentsInChildren<Collider>())
                 foreach (var other in owner.GetComponentsInChildren<Collider>()) Physics.IgnoreCollision(mine, other, ignored);
         }
@@ -78,7 +80,11 @@ namespace Wreckabulary
             if (Time.time - thrownAt > 0.2f) IgnoreThrower(false);
             if (stats.FuseSeconds <= 0f)
             {
-                if (Time.time - thrownAt >= 2f) StopTracking();
+                if (Time.time - thrownAt >= 2f)
+                {
+                    if (stats.Recoverable) StopTracking();
+                    else FinishImpact(false);
+                }
                 return;
             }
             float progress = Mathf.Clamp01((Time.time - thrownAt) / stats.FuseSeconds);
@@ -106,11 +112,25 @@ namespace Wreckabulary
 
         void OnCollisionEnter(Collision collision)
         {
-            if (done || stats.FuseSeconds > 0f || collision.relativeVelocity.magnitude < 1f) return;
+            if (done || stats.FuseSeconds > 0f || (stats.Recoverable && collision.relativeVelocity.magnitude < 1f)) return;
             var body = collision.rigidbody;
-            if (!body || body == (owner ? owner.Body : null) || !hitTargets.Add(body)) return;
-            if (body.TryGetComponent(out IDamageable target))
+            if (body && body == (owner ? owner.Body : null)) return;
+            if (body && hitTargets.Add(body) && body.TryGetComponent(out IDamageable target))
                 target.ApplyDamage(Hits.Of(owner, body.position - transform.position, HitSource.Thrown, stats.Damage, stats.Knockback, 0.2f, stats.BreakPower, gear.word));
+            if (!stats.Recoverable) FinishImpact(true);
+        }
+
+        void FinishImpact(bool impact)
+        {
+            if (done) return;
+            done = true;
+            IgnoreThrower(false);
+            if (impact)
+            {
+                GameFeedback.Play(GameCue.Hit);
+                GameFeedback.Burst("Foam_Cloud", transform.position, .85f, GameFeedback.SkillColor(gear.word), .45f);
+            }
+            gear.Break();
         }
 
         void OnDestroy() => IgnoreThrower(false);

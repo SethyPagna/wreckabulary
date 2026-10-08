@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    public enum GameCue { Pickup, Break, Craft, Hit, Block, Jump, Dodge, Swing, Out, Protect, Boost, Blast }
+    public enum GameCue { Pickup, Break, Craft, Hit, Block, Jump, Dodge, Swing, Out, Protect, Boost, Blast, Heal }
 
     public static class GameFeedback
     {
@@ -43,19 +43,19 @@ namespace Wreckabulary
         static AudioClip Make(GameCue cue)
         {
             const int rate = 16000;
-            float seconds = cue == GameCue.Craft ? 0.28f : cue == GameCue.Out ? 0.3f : 0.12f;
+            float seconds = cue is GameCue.Craft or GameCue.Heal ? 0.28f : cue == GameCue.Out ? 0.3f : 0.12f;
             float low = cue switch
             {
                 GameCue.Pickup => 670, GameCue.Craft => 430, GameCue.Break => 140,
                 GameCue.Hit => 170, GameCue.Block => 520, GameCue.Jump => 310,
                 GameCue.Dodge => 260, GameCue.Out => 400, GameCue.Protect => 760,
-                GameCue.Boost => 340, GameCue.Blast => 85, _ => 230
+                GameCue.Boost => 340, GameCue.Blast => 85, GameCue.Heal => 540, _ => 230
             };
             float high = cue switch
             {
                 GameCue.Pickup => 1050, GameCue.Craft => 1050, GameCue.Jump => 750,
                 GameCue.Dodge => 680, GameCue.Out => 130, GameCue.Protect => 1150,
-                GameCue.Boost => 980, _ => low * 0.45f
+                GameCue.Boost => 980, GameCue.Heal => 1080, _ => low * 0.45f
             };
             var samples = new float[Mathf.CeilToInt(rate * seconds)];
             var noise = new System.Random(19 + (int)cue);
@@ -90,6 +90,15 @@ namespace Wreckabulary
             "MAT" => new Color(.48f, .92f, .62f),
             "BOMB" => new Color(1f, .42f, .22f),
             "PLATE" => new Color(1f, .83f, .42f),
+            "SHIELD" => new Color(1f, .83f, .42f),
+            "APPLE" => new Color(.53f, .96f, .46f),
+            "WATER" => new Color(.35f, .83f, 1f),
+            "CAKE" => new Color(1f, .60f, .77f),
+            "SODA" => new Color(.75f, 1f, .35f),
+            "FAN" => new Color(.64f, .97f, 1f),
+            "CLOCK" => new Color(.76f, .59f, 1f),
+            "PIE" => new Color(1f, .91f, .69f),
+            "STOOL" => new Color(.87f, .67f, 1f),
             _ => new Color(1f, .77f, .37f)
         };
     }

@@ -283,12 +283,11 @@ namespace Wreckabulary
 
         public static RawImage ItemImage(Transform parent, string id, float size, float degrees = 0)
         {
-            var texture = Resources.Load<Texture2D>("UI/Items/" + id);
-            if (!texture) return null;
+            if (!Wreckabulary.UI.ItemArt.TryGet(id, out var texture, out var uv)) return null;
             var rect = Rect(parent, "Art " + id).Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(size, size));
             rect.localRotation = Quaternion.Euler(0, 0, degrees);
             var raw = rect.gameObject.AddComponent<RawImage>();
-            raw.texture = texture; raw.raycastTarget = false;
+            raw.texture = texture; raw.uvRect = uv; raw.raycastTarget = false;
             return raw;
         }
 

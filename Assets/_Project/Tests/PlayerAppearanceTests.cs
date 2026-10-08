@@ -2,6 +2,7 @@ using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.Playables;
 using Wreckabulary.Art;
 
 namespace Wreckabulary.Tests
@@ -103,6 +104,100 @@ namespace Wreckabulary.Tests
                 Assert.That(Vector3.Distance(renderer.bounds.center, appearance.RightGrip.position), Is.LessThan(.7f),
                     renderer.name + " miniature must stay within the animated grip's reach.");
             }
+        }
+
+        [UnityTest]
+        public IEnumerator RaisedShieldAndSwingKeepTheirAuthoredGripInTheMitten()
+        {
+            var input = new ScriptedBinding();
+            var player = Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
+            player.Setup(0, input);
+            player.Respawn(Vector3.zero);
+            var look = player.GetComponent<PlayerAppearance>();
+            var shield = CatalogGear.Create(GameConfig.Current.Items.Get("SHIELD"));
+            Assert.IsTrue(player.Combat.TryEquip(shield));
+            var probe = player.gameObject.AddComponent<AppearanceFrameProbe>();
+            probe.Configure(player, look, shield);
+            yield return new WaitForSeconds(.35f);
+            float restingHeight = look.RightGrip.position.y;
+            input.Next.blockHeld = true;
+            yield return new WaitForSeconds(.55f);
+            Assert.IsTrue(player.Combat.IsBlocking);
+            Assert.That(probe.ItemGripSeparation, Is.LessThan(.035f), "Rotating a guard keeps the item's authored grip in the mitten.");
+            Assert.Greater(look.RightGrip.position.y, restingHeight + .08f, "Raised protection visibly lifts the arm.");
+            Assert.Greater(Vector3.Dot(shield.transform.up, Vector3.up), .8f, "The shield stays upright.");
+            input.Next.blockHeld = false;
+            yield return new WaitForSeconds(.2f);
+            Assert.That(probe.ItemGripSeparation, Is.LessThan(.035f));
+            player.Combat.ResetForRound();
+            var broom = CatalogGear.Create(GameConfig.Current.Items.Get("BROOM"));
+            Assert.IsTrue(player.Combat.TryEquip(broom));
+            probe.Configure(player, look, broom);
+            yield return new WaitForSeconds(.35f);
+            broom.Use(player.Combat);
+            yield return new WaitForSeconds(broom.Definition.Melee.Windup + .05f);
+            Assert.That(probe.ItemGripSeparation, Is.LessThan(.035f), "Swing pivots around the authored handle.");
+        }
+
+        [UnityTest]
+        public IEnumerator ShortDrinkFitsItsChannelAndConsumptionDoesNotPlayAThrow()
+        {
+            var player = Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
+            player.Setup(0, new ScriptedBinding());
+            player.Respawn(Vector3.zero);
+            var water = CatalogGear.Create(GameConfig.Current.Items.Get("WATER"));
+            Assert.IsTrue(player.Combat.TryEquip(water));
+            yield return new WaitForSeconds(.35f);
+            var look = player.GetComponent<PlayerAppearance>();
+            water.Use(player.Combat);
+            yield return null;
+            Assert.IsTrue(look.IsUsingItemPose);
+            Assert.AreEqual("Drink_Consumable", look.UpperBodyClip);
+            Assert.That(look.CurrentPlayable.GetSpeed(), Is.EqualTo(
+                look.CurrentAnimationClip.length / water.Definition.Use.ChannelSeconds).Within(.01f));
+            yield return new WaitForSeconds(.4f);
+            Assert.IsFalse(player.Combat.Weapon);
+            Assert.IsFalse(look.IsUsingItemPose);
+            Assert.AreNotEqual("Throw_OneHand", look.UpperBodyClip,
+                "Eating or drinking spends the held item without a phantom throwing gesture.");
+        }
+
+        [UnityTest]
+        public IEnumerator FoodPoseFreezesWithPauseAndCancellationKeepsTheHeldGrip()
+        {
+            var player = Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
+            player.Setup(0, new ScriptedBinding());
+            player.Respawn(Vector3.zero);
+            var cake = CatalogGear.Create(GameConfig.Current.Items.Get("CAKE"));
+            Assert.IsTrue(player.Combat.TryEquip(cake));
+            var look = player.GetComponent<PlayerAppearance>();
+            var probe = player.gameObject.AddComponent<AppearanceFrameProbe>();
+            probe.Configure(player, look, cake);
+            yield return new WaitForSeconds(.35f);
+            cake.Use(player.Combat);
+            yield return new WaitForSeconds(.2f);
+            Assert.IsTrue(look.IsUsingItemPose);
+            Time.timeScale = 0f;
+            yield return null;
+            double paused = look.CurrentPlayable.GetTime();
+            var pausedItemPosition = cake.transform.position;
+            var pausedItemRotation = cake.transform.rotation;
+            var pausedGripPosition = look.RightGrip.position;
+            var pausedGripRotation = look.RightGrip.rotation;
+            yield return new WaitForSecondsRealtime(.2f);
+            Assert.That(look.CurrentPlayable.GetTime(), Is.EqualTo(paused).Within(.001));
+            Assert.That(Vector3.Distance(cake.transform.position, pausedItemPosition), Is.LessThan(.001f));
+            Assert.That(Quaternion.Angle(cake.transform.rotation, pausedItemRotation), Is.LessThan(.1f));
+            Assert.That(Vector3.Distance(look.RightGrip.position, pausedGripPosition), Is.LessThan(.001f));
+            Assert.That(Quaternion.Angle(look.RightGrip.rotation, pausedGripRotation), Is.LessThan(.1f));
+            Assert.IsTrue(cake && cake.IsUsing);
+            Time.timeScale = 1f;
+            cake.CancelUse();
+            yield return new WaitForSeconds(.2f);
+            Assert.IsFalse(look.IsUsingItemPose);
+            Assert.AreSame(cake, player.Combat.Weapon);
+            Assert.IsFalse(cake.IsSpent);
+            Assert.That(probe.ItemGripSeparation, Is.LessThan(.035f));
         }
 
         [UnityTest]

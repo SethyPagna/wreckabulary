@@ -59,6 +59,8 @@ namespace Wreckabulary.EditorTools
             AssetButton("Character Models", "Assets/_Project/Art/Imported/Avatar");
             AssetButton("Model Library", "Assets/_Project/Resources/ModelLibrary.asset");
             AssetButton("Generated UI Art", "Assets/_Project/Resources/UI/Generated");
+            AssetButton("Power Item Illustrations", "Assets/_Project/Art/Generated/Items");
+            AssetButton("Power Item Sprite Library", "Assets/_Project/Resources/UI/Generated/PowerItemArt.asset");
 
             Section("WORLDS");
             AssetButton("Edit Pinwheel House", "Assets/_Project/Resources/Worlds/PinwheelHouse.prefab", true);
@@ -91,6 +93,7 @@ namespace Wreckabulary.EditorTools
             AssetButton("Pause & Result Cards", "Assets/_Project/Scripts/Game/GameHudCards.cs", true);
             AssetButton("Main Menu Layout", "Assets/_Project/Scripts/UI/Lobby/LobbyMenu.cs", true);
             AssetButton("Arena Maps & Game Rules", "Assets/_Project/Data/Config");
+            AssetButton("Recipe Balance & Powers", "Assets/_Project/Data/Config/items.json", true);
             EditorGUILayout.LabelField("HUD and menu layouts are authored in C#. The inventory uses UI Builder assets.", EditorStyles.wordWrappedMiniLabel);
 
             Section("WORKSPACE TOOLS");
