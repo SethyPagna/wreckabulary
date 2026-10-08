@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -109,6 +110,56 @@ namespace Wreckabulary.Tests.Editor
             EditorSceneManager.playModeStartScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(WorkspaceWindow.HubPath);
             WorkspaceBootstrap.ApplyPlayEntry();
             Assert.IsNull(EditorSceneManager.playModeStartScene);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TemporaryCeilingsRestoreBeforeClosingAndPreserveExistingVisibility(bool prefab)
+        {
+            EditorSceneManager.OpenScene(WorkspaceWindow.HubPath, OpenSceneMode.Single);
+            var stage = prefab ? PrefabStageUtility.OpenPrefab("Assets/_Project/Resources/Worlds/PinwheelHouse.prefab") : null;
+            var scene = stage != null ? stage.scene : SceneManager.GetActiveScene();
+            var visibility = SceneVisibilityManager.instance;
+            var visible = scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<CutawaySurface>(true))
+                .Where(surface => surface.Kind != CutawayKind.UpperWall && !visibility.IsHidden(surface.gameObject))
+                .Select(surface => surface.gameObject).ToArray();
+            Assert.GreaterOrEqual(visible.Length, 2, "The current saved world contains editable ceiling sections.");
+            var prehidden = visible[0];
+            var owned = visible[1];
+            var window = ScriptableObject.CreateInstance<WorkspaceWindow>();
+            bool observed = false, restored = false, preserved = false;
+
+            void ObserveClosing()
+            {
+                observed = true;
+                restored = !visibility.IsHidden(owned);
+                preserved = visibility.IsHidden(prehidden);
+                foreach (var ceiling in visible) if (ceiling) visibility.Show(ceiling, false);
+            }
+            void SceneClosing(Scene closing, bool removingScene) { if (closing == scene) ObserveClosing(); }
+            void PrefabClosing(PrefabStage closing) { if (closing == stage) ObserveClosing(); }
+
+            if (prefab) PrefabStage.prefabStageClosing += PrefabClosing;
+            else EditorSceneManager.sceneClosing += SceneClosing;
+            try
+            {
+                visibility.Hide(prehidden, false);
+                typeof(WorkspaceWindow).GetMethod("HideCeilings", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(window, null);
+                Assert.IsTrue(visibility.IsHidden(owned));
+                if (prefab) StageUtility.GoToMainStage();
+                else EditorSceneManager.OpenScene(AssetDatabase.GUIDToAssetPath(WorkspaceWindow.EmptyGuid), OpenSceneMode.Single);
+                Assert.IsTrue(observed, "The actual editor scene/prefab closing callback ran.");
+                Assert.IsTrue(restored, "Temporary visibility must restore before its scene objects are destroyed.");
+                Assert.IsTrue(preserved, "The workspace must retain ceilings the artist had already hidden.");
+            }
+            finally
+            {
+                EditorSceneManager.sceneClosing -= SceneClosing;
+                PrefabStage.prefabStageClosing -= PrefabClosing;
+                UnityEngine.Object.DestroyImmediate(window);
+                foreach (var ceiling in visible) if (ceiling) visibility.Show(ceiling, false);
+                if (prefab && PrefabStageUtility.GetCurrentPrefabStage() == stage) StageUtility.GoToMainStage();
+            }
         }
     }
 }

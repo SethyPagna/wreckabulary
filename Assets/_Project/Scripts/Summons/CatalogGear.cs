@@ -40,22 +40,19 @@ namespace Wreckabulary
             var visual = new GameObject(item.Id + " protection");
             visual.transform.SetParent(owner.visual ? owner.visual : owner.transform, false);
             visual.transform.localPosition = Vector3.up * 0.8f;
-            // Three open rings remain readable from a behind-the-player camera without concealing the avatar.
             var color = GameFeedback.SkillColor(item.Id);
-            var ringColor = Color.Lerp(color, Color.white, .45f);
-            var front = SummonEffects.Ring(visual.transform, "Foam front", ringColor, .72f, Quaternion.identity);
-            var cross = SummonEffects.Ring(visual.transform, "Foam cross", ringColor, .72f, Quaternion.Euler(0f, 90f, 0f));
-            var equator = SummonEffects.Ring(visual.transform, "Foam equator", ringColor, .72f, Quaternion.Euler(90f, 0f, 0f));
-            front.startWidth = front.endWidth = cross.startWidth = cross.endWidth = equator.startWidth = equator.endWidth = .018f;
-            var camera = Camera.main;
+            var material = Resources.Load<Material>("VFX/FoamBubble");
+            var mesh = Resources.Load<Mesh>("VFX/BubbleSphere");
+            if (material && mesh) Bubble(visual.transform, "Foam film", mesh, material, 1.5f);
             var bubbles = new Transform[7];
+            var positions = new Vector3[bubbles.Length];
             for (int i = 0; i < bubbles.Length; i++)
             {
                 float angle = i * Mathf.PI * 2f / bubbles.Length;
-                var bubble = SummonEffects.Ring(visual.transform, "Foam bubble", Color.Lerp(color, Color.white, .55f), .075f + .02f * (i % 3), Quaternion.identity);
-                bubble.transform.localPosition = new Vector3(Mathf.Cos(angle) * .64f, Mathf.Sin(angle * 2f) * .42f, Mathf.Sin(angle) * .64f);
-                bubble.startWidth = bubble.endWidth = .016f;
-                bubbles[i] = bubble.transform;
+                positions[i] = new Vector3(Mathf.Cos(angle) * .66f, Mathf.Sin(angle * 2f) * .44f, Mathf.Sin(angle) * .66f);
+                if (!material || !mesh) continue;
+                bubbles[i] = Bubble(visual.transform, "Foam pearl", mesh, material, .14f + .06f * (i % 3));
+                bubbles[i].localPosition = positions[i];
             }
             GameFeedback.Play(GameCue.Protect);
             GameFeedback.Burst("Foam_Cloud", owner.transform.position + Vector3.up * .9f, .85f, color, .55f);
@@ -63,11 +60,24 @@ namespace Wreckabulary
             life.ReturnsLetters = false;
             life.Tick = () =>
             {
-                if (!camera) return;
-                foreach (var bubble in bubbles) if (bubble) bubble.rotation = camera.transform.rotation;
+                for (int i = 0; i < bubbles.Length; i++)
+                    if (bubbles[i]) bubbles[i].localPosition = positions[i] + Vector3.up * (Mathf.Sin(Time.time * 2.2f + i) * .04f);
             };
             life.KeepAlive = () => owner && owner.Health.OwnsBubble(token) && owner.Health.Bubble > 0f;
             life.Ended = () => { if (owner) owner.Health.ClearOwnedBubble(token); };
+        }
+
+        static Transform Bubble(Transform parent, string name, Mesh mesh, Material material, float diameter)
+        {
+            var bubble = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+            bubble.transform.SetParent(parent, false);
+            bubble.transform.localScale = Vector3.one * diameter;
+            bubble.GetComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = bubble.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            return bubble.transform;
         }
     }
 }

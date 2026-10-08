@@ -23,7 +23,8 @@ namespace Wreckabulary
         void LettersChanged()
         {
             int count = player.Inventory.Count;
-            if (count > letters)
+            // A disabling summoner still refunds its reservation, but cannot spawn scene effects.
+            if (count > letters && isActiveAndEnabled && !player.Summoner.IsDisabling)
             {
                 GameFeedback.Play(GameCue.Pickup);
                 GameFeedback.Burst("Pickup_Ring", player.transform.position + Vector3.up * .35f, .28f, player.Color, .25f);

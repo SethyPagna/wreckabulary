@@ -163,7 +163,7 @@ namespace Wreckabulary.Tests
 
             Assert.IsTrue(RenderSettings.fog);
             Assert.AreEqual(FogMode.Linear, RenderSettings.fogMode);
-            Assert.AreEqual("173A3D", ColorUtility.ToHtmlStringRGB(RenderSettings.fogColor), "the camera's own background colour");
+            Assert.AreEqual("173A3D", ColorUtility.ToHtmlStringRGB(RenderSettings.fogColor), "the generated fixture retains its fallback horizon");
             float overhead = RenderSettings.fogStartDistance;
             RoomBuilder.ApplyFog(true);
             Assert.Less(RenderSettings.fogStartDistance, overhead, "nearer round a third-person camera");

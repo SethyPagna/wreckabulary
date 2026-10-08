@@ -36,6 +36,7 @@ namespace Wreckabulary
             {
                 if (furnitureRoot) furnitureRoot.gameObject.SetActive(false);
                 geometry = CreateGeometry(Layout, Session.MapId, transform);
+                SetTallWalls(geometry, true);
                 BuildFurniture();
             }
             foreach (var root in gameObject.scene.GetRootGameObjects())
@@ -46,12 +47,9 @@ namespace Wreckabulary
                 else root.SetActive(false);
             }
             ApplyFog(false);
-            if (Layout.StoreyFloors().Count > 1)
-            {
-                var cutaway = GetComponent<StoreyCutaway>();
-                if (!cutaway) cutaway = gameObject.AddComponent<StoreyCutaway>();
-                cutaway.Configure(Layout, geometry);
-            }
+            var cutaway = GetComponent<StoreyCutaway>();
+            if (!cutaway) cutaway = gameObject.AddComponent<StoreyCutaway>();
+            cutaway.Configure(Layout, geometry);
             var joins = GetComponent<PlayerJoinManager>();
             if (joins) joins.ConfigureLayout(Layout);
             var camera = FindAnyObjectByType<CameraRig>();
@@ -160,6 +158,7 @@ namespace Wreckabulary
 
         public static void ApplyFog(bool thirdPerson)
         {
+            if (EnvironmentLighting.Active) { EnvironmentLighting.Active.ApplyFog(thirdPerson); return; }
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = new Color32(0x17, 0x3a, 0x3d, 0xff);

@@ -329,7 +329,9 @@ namespace Wreckabulary.Tests
             var look = chair.GetComponent<Renderer>();
             yield return new WaitForSeconds(.2f);
             Assert.AreEqual(ShoulderView.Distance, rig.ViewDistance, .05f, "furniture doesn't pull the camera in");
-            Assert.AreEqual(ShadowCastingMode.ShadowsOnly, look.shadowCastingMode, "it fades to its shadow");
+            Assert.AreEqual(ShadowCastingMode.On, look.shadowCastingMode, "Other cameras keep the authored furniture.");
+            using (CameraCutaway.BeginCameraVisibility(lens))
+                Assert.AreEqual(ShadowCastingMode.ShadowsOnly, look.shadowCastingMode, "This camera retains the furniture's shadow.");
             CollectionAssert.Contains(rig.Faded.ToList(), look);
 
             chair.transform.position = new Vector3(10f, 1f, 0f);
@@ -339,7 +341,7 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator WallsStandTallAroundTheThirdPersonView()
+        public IEnumerator AuthoredWallsStayIntactWhenSwitchingBetweenSoloAndCouchViews()
         {
             Match.ModeOverride = "Dibs";
             Session.SelectMap("pinwheel");
@@ -351,6 +353,8 @@ namespace Wreckabulary.Tests
 
             var walls = room.GetComponentsInChildren<TallWall>();
             Assert.IsNotEmpty(walls);
+            var authoredMeshes = walls.Select(wall => wall.GetComponent<MeshFilter>().sharedMesh).ToArray();
+            var authoredPositions = walls.Select(wall => wall.transform.position).ToArray();
             Physics.SyncTransforms();
             void Check(bool tall)
             {
@@ -372,7 +376,12 @@ namespace Wreckabulary.Tests
             Physics.SyncTransforms();
             Assert.IsNull(rig.Target);
             Assert.IsTrue(lens.orthographic, "back to the overhead view of the house");
-            Check(false);
+            Check(true);
+            for (int i = 0; i < walls.Length; i++)
+            {
+                Assert.AreSame(authoredMeshes[i], walls[i].GetComponent<MeshFilter>().sharedMesh, "Camera switches never regenerate authored wall meshes.");
+                Assert.AreEqual(authoredPositions[i], walls[i].transform.position, "Visibility does not move a saved wall.");
+            }
         }
 
         [UnityTest]

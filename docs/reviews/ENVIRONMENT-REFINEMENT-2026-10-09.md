@@ -34,3 +34,33 @@ The merged baseline has native test and screenshot evidence. Next recoverable ac
 Recovery snapshot before the texture repair: `Logs/checkpoints/2026-10-09-environment-merge-in-progress` (tracked binary patch, 1,120 untracked files and Git merge identity).
 
 Harness run: `run-aae3cb89-49c7-45fd-a718-6803c2e6c944`.
+
+## Environment implementation
+
+Merged baseline `25724f4` is pushed as SethyPagna. The next stage adds room-specific paint, ceiling/roof panels with stair openings, upper wall infill, cornices, imported windows/curtains/sconces, warm bulbs and framed generated artwork. Hub and Tutorial retain their original placements with a rear canopy and added wall detail. The five current prefab worlds remain authoritative.
+
+Lighting is controlled by the saved `SunlitHouse` profile and `DaylightSky` material. A scene-owned sun/fill and a bounded pool of unshadowed practical lights replace the solid teal horizon. The lobby keeps its own showroom background. A review caught and corrected workshop suspension of the lighting controller and late scene-load fog overrides.
+
+Camera cutaways now apply only during the requesting camera's render and restore exact renderer state afterward. They preserve authored wall transforms/meshes, independent upstairs/downstairs views, unregistered cameras and standalone Hub/Tutorial canopies. Ceilings constrain the camera boom without adding gameplay colliders.
+
+The FOAM visual now uses a transparent iridescent shell and seven small pearl meshes, sharing one saved mesh/material. Its original shield ownership, timing and letter accounting remain authoritative.
+
+- Native authoring completed with no C# or shader errors (`Logs/environment-stage-authoring.log`).
+- All 12 new saved-world/lighting editor cases passed. Full editor run: 285 passed and one teardown failure; the fallback-light creation during Play exit was removed. The affected Hub Play regression then passed (`Logs/environment-stage-editor-regression.xml`).
+- Full gameplay verification: 262 passed, one failed and 13 explicit captures skipped. The failure was an active craft refund emitting cosmetic pickup feedback during scene teardown and recreating `Transient`; a lifecycle fix and three regressions are pending native verification.
+- The first graphics-enabled environment journey wrote all 25 frames, then failed editor resolution cleanup. That cleanup now removes only its own absolute custom-size indices and verifies restoration; rerun pending.
+- Visual review found real defects not exposed by visibility-plan tests: GPU Resident Drawer retained roof geometry in overview/couch cameras, and imported window/sconce root transforms lost the FBX axis conversion. Runtime cutaway companions and a native pixel regression address the first; a bounded anchor migration addresses the second. Door lintels are being added without altering openings or existing artist transforms. The first capture set is diagnostic evidence, not final visual acceptance.
+- The foam shell, centered solo camera, painted room surfaces, generated wall print and procedural sky/sun appeared in actual Unity frames. Final corrected captures and a Windows build remain required.
+
+Source recovery snapshot before the final camera tests: `Logs/checkpoints/2026-10-09-environment-source-in-progress`. Later source and generated assets remain in the working tree until verified.
+
+## Corrected native review
+
+- Additive fixture migration saved upright imported frames, curtains and sconces. Door lintels close the space above existing door openings. The 23 affected editor cases passed, including all five saved prefabs, scene lighting, artist-pose preservation, repeat migration, and Scene-view ceiling visibility restoration (`Logs/environment-stage-repair-editmode.xml`).
+- Graphics-enabled regressions: 56 passed, with one failure in the new synthetic pixel fixture's manual single-camera render request. All 26 environment captures, lobby/workshop checks, Moving Day checks and the three active-craft cleanup regressions passed. The pixel fixture was corrected to use normal camera frames and its focused rerun passed (1/1). Its four native images prove green floor / red independent roof / red interior ceiling / green overview after other cameras. This was an affected-case rerun, not a second full-suite run.
+- Reviewed corrected native frames at `evidence/unity-environment-2026-10-09`: centered active Pinwheel gameplay, five distinct interiors, full-height walls and ceiling detail, upright window/sconce assemblies, visible Garden sky/sun, upstairs rooms, mixed-floor couch views, lobby and Hub exploration. The roof no longer covers overview/couch gameplay. The lobby key/rim balance is warmer and less cyan.
+- Cutaway-controlled renderers use the regular renderer path because GPU Resident Drawer caches visibility before per-camera callbacks. The opt-out is limited to affected renderers; the rest of the project keeps GPU batching. Runtime companions unregister when props are destroyed, including across repeated rounds.
+- Workspace ceiling hiding changes editor visibility only, restores before scene/prefab closing, and preserves objects the artist already hid. The default Play entry remains the current Hub.
+- Independent visual review accepted corrected frames 01–05, 09, 12, 18 and 23–26: no remaining clipping, missing fixture, or roof occlusion was identified. Opaque stylized window glazing remains a deliberate surface; no traversable window opening was added.
+
+Initial diagnostic frames and failing XML are preserved locally under `Logs/checkpoints/2026-10-09-environment-first-render`, rather than mixed into the current screenshot directory. Final Windows build and Git publication are pending.

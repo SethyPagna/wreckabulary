@@ -33,6 +33,13 @@ namespace Wreckabulary.Art
 
         public static void ApplyDefaultLighting()
         {
+            var authoredLighting = Object.FindAnyObjectByType<EnvironmentLighting>();
+            if (authoredLighting && authoredLighting.Profile)
+            {
+                if (Application.isPlaying) authoredLighting.ApplyRuntime();
+                else authoredLighting.ApplySceneSettings();
+                return;
+            }
             if (Application.isPlaying)
             {
                 GraphicsOptions.ApplyLights();

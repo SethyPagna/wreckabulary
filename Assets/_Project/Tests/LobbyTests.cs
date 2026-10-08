@@ -707,18 +707,21 @@ namespace Wreckabulary.Tests
             yield return TestScenes.Load(Session.DibsScene);
             Assert.IsTrue(Camera.main.GetUniversalAdditionalCameraData().renderPostProcessing, "match cameras post-process too");
 
-            var lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None).Where(l => l.type == LightType.Directional).ToList();
-            var sun = lights.Single(l => l.name == "Sun");
-            Assert.AreEqual(2.85f / Mathf.PI, sun.intensity, 1e-3f, "the web's sun 2.85 in Unity's units");
-            Assert.Greater(sun.transform.forward.x, 0f, "from the left...");
-            Assert.Less(sun.transform.forward.y, -.7f, "...high up...");
-            Assert.Greater(sun.transform.forward.z, 0f, "...and from the camera's side");
-            var fill = lights.Single(l => l.name == "Fill light");
+            var environment = Wreckabulary.Art.EnvironmentLighting.Active;
+            Assert.IsNotNull(environment, "the match owns an editable environment profile");
+            var settings = environment.Profile;
+            var sun = environment.Sun;
+            Assert.AreEqual(settings.SunIntensity, sun.intensity, 1e-3f);
+            Assert.AreEqual(settings.SunColor, sun.color);
+            Assert.Less(Quaternion.Angle(Quaternion.Euler(settings.SunEuler), sun.transform.rotation), .01f);
+            Assert.AreSame(sun, RenderSettings.sun, "the sky's visible sun follows the scene's real light");
+            Assert.AreSame(settings.Skybox, RenderSettings.skybox);
+            var fill = environment.Fill;
             Assert.AreEqual(LightShadows.None, fill.shadows);
             Assert.Greater(fill.color.b, fill.color.r, "a cool fill");
             Assert.AreEqual(AmbientMode.Trilight, RenderSettings.ambientMode);
             Assert.Greater(RenderSettings.ambientSkyColor.r, RenderSettings.ambientGroundColor.r, "light from above");
-            Assert.Greater(RenderSettings.ambientGroundColor.b, RenderSettings.ambientGroundColor.r, "a teal bounce from below");
+            Assert.AreEqual(settings.AmbientGround, RenderSettings.ambientGroundColor, "the room's warm bounce is editable");
         }
 
         [UnityTest]
@@ -1120,6 +1123,9 @@ namespace Wreckabulary.Tests
             Click("Mode " + LobbyMenu.WorkshopMode);
             yield return null;
             var lobbyLook = menu.Stage.Camera.backgroundColor;
+            var daylight = Wreckabulary.Art.EnvironmentLighting.Active;
+            Assert.IsNotNull(daylight);
+            float sunIntensity = daylight.Sun.intensity;
             Click("GO");
             yield return TestScenes.WaitUntil(() => CreativeWorkshop.Instance, 3f, "the workshop to open");
             yield return null;
@@ -1129,6 +1135,9 @@ namespace Wreckabulary.Tests
                 "the hidden lobby cannot intercept workshop controls");
             Assert.IsTrue(menu.gameObject.activeInHierarchy, "the lobby stays available for the return transition");
             Assert.IsFalse(Find("GO").IsInteractable(), "the hidden lobby button cannot receive workshop input");
+            Assert.AreSame(daylight, Wreckabulary.Art.EnvironmentLighting.Active, "workshop suspension preserves the scene's daylight controller");
+            Assert.AreEqual(sunIntensity, daylight.Sun.intensity);
+            Assert.LessOrEqual(daylight.SelectedLightCount, daylight.LightBudget);
             var cam = Camera.main;
             Assert.IsFalse(cam.clearFlags == CameraClearFlags.SolidColor && cam.backgroundColor == lobbyLook,
                 "the workshop shows the hub's own sky, not the lobby's");
@@ -1146,6 +1155,8 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(LobbyMenu.Home, menu.Current);
             AssertFramed(menu.Stage, "the camera is yours again");
             Assert.AreEqual(lobbyLook, menu.Stage.Camera.backgroundColor, "with the lobby's sky");
+            Assert.AreSame(daylight, Wreckabulary.Art.EnvironmentLighting.Active);
+            Assert.AreEqual(sunIntensity, daylight.Sun.intensity);
             Assert.IsTrue(sky.enabled, "which comes back");
             Find("CHANGE");
             Assert.AreSame(Find("GO").gameObject, Selected, "GO is back, with a controller on it");

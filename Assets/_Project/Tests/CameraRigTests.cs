@@ -114,7 +114,11 @@ namespace Wreckabulary.Tests
             Assert.That(Vector3.Distance(camera.transform.position, Vector3.up),
                 Is.EqualTo(clearDistance).Within(0.05f), "Invisible gameplay collider height must not collapse the camera boom.");
             Assert.IsTrue(collider.enabled, "Temporarily hiding a near wall must preserve its gameplay collision.");
-            Assert.AreEqual(ShadowCastingMode.ShadowsOnly, wall.GetComponent<Renderer>().shadowCastingMode, "A cutaway in front of the avatar must not hide the player's body.");
+            var wallRenderer = wall.GetComponent<Renderer>();
+            Assert.IsTrue(camera.GetComponent<CameraCutaway>().WouldHide(wallRenderer), "A cutaway in front of the avatar must not hide the player's body.");
+            Assert.AreEqual(ShadowCastingMode.On, wallRenderer.shadowCastingMode, "The authored renderer is unchanged outside this camera's render.");
+            using (CameraCutaway.BeginCameraVisibility(camera))
+                Assert.AreEqual(ShadowCastingMode.ShadowsOnly, wallRenderer.shadowCastingMode);
             Spawn(1, new CameraInputBinding(), Vector3.forward);
             yield return null;
             yield return null;

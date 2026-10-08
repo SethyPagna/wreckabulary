@@ -101,7 +101,7 @@ namespace Wreckabulary
                 {
                     foreach (var behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
                     {
-                        if (behaviour is EventSystem || behaviour is UnityEngine.EventSystems.BaseInputModule) continue;
+                        if (behaviour is EventSystem || behaviour is UnityEngine.EventSystems.BaseInputModule || behaviour is Art.EnvironmentLighting) continue;
                         suspended.Add((behaviour, behaviour.enabled)); behaviour.enabled = false;
                     }
                     foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
@@ -305,7 +305,9 @@ namespace Wreckabulary
                 tour = new GameObject("Peaceful home tour").AddComponent<HomeTourDirector>(); tour.transform.SetParent(transform,false);
                 TouchBinding.Shared.ReleaseAll(); TouchBinding.Shared.Enabled = true;
                 TouchBinding.Shared.OverlayDesktop = true; TouchBinding.Shared.OverlayBindingId = tourBinding.Id;
-                tour.Begin(stage.House,tourBinding,lens); stage.SetTallWalls(tour.ThirdPerson);
+                var environment = tour.gameObject.AddComponent<StoreyCutaway>();
+                environment.Configure(stage.House, stage.transform.Find(stage.House.Name + " geometry"), false);
+                tour.Begin(stage.House,tourBinding,lens,environment); stage.SetTallWalls(tour.ThirdPerson);
                 header.gameObject.SetActive(false); dock.gameObject.SetActive(false); tourBar.gameObject.SetActive(true);
                 touchControls.gameObject.SetActive(Application.isMobilePlatform || Touchscreen.current != null || tourBinding is TouchBinding);
                 tourTitle.text = "YOUR SAVED HOME\nMove freely · Back or START returns";

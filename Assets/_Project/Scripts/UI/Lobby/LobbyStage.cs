@@ -23,7 +23,7 @@ namespace Wreckabulary
         static readonly Color SkyMiddle = LobbyKit.Hex(0x6b3f6e), SkyLow = LobbyKit.Hex(0xf2b57a);
         public const float SideAt = .3f;
         public const int LookPriority = 10;
-        static readonly Vector3 KeyFrom = new Vector3(-1.8f, 2.6f, -2.4f), RimFrom = new Vector3(1.6f, 2.2f, 1.8f);
+        static readonly Vector3 KeyFrom = new Vector3(-1.4f, 1.9f, -1.8f), RimFrom = new Vector3(1.6f, 2.2f, 1.8f);
 
         Transform set, avatarRoot;
         Canvas sky;
@@ -216,7 +216,7 @@ namespace Wreckabulary
             lookProfile.name = "Lobby look";
             var vignette = lookProfile.Add<Vignette>(true);
             vignette.color.Override(LobbyKit.ScrimNavy);
-            vignette.intensity.Override(.32f);
+            vignette.intensity.Override(.22f);
             vignette.smoothness.Override(.45f);
             var focus = lookProfile.Add<DepthOfField>(true);
             focus.mode.Override(DepthOfFieldMode.Gaussian);
@@ -230,8 +230,8 @@ namespace Wreckabulary
             bloom.intensity.Override(.25f);
             look.sharedProfile = lookProfile;
 
-            key = ShowroomLight("Key light", LobbyKit.Hex(0xffd9a0), 5f, 46f);
-            rim = ShowroomLight("Rim light", LobbyKit.Hex(0x6fd4ff), 4f, 30f);
+            key = ShowroomLight("Key light", LobbyKit.Hex(0xffead0), 7f, 58f);
+            rim = ShowroomLight("Rim light", LobbyKit.Hex(0xb5def7), 2.5f, 36f);
         }
 
         Light ShowroomLight(string name, Color colour, float intensity, float angle)

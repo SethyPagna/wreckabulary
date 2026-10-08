@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
+using Wreckabulary.Art;
 using Wreckabulary.Rules;
 using System.Linq;
 
@@ -29,12 +29,14 @@ namespace Wreckabulary
         float wholeHouseSize;
         float layoutWidth, layoutDepth;
         Camera lens;
+        CameraCutaway visibility;
+        StoreyCutaway house;
 
         readonly ShoulderView view = new();
         PlayerController target, followed;
         Vector3 lastFeet;
         readonly RaycastHit[] blockers = new RaycastHit[16];
-        readonly Dictionary<Renderer, (ShadowCastingMode mode, float until)> faded = new();
+        readonly Dictionary<Renderer, float> faded = new();
         readonly List<Renderer> unfade = new();
         readonly Dictionary<Renderer, Renderer[]> cutawayParts = new();
         readonly List<Renderer> bodyRenderers = new();
@@ -105,9 +107,16 @@ namespace Wreckabulary
                 baseOrthographic = lens.orthographic;
                 baseFieldOfView = lens.fieldOfView;
                 baseNearClip = lens.nearClipPlane;
-                lens.clearFlags = CameraClearFlags.SolidColor;
-                lens.backgroundColor = new Color32(0x17, 0x3a, 0x3d, 0xff);
+                if (EnvironmentLighting.Active) EnvironmentLighting.Active.ApplyCamera(lens);
+                else
+                {
+                    lens.clearFlags = CameraClearFlags.SolidColor;
+                    lens.backgroundColor = new Color32(0x17, 0x3a, 0x3d, 0xff);
+                }
             }
+            visibility = GetComponent<CameraCutaway>() ?? gameObject.AddComponent<CameraCutaway>();
+            visibility.SetOccluders(faded.Keys);
+            house = StoreyCutaway.Instance;
             GraphicsOptions.ApplyTo(lens);
         }
 
@@ -116,6 +125,7 @@ namespace Wreckabulary
             if (target) target.ShooterView = false;
             target = null;
             RestoreFaded();
+            if (visibility) visibility.ClearView(this);
             CursorPolicy.Apply(false);
         }
 
@@ -164,9 +174,9 @@ namespace Wreckabulary
                     lens.nearClipPlane = baseNearClip;
                 }
             }
-            var rooms = FindAnyObjectByType<RoomBuilder>();
-            if (rooms) { rooms.SetTallWalls(target); RoomBuilder.ApplyFog(target); }
-            if (StoreyCutaway.Instance) StoreyCutaway.Instance.Refresh();
+            RoomBuilder.ApplyFog(target);
+            if (!house) house = StoreyCutaway.Instance;
+            if (house) house.Refresh();
         }
 
         void LateUpdate()
@@ -178,8 +188,14 @@ namespace Wreckabulary
             }
             var next = ChooseTarget();
             if (next != target) SetTarget(next);
+            if (!house) house = StoreyCutaway.Instance;
+            visibility.SetView(this, house, target);
+            visibility.SetOccluders(faded.Keys);
+            view.Environment = house;
+            view.Cutaway = visibility;
             if (target) FollowTarget();
             else Overview();
+            visibility.RefreshVisibility();
         }
 
         void FollowTarget()
@@ -202,46 +218,17 @@ namespace Wreckabulary
         void FadeBlockers()
         {
             float now = Time.unscaledTime;
-            var from = transform.position;
-            var to = lastFeet + Vector3.up * .9f - from;
-            float length = to.magnitude;
-            if (length > .01f)
-            {
-                int n = Physics.RaycastNonAlloc(from, to / length, blockers, length, World.GroundMask, QueryTriggerInteraction.Ignore);
-                for (int i = 0; i < n; i++)
-                {
-                    var body = blockers[i].rigidbody;
-                    if (!body || body.GetComponentInParent<PlayerController>()) continue;
-                    bodyRenderers.Clear();
-                    body.GetComponentsInChildren(bodyRenderers);
-                    foreach (var r in bodyRenderers) Fade(r, now);
-                }
-            }
-            FadeLegacyCutaways(now);
+            if (target) FindOccluders(lastFeet, now);
+            else foreach (var player in World.Players)
+                if (player && !player.IsEliminated && player.Binding is not BotBinding) FindOccluders(player.transform.position, now);
             unfade.Clear();
-            foreach (var pair in faded)
-                if (pair.Value.until < now) unfade.Add(pair.Key);
-            foreach (var r in unfade)
-            {
-                if (r) r.shadowCastingMode = faded[r].mode;
-                faded.Remove(r);
-            }
+            foreach (var pair in faded) if (pair.Value < now) unfade.Add(pair.Key);
+            foreach (var renderer in unfade) faded.Remove(renderer);
         }
 
-        void Fade(Renderer renderer, float now)
+        void FindOccluders(Vector3 feet, float now)
         {
-            if (!renderer) return;
-            if (faded.TryGetValue(renderer, out var was)) faded[renderer] = (was.mode, now + FadeHold);
-            else
-            {
-                faded[renderer] = (renderer.shadowCastingMode, now + FadeHold);
-                renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
-            }
-        }
-
-        void FadeLegacyCutaways(float now)
-        {
-            var origin = lastFeet + Vector3.up * .4f;
+            var origin = feet + Vector3.up * .4f;
             var delta = transform.position - origin;
             if (delta.sqrMagnitude < .001f) return;
             int count = Physics.SphereCastNonAlloc(origin, .3f, delta.normalized, blockers,
@@ -249,29 +236,39 @@ namespace Wreckabulary
             for (int i = 0; i < count; i++)
             {
                 var collider = blockers[i].collider;
-                if (!ShoulderView.IsLegacyCutaway(collider) || !collider.TryGetComponent<Renderer>(out var wall)) continue;
+                if (!collider || collider.GetComponentInParent<PlayerController>()) continue;
+                var body = blockers[i].rigidbody;
+                if (body)
+                {
+                    bodyRenderers.Clear();
+                    body.GetComponentsInChildren(bodyRenderers);
+                    foreach (var renderer in bodyRenderers) faded[renderer] = now + FadeHold;
+                    continue;
+                }
+                if (!collider.GetComponent<TallWall>() && !ShoulderView.IsLegacyCutaway(collider)) continue;
+                if (!collider.TryGetComponent<Renderer>(out var wall)) continue;
+                var visibleBounds = wall.bounds;
+                visibleBounds.Expand(.6f);
+                if (!visibleBounds.IntersectRay(new Ray(origin, delta.normalized), out float visibleDistance) || visibleDistance > delta.magnitude) continue;
                 if (!cutawayParts.TryGetValue(wall, out var parts))
                 {
                     var group = new List<Renderer> { wall };
+                    var tall = collider.GetComponent<TallWall>();
+                    if (tall && tall.Trim && tall.Trim.TryGetComponent<Renderer>(out var cap)) group.Add(cap);
                     var area = wall.bounds;
                     area.Expand(.18f);
                     if (wall.transform.parent)
                         foreach (Transform child in wall.transform.parent)
-                            if (child.TryGetComponent<Renderer>(out var trim) && trim != wall && trim.bounds.size.y < .15f && area.Intersects(trim.bounds))
+                            if (child.TryGetComponent<Renderer>(out var trim) && trim != wall && trim.bounds.size.y < .15f && area.Intersects(trim.bounds) && !group.Contains(trim))
                                 group.Add(trim);
                     parts = group.ToArray();
                     cutawayParts.Add(wall, parts);
                 }
-                foreach (var part in parts) Fade(part, now);
+                foreach (var part in parts) if (part) faded[part] = now + FadeHold;
             }
         }
 
-        void RestoreFaded()
-        {
-            foreach (var pair in faded)
-                if (pair.Key) pair.Key.shadowCastingMode = pair.Value.mode;
-            faded.Clear();
-        }
+        void RestoreFaded() => faded.Clear();
 
         void Overview()
         {
@@ -326,6 +323,7 @@ namespace Wreckabulary
             smooth = Vector3.Lerp(smooth, goal, 1f - Mathf.Exp(-3f * Time.unscaledDeltaTime));
             transform.position = smooth + Random.insideUnitSphere * shake;
             shake = Mathf.MoveTowards(shake, 0f, Time.unscaledDeltaTime * 1.5f);
+            FadeBlockers();
         }
     }
 }
