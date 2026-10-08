@@ -1,6 +1,6 @@
 # Unity environment refinement
 
-STATUS: IN PROGRESS
+STATUS: VERIFIED
 
 ## Goal and checkpoint
 
@@ -17,7 +17,7 @@ Fetching GitHub found 58 newer commits on `origin/main`, ending at `3d28cf0`. Th
 - World lane: all five maps, authored world reset, persistent generated textures and safe migration.
 - Lead: remaining integration, native scene migration, tests, screenshots, Git commits and pushes.
 
-The merged baseline has native test and screenshot evidence. Next recoverable action: add new dressing, ceilings and lighting, then verify all five maps and the current hub.
+The delivered environment stage is commit `29b2728`, pushed on `codex/environment-refinement`. It includes the five current worlds, Hub/Tutorial dressing, lighting, camera fixes and reviewed native screenshot evidence. The verification record below distinguishes initial failures from their passing affected-case reruns.
 
 ## Native integration checks
 
@@ -37,7 +37,7 @@ Harness run: `run-aae3cb89-49c7-45fd-a718-6803c2e6c944`.
 
 ## Environment implementation
 
-Merged baseline `25724f4` is pushed as SethyPagna. The next stage adds room-specific paint, ceiling/roof panels with stair openings, upper wall infill, cornices, imported windows/curtains/sconces, warm bulbs and framed generated artwork. Hub and Tutorial retain their original placements with a rear canopy and added wall detail. The five current prefab worlds remain authoritative.
+Merged baseline `25724f4` is pushed as SethyPagna. The delivered stage adds room-specific paint, ceiling/roof panels with stair openings, upper wall infill, cornices, imported windows/curtains/sconces, warm bulbs and framed generated artwork. Hub and Tutorial retain their original placements with a rear canopy and added wall detail. The five current prefab worlds remain authoritative.
 
 Lighting is controlled by the saved `SunlitHouse` profile and `DaylightSky` material. A scene-owned sun/fill and a bounded pool of unshadowed practical lights replace the solid teal horizon. The lobby keeps its own showroom background. A review caught and corrected workshop suspension of the lighting controller and late scene-load fog overrides.
 
@@ -52,7 +52,7 @@ The FOAM visual now uses a transparent iridescent shell and seven small pearl me
 - Visual review found real defects not exposed by visibility-plan tests: GPU Resident Drawer retained roof geometry in overview/couch cameras, and imported window/sconce root transforms lost the FBX axis conversion. Runtime cutaway companions and a native pixel regression address the first; a bounded anchor migration addresses the second. Door lintels are being added without altering openings or existing artist transforms. The first capture set is diagnostic evidence, not final visual acceptance.
 - The foam shell, centered solo camera, painted room surfaces, generated wall print and procedural sky/sun appeared in actual Unity frames. Final corrected captures and a Windows build remain required.
 
-Source recovery snapshot before the final camera tests: `Logs/checkpoints/2026-10-09-environment-source-in-progress`. Later source and generated assets remain in the working tree until verified.
+Source recovery snapshot before the final camera tests: `Logs/checkpoints/2026-10-09-environment-source-in-progress`. The final source and generated assets are recoverable from pushed commit `29b2728`.
 
 ## Corrected native review
 
@@ -63,4 +63,12 @@ Source recovery snapshot before the final camera tests: `Logs/checkpoints/2026-1
 - Workspace ceiling hiding changes editor visibility only, restores before scene/prefab closing, and preserves objects the artist already hid. The default Play entry remains the current Hub.
 - Independent visual review accepted corrected frames 01–05, 09, 12, 18 and 23–26: no remaining clipping, missing fixture, or roof occlusion was identified. Opaque stylized window glazing remains a deliberate surface; no traversable window opening was added.
 
-Initial diagnostic frames and failing XML are preserved locally under `Logs/checkpoints/2026-10-09-environment-first-render`, rather than mixed into the current screenshot directory. Final Windows build and Git publication are pending.
+Initial diagnostic frames are preserved locally under `Logs/checkpoints/2026-10-09-environment-first-render`, rather than mixed into the current screenshot directory. The checked-in XML includes initial results and the passing follow-up runs for traceability.
+
+## Windows delivery
+
+`ProductionBuild.Windows` succeeded with zero errors and reported 206,188,632 bytes. The executable started on Direct3D 11 / Intel Arc Graphics, remained responsive for 103 seconds, and logged no exceptions. This is a startup smoke test; gameplay and local couch behavior were exercised in the native PlayMode/capture runs. Evidence: `windows-build-result.txt`, `windows-build-smoke.json` and `windows-startup.log` beside the final screenshots.
+
+Build-only render-pipeline serialization caches, tactile seed display-name changes and the generated TMP fallback cache were preserved under `Logs/checkpoints/2026-10-09-build-cache` and restored to their pre-build repository state. No authored environment assets were reverted. Existing local multiplayer is preserved and verified; this stage adds no online networking service.
+
+Open `docs/UNITY-WORKSPACE.md` for the current edit entry points. The editable lighting profile, all five house prefabs, current scenes and inventory assets are linked from **Wreckabulary → Open Current Workspace**. The built player is `Builds/Windows/Wreckabulary.exe` (local build output, not committed).
