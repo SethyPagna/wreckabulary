@@ -1,6 +1,6 @@
 # Recipe and powers expansion
 
-STATUS: IN PROGRESS
+STATUS: COMPLETE
 
 Baseline: `main` at `3e730e6`. Unity integration is serialized through the lead editor process; other lanes edit source or generate artwork only. Existing centered camera, authored worlds, couch multiplayer and letter ownership remain acceptance requirements.
 
@@ -37,11 +37,10 @@ Use animation must fit its channel, distinguish food from drinks, cancel cleanly
 ## Evidence
 
 - `a0970fc` pushed the six generated PNGs, import policy, runtime Sprite library and six passing art tests. Each generation has a recorded prompt and SHA-256 in the provenance manifest.
-- RulesHarness: 227 passing. Final Web mechanics suite: 122 passing; production bundle built. Browser review corrections cover shield input/raise and FAN loose-prop movement. A 29-step real-Chrome smoke passed; its screenshots exposed a mobile recipe overlap, now corrected with an unobstructed-card regression awaiting final recapture.
-- Initial full Unity EditMode: 304/305 passed. The failure depended on previously hidden editor ceilings; the fixture now saves/restores user visibility and awaits rerun. All eight saved-world supply/migration cases passed.
-- Focused native PlayMode: 15/15 passed before final visual corrections. Full native PlayMode then passed 289 tests, zero failures, 14 optional/explicit cases skipped (Logs/powers-full-playmode.xml). Independent review subsequently caught paused cosmetic rotation feedback; the pose now uses an immutable grip basis, with rendered item/grip freeze assertions awaiting a focused rerun.
+- RulesHarness: 227 passing. Catalogue seed check: 50 entries, 24 enabled, no problems. Original core recipes remain available in every spawn room; all 24 recipes are available across each complete house. The saved-world migration adds missing WATER supplies once and preserves artist transforms on repeat runs.
+- Review corrections cover browser shield input/raise and FAN loose-prop movement, mobile recipe overlays, field re-enable lifecycle and paused cosmetic rotation feedback. The initial EditMode failure depended on previously hidden editor ceilings; the repaired fixture saves/restores user visibility. Final reruns are recorded below.
 - First native journey: 26 actual Unity frames and a completed manifest. It verified UI art, consumable timing, shield/field effects and two-player layouts at 16:9 and 21:9. Visual inspection caught a detached raised shield and poor drink contact; authored-grip rotation and cosmetic arm contact were corrected. A field lifecycle regression also prompted a re-enable fix and test.
-- The first render set is retained locally at `Logs/checkpoints/2026-10-09-powers-first-render`. Final evidence will replace it only after a corrected capture passes and is visually reviewed.
+- The first render set remains in `Logs/checkpoints/2026-10-09-powers-first-render`; reviewed final evidence is versioned with feature checkpoint `a72605c`. Both commits use SethyPagna's identity without co-author trailers.
 
 ### Final regression results
 
@@ -55,4 +54,10 @@ Use animation must fit its channel, distinguish food from drinks, cancel cleanly
 
 Independent pixel review accepted the shield/drink contact and distinct field visuals. The raised shield stays upright over the torso and its aura clears the face. WATER's neck and SODA's rim reach the lower face; APPLE raises centrally. Consumables disappear only after their channels complete. Across 0.3833 seconds, retained FAN/MAT renderers move and the CLOCK hand rotates 10.73 degrees. Frame 28 confirms the standard single-human perspective remains centered behind the avatar with generated SHIELD art in the HUD. Two-local matches intentionally use the shared overview camera.
 
-A transient onboarding banner crosses the P2 label in the ultrawide couch frame; the player and HUD remain readable. GPT images are transparent inventory illustrations; existing imported 3D item models remain the in-world assets. This expansion preserves local multiplayer; it does not add an online transport. Windows build/startup verification is pending.
+A transient onboarding banner crosses the P2 label in the ultrawide couch frame; the player and HUD remain readable. GPT images are transparent inventory illustrations; existing imported 3D item models remain the in-world assets. This expansion preserves local multiplayer; it does not add an online transport.
+
+### Windows delivery
+
+`ProductionBuild.Windows` succeeded with zero errors, 207,818,291 bytes (`Logs/powers-windows-build.log`). The packaged executable initialized Direct3D 11 and Windows input, remained responsive, and logged no exception or load/shader error during startup smoke (`Logs/powers-windows-player.log`). The smoke process was then stopped. This verifies packaged startup; gameplay visuals were verified in the native Unity capture above. Machine-readable counts and executable SHA-256 are in `evidence/unity-powers-2026-10-09/verification.json`.
+
+Generated pipeline/build settings and material-name churn were preserved under `Logs/checkpoints/powers-build-side-effects` and restored to their pre-build source values. The build and authored scenes remain available for local use. Open `OPEN-LATEST-UNITY.cmd` beside the checkout, or use **Wreckabulary → Open Current Workspace**, to edit the current Hub and world prefabs.
