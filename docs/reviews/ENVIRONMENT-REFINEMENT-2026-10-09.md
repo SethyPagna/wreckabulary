@@ -6,7 +6,7 @@ STATUS: VERIFIED
 
 Upgrade rooms, architecture, floors, ceilings, sky, sunlight and practical fixtures into a coherent, varied toy-house setting. Preserve gameplay, local multiplayer and editable current scene assets. Verify in native Unity captures and tests, and push verified stages as SethyPagna without co-author trailers.
 
-The previous presentation and authoring checkpoint is preserved in commit `c69253c` and pushed on `codex/environment-refinement`. Its evidence is in `UNITY-AUTHORING-2026-10-09.md`. The checkpoint passed 201 EditMode tests, 135 PlayMode tests, two rendered capture journeys and a Windows build smoke test. These results describe that checkpoint, not the pending integration.
+The previous presentation and authoring checkpoint is preserved in commit `c69253c` and pushed on `codex/environment-refinement`. Its evidence is in `UNITY-AUTHORING-2026-10-09.md`. The checkpoint passed 201 EditMode tests, 135 PlayMode tests, two rendered capture journeys and a Windows build smoke test. These results describe that earlier checkpoint.
 
 Fetching GitHub found 58 newer commits on `origin/main`, ending at `3d28cf0`. They add three vertical maps, a new lobby/HUD, settings, creative tools, updated art and rebinding. Integration uses these newer systems as the base while retaining authored asset persistence, UI state transitions and presentation fixes.
 
@@ -29,7 +29,7 @@ The delivered environment stage is commit `29b2728`, pushed on `codex/environmen
 - Full PlayMode suite: 251 passed, five integration failures and 12 explicit capture tests skipped. Fixes addressed duplicate fixture audio listeners, workshop CanvasGroup lifecycle, pause crosshair visibility and asset-name-dependent surface assertions.
 - Focused regression after those fixes: 36 passed, zero failed. This is an affected-case rerun, not a second full-suite run (`Logs/environment-merge-regression.xml`).
 - Graphics-enabled native presentation journeys: two passed, 13 PNG captures at 16:9 and 21:9. Reviewed centered behind-player framing, lobby, stacked gear slots, local couch play and furniture lifecycle. Evidence: `evidence/unity-environment-merge-2026-10-09`.
-- A merged-revision Windows build is deferred until the new environment stage. The baseline still has plain walls and solid-color sky; it is not the visual completion of this goal.
+- The merged-revision Windows build was deferred to the environment stage. That baseline still had plain walls and solid-color sky; final environment/build results appear below.
 
 Recovery snapshot before the texture repair: `Logs/checkpoints/2026-10-09-environment-merge-in-progress` (tracked binary patch, 1,120 untracked files and Git merge identity).
 
@@ -47,9 +47,9 @@ The FOAM visual now uses a transparent iridescent shell and seven small pearl me
 
 - Native authoring completed with no C# or shader errors (`Logs/environment-stage-authoring.log`).
 - All 12 new saved-world/lighting editor cases passed. Full editor run: 285 passed and one teardown failure; the fallback-light creation during Play exit was removed. The affected Hub Play regression then passed (`Logs/environment-stage-editor-regression.xml`).
-- Full gameplay verification: 262 passed, one failed and 13 explicit captures skipped. The failure was an active craft refund emitting cosmetic pickup feedback during scene teardown and recreating `Transient`; a lifecycle fix and three regressions are pending native verification.
-- The first graphics-enabled environment journey wrote all 25 frames, then failed editor resolution cleanup. That cleanup now removes only its own absolute custom-size indices and verifies restoration; rerun pending.
-- Visual review found real defects not exposed by visibility-plan tests: GPU Resident Drawer retained roof geometry in overview/couch cameras, and imported window/sconce root transforms lost the FBX axis conversion. Runtime cutaway companions and a native pixel regression address the first; a bounded anchor migration addresses the second. Door lintels are being added without altering openings or existing artist transforms. The first capture set is diagnostic evidence, not final visual acceptance.
+- Initial full gameplay verification: 262 passed, one failed and 13 explicit captures skipped. The failure was an active craft refund emitting cosmetic pickup feedback during scene teardown and recreating `Transient`; the lifecycle fix, unchanged resupply case and three new regressions passed in the affected-case run below.
+- The first graphics-enabled environment journey wrote all 25 frames, then failed editor resolution cleanup. That cleanup now removes only its own absolute custom-size indices and verifies restoration; the expanded 26-frame rerun passed.
+- Visual review found real defects not exposed by visibility-plan tests: GPU Resident Drawer retained roof geometry in overview/couch cameras, and imported window/sconce root transforms lost the FBX axis conversion. Runtime cutaway companions and a native pixel regression address the first; a bounded anchor migration addresses the second. Door lintels were added without altering openings or existing artist transforms. The first capture set is diagnostic evidence, not final visual acceptance.
 - The foam shell, centered solo camera, painted room surfaces, generated wall print and procedural sky/sun appeared in actual Unity frames. Final corrected captures and a Windows build remain required.
 
 Source recovery snapshot before the final camera tests: `Logs/checkpoints/2026-10-09-environment-source-in-progress`. The final source and generated assets are recoverable from pushed commit `29b2728`.
@@ -72,3 +72,5 @@ Initial diagnostic frames are preserved locally under `Logs/checkpoints/2026-10-
 Build-only render-pipeline serialization caches, tactile seed display-name changes and the generated TMP fallback cache were preserved under `Logs/checkpoints/2026-10-09-build-cache` and restored to their pre-build repository state. No authored environment assets were reverted. Existing local multiplayer is preserved and verified; this stage adds no online networking service.
 
 Open `docs/UNITY-WORKSPACE.md` for the current edit entry points. The editable lighting profile, all five house prefabs, current scenes and inventory assets are linked from **Wreckabulary → Open Current Workspace**. The built player is `Builds/Windows/Wreckabulary.exe` (local build output, not committed).
+
+The verified environment and build record have been fast-forwarded to GitHub `main`; the local checkout also uses `main`. The feature branch retains the same delivery history. New commits use SethyPagna's configured identity and contain no co-author trailers.
