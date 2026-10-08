@@ -74,6 +74,8 @@ namespace Wreckabulary.Tests
             Assert.IsNotNull(appearance.AvatarModel);
             var animator = appearance.AvatarModel.GetComponentInChildren<Animator>();
             Assert.IsNotNull(animator);
+            Assert.AreEqual(AnimatorCullingMode.AlwaysAnimate, animator.cullingMode,
+                "The headless/offscreen simulation must keep gameplay sockets animated.");
             var table = CatalogGear.Create(GameConfig.Current.Items.Get("TABLE"));
             Assert.IsTrue(player.Combat.TryEquip(table));
             var probe = player.gameObject.AddComponent<AppearanceFrameProbe>();

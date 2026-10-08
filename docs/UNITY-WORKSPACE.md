@@ -8,10 +8,11 @@ Open this checkout with Unity **6000.6.3f1**. Use **Wreckabulary → Open Curren
 | Arena presentation / scene overrides | `Assets/_Project/Scenes/LivingRoom.unity` |
 | Shared Pinwheel house geometry and furniture | `Assets/_Project/Resources/Worlds/PinwheelHouse.prefab` |
 | Garden Courtyard geometry and furniture | `Assets/_Project/Resources/Worlds/GardenCourtyard.prefab` |
+| City Flat / Terrace House / Walk-up Apartments | Other current house prefabs under `Assets/_Project/Resources/Worlds` |
 | Cooperative Moving Day scene | `Assets/_Project/Scenes/MovingDay.unity` |
 | Tutorial layout / teaching anchors | `Assets/_Project/Scenes/Tutorial.unity` |
 | Character, imported model, outfit preview | `Assets/_Project/Prefabs/Player.prefab` |
-| Gameplay HUD / main menu | `Scripts/Game/GameHud.cs` / `Scripts/UI/FrontDoorMenu.cs` under `Assets/_Project` |
+| Gameplay HUD / lobby | `Scripts/Game/GameHud.cs`, `GameHudCards.cs` / `Scripts/UI/Lobby` under `Assets/_Project` |
 | Inventory layout | `Assets/_Project/Resources/UI/Inventory/Inventory.uxml` and `.uss` |
 | Room boundaries, door graph, spawn rules, objectives, recipes | `Assets/_Project/Data/Config` |
 
@@ -23,6 +24,6 @@ The saved camera and **Authoring Preview (Editor Only)** show the current charac
 
 Hub/menu and gameplay HUD layouts are currently built in C#. Their workspace buttons open the actual source. The inventory layout is a separate UI Builder presentation asset. Empty legacy TMP seed labels in the HUD supply references used by the current runtime controller.
 
-**Authoring → Upgrade Current Scenes** creates missing authored assets once and preserves subsequent edits. It backs up original scenes/prefabs to local `Logs/authoring-backups`. The former prototype rebuild is isolated under **Wreckabulary → Legacy** and cannot overwrite production scenes. Preserved prototype geometry lives under `Assets/_Project/Editor/Legacy`; it is excluded from shipped scene content. Test scenes under `Assets/_Project/Tests` are test fixtures, not game entry points.
+**Authoring → Upgrade Current Scenes** creates missing authored assets and preserves edits within the current authoring version. A version migration archives the previous worlds and scene instances, including overrides, before installing current geometry. It also backs up original scenes/prefabs to local `Logs/authoring-backups`. The former prototype rebuild is isolated under **Wreckabulary → Legacy** and cannot overwrite production scenes. Preserved prototype geometry lives under `Assets/_Project/Editor/Legacy`; it is excluded from shipped scene content. Test scenes under `Assets/_Project/Tests` are test fixtures, not game entry points.
 
 Current build scenes remain Hub, Tutorial, LivingRoom and MovingDay with Hub first. No version-numbered scene copies are used by the build.

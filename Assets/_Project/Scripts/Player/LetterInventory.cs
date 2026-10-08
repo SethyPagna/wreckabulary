@@ -4,7 +4,6 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>Crafting loot. Reserved letters count towards the bag limit; HP is separate.</summary>
     public class LetterInventory : MonoBehaviour
     {
         [SerializeField] float pickupRadius = 0.9f;

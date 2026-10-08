@@ -5,7 +5,6 @@ using Wreckabulary.Art;
 
 namespace Wreckabulary
 {
-    /// <summary>Crafted gear keeps its recipe and durability through pickup, use, throw and deployment.</summary>
     [RequireComponent(typeof(Rigidbody))]
     public class HeldWeapon : MonoBehaviour, IDamageable
     {
@@ -22,6 +21,8 @@ namespace Wreckabulary
         bool broken, spent, usingItem, inFlight;
         float thrownAt;
         PlayerCombat holder;
+        RigidbodyInterpolation releasedInterpolation;
+        bool interpolationSuspended;
         public ItemDefinition Definition => definition;
         public bool IsSpent => spent;
         public bool IsUsing => usingItem;
@@ -54,15 +55,20 @@ namespace Wreckabulary
 
         void Update()
         {
-            // The throwing player's miniature and skin travel with the same item until it rests.
             if (inFlight && Time.time - thrownAt > 0.3f && GetComponent<Rigidbody>().linearVelocity.sqrMagnitude < 0.1f)
                 OnReleased();
         }
 
         public void OnHeld(PlayerCombat user)
         {
+            var body = GetComponent<Rigidbody>();
+            if (!interpolationSuspended)
+            {
+                releasedInterpolation = body.interpolation;
+                interpolationSuspended = true;
+            }
+            body.interpolation = RigidbodyInterpolation.None;
             CancelUse();
-            GetComponent<Rigidbody>().interpolation = RigidbodyInterpolation.None;
             inFlight = false;
             holder = user;
             if (TryGetComponent(out DeployedGear deployed)) deployed.Deactivate();
@@ -78,24 +84,31 @@ namespace Wreckabulary
         public void OnReleased()
         {
             CancelUse();
-            GetComponent<Rigidbody>().interpolation = RigidbodyInterpolation.Interpolate;
             inFlight = false;
             holder = null;
             if (definition != null) transform.localScale = Vector3.one;
             var library = MaterialLibrary.Load();
             if (library) library.ApplySkin(gameObject, Skin.Standard);
+            RestoreInterpolation();
         }
 
         public void OnThrown(PlayerController thrower)
         {
             CancelUse();
-            GetComponent<Rigidbody>().interpolation = RigidbodyInterpolation.Interpolate;
             holder = null;
             inFlight = true;
             thrownAt = Time.time;
             if (definition != null) transform.localScale = Vector3.one * definition.HeldScale;
             var library = MaterialLibrary.Load();
             if (library) library.ApplySkin(gameObject, thrower.GetComponent<PlayerAppearance>()?.SkinFor(word) ?? Skin.Standard);
+            RestoreInterpolation();
+        }
+
+        void RestoreInterpolation()
+        {
+            if (!interpolationSuspended) return;
+            GetComponent<Rigidbody>().interpolation = releasedInterpolation;
+            interpolationSuspended = false;
         }
 
         public void Use(PlayerCombat user)
@@ -106,8 +119,8 @@ namespace Wreckabulary
             {
                 if (definition.Use != null) { StartCoroutine(ConsumeAfterChannel(user, owner)); return; }
                 if (definition.Thrown != null) { user.Throw(); return; }
-                if (definition.Melee != null) { StartCoroutine(MeleeAfterWindup(user, owner)); return; }
                 if (definition.Deploy != null) { user.DeployHeld(); return; }
+                if (definition.Melee != null) { StartCoroutine(MeleeAfterWindup(user, owner)); return; }
                 return;
             }
             if (ranged)

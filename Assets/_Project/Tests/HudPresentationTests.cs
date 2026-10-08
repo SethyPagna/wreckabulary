@@ -35,7 +35,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(0f, Time.timeScale);
             Assert.IsTrue(player.Frozen && buddy.Frozen);
             yield return new WaitForSecondsRealtime(0.25f);
-            var pause = hud.transform.Find("Pause canvas/Pause backdrop").GetComponent<CanvasGroup>();
+            var pause = hud.transform.Find("Pause").GetComponent<CanvasGroup>();
             Assert.AreEqual(1f, pause.alpha);
             Assert.IsTrue(pause.blocksRaycasts);
             hud.TogglePause();
@@ -49,7 +49,7 @@ namespace Wreckabulary.Tests
         {
             yield return TestScenes.Load(Session.DibsScene);
             var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
-            joins.Join(new ScriptedBinding());
+            joins.Join(new StartInput());
             yield return new WaitForSecondsRealtime(0.15f);
             var hud = Object.FindAnyObjectByType<GameHud>();
             var bag = hud.transform.Find("Safe HUD/Letter bag");
@@ -57,7 +57,7 @@ namespace Wreckabulary.Tests
             var second = (RectTransform)bag.Find("Gear slot 2");
             Assert.AreEqual(first.anchoredPosition.x, second.anchoredPosition.x);
             Assert.Greater(first.anchoredPosition.y, second.anchoredPosition.y);
-            Assert.AreEqual(Vector2.one, first.anchorMin);
+            Assert.Greater(first.anchoredPosition.x, ((RectTransform)bag.Find("Letter 1")).anchoredPosition.x);
             Assert.AreEqual(1f, bag.GetComponent<CanvasGroup>().alpha);
             hud.StateController.FadeDuration = 0f;
             hud.TogglePause();
@@ -66,22 +66,24 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator FrontDoorRegistersMainMenuAndExplorationRevealsGameplay()
+        public IEnumerator LobbyRegistersMainMenuAndExplorationRevealsGameplay()
         {
             yield return TestScenes.Load(Session.HubScene);
             var controller = Object.FindAnyObjectByType<UIStateController>();
             Assert.AreEqual(UIState.MainMenu, controller.CurrentState);
-            var front = Object.FindAnyObjectByType<FrontDoorMenu>();
-            var postcard = front.transform.Find("Safe area/Welcome postcard");
+            var lobby = Object.FindAnyObjectByType<LobbyMenu>();
+            Assert.IsNotNull(lobby);
+            var menu = lobby.GetComponent<CanvasGroup>();
             var player = Object.FindAnyObjectByType<PlayerJoinManager>().Join(new ScriptedBinding());
             Assert.IsTrue(player.Frozen, "Menu selections must not also move or attack with the roommate.");
             Assert.AreEqual(1f, Time.timeScale, "The main menu keeps the background house animated.");
             controller.FadeDuration = 0f;
             controller.TransitionToState(UIState.GameplayHUD);
             Assert.IsFalse(player.Frozen);
-            Assert.AreEqual(0f, postcard.GetComponent<CanvasGroup>().alpha);
-            Assert.IsTrue(postcard.gameObject.activeInHierarchy);
-            Assert.IsFalse(postcard.GetComponent<CanvasGroup>().blocksRaycasts);
+            Assert.AreEqual(0f, menu.alpha);
+            Assert.IsTrue(menu.gameObject.activeInHierarchy);
+            Assert.IsFalse(menu.blocksRaycasts);
+            Assert.IsTrue(Object.FindAnyObjectByType<PlayerJoinManager>().AllowJoining);
         }
 
         [UnityTest]
@@ -151,28 +153,47 @@ namespace Wreckabulary.Tests
             yield return TestScenes.Load(Session.DibsScene);
             Object.FindAnyObjectByType<PlayerJoinManager>().Join(new ScriptedBinding());
             yield return null;
-            var actions = Object.FindAnyObjectByType<ModeActions>();
-            actions.Show(true);
-            var group = actions.transform.Find("Actions canvas/Buttons").GetComponent<CanvasGroup>();
-            Assert.IsTrue(group.interactable);
             var hud = Object.FindAnyObjectByType<GameHud>();
+            int starts = 0;
+            hud.ShowModeActions(true, "START WITH AI", () => starts++);
+            var actions = hud.transform.Find("Safe HUD/Mode actions");
+            var group = actions.GetComponent<CanvasGroup>();
+            Assert.IsTrue(group.interactable);
             hud.TogglePause();
             Assert.AreEqual(0f, group.alpha);
             Assert.IsFalse(group.interactable || group.blocksRaycasts);
             Assert.IsTrue(group.gameObject.activeInHierarchy);
-            actions.Show(true, "START WITH AI");
+            hud.ShowModeActions(true, "START WITH AI");
             Assert.IsFalse(group.blocksRaycasts, "A director refresh cannot reactivate gameplay controls under a menu.");
-            Assert.Greater(hud.transform.Find("Pause canvas").GetComponent<Canvas>().sortingOrder,
-                actions.transform.Find("Actions canvas").GetComponent<Canvas>().sortingOrder);
-            var pauseRect = (RectTransform)hud.transform.Find("Pause canvas");
+            actions.Find("Play").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            Assert.AreEqual(0, starts, "The callback also rejects menu input.");
+            var pauseRect = (RectTransform)hud.transform.Find("Pause");
             Canvas.ForceUpdateCanvases();
             Assert.AreEqual(((RectTransform)hud.transform).rect.size, pauseRect.rect.size,
                 "The pause backdrop must cover the complete HUD, including its screen edges.");
-            Assert.IsTrue(pauseRect.GetComponent<Canvas>().overrideSorting);
+            Assert.AreEqual(hud.transform, pauseRect.parent, "Pause is a sibling of the fading gameplay view.");
+            Assert.Greater(pauseRect.GetSiblingIndex(), hud.transform.Find("Safe HUD").GetSiblingIndex());
             hud.TogglePause();
             Assert.IsFalse(group.interactable, "Input waits for the resumed HUD fade.");
+            actions.Find("Play").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            Assert.AreEqual(0, starts);
             yield return new WaitForSecondsRealtime(0.25f);
             Assert.IsTrue(group.interactable && group.blocksRaycasts);
+        }
+
+        [UnityTest]
+        public IEnumerator PendingResultsWaitForPauseToResume()
+        {
+            yield return TestScenes.Load(Session.DibsScene);
+            var hud = Object.FindAnyObjectByType<GameHud>();
+            hud.ShowResultSoon(new HudResult { Heading = "Round complete" }, null, .15f);
+            hud.TogglePause();
+            yield return new WaitForSecondsRealtime(.35f);
+            Assert.IsTrue(hud.Paused);
+            Assert.IsFalse(hud.ResultShown, "A delayed result must not dismiss a player's pause menu.");
+            Assert.AreEqual(0f, Time.timeScale);
+            hud.TogglePause();
+            yield return TestScenes.WaitUntil(() => hud.ResultShown, 1f, "result after resume");
         }
 
         [UnityTest]

@@ -4,7 +4,6 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>One physical representation for an enabled catalogue recipe; data selects its behavior.</summary>
     public static class CatalogGear
     {
         public static HeldWeapon Create(ItemDefinition item)

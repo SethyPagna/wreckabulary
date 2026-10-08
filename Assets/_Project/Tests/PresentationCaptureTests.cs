@@ -19,6 +19,17 @@ namespace Wreckabulary.Tests
         string directory;
         bool asyncCompilation;
 
+        sealed class CaptureBinding : InputBinding
+        {
+            static int nextId;
+            readonly string id = "presentation-local-" + ++nextId;
+            public override string Id => id;
+            public override bool CanLook => true;
+            public override void Read(ref PlayerCommands commands) => commands = default;
+            public override bool JoinPressed() => false;
+            public override bool StartPressed() => false;
+        }
+
         [UnitySetUp]
         public IEnumerator SetUp()
         {
@@ -71,7 +82,7 @@ namespace Wreckabulary.Tests
 
             hud.StateController.TransitionToState(UIState.GameplayHUD);
             var joins = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>();
-            joins.Join(new ScriptedBinding());
+            joins.Join(new CaptureBinding());
             yield return new WaitForSecondsRealtime(1f);
             yield return Capture("02-hub-explore-16x9");
 
@@ -79,7 +90,7 @@ namespace Wreckabulary.Tests
             Match.ModeOverride = "Dibs";
             yield return TestScenes.Load(Session.DibsScene);
             joins = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>();
-            var input = new ScriptedBinding();
+            var input = new CaptureBinding();
             var player = joins.Join(input);
             RoundManager.Instance.CountdownTime = .15f;
             RoundManager.Instance.StartMatch();
@@ -121,8 +132,8 @@ namespace Wreckabulary.Tests
             Match.ModeOverride = "Duos";
             yield return TestScenes.Load(Session.DibsScene);
             joins = UnityEngine.Object.FindAnyObjectByType<PlayerJoinManager>();
-            var first = joins.Join(new ScriptedBinding());
-            var second = joins.Join(new ScriptedBinding());
+            var first = joins.Join(new CaptureBinding());
+            var second = joins.Join(new CaptureBinding());
             RoundManager.Instance.CountdownTime = .15f;
             RoundManager.Instance.StartMatch();
             yield return new WaitForSeconds(1.1f);
@@ -195,7 +206,7 @@ namespace Wreckabulary.Tests
                 if (label.name == "Presentation stage label") UnityEngine.Object.Destroy(label.gameObject);
             TilePool.Instance.ReleaseAll();
             var player = UnityEngine.Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
-            player.Setup(0, new ScriptedBinding());
+            player.Setup(0, new CaptureBinding());
             player.Respawn(Vector3.zero);
             player.FaceTowards(Vector3.forward);
             player.Inventory.Set("TABLE");

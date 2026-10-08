@@ -33,20 +33,27 @@ namespace Wreckabulary.Art
 
         public static void ApplyDefaultLighting()
         {
+            if (Application.isPlaying)
+            {
+                GraphicsOptions.ApplyLights();
+                return;
+            }
+            Color sky = GraphicsOptions.SkyColour.linear * GraphicsOptions.Hemisphere;
+            Color ground = GraphicsOptions.GroundColour.linear * GraphicsOptions.Hemisphere;
+            Color even = Color.white * GraphicsOptions.Environment;
+            Color Opaque(Color color) => new Color(color.r, color.g, color.b, 1f).gamma;
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(.66f, .79f, .82f);
-            RenderSettings.ambientEquatorColor = new Color(.88f, .79f, .66f);
-            RenderSettings.ambientGroundColor = new Color(.35f, .29f, .27f);
+            RenderSettings.ambientSkyColor = Opaque(sky + even);
+            RenderSettings.ambientEquatorColor = Opaque((sky + ground) * .5f + even);
+            RenderSettings.ambientGroundColor = Opaque(ground + even);
             var lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None);
             foreach (var light in lights)
             {
                 if (light.type != LightType.Directional || light.gameObject.scene != SceneManager.GetActiveScene()) continue;
-                light.color = new Color(1f, .91f, .77f);
-                light.intensity = 1.2f;
-                light.shadows = LightShadows.Soft;
-                light.shadowStrength = .7f;
-                light.shadowBias = .035f;
-                light.transform.rotation = Quaternion.Euler(48f, -32f, 0f);
+                bool fill = light.name == "Fill light";
+                light.color = fill ? GraphicsOptions.FillColour : GraphicsOptions.SunColour;
+                light.intensity = fill ? GraphicsOptions.Fill : GraphicsOptions.Sun;
+                light.transform.rotation = Quaternion.LookRotation(-(fill ? GraphicsOptions.FillFrom : GraphicsOptions.SunFrom).normalized);
             }
             var camera = Camera.main;
             if (camera && camera.gameObject.scene == SceneManager.GetActiveScene()) camera.backgroundColor = new Color(.10f, .23f, .24f);

@@ -5,7 +5,6 @@ namespace Wreckabulary
 {
     public enum GameCue { Pickup, Break, Craft, Hit, Block, Jump, Dodge, Swing, Out, Protect, Boost, Blast }
 
-    /// <summary>Small tactile cues generated locally; no audio files or provider connection required.</summary>
     public static class GameFeedback
     {
         static AudioSource speaker;

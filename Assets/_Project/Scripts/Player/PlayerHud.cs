@@ -33,7 +33,8 @@ namespace Wreckabulary
         {
             if (!player) return;
             transform.position = player.transform.position + Vector3.up * height;
-            bool followed = CameraRig.Instance && CameraRig.Instance.IsFollowing(player);
+            bool followed = GameHud.Active && GameHud.Active.LocalPlayer == player;
+            if (!followed) followed = CameraRig.Instance && CameraRig.Instance.IsFollowing(player);
             if (!followed && player.Binding is not BotBinding)
             {
                 int humans = 0;
@@ -60,7 +61,7 @@ namespace Wreckabulary
             var combat = player.Combat;
             if (!combat) return "";
             if (combat.IsReviving) return "<color=#98F3CA>REVIVING</color>";
-            if (player.CanAct && !combat.IsHolding && combat.DownedTeammateNearby())
+            if (player.CanAct && !(combat.IsHolding && !combat.Weapon) && combat.DownedTeammateNearby())
                 return "<color=#F6D98B>Hold grab to revive</color>";
             return "";
         }

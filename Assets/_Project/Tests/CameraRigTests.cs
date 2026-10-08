@@ -2,6 +2,7 @@ using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.Rendering;
 
 namespace Wreckabulary.Tests
 {
@@ -23,6 +24,20 @@ namespace Wreckabulary.Tests
         [UnityTearDown]
         public IEnumerator TearDown() => TestScenes.Reset();
 
+        sealed class CameraInputBinding : InputBinding
+        {
+            public PlayerCommands Next;
+            public override string Id => "camera-test-human";
+            public override bool CanLook => true;
+            public override void Read(ref PlayerCommands commands)
+            {
+                commands = Next;
+                Next.lookDelta = Vector2.zero;
+            }
+            public override bool JoinPressed() => false;
+            public override bool StartPressed() => false;
+        }
+
         static PlayerController Spawn(int index, InputBinding binding, Vector3 facing)
         {
             var player = Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
@@ -37,7 +52,7 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator OneLocalPlayerIsCenteredBehindInPerspectiveEvenWithBots()
         {
-            var player = Spawn(0, new ScriptedBinding(), Vector3.right);
+            var player = Spawn(0, new CameraInputBinding(), Vector3.right);
             Spawn(1, new BotBinding(), Vector3.forward);
             yield return null;
             yield return null;
@@ -57,11 +72,11 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator SecondCouchSeatSharesTheHouseAndLeavingRestoresFollow()
         {
-            Spawn(0, new ScriptedBinding(), Vector3.forward);
+            Spawn(0, new CameraInputBinding(), Vector3.forward);
             yield return null;
             yield return null;
             Assert.IsFalse(camera.orthographic);
-            var second = Spawn(1, new ScriptedBinding(), Vector3.forward);
+            var second = Spawn(1, new CameraInputBinding(), Vector3.forward);
             yield return null;
             yield return null;
             Assert.IsTrue(camera.orthographic, "Both couch players need the shared house view.");
@@ -75,7 +90,7 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator VisibleBlockerPullsCameraInButCutawayColliderDoesNot()
         {
-            Spawn(0, new ScriptedBinding(), Vector3.forward);
+            Spawn(0, new CameraInputBinding(), Vector3.forward);
             yield return null;
             yield return null;
             float clearDistance = Vector3.Distance(camera.transform.position, Vector3.up);
@@ -99,23 +114,23 @@ namespace Wreckabulary.Tests
             Assert.That(Vector3.Distance(camera.transform.position, Vector3.up),
                 Is.EqualTo(clearDistance).Within(0.05f), "Invisible gameplay collider height must not collapse the camera boom.");
             Assert.IsTrue(collider.enabled, "Temporarily hiding a near wall must preserve its gameplay collision.");
-            Assert.IsTrue(wall.GetComponent<Renderer>().forceRenderingOff, "A cutaway in front of the avatar must not hide the player's body.");
-            Spawn(1, new ScriptedBinding(), Vector3.forward);
+            Assert.AreEqual(ShadowCastingMode.ShadowsOnly, wall.GetComponent<Renderer>().shadowCastingMode, "A cutaway in front of the avatar must not hide the player's body.");
+            Spawn(1, new CameraInputBinding(), Vector3.forward);
             yield return null;
             yield return null;
-            Assert.IsFalse(wall.GetComponent<Renderer>().forceRenderingOff, "Shared couch view restores cutaway walls.");
+            Assert.AreEqual(ShadowCastingMode.On, wall.GetComponent<Renderer>().shadowCastingMode, "Shared couch view restores cutaway walls.");
         }
 
         [UnityTest]
         public IEnumerator PausedCameraIgnoresOrbitUntilResume()
         {
-            var input = new ScriptedBinding();
+            var input = new CameraInputBinding();
             Spawn(0, input, Vector3.forward);
             yield return null;
             yield return null;
             var before = camera.transform.rotation;
             Time.timeScale = 0f;
-            input.Next.orbit = new Vector2(100f, 0f);
+            input.Next.lookDelta = new Vector2(.5f, 0f);
             yield return null;
             yield return null;
             Assert.That(Quaternion.Angle(before, camera.transform.rotation), Is.LessThan(0.01f));

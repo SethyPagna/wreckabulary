@@ -13,7 +13,7 @@ namespace Wreckabulary.EditorTools
     public static class SceneWorkspace
     {
         public const string SceneFolder = "Assets/_Project/Scenes/";
-        public const string MigrationLabel = "CurrentAuthoringV1";
+        public const string MigrationLabel = "CurrentAuthoringV2";
         public static readonly string[] SceneNames = { "Hub", "LivingRoom", "MovingDay", "Tutorial" };
         const string PreviewRoot = "Authoring Preview (Editor Only)";
 
@@ -26,7 +26,7 @@ namespace Wreckabulary.EditorTools
             BackupOriginals();
             EditorSceneManager.OpenScene(SceneFolder + "Hub.unity", OpenSceneMode.Single);
             PlayerAuthoring.UpgradePrefab();
-            WorldAuthoring.BakeWorldAssetsIfMissing();
+            WorldAuthoring.UpgradeWorldAssetsToCurrentVersion();
             foreach (string name in SceneNames)
             {
                 var scene = EditorSceneManager.OpenScene(SceneFolder + name + ".unity", OpenSceneMode.Single);
@@ -49,9 +49,16 @@ namespace Wreckabulary.EditorTools
         {
             WorldAuthoring.ArchiveLegacySceneDecor();
             var asset = AssetDatabase.LoadAssetAtPath<SceneAsset>(scene.path);
-            if (asset && AssetDatabase.GetLabels(asset).Contains(MigrationLabel)) return;
             if (scene.name is "LivingRoom" or "MovingDay") WorldAuthoring.UpgradeSceneWorld();
-            else
+            var labels = asset ? AssetDatabase.GetLabels(asset) : Array.Empty<string>();
+            if (labels.Contains(MigrationLabel)) return;
+            if (labels.Any(label => label.StartsWith("CurrentAuthoring", StringComparison.Ordinal)))
+            {
+                HousePresentation.ApplyDefaultLighting();
+                EditorSceneManager.MarkSceneDirty(scene);
+                return;
+            }
+            if (scene.name is not ("LivingRoom" or "MovingDay"))
             {
                 var room = scene.GetRootGameObjects().FirstOrDefault(root => root.name == "Room");
                 // Preserve the authored hub/tutorial placement while replacing legacy block-built visual children.

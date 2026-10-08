@@ -12,7 +12,8 @@ namespace Wreckabulary
 
         void Update()
         {
-            bool pressed = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+            if (!hud) hud = FindFirstObjectByType<GameHud>();
+            bool pressed = !hud && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
             foreach (var pad in Gamepad.all) pressed |= pad.selectButton.wasPressedThisFrame;
             if (!pressed) return;
             if (hud) hud.TogglePause();

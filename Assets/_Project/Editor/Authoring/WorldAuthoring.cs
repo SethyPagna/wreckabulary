@@ -6,6 +6,8 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using Wreckabulary.Art;
 using Object = UnityEngine.Object;
@@ -18,11 +20,106 @@ namespace Wreckabulary.EditorTools
         const string ResourceFolder = "Assets/_Project/Resources/Worlds";
         const string MaterialFolder = "Assets/_Project/Worlds/Generated/Materials";
         const string MeshFolder = "Assets/_Project/Worlds/Generated/Meshes";
+        const string TextureFolder = "Assets/_Project/Worlds/Generated/Textures";
         const string LegacyFolder = "Assets/_Project/Editor/Legacy/Scenes";
+        const string LegacyWorldFolder = "Assets/_Project/Editor/Legacy/Worlds";
         const string LegacyDependencyFolder = "Assets/_Project/Editor/Legacy/Dependencies";
+        static readonly string[] MapIds = { "pinwheel", "courtyard", "flat", "terrace", "walkup" };
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         static readonly int LegacyColor = Shader.PropertyToID("_Color");
         static readonly int Smoothness = Shader.PropertyToID("_Smoothness");
+
+        /// <summary>Repair only this edition's generated GPU-only textures, retaining their GUIDs and material references.</summary>
+        public static void RepairGeneratedWorldTextures()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Repair textures outside Play mode.");
+            if (!AssetDatabase.IsValidFolder(TextureFolder)) return;
+            string prefix = TextureFolder + "/v" + AuthoredHouse.CurrentContentVersion + "_";
+            int repaired = 0;
+            foreach (string path in AssetDatabase.FindAssets("t:Texture2D", new[] { TextureFolder }).Select(AssetDatabase.GUIDToAssetPath))
+            {
+                if (!path.StartsWith(prefix, StringComparison.Ordinal) || !path.EndsWith(".asset", StringComparison.Ordinal)) continue;
+                var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                if (!texture || texture.isReadable) continue;
+                var readable = ReadTextureForPersistence(texture);
+                try
+                {
+                    if (!path.Contains("_tactile_finish_") && !HasPixelVariation(readable))
+                        throw new InvalidOperationException("Generated texture has no pattern data; left unchanged: " + path);
+                    EditorUtility.CopySerialized(readable, texture);
+                    EditorUtility.SetDirty(texture);
+                    repaired++;
+                }
+                finally { Object.DestroyImmediate(readable); }
+            }
+            AssetDatabase.SaveAssets();
+            Debug.Log("WORLD_TEXTURES_REPAIRED: " + repaired + " generated textures retained their GUIDs.");
+        }
+
+        /// <summary>Read GPU-only procedural textures without Instantiate; keep a serializable CPU copy in the asset.</summary>
+        public static Texture2D ReadTextureForPersistence(Texture2D source)
+        {
+            if (!source) throw new ArgumentNullException(nameof(source));
+            if (source.isReadable)
+            {
+                var copy = Object.Instantiate(source);
+                copy.hideFlags = HideFlags.None;
+                return copy;
+            }
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+                throw new InvalidOperationException("Saving GPU-only textures requires a graphics device; omit -nographics.");
+            if (GraphicsFormatUtility.IsCompressedFormat(source.graphicsFormat))
+                throw new InvalidOperationException("Generated texture persistence requires an uncompressed source: " + source.name);
+
+            bool srgb = GraphicsFormatUtility.IsSRGBFormat(source.graphicsFormat);
+            var descriptor = new RenderTextureDescriptor(source.width, source.height, RenderTextureFormat.ARGB32, 0)
+            { graphicsFormat = source.graphicsFormat, msaaSamples = 1, useMipMap = false, autoGenerateMips = false };
+            var target = RenderTexture.GetTemporary(descriptor);
+            var previous = RenderTexture.active;
+            bool previousSrgb = GL.sRGBWrite;
+            Texture2D result = null;
+            try
+            {
+                if ((SystemInfo.copyTextureSupport & CopyTextureSupport.DifferentTypes) != 0)
+                    Graphics.CopyTexture(source, 0, 0, target, 0, 0);
+                else
+                {
+                    GL.sRGBWrite = srgb;
+                    Graphics.Blit(source, target);
+                }
+                RenderTexture.active = target;
+                result = new Texture2D(source.width, source.height, source.format, source.mipmapCount, !srgb)
+                {
+                    name = source.name, hideFlags = HideFlags.None, filterMode = source.filterMode,
+                    wrapModeU = source.wrapModeU, wrapModeV = source.wrapModeV, wrapModeW = source.wrapModeW,
+                    anisoLevel = source.anisoLevel, mipMapBias = source.mipMapBias
+                };
+                result.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0, false);
+                result.Apply(source.mipmapCount > 1, false);
+                return result;
+            }
+            catch
+            {
+                if (result) Object.DestroyImmediate(result);
+                throw;
+            }
+            finally
+            {
+                GL.sRGBWrite = previousSrgb;
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(target);
+            }
+        }
+
+        static bool HasPixelVariation(Texture2D texture)
+        {
+            var pixels = texture.GetPixels32();
+            if (pixels.Length < 2) return false;
+            Color32 first = pixels[0];
+            for (int i = 1; i < pixels.Length; i++)
+                if (!pixels[i].Equals(first)) return true;
+            return false;
+        }
 
         public static void BakeWorldAssetsIfMissing()
         {
@@ -31,7 +128,7 @@ namespace Wreckabulary.EditorTools
             EnsureFolder(MaterialFolder);
             EnsureFolder(MeshFolder);
             OrganizeLegacyDependencies();
-            foreach (string mapId in new[] { "pinwheel", "courtyard" })
+            foreach (string mapId in MapIds)
             {
                 string assetPath = "Assets/_Project/Resources/" + AuthoredHouse.ResourcePath(mapId) + ".prefab";
                 if (AssetDatabase.LoadAssetAtPath<GameObject>(assetPath)) continue;
@@ -40,12 +137,33 @@ namespace Wreckabulary.EditorTools
             AssetDatabase.SaveAssets();
         }
 
+        /// <summary>Explicit schema migration: retain old editions and replace only obsolete resource prefabs.</summary>
+        public static void UpgradeWorldAssetsToCurrentVersion()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Upgrade worlds outside Play mode.");
+            EnsureFolder(LegacyWorldFolder);
+            foreach (string mapId in MapIds)
+            {
+                string path = "Assets/_Project/Resources/" + AuthoredHouse.ResourcePath(mapId) + ".prefab";
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (!prefab) continue;
+                var world = prefab.GetComponent<AuthoredHouse>();
+                if (world && world.IsCurrent) continue;
+                int version = world ? world.ContentVersion : 0;
+                string archive = AssetDatabase.GenerateUniqueAssetPath(LegacyWorldFolder + "/" + Path.GetFileNameWithoutExtension(path) + "_v" + version + ".prefab");
+                string error = AssetDatabase.MoveAsset(path, archive);
+                if (!string.IsNullOrEmpty(error)) throw new InvalidOperationException("Could not preserve authored world " + path + ": " + error);
+            }
+            BakeWorldAssetsIfMissing();
+        }
+
         /// <summary>Move only archived prototype dependencies, retaining asset GUIDs and all prefab references.</summary>
         public static void OrganizeLegacyDependencies()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Organize legacy assets outside Play mode.");
             foreach (var entry in new[] { (source: MaterialFolder, kind: "Materials", extension: ".mat"),
-                         (source: MeshFolder, kind: "Meshes", extension: ".asset") })
+                         (source: MeshFolder, kind: "Meshes", extension: ".asset"),
+                         (source: TextureFolder, kind: "Textures", extension: ".asset") })
             {
                 if (!AssetDatabase.IsValidFolder(entry.source)) continue;
                 string destinationFolder = LegacyDependencyFolder + "/" + entry.kind;
@@ -73,11 +191,13 @@ namespace Wreckabulary.EditorTools
             try
             {
                 Match.ModeOverride = "Dibs";
-                var root = new GameObject(mapId == "pinwheel" ? "Pinwheel House" : "Garden Courtyard");
+                var layout = GameConfig.Current.HouseFor(mapId);
+                var root = new GameObject(layout.Name);
                 var generator = root.AddComponent<RoomBuilder>();
-                var world = generator.BuildForAuthoring(GameConfig.Current.HouseFor(mapId), mapId);
-                PersistPresentation(world.GeometryRoot.gameObject, mapId);
-                PersistAssets(world.FurnitureRoot.gameObject, mapId + "_furniture");
+                var world = generator.BuildForAuthoring(layout, mapId);
+                string stem = mapId + "_v" + AuthoredHouse.CurrentContentVersion;
+                PersistPresentation(world.GeometryRoot.gameObject, stem);
+                PersistAssets(world.FurnitureRoot.gameObject, stem + "_furniture");
                 Object.DestroyImmediate(generator);
                 var saved = PrefabUtility.SaveAsPrefabAsset(root, assetPath, out bool success);
                 if (!success || !saved) throw new InvalidOperationException("Could not save authored world: " + assetPath);
@@ -90,7 +210,7 @@ namespace Wreckabulary.EditorTools
             }
         }
 
-        /// <summary>Upgrade only arena/Moving Day scenes. Existing authored instances and their overrides win.</summary>
+        /// <summary>Current authored instances win; obsolete editions and their overrides are archived before replacement.</summary>
         public static void UpgradeSceneWorld()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Upgrade scenes outside Play mode.");
@@ -106,7 +226,7 @@ namespace Wreckabulary.EditorTools
             }
             var existing = builder.AuthoredWorld;
             if (!existing) existing = roots.SelectMany(root => root.GetComponentsInChildren<AuthoredHouse>(true)).FirstOrDefault();
-            if (existing)
+            if (existing && existing.IsCurrent)
             {
                 if (builder.AuthoredWorld != existing)
                 {
@@ -119,10 +239,21 @@ namespace Wreckabulary.EditorTools
                 return;
             }
 
-            BakeWorldAssetsIfMissing();
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ResourceFolder + "/PinwheelHouse.prefab");
-            if (!prefab) throw new InvalidOperationException("The authored Pinwheel House prefab is missing.");
+            string mapId = existing ? existing.MapId : "pinwheel";
+            string resource = AuthoredHouse.ResourcePath(mapId);
+            if (resource == null) throw new InvalidOperationException("Cannot upgrade unknown authored map: " + mapId);
+            UpgradeWorldAssetsToCurrentVersion();
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Resources/" + resource + ".prefab");
+            if (!prefab) throw new InvalidOperationException("The authored world prefab is missing: " + resource);
+            Transform parent = existing ? existing.transform.parent : null;
+            Vector3 position = existing ? existing.transform.localPosition : Vector3.zero;
+            Quaternion rotation = existing ? existing.transform.localRotation : Quaternion.identity;
+            Vector3 scale = existing ? existing.transform.localScale : Vector3.one;
+            if (existing) ArchiveRoots(scene, new[] { existing.gameObject }, "WorldV" + existing.ContentVersion);
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+            instance.transform.SetParent(parent, false);
+            instance.transform.SetLocalPositionAndRotation(position, rotation);
+            instance.transform.localScale = scale;
             Undo.RegisterCreatedObjectUndo(instance, "Add authored house");
             var world = instance.GetComponent<AuthoredHouse>();
             if (!world) throw new InvalidOperationException("The world prefab must contain AuthoredHouse.");
@@ -216,8 +347,10 @@ namespace Wreckabulary.EditorTools
             bool legacy = assetStem.StartsWith("legacy_", StringComparison.Ordinal);
             string materialFolder = legacy ? LegacyDependencyFolder + "/Materials" : MaterialFolder;
             string meshFolder = legacy ? LegacyDependencyFolder + "/Meshes" : MeshFolder;
+            string textureFolder = legacy ? LegacyDependencyFolder + "/Textures" : TextureFolder;
             EnsureFolder(materialFolder);
             EnsureFolder(meshFolder);
+            EnsureFolder(textureFolder);
             string stem = SafeName(assetStem);
             var meshes = new Dictionary<Mesh, Mesh>();
             foreach (var filter in root.GetComponentsInChildren<MeshFilter>(true))
@@ -228,6 +361,7 @@ namespace Wreckabulary.EditorTools
                 {
                     persistent = Object.Instantiate(mesh);
                     persistent.name = mesh.name;
+                    persistent.hideFlags = HideFlags.None;
                     string path = AssetDatabase.GenerateUniqueAssetPath(meshFolder + "/" + stem + "_" + SafeName(mesh.name) + ".asset");
                     AssetDatabase.CreateAsset(persistent, path);
                     meshes.Add(mesh, persistent);
@@ -238,6 +372,7 @@ namespace Wreckabulary.EditorTools
 
             var block = new MaterialPropertyBlock();
             var slotBlock = new MaterialPropertyBlock();
+            var textures = new Dictionary<Texture, Texture>();
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
             {
                 renderer.GetPropertyBlock(block);
@@ -248,17 +383,17 @@ namespace Wreckabulary.EditorTools
                     var source = materials[i];
                     if (!source) continue;
                     renderer.GetPropertyBlock(slotBlock, i);
-                    if (EditorUtility.IsPersistent(source) && block.isEmpty && slotBlock.isEmpty) continue;
-                    var copy = new Material(source);
+                    if (EditorUtility.IsPersistent(source) && block.isEmpty && slotBlock.isEmpty && !HasTransientTextures(source)) continue;
+                    var copy = new Material(source) { name = source.name, hideFlags = HideFlags.None };
                     ApplyProperties(copy, block);
                     ApplyProperties(copy, slotBlock);
+                    PersistTextures(copy, textureFolder, textures);
                     string fingerprint = MaterialFingerprint(source, copy);
                     string path = materialFolder + "/" + stem + "_" + SafeName(source.name) + "_" + Hash128.Compute(fingerprint) + ".mat";
                     var persistent = AssetDatabase.LoadAssetAtPath<Material>(path);
                     if (persistent) Object.DestroyImmediate(copy);
                     else
                     {
-                        copy.name = stem + " " + source.name;
                         AssetDatabase.CreateAsset(copy, path);
                         persistent = copy;
                     }
@@ -271,6 +406,36 @@ namespace Wreckabulary.EditorTools
                 EditorUtility.SetDirty(renderer);
                 block.Clear();
                 slotBlock.Clear();
+            }
+        }
+
+        static bool HasTransientTextures(Material material) => material.GetTexturePropertyNames()
+            .Any(property => material.GetTexture(property) && !EditorUtility.IsPersistent(material.GetTexture(property)));
+
+        static void PersistTextures(Material material, string folder, Dictionary<Texture, Texture> textures)
+        {
+            foreach (string property in material.GetTexturePropertyNames())
+            {
+                var source = material.GetTexture(property);
+                if (!source || EditorUtility.IsPersistent(source)) continue;
+                if (source is RenderTexture) throw new InvalidOperationException("Cannot persist a live render target on " + material.name + ": " + property);
+                if (!textures.TryGetValue(source, out var persistent))
+                {
+                    string fingerprint = source.name + "|" + source.width + "x" + source.height + "|" + source.graphicsFormat + "|" + source.imageContentsHash;
+                    string path = folder + "/v" + AuthoredHouse.CurrentContentVersion + "_" + SafeName(source.name) + "_" + Hash128.Compute(fingerprint) + ".asset";
+                    persistent = AssetDatabase.LoadAssetAtPath<Texture>(path);
+                    if (!persistent)
+                    {
+                        if (source is not Texture2D source2D)
+                            throw new InvalidOperationException("Only procedural Texture2D assets can be persisted: " + source.name);
+                        persistent = ReadTextureForPersistence(source2D);
+                        persistent.name = source.name;
+                        persistent.hideFlags = HideFlags.None;
+                        AssetDatabase.CreateAsset(persistent, path);
+                    }
+                    textures.Add(source, persistent);
+                }
+                material.SetTexture(property, persistent);
             }
         }
 

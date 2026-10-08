@@ -65,8 +65,6 @@ namespace Wreckabulary
                 for (int i = 0; i < labels.Length; i++)
                 {
                     if (!labels[i]) continue;
-                    // One underside label keeps a tumbled tile readable. The top
-                    // is the supplied model's mesh glyph, with no duplicate TMP.
                     bool underside = i == 5;
                     labels[i].gameObject.SetActive(underside);
                     if (!underside) continue;

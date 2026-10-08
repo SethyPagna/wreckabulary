@@ -34,14 +34,14 @@ namespace Wreckabulary.Tests
             SceneManager.MoveGameObjectToScene(listener, scene);
         }
 
-        /// <summary>Enters the house through the same UI transition as the Explore action.</summary>
+        /// <summary>Returns the showroom to the house and waits until gameplay accepts input.</summary>
         public static IEnumerator ExploreHouse()
         {
             var hud = UnityEngine.Object.FindAnyObjectByType<GameHud>();
             Assert.IsNotNull(hud);
             Assert.IsNotNull(hud.StateController);
             hud.StateController.TransitionToState(UIState.GameplayHUD);
-            yield return null;
+            yield return WaitUntil(() => hud.AcceptsGameplayInput, 1f, "gameplay HUD transition");
         }
 
         public static IEnumerator Load(string scene)

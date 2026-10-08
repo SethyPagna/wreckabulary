@@ -21,6 +21,10 @@ namespace Wreckabulary
         [SerializeField] float crawlSpeed = 0.25f;
         [Tooltip("After a knock, footing stays loose at least this long so the push carries.")]
         [SerializeField] float minSlide = 0.25f;
+        [Tooltip("Walking follows ground up to this far below the feet, e.g. down a ramp, instead of skipping off it.")]
+        [SerializeField] float stepDown = 0.35f;
+        [Tooltip("The steepest ground, in degrees, that walking sticks to.")]
+        [SerializeField] float maxWalkSlope = 50f;
 
         [Header("Jump and dodge (height, distance and timing are in rules.json)")]
         [Tooltip("A jump or dodge pressed this long before it's possible still happens, e.g. just before landing.")]
@@ -38,7 +42,6 @@ namespace Wreckabulary
         public TextMeshPro initialLabel;
 
         public int Index { get; private set; }
-        /// <summary>Players on the same team can't hurt each other when friendly fire is off. Each player is their own team unless a mode pairs them.</summary>
         public int Team { get; set; }
         public Color Color { get; private set; } = Color.white;
         public string Name { get; set; } = "P1";
@@ -53,7 +56,9 @@ namespace Wreckabulary
         public Summoner Summoner { get; private set; }
 
         public Vector3 Facing { get; private set; } = Vector3.forward;
-        /// <summary>Down or wrecked: can't act, can't be targeted.</summary>
+        public bool ShooterView { get; set; }
+        public float LookYaw { get; set; }
+        public float LookPitch { get; set; } = ShoulderView.DefaultPitch;
         public bool IsKnockedOut => Health && !Health.IsAlive;
         public bool IsDowned => Health && Health.IsDowned;
         public bool IsEliminated => Health && Health.IsEliminated;
@@ -63,7 +68,6 @@ namespace Wreckabulary
         public float MoveScale { get; set; } = 1f;
         public bool IsStaggered => Time.time < staggerUntil;
         public bool CanAct => !Frozen && !IsKnockedOut && !IsHeld && !IsStaggered;
-        /// <summary>Mid-dash: attacks, grabs and blocks wait until it ends.</summary>
         public bool IsDodging => Time.time < dodgeUntil;
         public Vector3 OverheadPosition => transform.position + Vector3.up * 2.1f;
 
@@ -71,7 +75,8 @@ namespace Wreckabulary
 
         float staggerUntil, slideUntil, boostUntil, boost = 1f, slipperyUntil, floatyUntil, autoWalkUntil;
         float jumpWantedUntil, dodgeWantedUntil, dodgeUntil, dodgeSpeed;
-        float lastJumpAt = float.NegativeInfinity, lastGroundedAt = float.NegativeInfinity;
+        float lastJumpAt = float.NegativeInfinity, lastGroundedAt = float.NegativeInfinity, launchedAt = float.NegativeInfinity, lastSlopeAt = float.NegativeInfinity;
+        float footRadius = 0.42f;
         Vector3 dodgeDirection;
         bool tumbling;
         Vector3 autoWalk;
@@ -95,6 +100,7 @@ namespace Wreckabulary
             Summoner = GetComponent<Summoner>();
             colliders = GetComponents<Collider>();
             aimCamera = Camera.main;
+            if (TryGetComponent<CapsuleCollider>(out var capsule)) footRadius = capsule.radius * transform.lossyScale.x;
             if (handL) handLRest = handL.localPosition;
             if (handR) handRRest = handR.localPosition;
         }
@@ -123,7 +129,6 @@ namespace Wreckabulary
                 initialLabel.color = new Color(0.97f, 0.92f, 0.82f);
             }
             if (Health) Health.Init();
-            // Existing prefabs gain the supplied avatar and saved wardrobe at runtime as well.
             var appearance = GetComponent<PlayerAppearance>() ?? gameObject.AddComponent<PlayerAppearance>();
             appearance.Initialize(this);
             var feedback = GetComponent<PlayerFeedback>() ?? gameObject.AddComponent<PlayerFeedback>();
@@ -132,19 +137,40 @@ namespace Wreckabulary
 
         void Update()
         {
+            if (Time.timeScale <= 0f)
+            {
+                Commands = default;
+                return;
+            }
             if (Binding != null)
             {
                 Commands = default;
                 Binding.Read(ref Commands);
-                ReadCameraRelativeCommands();
                 if (Binding is not TouchBinding && TouchBinding.Shared.IsOverlayFor(Binding.Id))
                     TouchBinding.Shared.Merge(ref Commands);
-                if (Time.timeScale <= 0f) Commands = default;
+                if (ShooterView) ApplyLook();
             }
-            // Physics steps on its own clock, so hold on to a press until a step can act on it.
             if (Commands.jump) jumpWantedUntil = Time.time + pressBuffer;
             if (Commands.dodge) dodgeWantedUntil = Time.time + pressBuffer;
             AnimateRig();
+        }
+
+        void ApplyLook()
+        {
+            LookYaw = Mathf.Repeat(LookYaw + Commands.lookDelta.x + Mathf.PI, Mathf.PI * 2f) - Mathf.PI;
+            LookPitch = Mathf.Clamp(LookPitch + Commands.lookDelta.y, ShoulderView.MinPitch, ShoulderView.MaxPitch);
+            Commands.move = ShoulderView.CameraRelative(Commands.move, LookYaw);
+            if (!IsEliminated && !IsHeld && !IsReviving && Time.time >= autoWalkUntil)
+                Facing = new Vector3(Mathf.Sin(LookYaw), 0f, Mathf.Cos(LookYaw));
+        }
+
+        public void ResetLook()
+        {
+            LookYaw = Mathf.Atan2(Facing.x, Facing.z);
+            LookPitch = ShoulderView.DefaultPitch;
+            if (!ShooterView) return;
+            LookYaw = ShoulderView.OpenYaw(transform.position, LookYaw);
+            Facing = new Vector3(Mathf.Sin(LookYaw), 0f, Mathf.Cos(LookYaw));
         }
 
         void FixedUpdate()
@@ -166,12 +192,12 @@ namespace Wreckabulary
             var v = Body.linearVelocity;
             if (IsDodging)
             {
-                Body.linearVelocity = new Vector3(dodgeDirection.x * dodgeSpeed, v.y, dodgeDirection.z * dodgeSpeed);
+                var dash = dodgeDirection * dodgeSpeed;
+                Body.linearVelocity = new Vector3(dash.x, StickToGround(dash, v.y), dash.z);
                 return;
             }
             if (dodgeUntil > 0f)
             {
-                // Come out of the dash at running speed rather than sailing on.
                 dodgeUntil = 0f;
                 var kept = Vector3.ClampMagnitude(new Vector3(v.x, 0f, v.z), moveSpeed);
                 v = new Vector3(kept.x, v.y, kept.z);
@@ -184,15 +210,16 @@ namespace Wreckabulary
             var shield = Health ? Health.RaisedShield : null;
             float speed = moveSpeed * MoveScale * (Time.time < boostUntil ? boost : 1f) * (IsDowned ? crawlSpeed : 1f)
                         * (shield != null ? shield.MoveSpeedMultiplier : 1f);
-            float accel = acceleration
+            var rules = Health ? Health.Rules : null;
+            float rate = rules == null ? acceleration : input.sqrMagnitude > 0.0001f ? rules.GroundAccel : rules.GroundFriction;
+            float accel = rate
                         * (IsStaggered || Time.time < slideUntil ? 0.1f : 1f)
                         * (Time.time < slipperyUntil ? 0.1f : 1f)
                         * (Grounded ? 1f : 0.35f);
 
             var h = Vector3.MoveTowards(new Vector3(v.x, 0f, v.z), input * speed, accel * Time.fixedDeltaTime);
-            Body.linearVelocity = new Vector3(h.x, v.y, h.z);
+            Body.linearVelocity = new Vector3(h.x, StickToGround(h, v.y), h.z);
 
-            // Face where the mouse or the right stick aims, otherwise the way you're walking.
             var aim = AimDirection();
             var turnTo = aim.sqrMagnitude > 0f ? aim : input;
             if (turnTo.sqrMagnitude > 0.01f && !IsStaggered)
@@ -201,23 +228,24 @@ namespace Wreckabulary
 
         bool IsReviving => Combat && Combat.IsReviving;
 
-        void ReadCameraRelativeCommands()
+        float StickToGround(Vector3 horizontal, float vy)
         {
-            var camera = CameraRig.Instance;
-            if (!camera || Binding is not (DesktopBinding or KeyboardBinding or GamepadBinding)) return;
-            Commands.move = camera.ScreenDirectionToWorld(Commands.move);
-            if (camera.IsFollowing(this) && Binding is GamepadBinding)
-            {
-                var forward = camera.PlanarForward;
-                Commands.look = new Vector2(forward.x, forward.z);
-            }
-            else Commands.look = camera.ScreenDirectionToWorld(Commands.look);
+            if (Time.time - lastGroundedAt > 0.1f || Time.time - lastJumpAt < 0.25f || Time.time - launchedAt < 0.25f || Time.time < slideUntil) return vy;
+            if (!Physics.Raycast(transform.position + Vector3.up * 0.5f, Vector3.down, out var hit, 0.5f + stepDown, World.GroundMask, QueryTriggerInteraction.Ignore)) return vy;
+            var n = hit.normal;
+            if (n.y < Mathf.Cos(maxWalkSlope * Mathf.Deg2Rad)) return vy;
+            if (n.y < 0.999f) lastSlopeAt = Time.time;
+            else if (vy <= 0.5f || Time.time - lastSlopeAt > 0.3f) return vy;
+            float along = -(n.x * horizontal.x + n.z * horizontal.z) / n.y;
+            float resting = footRadius * (1f / n.y - 1f);
+            float gap = Mathf.Max(0f, transform.position.y - hit.point.y - resting);
+            return along - gap * 0.5f / Time.fixedDeltaTime;
         }
 
-        /// <summary>Flat direction the right stick or the mouse points; zero when not aiming.</summary>
         Vector3 AimDirection()
         {
             if (!CanAct || IsReviving || Time.time < autoWalkUntil) return Vector3.zero;
+            if (ShooterView) return Facing;
             var look = Commands.look;
             if (look.sqrMagnitude > 0.01f) return new Vector3(look.x, 0f, look.y);
             if (!Commands.aimAtPointer) return Vector3.zero;
@@ -226,18 +254,15 @@ namespace Wreckabulary
             if (!cam) return Vector3.zero;
             var ray = cam.ScreenPointToRay(Commands.pointer);
             var plane = new Plane(Vector3.up, transform.position + Vector3.up * aimHeight);
-            if (!plane.Raycast(ray, out float distance) || distance > 80f)
-                return World.Flat(ray.direction).normalized;
+            if (!plane.Raycast(ray, out float distance)) return Vector3.zero;
             var to = World.Flat(ray.GetPoint(distance) - transform.position);
             return to.sqrMagnitude > 0.04f ? to : Vector3.zero;
         }
 
-        /// <summary>Jump height for the default gravity plus the extra fall gravity, from rules.json.</summary>
         float JumpSpeed => Mathf.Sqrt(2f * (-Physics.gravity.y + extraGravity) * (Health ? Health.Rules.JumpHeight : 1.1f));
 
         void TryJump()
         {
-            // Coyote time covers stepping off a ledge; the gap stops the step after take-off counting as ground.
             if (!CanAct || IsDodging || IsReviving || Time.time - lastGroundedAt > coyoteTime || Time.time - lastJumpAt < 0.25f) return;
             var v = Body.linearVelocity;
             Body.linearVelocity = new Vector3(v.x, JumpSpeed, v.z);
@@ -249,7 +274,6 @@ namespace Wreckabulary
             Jumped?.Invoke(this);
         }
 
-        /// <summary>A low dash the way you're moving (or facing), invulnerable for its first moments (rules.json).</summary>
         void TryDodge()
         {
             if (!CanAct || IsDodging || IsReviving || !Health || !Health.Dodge()) return;
@@ -265,13 +289,9 @@ namespace Wreckabulary
 
         // ---- Things other systems do to the player ----
 
-        /// <summary>
-        /// Adds a velocity kick. Footing stays loose for a moment so the push carries, and for
-        /// <paramref name="stagger"/> seconds the player can't act (hit-stun).
-        /// </summary>
         public void Knock(Vector3 velocityChange, float stagger)
         {
-            dodgeUntil = 0f; // a hit that lands ends the dash, so the push isn't overwritten
+            dodgeUntil = 0f;
             Body.linearVelocity += velocityChange;
             staggerUntil = Mathf.Max(staggerUntil, Time.time + stagger);
             slideUntil = Mathf.Max(slideUntil, Time.time + Mathf.Max(stagger, minSlide));
@@ -285,10 +305,12 @@ namespace Wreckabulary
             dodgeUntil = 0f;
             Body.linearVelocity = velocity;
             Grounded = false;
+            launchedAt = Time.time;
             squashVel = 6f;
         }
 
         public void Boost(float multiplier, float seconds) { boost = multiplier; boostUntil = Time.time + seconds; }
+        public float BoostLeft => Mathf.Max(0f, boostUntil - Time.time);
         public void MakeSlippery(float seconds) => slipperyUntil = Time.time + seconds;
         public void MakeFloaty(float seconds) => floatyUntil = Time.time + seconds;
 
@@ -305,10 +327,6 @@ namespace Wreckabulary
             if (dir.sqrMagnitude > 0.001f) Facing = dir.normalized;
         }
 
-        /// <summary>
-        /// Matches the body to the health state: wrecked players tumble over, downed players stay
-        /// upright and crawl (the rig leans them over), everyone else stands.
-        /// </summary>
         public void ApplyLifeState(LifeState state, Vector3 push = default)
         {
             if (state == LifeState.Eliminated)
@@ -368,6 +386,7 @@ namespace Wreckabulary
             lastJumpAt = float.NegativeInfinity;
             MoveScale = 1f;
             FaceTowards(-position);
+            ResetLook();
         }
 
         public void PlayPunch()
@@ -396,22 +415,12 @@ namespace Wreckabulary
                 var tilt = lean.sqrMagnitude > 0.0001f
                     ? Quaternion.AngleAxis(lean.magnitude, Vector3.Cross(Vector3.up, lean.normalized))
                     : Quaternion.identity;
-                // Downed players lie forward and crawl. A dodge ducks low into the dash.
                 var down = IsDowned ? Quaternion.Euler(70f, 0f, 0f) : Quaternion.identity;
                 var dash = IsDodging ? Quaternion.AngleAxis(20f, Vector3.Cross(Vector3.up, dodgeDirection)) : Quaternion.identity;
                 visual.rotation = dash * tilt * Quaternion.LookRotation(Facing) * down;
             }
 
-            // Bound spring integration during a slow import/capture frame so the body cannot invert or collapse.
-            float springTime = Mathf.Min(dt, .1f);
-            while (springTime > 0f)
-            {
-                float step = Mathf.Min(springTime, 1f / 120f);
-                squashVel += (-squash * 180f - squashVel * 10f) * step;
-                squash += squashVel * step;
-                springTime -= step;
-            }
-            squash = Mathf.Clamp(squash, -.2f, .2f);
+            AdvanceSquash(dt);
             visual.localScale = new Vector3(1f - squash * 0.5f, 1f + squash, 1f - squash * 0.5f);
 
             float speed01 = Mathf.Clamp01(hv.magnitude / moveSpeed);
@@ -424,11 +433,9 @@ namespace Wreckabulary
             bool holding = Combat && Combat.IsHolding;
             var restL = holding ? new Vector3(-0.28f, 0.95f, 0.45f) : handLRest;
             var restR = holding ? new Vector3(0.28f, 0.95f, 0.45f) : handRRest;
-            // A raised PLATE sits square in front of the chest.
             if (Combat && Combat.IsBlocking) restR = new Vector3(0.06f, 0.72f, 0.5f);
             if (IsReviving)
             {
-                // Both hands pump on the teammate on the floor.
                 float pump = Mathf.Abs(Mathf.Sin(Time.time * 9f)) * 0.12f;
                 restL = new Vector3(-0.14f, 0.5f - pump, 0.55f);
                 restR = new Vector3(0.14f, 0.5f - pump, 0.55f);
@@ -436,6 +443,19 @@ namespace Wreckabulary
             float swing = Mathf.Sin(walkCycle) * 0.14f * speed01;
             handL.localPosition = restL + Vector3.forward * (swing + (!punchRight ? jab : 0f)) + (!punchRight ? Vector3.up * jab * 0.4f : Vector3.zero);
             handR.localPosition = restR + Vector3.forward * (-swing + (punchRight ? jab : 0f)) + (punchRight ? Vector3.up * jab * 0.4f : Vector3.zero);
+        }
+
+        void AdvanceSquash(float dt)
+        {
+            dt = Mathf.Min(dt, .1f);
+            int steps = Mathf.Max(1, Mathf.CeilToInt(dt * 120f));
+            float step = dt / steps;
+            for (int i = 0; i < steps; i++)
+            {
+                squashVel += (-squash * 180f - squashVel * 10f) * step;
+                squash += squashVel * step;
+            }
+            squash = Mathf.Clamp(squash, -.2f, .2f);
         }
     }
 }

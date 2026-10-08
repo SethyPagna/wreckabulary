@@ -24,7 +24,8 @@ namespace Wreckabulary.EditorTools
                     throw new InvalidOperationException("Save open scene work before capturing authored scenes: " + open.name);
             }
             var setup = EditorSceneManager.GetSceneManagerSetup();
-            const string output = "docs/reviews/evidence/unity-authoring-2026-10-09";
+            string output = Environment.GetEnvironmentVariable("WRECKABULARY_CAPTURE_DIRECTORY");
+            if (string.IsNullOrWhiteSpace(output)) output = "docs/reviews/evidence/unity-authoring-2026-10-09";
             Directory.CreateDirectory(output);
             bool asyncCompilation = EditorSettings.asyncShaderCompilation;
             try

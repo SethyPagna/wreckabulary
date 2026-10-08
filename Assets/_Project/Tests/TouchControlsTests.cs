@@ -132,16 +132,19 @@ namespace Wreckabulary.Tests
         }
 
         [Test]
-        public void PlaceAndSwapHaveMatchingDesktopAndScriptedEdges()
+        public void SwapHasMatchingDesktopAndScriptedEdges()
         {
-            Assert.AreEqual("<Keyboard>/f", DesktopBinding.Shared.Deploy.bindings[0].path);
-            Assert.AreEqual("<Keyboard>/tab", DesktopBinding.Shared.Swap.bindings[0].path);
-            var scripted = new ScriptedBinding { Next = new PlayerCommands { deploy = true, swap = true } };
+            Assert.IsNull(DesktopBinding.Shared.Map.FindAction("Place"));
+            Assert.AreEqual("<Keyboard>/1", DesktopBinding.Shared.Hand1.bindings[0].path);
+            Assert.AreEqual("<Keyboard>/2", DesktopBinding.Shared.Hand2.bindings[0].path);
+            Assert.AreEqual("<Keyboard>/tab", DesktopBinding.Shared.Bag.bindings[0].path);
+            Assert.AreEqual("<Keyboard>/escape", DesktopBinding.Shared.Pause.bindings[0].path);
+            var scripted = new ScriptedBinding { Next = new PlayerCommands { attack = true, swap = true, slot = 2 } };
             var command = default(PlayerCommands);
             scripted.Read(ref command);
-            Assert.IsTrue(command.deploy && command.swap);
+            Assert.IsTrue(command.attack && command.swap && command.slot == 2);
             scripted.Read(ref command);
-            Assert.IsFalse(command.deploy || command.swap);
+            Assert.IsFalse(command.attack || command.swap || command.slot != 0);
         }
 
         [Test]
@@ -171,12 +174,13 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(player.Frozen);
             var menu = hud.transform.Find("Safe HUD/Typewriter touch menu");
             Assert.IsNotNull(menu);
-            Assert.AreEqual(1f, menu.GetComponent<CanvasGroup>().alpha, "A frozen mode-select player still needs touch controls.");
+            Assert.IsTrue(menu.gameObject.activeSelf, "A frozen mode-select player still needs touch controls.");
             Assert.IsNotNull(menu.Find("Previous mode"));
             Assert.IsNotNull(menu.Find("Next mode"));
             Assert.IsNotNull(menu.Find("Choose mode"));
             Assert.IsNotNull(menu.Find("Leave typewriter"));
-            Assert.IsNotNull(hud.transform.Find("Safe HUD/Pause"));
+            Assert.IsNotNull(hud.transform.Find("Safe HUD/Brand").GetComponent<UnityEngine.UI.Button>(), "The brand tile opens the pause card...");
+            Assert.IsNotNull(hud.transform.Find("Pause/Pause card/Pause home"), "...which has the way home.");
             int selected = typewriter.Selected;
             touch.Pulse(TouchAction.Down);
             yield return null;

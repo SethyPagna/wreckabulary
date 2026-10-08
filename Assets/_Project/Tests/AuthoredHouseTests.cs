@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -86,6 +87,8 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(scale, restored.transform.localScale);
             Assert.AreEqual(77f, restored.Health);
             Assert.AreSame(material, restored.GetComponentInChildren<Renderer>().sharedMaterial);
+            Assert.IsTrue(restored.GetComponentsInChildren<Renderer>(true).All(renderer => renderer.sharedMaterials.All(shared => shared)),
+                "Destroying the original furniture must not release tactile variants still used by its restored copy.");
             builder.ResetRoom(false);
             Assert.AreEqual(0, builder.Originals.Count);
             builder.ResetRoom();
@@ -96,21 +99,44 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator MapSelectionLoadsItsAuthoredResourceInsteadOfRegeneratingTheOtherMap()
         {
-            var saved = new GameObject("Saved Pinwheel").AddComponent<AuthoredHouse>();
-            saved.Configure("pinwheel", null, null);
-            Session.SelectMap("courtyard");
-            var prefab = Resources.Load<GameObject>(AuthoredHouse.ResourcePath("courtyard"));
-            Assert.IsNotNull(prefab, "Run the non-overwriting world bake before this integration test.");
-            var builder = new GameObject("Selected map game").AddComponent<RoomBuilder>();
+            foreach (string map in new[] { "pinwheel", "courtyard", "flat", "terrace", "walkup" })
+            {
+                yield return TestScenes.Reset();
+                var saved = new GameObject("Saved different map").AddComponent<AuthoredHouse>();
+                saved.Configure(map == "pinwheel" ? "courtyard" : "pinwheel", null, null);
+                Session.SelectMap(map);
+                var prefab = Resources.Load<GameObject>(AuthoredHouse.ResourcePath(map));
+                Assert.IsNotNull(prefab, "Run the current world migration before this integration test: " + map);
+                var builder = new GameObject("Selected map game").AddComponent<RoomBuilder>();
+                yield return null;
+                Assert.IsNotNull(builder.AuthoredWorld, map);
+                Assert.AreEqual(map, builder.AuthoredWorld.MapId);
+                Assert.IsTrue(builder.AuthoredWorld.IsCurrent);
+                Assert.IsFalse(saved.gameObject.activeSelf);
+                Assert.IsTrue(builder.AuthoredWorld.GeometryRoot.gameObject.activeInHierarchy);
+                Assert.AreEqual(builder.Layout.Furniture.Count, builder.Originals.Count);
+                var presentation = builder.AuthoredWorld.GeometryRoot.GetComponent<Art.HousePresentation>();
+                Assert.IsNotNull(presentation);
+                Assert.IsTrue(presentation.IsAuthored, "Persistent colors and meshes must not be repainted on load.");
+                for (int floor = 0; floor < builder.Layout.StoreyFloors().Count; floor++)
+                    Assert.IsNotNull(builder.AuthoredWorld.GeometryRoot.Find(RoomBuilder.StoreyName(floor)), map);
+                if (builder.Layout.StoreyFloors().Count > 1) Assert.IsNotNull(builder.GetComponent<StoreyCutaway>(), map);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ObsoleteSceneWorldCannotOverrideTheCurrentMap()
+        {
+            var obsolete = new GameObject("Pre-migration Pinwheel").AddComponent<AuthoredHouse>();
+            Assert.IsFalse(obsolete.IsCurrent);
+            Session.SelectMap("pinwheel");
+            var builder = new GameObject("Current map game").AddComponent<RoomBuilder>();
             yield return null;
+            Assert.IsFalse(obsolete.gameObject.activeSelf);
             Assert.IsNotNull(builder.AuthoredWorld);
-            Assert.AreEqual("courtyard", builder.AuthoredWorld.MapId);
-            Assert.IsFalse(saved.gameObject.activeSelf);
-            Assert.IsTrue(builder.AuthoredWorld.GeometryRoot.gameObject.activeInHierarchy);
-            Assert.AreEqual(builder.Layout.Furniture.Count, builder.Originals.Count);
-            var presentation = builder.AuthoredWorld.GeometryRoot.GetComponent<Art.HousePresentation>();
-            Assert.IsNotNull(presentation);
-            Assert.IsTrue(presentation.IsAuthored, "Persistent colors and meshes must not be repainted on load.");
+            Assert.AreNotSame(obsolete, builder.AuthoredWorld);
+            Assert.IsTrue(builder.AuthoredWorld.IsCurrent);
+            Assert.IsNotEmpty(builder.AuthoredWorld.GeometryRoot.GetComponentsInChildren<TallWall>(true));
         }
     }
 

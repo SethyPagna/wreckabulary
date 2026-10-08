@@ -53,7 +53,7 @@ namespace Wreckabulary.EditorTools
             AssetButton("Inventory Layout / UXML", "Assets/_Project/Resources/UI/Inventory/Inventory.uxml", true);
             AssetButton("Inventory Styles / USS", "Assets/_Project/Resources/UI/Inventory/Inventory.uss", true);
             AssetButton("Gameplay HUD Layout", "Assets/_Project/Scripts/Game/GameHud.cs", true);
-            AssetButton("Main Menu Layout", "Assets/_Project/Scripts/UI/FrontDoorMenu.cs", true);
+            AssetButton("Main Menu Layout", "Assets/_Project/Scripts/UI/Lobby/LobbyMenu.cs", true);
             AssetButton("Edit Pinwheel House Prefab", "Assets/_Project/Resources/Worlds/PinwheelHouse.prefab", true);
             AssetButton("Edit Garden Courtyard Prefab", "Assets/_Project/Resources/Worlds/GardenCourtyard.prefab", true);
             AssetButton("Arena Maps & Game Rules", "Assets/_Project/Data/Config");
