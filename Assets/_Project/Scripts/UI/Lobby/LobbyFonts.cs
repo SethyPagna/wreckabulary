@@ -9,6 +9,7 @@ namespace Wreckabulary
     {
         static TMP_FontAsset display, body, black;
         static Material stroke, drop;
+        static readonly Dictionary<TMP_FontAsset, Material> foreground = new();
         static bool failed;
 
         public static TMP_FontAsset Display { get { Load(); return display; } }
@@ -16,6 +17,20 @@ namespace Wreckabulary
         public static TMP_FontAsset Black { get { Load(); return black; } }
         public static Material Stroke { get { Load(); return stroke; } }
         public static Material Drop { get { Load(); return drop; } }
+
+        public static Material Foreground(TMP_FontAsset font)
+        {
+            if (!font) return null;
+            if (foreground.TryGetValue(font, out var cached) && cached) return cached;
+            var material = new Material(font.material) { name = font.name + " Artwork foreground" };
+            material.EnableKeyword(ShaderUtilities.Keyword_Outline);
+            material.SetColor("_OutlineColor", new Color(1f, .976f, .914f, .96f));
+            material.SetFloat("_OutlineWidth", .18f);
+            material.SetFloat("_FaceDilate", .02f);
+            ShaderUtilities.UpdateShaderRatios(material);
+            foreground[font] = material;
+            return material;
+        }
 
         static void Load()
         {

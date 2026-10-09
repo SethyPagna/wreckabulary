@@ -224,22 +224,23 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(middle, ScreenX(Find("PLAY")), unit, "PLAY sits in the middle");
             Assert.Less(ScreenX(Find("LOADOUT")), ScreenX(Find("PLAY")));
             Assert.Greater(ScreenX(Find("CAREER")), ScreenX(Find("PLAY")));
-            foreach (var left in new[] { "Home", "Settings", "Quit", "Leaderboard", "Shop" })
+            foreach (var left in new[] { "Home", "Settings", "Quit" })
                 Assert.Less(ScreenX(Find(left)), ScreenX(Find("LOADOUT")), $"{left} is on the left");
             Assert.AreSame(Find("Home").transform.parent, Find("Quit").transform.parent, "home, settings and quit share a pill");
-            Assert.AreSame(Find("Leaderboard").transform.parent, Find("Shop").transform.parent, "the leaderboard and shop share one");
-            Assert.AreNotSame(Find("Home").transform.parent, Find("Shop").transform.parent);
+            Assert.AreSame(Find("Leaderboard").transform.parent, Find("CAREER").transform.parent, "the trophy sits beside Career");
+            Assert.Greater(ScreenX(Find("Leaderboard")), ScreenX(Find("CAREER")));
+            Assert.AreSame(Find("Party").transform.parent, Find("Shop").transform.parent, "the coin balance is the shop entry beside the party");
+            Assert.Greater(ScreenX(Find("Shop")), ScreenX(Find("Leaderboard")));
             Assert.Greater(ScreenX(Find("Party")), ScreenX(Find("CAREER")), "the party chip is on the right, by the coins");
         }
 
         [UnityTest]
-        public IEnumerator TheBarSitsOnScrimsThatLetClicksThrough()
+        public IEnumerator TheBarLeavesThemeArtworkClearAndItsButtonsReceiveClicks()
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
             foreach (var name in new[] { "Top scrim", "Right scrim", "Bottom scrim" })
-                Assert.IsFalse(menu.GetComponentsInChildren<Image>(true).Single(i => i.name == name).raycastTarget, $"the {name} never takes clicks");
-            Assert.Greater(LobbyKit.WebAlpha(.9f), .99f, "the web's 90% navy, as it looks in linear blending");
+                Assert.IsFalse(menu.GetComponentsInChildren<Image>(true).Any(i => i.name == name), $"{name} no longer covers the theme artwork");
             var home = (RectTransform)Find("Home").transform;
             var hits = new System.Collections.Generic.List<RaycastResult>();
             EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = home.TransformPoint(home.rect.center) }, hits);
@@ -247,8 +248,7 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(hits[0].gameObject.transform.IsChildOf(home), $"the click lands on Home, not on {hits[0].gameObject.name}");
             Click("PLAY");
             yield return null;
-            Assert.IsFalse(menu.GetComponentsInChildren<Image>(true).Single(i => i.name == "Bottom scrim").gameObject.activeSelf,
-                "the bottom scrim is for Home's dock only");
+            Assert.AreEqual(LobbyMenu.Play, menu.Current, "the exposed artwork does not obstruct navigation");
         }
 
         [UnityTest]
@@ -308,7 +308,7 @@ namespace Wreckabulary.Tests
             var dock = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Next match");
             var go = Find("GO");
             Assert.IsTrue(go.transform.IsChildOf(dock), "GO is in the dock");
-            Assert.IsTrue(Find("CHANGE").transform.IsChildOf(dock), "with what it starts, which a click changes");
+            Assert.IsFalse(dock.GetComponentsInChildren<Button>().Any(button => button.name == "CHANGE"), "mode selection now lives in PLAY");
             Assert.IsTrue(Find("Change house").transform.IsChildOf(dock), "and the house");
             Assert.Greater(ScreenX(dock), Screen.width * .6f, "bottom right, as on the web");
             var corners = new Vector3[4];
@@ -372,7 +372,7 @@ namespace Wreckabulary.Tests
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
-            Click("CHANGE");
+            Click("PLAY");
             yield return null;
             Assert.AreEqual(LobbyMenu.Play, menu.Current);
             Assert.AreSame(Find("Mode " + menu.Mode).gameObject, Selected, "a keyboard or controller lands on the mode");
@@ -990,7 +990,13 @@ namespace Wreckabulary.Tests
             Click("Home");
             yield return null;
             Assert.IsFalse(Find("GO").interactable);
-            Assert.IsTrue(Find("CHANGE").interactable, "you can still change the queue");
+            Assert.IsTrue(Find("PLAY").interactable, "you can still change the queue from the primary navigation");
+            Click("PLAY");
+            yield return null;
+            Click("Queue " + LobbyMenu.Practice);
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Practice, menu.Queue);
+            Assert.IsTrue(Find("GO").interactable, "choosing a playable queue enables GO again");
         }
 
         [UnityTest]
@@ -1200,7 +1206,7 @@ namespace Wreckabulary.Tests
             Assert.AreSame(daylight, Wreckabulary.Art.EnvironmentLighting.Active);
             Assert.AreEqual(sunIntensity, daylight.Sun.intensity);
             Assert.IsTrue(sky.enabled, "which comes back");
-            Find("CHANGE");
+            Find("PLAY");
             Assert.AreSame(Find("GO").gameObject, Selected, "GO is back, with a controller on it");
         }
     }

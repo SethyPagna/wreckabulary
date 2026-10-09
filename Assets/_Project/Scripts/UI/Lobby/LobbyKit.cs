@@ -121,6 +121,24 @@ namespace Wreckabulary
             return image;
         }
 
+        /// <summary>Protects unboxed foreground glyphs over artwork without covering the theme.</summary>
+        public static void ArtworkForeground(Transform root)
+        {
+            foreach (var label in root.GetComponentsInChildren<TextMeshProUGUI>(true))
+            {
+                var material = LobbyFonts.Foreground(label.font);
+                if (material) { label.fontSharedMaterial = material; label.UpdateMeshPadding(); }
+            }
+            foreach (var glyph in root.GetComponentsInChildren<Image>(true))
+            {
+                if (!glyph.name.StartsWith("Icon ", StringComparison.Ordinal)) continue;
+                if (!glyph.TryGetComponent(out Outline outline)) outline = glyph.gameObject.AddComponent<Outline>();
+                outline.effectColor = new Color(1f, .976f, .914f, .96f);
+                outline.effectDistance = new Vector2(1.25f, -1.25f);
+                outline.useGraphicAlpha = true;
+            }
+        }
+
         public static Image Face(RectTransform rect, Color fill, int radius, Color? edge = null, int edgeWidth = 0, float drop = 0,
             Color? to = null, float skew = 0, Color? dropColour = null)
         {

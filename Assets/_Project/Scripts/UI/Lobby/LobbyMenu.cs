@@ -56,11 +56,11 @@ namespace Wreckabulary
         Canvas canvas;
         RectTransform safe, pageHost, feed, rail, partyList, status, quitDialog;
         TextMeshProUGUI coins, initial, partyHeading, partyCount, statusTitle, statusDetail, statusCount;
-        Button power, cancelButton;
-        TextMeshProUGUI themeName;
+        Button power, cancelButton, shopButton, trophyButton;
+        Image shopUnderline, trophyUnderline;
+        TextMeshProUGUI themeName, playMode;
         RectTransform themeBadge;
         LobbyTab partyTab;
-        GameObject bottomScrim;
         GameHud hud;
         UIStateController uiState;
         CanvasGroup visibility;
@@ -261,9 +261,6 @@ namespace Wreckabulary
                 system.AddComponent<EventSystem>();
                 system.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
-            LobbyKit.Scrim(transform, "Top scrim", LobbyKit.Edge.Top, 220, .94f, 76);
-            LobbyKit.Scrim(transform, "Right scrim", LobbyKit.Edge.Right, 540, .38f);
-            bottomScrim = LobbyKit.Scrim(transform, "Bottom scrim", LobbyKit.Edge.Bottom, 320, .82f).gameObject;
             safe = LobbyKit.Rect(transform, "Safe area").Fill();
             var drag = LobbyKit.Rect(safe, "Turn area").Fill();
             drag.Paint(new Color(0, 0, 0, 0));
@@ -285,35 +282,60 @@ namespace Wreckabulary
             tabs[Home] = LobbyKit.IconTab(system, LobbyIcons.Home, "Home", () => Open(Home));
             tabs[Settings] = LobbyKit.IconTab(system, LobbyIcons.Settings, "Settings", () => Toggle(Settings));
             power = LobbyKit.IconTab(system, LobbyIcons.Power, "Quit", AskQuit, LobbyKit.Hot).Button;
-            var places = LobbyKit.Segment(left, "Places pill");
-            tabs[Trophy] = LobbyKit.IconTab(places, LobbyIcons.Trophy, "Leaderboard", () => Toggle(Trophy));
-            tabs[Shop] = LobbyKit.IconTab(places, LobbyIcons.Cart, "Shop", () => Toggle(Shop));
-
             var centre = LobbyKit.Row(bar, "Pages", 14, 0);
-            centre.Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(628, BarHeight));
+            centre.Pin(new Vector2(.5f, .5f), new Vector2(29, 0), new Vector2(726, BarHeight));
             var row = centre.GetComponent<HorizontalLayoutGroup>();
             row.childAlignment = TextAnchor.MiddleCenter;
             row.childForceExpandHeight = false;
-            foreach (var (id, title, icon) in new[] { (Loadout, "LOADOUT", LobbyIcons.Locker), (Play, "PLAY", LobbyIcons.Play), (CareerPage, "CAREER", LobbyIcons.Badge) })
-                tabs[id] = LobbyKit.Tab(centre, title, icon, () => Toggle(id));
+            tabs[Loadout] = LobbyKit.Tab(centre, "LOADOUT", LobbyIcons.Locker, () => Toggle(Loadout));
+            tabs[Play] = LobbyKit.Tab(centre, "PLAY", LobbyIcons.Play, () => Toggle(Play), 240, 72);
+            var playBody = tabs[Play].Button.Body();
+            ((RectTransform)playBody.Find("Content")).Place(new Vector2(0, 0), Vector2.one, new Vector2(0, 35), Vector2.zero);
+            tabs[Play].GetComponentInChildren<TextMeshProUGUI>().Size(-1, 34);
+            playMode = LobbyKit.Text(playBody, ModeName(Mode), 20, LobbyKit.Navy, TextAlignmentOptions.Center);
+            playMode.name = "Selected mode";
+            playMode.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(8, 1), new Vector2(-8, 35));
+            playMode.enableAutoSizing = true; playMode.fontSizeMin = 18; playMode.fontSizeMax = 20;
+            tabs[CareerPage] = LobbyKit.Tab(centre, "CAREER", LobbyIcons.Badge, () => Toggle(CareerPage));
+            trophyButton = NavigationAction(centre, "Leaderboard", Trophy, LobbyKit.Sun, out trophyUnderline);
+            trophyButton.Size(44, 52);
+            LobbyKit.Icon(trophyButton.Body(), LobbyIcons.Trophy, LobbyKit.Sun).rectTransform
+                .Place(Vector2.zero, Vector2.one, new Vector2(6, 10), new Vector2(-6, -10));
             foreach (var kv in tabs) openers[kv.Key] = kv.Value.Button;
+            openers[Trophy] = trophyButton;
 
             var wallet = LobbyKit.Row(bar, "Wallet", 12, 0);
             wallet.Place(new Vector2(1, 0), new Vector2(1, 1), new Vector2(-600, 8), new Vector2(-Gutter, -8));
             wallet.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleRight;
             wallet.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
-            var chip = LobbyKit.Row(wallet, "Coin chip", 10);
+            shopButton = NavigationAction(wallet, "Shop", Shop, LobbyKit.Sun, out shopUnderline);
+            shopButton.Size(150, 52);
+            openers[Shop] = shopButton;
+            var chip = LobbyKit.Row(shopButton.Body(), "Coin balance", 10).Fill();
             var inside = chip.GetComponent<HorizontalLayoutGroup>();
-            inside.padding = new RectOffset(12, 18, 10, 10);
+            inside.padding = new RectOffset(10, 10, 8, 8);
             inside.childForceExpandHeight = false;
-            LobbyKit.Face(chip, Color.clear, 12);
-            chip.Size(-1, 52);
+            inside.childAlignment = TextAnchor.MiddleCenter;
             LobbyKit.Coin(chip, 32);
             coins = LobbyKit.Display(chip, "0", 26, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Stroke);
             coins.Size(-1, 34);
             partyTab = LobbyKit.Tab(wallet, "Party", LobbyIcons.Party, ToggleParty, 132, 52, 26, 0);
             partyTab.GetComponentInChildren<HorizontalLayoutGroup>().padding = new RectOffset(16, 18, 0, 0);
             partyCount = partyTab.GetComponentsInChildren<TextMeshProUGUI>(true).First();
+            LobbyKit.ArtworkForeground(bar);
+        }
+
+        Button NavigationAction(Transform parent, string name, string page, Color accent, out Image underline)
+        {
+            var button = LobbyKit.Button(parent, name, Color.clear, () => Toggle(page), 8);
+            var line = LobbyKit.Rect(button.Body(), "Underline").Place(Vector2.zero, new Vector2(1, 0),
+                new Vector2(8, 1), new Vector2(-8, 4)).Paint(accent, 1);
+            line.raycastTarget = false;
+            line.enabled = false;
+            button.GetComponent<LobbyPress>().Hot = hot => line.enabled = hot || Current == page;
+            button.gameObject.AddComponent<LobbyHint>().Text = name;
+            underline = line;
+            return button;
         }
 
         void BuildParty()
@@ -499,10 +521,11 @@ namespace Wreckabulary
             themeBadge = LobbyKit.Rect(safe, "Current theme").Pin(Vector2.zero, new Vector2(Gutter, 22), new Vector2(380, 76));
             var brand = LobbyKit.Display(themeBadge, "WRECKABULARY", 32, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft);
             brand.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(0, 28), Vector2.zero);
-            var button = LobbyKit.TextAction(themeBadge, "Browse themes", "", 20, () => Open(Shop), icon: LobbyIcons.Cart);
+            var button = LobbyKit.TextAction(themeBadge, "Browse themes", "", 20, () => Open(Shop));
             ((RectTransform)button.transform).Place(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0, -36));
             themeName = button.GetComponentInChildren<TextMeshProUGUI>();
             RefreshThemeBadge();
+            LobbyKit.ArtworkForeground(themeBadge);
         }
 
         void RefreshThemeBadge()
@@ -518,7 +541,6 @@ namespace Wreckabulary
             foreach (var other in pages.Values) other.Root.gameObject.SetActive(other == page);
             Current = id;
             if (id != Home) ShowParty(false);
-            if (bottomScrim) bottomScrim.SetActive(id == Home);
             Stage.Dress(Outfit);
             Stage.ShowArtwork(id != Play);
             if (themeBadge) themeBadge.gameObject.SetActive(id == Home);
@@ -528,6 +550,8 @@ namespace Wreckabulary
             Stage.Frame(page.Focus, (Gutter + page.PanelWidth) / ReferenceHeight);
             feed.gameObject.SetActive(page.ShowFeed);
             foreach (var kv in tabs) kv.Value.On = kv.Key == id;
+            if (shopUnderline) shopUnderline.enabled = id == Shop || shopButton.GetComponent<LobbyPress>().IsHot;
+            if (trophyUnderline) trophyUnderline.enabled = id == Trophy || trophyButton.GetComponent<LobbyPress>().IsHot;
             var first = page.First;
             if (EventSystem.current && first) EventSystem.current.SetSelectedGameObject(first.gameObject);
         }
@@ -601,7 +625,12 @@ namespace Wreckabulary
 
         public void RefreshBar()
         {
-            if (coins) coins.text = Career.Coins.ToString("N0", CultureInfo.InvariantCulture);
+            if (coins)
+            {
+                coins.text = Career.Coins.ToString("N0", CultureInfo.InvariantCulture);
+                shopButton.Size(Mathf.Clamp(coins.GetPreferredValues(coins.text).x + 66f, 110f, 280f), 52);
+            }
+            if (playMode) playMode.text = ModeName(Mode);
             if (initial) initial.text = LobbyKit.Upper(Career.Name.Substring(0, 1));
             var level = rail ? rail.GetComponentsInChildren<TextMeshProUGUI>(true).FirstOrDefault(t => t.name == "Level") : null;
             if (level) level.text = "Level " + Career.Level + "  ·  " + (Starting ? "starting a match" : "in the lobby");
@@ -646,6 +675,7 @@ namespace Wreckabulary
                 Stage.SetMap(map);
                 Post("Map: " + GameConfig.Current.HouseFor(map).Name + ".");
             }
+            RefreshBar();
         }
 
         public string Blocked => Queue == Matchmaking

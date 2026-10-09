@@ -214,27 +214,26 @@ namespace Wreckabulary
             var dock = LobbyKit.Column(Root, "Next match", 12);
             dock.Pin(new Vector2(1, 0), Vector2.zero, new Vector2(DockWidth, 0));
             dock.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            var mode = LobbyKit.PickCard(dock, "CHANGE", LobbyKit.ModeColour(Menu.Mode), "Next up  ·  " + Capital(Menu.Queue),
-                LobbyMenu.ModeName(Menu.Mode), blocked ? "Not built yet  ·  online play" : Who(), () => Menu.OpenPlay("Mode " + Menu.Mode), 74);
-            mode.Size(-1, 104);
-            LobbyKit.ItemImage(mode.Body().Find("Art"), LobbyKit.ModeArt(Menu.Mode), 64, 10f);
+            Selectable houseChoice = null;
             if (Menu.Mode != LobbyMenu.TutorialMode)
             {
-                var house = LobbyKit.PickCard(dock, "Change house", LobbyKit.Hot, "House", MapName(Menu.Map), null,
-                    () => Menu.OpenPlay("Map " + Menu.Map), 54);
+                var house = LobbyKit.Button(dock, "Change house", Color.clear,
+                    () => Menu.OpenPlay("Map " + Menu.Map), 12);
                 house.Size(-1, 80);
-                LobbyKit.Icon(house.Body().Find("Art"), LobbyIcons.Home, LobbyKit.Cream).rectTransform
-                    .Place(Vector2.zero, Vector2.one, new Vector2(11, 11), new Vector2(-11, -11));
+                var body = house.Body();
+                LobbyKit.Icon(body, LobbyIcons.Home, LobbyKit.Hot).rectTransform
+                    .Pin(new Vector2(0, .5f), new Vector2(16, 0), new Vector2(36, 36));
+                var label = LobbyKit.Display(body, MapName(Menu.Map), 30, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft);
+                label.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(70, 0), new Vector2(-20, 0));
+                label.enableAutoSizing = true; label.fontSizeMin = 24; label.fontSizeMax = 30;
+                houseChoice = house;
             }
             var go = LobbyKit.Primary(dock, "GO", "GO", Menu.Go, 74, 46);
             go.Size(-1, 116);
             go.interactable = !blocked;
-            First = blocked ? mode : go;
+            First = blocked ? houseChoice : go;
+            LobbyKit.ArtworkForeground(dock);
         }
-
-        string Who() => Menu.Mode == LobbyMenu.TutorialMode ? "The tutorial room"
-            : Menu.Mode == LobbyMenu.WorkshopMode ? "Build and test a home"
-            : Capital(LobbyMenu.Seats(Menu.Mode, Menu.PartySize));
     }
 
     public sealed class PlayPage : LobbyPage
