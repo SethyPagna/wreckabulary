@@ -32,6 +32,18 @@ namespace Wreckabulary
             public Color colour;
         }
 
+        sealed class Guest
+        {
+            public Transform root;
+            public PlayableGraph graph;
+            public RawImage shadow;
+        }
+
+        readonly List<Guest> guests = new();
+        int partySize = 1;
+        bool partyVisible = true;
+        public int PresentedPartySize => partyVisible ? partySize : 1;
+
         Transform set, avatarRoot;
         Transform itemPreview;
         Renderer itemStand;
@@ -222,6 +234,80 @@ namespace Wreckabulary
             if (!avatar && !SpawnAvatar()) return;
             PlayerAppearance.Dress(meshes, outfit);
         }
+
+        public void SetPartyVisible(bool visible)
+        {
+            partyVisible = visible;
+            PlaceParty();
+        }
+
+        public void SetPartySize(int count)
+        {
+            partySize = Mathf.Clamp(count, 1, LobbyMenu.PartyMax);
+            while (guests.Count < partySize - 1)
+            {
+                int seat = guests.Count + 1;
+                var root = new GameObject("Lobby guest " + (seat + 1)).transform;
+                root.SetParent(transform, false);
+                var model = ModelVisual.Spawn(AvatarKey, root);
+                if (!model) { Destroy(root.gameObject); break; }
+                var guest = new Guest { root = root };
+                PlayerAppearance.Dress(model.GetComponentsInChildren<SkinnedMeshRenderer>(true),
+                    PlayerAppearance.PresentationOutfit(seat, GameAssets.I.PlayerColor(seat)));
+                var animator = model.GetComponentInChildren<Animator>(true);
+                var idle = ModelLibrary.Load().FindClip(AvatarKey, "Idle");
+                if (animator && idle)
+                {
+                    animator.applyRootMotion = false;
+                    animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                    guest.graph = PlayableGraph.Create(root.name);
+                    guest.graph.SetTimeUpdateMode(DirectorUpdateMode.UnscaledGameTime);
+                    var clip = AnimationClipPlayable.Create(guest.graph, idle);
+                    clip.SetTime(seat * .27d);
+                    AnimationPlayableOutput.Create(guest.graph, root.name, animator).SetSourcePlayable(clip);
+                }
+                guest.shadow = LobbyKit.Rect(sky.transform, root.name + " contact shadow").gameObject.AddComponent<RawImage>();
+                guest.shadow.texture = softTexture;
+                guest.shadow.color = contactShadow.color;
+                guest.shadow.raycastTarget = false;
+                guest.shadow.transform.SetSiblingIndex(contactShadow.transform.GetSiblingIndex() + 1);
+                guests.Add(guest);
+            }
+            PlaceParty();
+        }
+
+        void PlaceParty()
+        {
+            if (!avatarRoot) return;
+            int count = PresentedPartySize;
+            float scale = count == 4 ? .82f : count == 3 ? .90f : 1f;
+            var right = Vector3.Cross(Vector3.up, -toCamera.normalized);
+            var rotation = Quaternion.LookRotation(toCamera.sqrMagnitude > 0 ? toCamera.normalized : Vector3.back) * Quaternion.Euler(0f, yaw, 0f);
+            avatarRoot.SetPositionAndRotation(spot + right * PartyOffset(0, count), rotation);
+            avatarRoot.localScale = Vector3.one * scale;
+            for (int i = 0; i < guests.Count; i++)
+            {
+                var guest = guests[i];
+                bool show = IsPresenting && partyVisible && i < partySize - 1;
+                if (guest.root.gameObject.activeSelf != show) guest.root.gameObject.SetActive(show);
+                if (guest.graph.IsValid() && guest.graph.IsPlaying() != show)
+                {
+                    if (show) guest.graph.Play(); else guest.graph.Stop();
+                }
+                guest.shadow.enabled = show && artwork;
+                if (!show) continue;
+                guest.root.SetPositionAndRotation(spot + right * PartyOffset(i + 1, count), rotation);
+                guest.root.localScale = Vector3.one * scale;
+            }
+        }
+
+        static float PartyOffset(int seat, int count) => count switch
+        {
+            2 => seat == 0 ? -.48f : .48f,
+            3 => seat == 0 ? 0f : seat == 1 ? -.86f : .86f,
+            4 => seat == 0 ? -.41f : seat == 1 ? -1.23f : seat == 2 ? .41f : 1.23f,
+            _ => 0f,
+        };
 
         bool SpawnAvatar()
         {
@@ -447,12 +533,9 @@ namespace Wreckabulary
                 }
             }
             if (!artwork) return;
-            var foot = cam.WorldToViewportPoint(spot);
-            var shadow = contactShadow.rectTransform;
-            shadow.anchorMin = shadow.anchorMax = new Vector2(foot.x, foot.y);
-            shadow.anchoredPosition = Vector2.zero;
-            float pixelsPerMetre = cam.pixelHeight / (2f * Mathf.Max(.1f, foot.z) * Mathf.Tan(cam.fieldOfView * .5f * Mathf.Deg2Rad));
-            shadow.sizeDelta = new Vector2(.95f, .17f) * pixelsPerMetre;
+            PlaceShadow(contactShadow, avatarRoot ? avatarRoot : null);
+            foreach (var guest in guests)
+                if (guest.shadow.enabled) PlaceShadow(guest.shadow, guest.root);
             if (!themeEffects) return;
             bool confetti = LobbyThemes.Current.Id == "candy";
             float time = Time.unscaledTime;
@@ -469,6 +552,16 @@ namespace Wreckabulary
                 colour.a *= Mathf.Clamp01(Mathf.Min(y, 1f - y) * 8f);
                 mote.image.color = colour;
             }
+        }
+
+        void PlaceShadow(RawImage image, Transform avatarTransform)
+        {
+            var foot = cam.WorldToViewportPoint(avatarTransform ? avatarTransform.position : spot);
+            var shadow = image.rectTransform;
+            shadow.anchorMin = shadow.anchorMax = new Vector2(foot.x, foot.y);
+            shadow.anchoredPosition = Vector2.zero;
+            float pixelsPerMetre = cam.pixelHeight / (2f * Mathf.Max(.1f, foot.z) * Mathf.Tan(cam.fieldOfView * .5f * Mathf.Deg2Rad));
+            shadow.sizeDelta = new Vector2(.95f, .17f) * pixelsPerMetre * (avatarTransform ? avatarTransform.localScale.x : 1f);
         }
 
         Light ShowroomLight(string name, Color colour, float intensity, float angle)
@@ -517,6 +610,7 @@ namespace Wreckabulary
             }
             if (rig) rig.enabled = rigWasEnabled;
             cameraTaken = false;
+            PlaceParty();
             Showroom(false);
         }
 
@@ -527,7 +621,7 @@ namespace Wreckabulary
             float k = snap ? 1f : 1f - Mathf.Exp(-10f * Time.unscaledDeltaTime);
             yaw = Mathf.Lerp(yaw, targetYaw, k);
             side = Mathf.Lerp(side, targetSide, snap ? 1f : 1f - Mathf.Exp(-7f * Time.unscaledDeltaTime));
-            if (avatarRoot) avatarRoot.rotation = Quaternion.LookRotation(toCamera.sqrMagnitude > 0 ? toCamera.normalized : Vector3.back) * Quaternion.Euler(0f, yaw, 0f);
+            PlaceParty();
             if (itemPreview)
             {
                 var rightOfAvatar = Vector3.Cross(Vector3.up, -toCamera.normalized);
@@ -578,6 +672,7 @@ namespace Wreckabulary
         {
             Release();
             if (graph.IsValid()) graph.Destroy();
+            foreach (var guest in guests) if (guest.graph.IsValid()) guest.graph.Destroy();
             TactileMaterials.Release(gameObject);
             if (lookProfile) Destroy(lookProfile);
             if (skyTexture) Destroy(skyTexture);

@@ -10,6 +10,8 @@ namespace Wreckabulary
         LobbyStage stage;
         GameObject instance;
         Transform wreathDisplay;
+        Transform[] props;
+        Vector3[] positions, scales;
         bool attemptedLoad;
         public GameObject Instance => instance;
         public bool Visible => instance && instance.activeSelf;
@@ -36,6 +38,10 @@ namespace Wreckabulary
                     instance = Instantiate(prefab, transform, false);
                     instance.name = "Winter collection display";
                     wreathDisplay = instance.transform.Find("Wreath display");
+                    props = new[] { instance.transform.Find("Winter tree"), instance.transform.Find("Winter gifts"), wreathDisplay };
+                    positions = new Vector3[props.Length]; scales = new Vector3[props.Length];
+                    for (int i = 0; i < props.Length; i++)
+                        if (props[i]) { positions[i] = props[i].localPosition; scales[i] = props[i].localScale; }
                 }
             }
             if (!instance) return;
@@ -48,6 +54,19 @@ namespace Wreckabulary
             // The side-page viewport reserves the right side for cards and the native item preview.
             bool centered = stage.Camera.WorldToViewportPoint(stage.Spot).x > .4f;
             if (wreathDisplay && wreathDisplay.gameObject.activeSelf != centered) wreathDisplay.gameObject.SetActive(centered);
+            bool group = stage.PresentedPartySize > 1;
+            for (int i = 0; i < props.Length; i++)
+            {
+                if (!props[i]) continue;
+                var position = positions[i];
+                if (group)
+                {
+                    position.x = i == 2 ? 2.30f : i == 1 ? -1.82f : -2.18f;
+                    position.z += .65f;
+                }
+                props[i].localPosition = position;
+                props[i].localScale = scales[i] * (group ? .75f : 1f);
+            }
         }
     }
 }

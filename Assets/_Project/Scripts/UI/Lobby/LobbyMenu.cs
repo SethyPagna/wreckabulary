@@ -58,7 +58,7 @@ namespace Wreckabulary
         TextMeshProUGUI coins, initial, partyHeading, partyCount, statusTitle, statusDetail, statusCount;
         Button power, cancelButton, shopButton, trophyButton;
         Image shopUnderline, trophyUnderline;
-        TextMeshProUGUI themeName, playMode;
+        TextMeshProUGUI themeName;
         RectTransform themeBadge;
         LobbyTab partyTab;
         GameHud hud;
@@ -279,33 +279,30 @@ namespace Wreckabulary
             left.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             left.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
             var system = LobbyKit.Segment(left, "System pill");
+            LobbyKit.PanelFace(system, 12, 1, 0);
             tabs[Home] = LobbyKit.IconTab(system, LobbyIcons.Home, "Home", () => Open(Home));
             tabs[Settings] = LobbyKit.IconTab(system, LobbyIcons.Settings, "Settings", () => Toggle(Settings));
             power = LobbyKit.IconTab(system, LobbyIcons.Power, "Quit", AskQuit, LobbyKit.Hot).Button;
-            var centre = LobbyKit.Row(bar, "Pages", 14, 0);
-            centre.Pin(new Vector2(.5f, .5f), new Vector2(29, 0), new Vector2(726, BarHeight));
+            var centre = LobbyKit.Row(bar, "Pages", 4, 10);
+            centre.Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(712, 60));
+            LobbyKit.PanelFace(centre, 12, 1, 0);
             var row = centre.GetComponent<HorizontalLayoutGroup>();
             row.childAlignment = TextAnchor.MiddleCenter;
             row.childForceExpandHeight = false;
-            tabs[Loadout] = LobbyKit.Tab(centre, "LOADOUT", LobbyIcons.Locker, () => Toggle(Loadout));
-            tabs[Play] = LobbyKit.Tab(centre, "PLAY", LobbyIcons.Play, () => Toggle(Play), 240, 72);
-            var playBody = tabs[Play].Button.Body();
-            ((RectTransform)playBody.Find("Content")).Place(new Vector2(0, 0), Vector2.one, new Vector2(0, 35), Vector2.zero);
-            tabs[Play].GetComponentInChildren<TextMeshProUGUI>().Size(-1, 34);
-            playMode = LobbyKit.Text(playBody, ModeName(Mode), 20, LobbyKit.Navy, TextAlignmentOptions.Center);
-            playMode.name = "Selected mode";
-            playMode.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(8, 1), new Vector2(-8, 35));
-            playMode.enableAutoSizing = true; playMode.fontSizeMin = 18; playMode.fontSizeMax = 20;
-            tabs[CareerPage] = LobbyKit.Tab(centre, "CAREER", LobbyIcons.Badge, () => Toggle(CareerPage));
+            tabs[Loadout] = LobbyKit.Tab(centre, "LOADOUT", null, () => Toggle(Loadout), 170);
+            tabs[Play] = LobbyKit.Tab(centre, "PLAY", null, () => Toggle(Play), 112);
+            tabs[CareerPage] = LobbyKit.Tab(centre, "CAREER", null, () => Toggle(CareerPage), 156);
             trophyButton = NavigationAction(centre, "Leaderboard", Trophy, LobbyKit.Sun, out trophyUnderline);
-            trophyButton.Size(44, 52);
-            LobbyKit.Icon(trophyButton.Body(), LobbyIcons.Trophy, LobbyKit.Sun).rectTransform
-                .Place(Vector2.zero, Vector2.one, new Vector2(6, 10), new Vector2(-6, -10));
+            trophyButton.Size(240, 48);
+            LobbyKit.Display(trophyButton.Body(), "LEADERBOARDS", 24, LobbyKit.Navy, TextAlignmentOptions.Center)
+                .rectTransform.Fill();
             foreach (var kv in tabs) openers[kv.Key] = kv.Value.Button;
             openers[Trophy] = trophyButton;
 
-            var wallet = LobbyKit.Row(bar, "Wallet", 12, 0);
-            wallet.Place(new Vector2(1, 0), new Vector2(1, 1), new Vector2(-600, 8), new Vector2(-Gutter, -8));
+            var wallet = LobbyKit.Row(bar, "Wallet", 6, 8);
+            wallet.Pin(new Vector2(1, .5f), new Vector2(-Gutter, 0), new Vector2(280, 60));
+            wallet.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            LobbyKit.PanelFace(wallet, 12, 1, 0);
             wallet.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleRight;
             wallet.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             shopButton = NavigationAction(wallet, "Shop", Shop, LobbyKit.Sun, out shopUnderline);
@@ -322,7 +319,6 @@ namespace Wreckabulary
             partyTab = LobbyKit.Tab(wallet, "Party", LobbyIcons.Party, ToggleParty, 132, 52, 26, 0);
             partyTab.GetComponentInChildren<HorizontalLayoutGroup>().padding = new RectOffset(16, 18, 0, 0);
             partyCount = partyTab.GetComponentsInChildren<TextMeshProUGUI>(true).First();
-            LobbyKit.ArtworkForeground(bar);
         }
 
         Button NavigationAction(Transform parent, string name, string page, Color accent, out Image underline)
@@ -389,6 +385,7 @@ namespace Wreckabulary
 
         void RefreshParty()
         {
+            if (Stage) Stage.SetPartySize(PartySize);
             if (!partyList) return;
             partyHeading.text = $"PARTY  {PartySize} / {PartyMax}";
             if (partyCount) partyCount.text = $"{PartySize}/{PartyMax}";
@@ -518,14 +515,14 @@ namespace Wreckabulary
 
         void BuildThemeBadge()
         {
-            themeBadge = LobbyKit.Rect(safe, "Current theme").Pin(Vector2.zero, new Vector2(Gutter, 22), new Vector2(380, 76));
-            var brand = LobbyKit.Display(themeBadge, "WRECKABULARY", 32, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft);
-            brand.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(0, 28), Vector2.zero);
-            var button = LobbyKit.TextAction(themeBadge, "Browse themes", "", 20, () => Open(Shop));
-            ((RectTransform)button.transform).Place(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0, -36));
+            themeBadge = LobbyKit.Rect(safe, "Current theme").Pin(Vector2.zero, new Vector2(Gutter, 22), new Vector2(300, 72));
+            LobbyKit.PanelFace(themeBadge, 12, 1, 0);
+            var brand = LobbyKit.Display(themeBadge, "WRECKABULARY", 26, LobbyKit.Navy, TextAlignmentOptions.Center);
+            brand.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(12, 30), new Vector2(-12, -4));
+            var button = LobbyKit.TextAction(themeBadge, "Browse themes", "", 18, () => Open(Shop));
+            ((RectTransform)button.transform).Place(Vector2.zero, Vector2.one, new Vector2(8, 2), new Vector2(-8, -34));
             themeName = button.GetComponentInChildren<TextMeshProUGUI>();
             RefreshThemeBadge();
-            LobbyKit.ArtworkForeground(themeBadge);
         }
 
         void RefreshThemeBadge()
@@ -542,6 +539,7 @@ namespace Wreckabulary
             Current = id;
             if (id != Home) ShowParty(false);
             Stage.Dress(Outfit);
+            Stage.SetPartyVisible(id == Home);
             Stage.ShowArtwork(id != Play);
             if (themeBadge) themeBadge.gameObject.SetActive(id == Home);
             if (moved) page.Opened();
@@ -630,7 +628,6 @@ namespace Wreckabulary
                 coins.text = Career.Coins.ToString("N0", CultureInfo.InvariantCulture);
                 shopButton.Size(Mathf.Clamp(coins.GetPreferredValues(coins.text).x + 66f, 110f, 280f), 52);
             }
-            if (playMode) playMode.text = ModeName(Mode);
             if (initial) initial.text = LobbyKit.Upper(Career.Name.Substring(0, 1));
             var level = rail ? rail.GetComponentsInChildren<TextMeshProUGUI>(true).FirstOrDefault(t => t.name == "Level") : null;
             if (level) level.text = "Level " + Career.Level + "  ·  " + (Starting ? "starting a match" : "in the lobby");
@@ -676,6 +673,7 @@ namespace Wreckabulary
                 Post("Map: " + GameConfig.Current.HouseFor(map).Name + ".");
             }
             RefreshBar();
+            if (Current == Home && pages.TryGetValue(Home, out var home)) home.Refresh();
         }
 
         public string Blocked => Queue == Matchmaking

@@ -194,7 +194,7 @@ namespace Wreckabulary
     {
         public override string Id => LobbyMenu.Home;
         public override bool ShowFeed => true;
-        public const float DockWidth = 456f;
+        public const float DockWidth = 300f;
 
         protected override void Build()
         {
@@ -211,28 +211,23 @@ namespace Wreckabulary
             if (Menu.Starting) return;
 
             bool blocked = Menu.Blocked != null;
-            var dock = LobbyKit.Column(Root, "Next match", 12);
+            var dock = LobbyKit.Column(Root, "Next match", 2, 12);
             dock.Pin(new Vector2(1, 0), Vector2.zero, new Vector2(DockWidth, 0));
             dock.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            Selectable houseChoice = null;
+            LobbyKit.PanelFace(dock, 14, 1, 0);
+            var go = LobbyKit.TextAction(dock, "GO", "START", 42, Menu.Go, true);
+            go.Size(-1, 64);
+            go.interactable = !blocked;
+            var mode = LobbyKit.TextAction(dock, "Choose mode", LobbyMenu.ModeName(Menu.Mode), 22,
+                () => Menu.OpenPlay("Mode " + Menu.Mode));
+            mode.Size(-1, 38);
+            First = blocked ? mode : go;
             if (Menu.Mode != LobbyMenu.TutorialMode)
             {
-                var house = LobbyKit.Button(dock, "Change house", Color.clear,
-                    () => Menu.OpenPlay("Map " + Menu.Map), 12);
-                house.Size(-1, 80);
-                var body = house.Body();
-                LobbyKit.Icon(body, LobbyIcons.Home, LobbyKit.Hot).rectTransform
-                    .Pin(new Vector2(0, .5f), new Vector2(16, 0), new Vector2(36, 36));
-                var label = LobbyKit.Display(body, MapName(Menu.Map), 30, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft);
-                label.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(70, 0), new Vector2(-20, 0));
-                label.enableAutoSizing = true; label.fontSizeMin = 24; label.fontSizeMax = 30;
-                houseChoice = house;
+                var house = LobbyKit.TextAction(dock, "Change house", MapName(Menu.Map), 20,
+                    () => Menu.OpenPlay("Map " + Menu.Map));
+                house.Size(-1, 36);
             }
-            var go = LobbyKit.Primary(dock, "GO", "GO", Menu.Go, 74, 46);
-            go.Size(-1, 116);
-            go.interactable = !blocked;
-            First = blocked ? houseChoice : go;
-            LobbyKit.ArtworkForeground(dock);
         }
     }
 

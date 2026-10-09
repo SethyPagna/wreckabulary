@@ -221,7 +221,7 @@ namespace Wreckabulary.Tests
 
             float middle = ScreenX(menu.transform);
             float unit = Screen.width / 1920f * 10f;
-            Assert.AreEqual(middle, ScreenX(Find("PLAY")), unit, "PLAY sits in the middle");
+            Assert.AreEqual(middle, ScreenX(Find("PLAY").transform.parent), unit, "the text navigation group is centered");
             Assert.Less(ScreenX(Find("LOADOUT")), ScreenX(Find("PLAY")));
             Assert.Greater(ScreenX(Find("CAREER")), ScreenX(Find("PLAY")));
             foreach (var left in new[] { "Home", "Settings", "Quit" })
@@ -314,7 +314,11 @@ namespace Wreckabulary.Tests
             var corners = new Vector3[4];
             dock.GetWorldCorners(corners);
             Assert.Less(corners[0].y, Screen.height * .1f, "down at the bottom");
-            Assert.AreEqual(116f, ((RectTransform)go.transform).rect.height, 1f, "a big GO");
+            Assert.AreEqual(64f, ((RectTransform)go.transform).rect.height, 1f, "a compact START");
+            Assert.AreEqual("START", go.GetComponentInChildren<TMPro.TMP_Text>().text);
+            Assert.Less(Find("Choose mode").transform.position.y, go.transform.position.y);
+            Assert.Less(Find("Change house").transform.position.y, Find("Choose mode").transform.position.y);
+            Assert.AreEqual(300f, dock.rect.width, 1f);
             Click("Change house");
             yield return null;
             Assert.AreEqual(LobbyMenu.Play, menu.Current, "a pick opens PLAY to change it");

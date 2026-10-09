@@ -77,6 +77,25 @@ namespace Wreckabulary
             return catalogue.Sanitize(look);
         }
 
+        public static Outfit PresentationOutfit(int seat, Color colour)
+        {
+            var catalogue = GameConfig.Current.Wardrobe;
+            string saved = PlayerPrefs.GetString("wv.outfit." + seat, "");
+            var initial = string.IsNullOrEmpty(saved) ? DefaultPresentationOutfit() : Outfit.Deserialize(saved);
+            if (string.IsNullOrEmpty(saved) && catalogue.Palettes.TryGetValue("Top", out var palette))
+            {
+                float nearest = float.PositiveInfinity;
+                foreach (var option in palette)
+                {
+                    float distance = (new Vector3(option.R, option.G, option.B) - new Vector3(colour.r, colour.g, colour.b)).sqrMagnitude;
+                    if (distance >= nearest) continue;
+                    nearest = distance;
+                    initial.Colours["Top"] = option.Id;
+                }
+            }
+            return catalogue.Sanitize(initial);
+        }
+
         /// <summary>Reuse saved artist content; create a visual only for legacy prefabs after all required clips validate.</summary>
         public bool Initialize(PlayerController player)
         {
@@ -141,22 +160,7 @@ namespace Wreckabulary
             graph.Evaluate(0f);
             foreach (var renderer in oldRenderers) if (renderer) renderer.enabled = false;
             initialized = true;
-            var catalogue = GameConfig.Current.Wardrobe;
-            string saved = PlayerPrefs.GetString("wv.outfit." + controller.Index, "");
-            var initial = string.IsNullOrEmpty(saved) ? DefaultPresentationOutfit() : Outfit.Deserialize(saved);
-            if (string.IsNullOrEmpty(saved) && catalogue.Palettes.TryGetValue("Top", out var palette))
-            {
-                float nearest = float.PositiveInfinity;
-                foreach (var colour in palette)
-                {
-                    var rgb = new Vector3(colour.R, colour.G, colour.B);
-                    float distance = (rgb - new Vector3(controller.Color.r, controller.Color.g, controller.Color.b)).sqrMagnitude;
-                    if (distance >= nearest) continue;
-                    nearest = distance;
-                    initial.Colours["Top"] = colour.Id;
-                }
-            }
-            ApplyOutfit(catalogue.Sanitize(initial), false);
+            ApplyOutfit(PresentationOutfit(controller.Index, controller.Color), false);
             controller.Jumped += OnJumped;
             controller.Dodged += OnDodged;
             if (controller.Health) controller.Health.Damaged += OnDamaged;

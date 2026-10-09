@@ -12,7 +12,7 @@ namespace Wreckabulary.Tests
 {
     public sealed class LobbyNavigationRefinementTests
     {
-        static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey };
+        static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, "wv.outfit.1" };
         string[] saved;
         float volume;
         int vsync;
@@ -45,6 +45,40 @@ namespace Wreckabulary.Tests
             .GetComponentsInChildren<Button>().Single(button => button.name == name);
 
         [UnityTest]
+        public IEnumerator GuestsAnimateOnlyWhileVisibleAndReuseTheSavedGameplayOutfit()
+        {
+            var menu = LobbyMenu.Instance;
+            var outfit = PlayerAppearance.DefaultPresentationOutfit();
+            outfit.Colours["Top"] = "grape";
+            PlayerPrefs.SetString("wv.outfit.1", outfit.Serialize());
+            Assert.AreEqual(outfit.Serialize(), PlayerAppearance.PresentationOutfit(1, Color.green).Serialize());
+            var guestBinding = new ScriptedBinding();
+            menu.Join(guestBinding);
+            yield return null;
+            var guest = menu.Stage.transform.Find("Lobby guest 2");
+            Assert.IsNotNull(guest);
+            var chest = Wreckabulary.Art.ModelVisual.FindNamed(guest.gameObject, "chest");
+            Assert.IsNotNull(chest);
+            var before = chest.localRotation;
+            yield return new WaitForSecondsRealtime(.35f);
+            Assert.Greater(Quaternion.Angle(before, chest.localRotation), .01f, "guest idle animation advances");
+            menu.Open(LobbyMenu.Loadout);
+            yield return null;
+            Assert.IsFalse(guest.gameObject.activeSelf);
+            before = chest.localRotation;
+            yield return new WaitForSecondsRealtime(.35f);
+            Assert.Less(Quaternion.Angle(before, chest.localRotation), .001f, "hidden guest animation is stopped");
+            menu.Close(); yield return null;
+            Assert.IsTrue(guest.gameObject.activeSelf);
+            menu.Leave(guestBinding); yield return null;
+            Assert.IsFalse(guest.gameObject.activeSelf);
+            Assert.AreEqual(1, menu.Stage.PresentedPartySize);
+            menu.Join(guestBinding); yield return null;
+            Assert.AreSame(guest, menu.Stage.transform.Find("Lobby guest 2"));
+            Assert.AreEqual(2, menu.Stage.PresentedPartySize);
+        }
+
+        [UnityTest]
         public IEnumerator CoinBalanceOpensShopThroughSubmitAndClosingReturnsFocusToItsLiveBalance()
         {
             var menu = LobbyMenu.Instance;
@@ -74,14 +108,15 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator PlayShowsTheChosenModeAndTheGoldTrophyKeepsItsCareerPositionAndReturnFocus()
+        public IEnumerator StartDockShowsChosenModeAndTextLeaderboardKeepsCareerPositionAndReturnFocus()
         {
             var menu = LobbyMenu.Instance;
             var play = Nav("PLAY");
-            var title = play.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Selected mode");
             foreach (string mode in LobbyMenu.Modes.Concat(new[] { LobbyMenu.TutorialMode, LobbyMenu.WorkshopMode }))
             {
                 menu.Choose(mode == LobbyMenu.WorkshopMode ? LobbyMenu.Workshop : LobbyMenu.Practice, mode);
+                var modeButton = menu.Page<HomePage>().Root.GetComponentsInChildren<Button>().Single(button => button.name == "Choose mode");
+                var title = modeButton.GetComponentInChildren<TMP_Text>();
                 Canvas.ForceUpdateCanvases(); title.ForceMeshUpdate();
                 Assert.AreEqual(LobbyMenu.ModeName(mode), title.text);
                 Assert.GreaterOrEqual(title.fontSize, 18f);
@@ -95,7 +130,7 @@ namespace Wreckabulary.Tests
                     Assert.Greater(glyph.topRight.x - glyph.bottomLeft.x, 0f);
                     Assert.Greater(glyph.topRight.y - glyph.bottomLeft.y, 0f);
                     var vertices = title.textInfo.meshInfo[glyph.materialReferenceIndex].vertices;
-                    var bounds = (RectTransform)play.transform;
+                    var bounds = (RectTransform)modeButton.transform;
                     for (int vertex = glyph.vertexIndex; vertex < glyph.vertexIndex + 4; vertex++)
                     {
                         var local = bounds.InverseTransformPoint(title.transform.TransformPoint(vertices[vertex]));
@@ -107,12 +142,12 @@ namespace Wreckabulary.Tests
             var career = Nav("CAREER");
             Assert.AreSame(career.transform.parent, trophy.transform.parent);
             Assert.AreEqual(career.transform.GetSiblingIndex() + 1, trophy.transform.GetSiblingIndex());
-            var icon = trophy.GetComponentsInChildren<Image>().Single(image => image.sprite && image.sprite.name == "Lobby icon trophy");
-            Assert.AreEqual(LobbyKit.Sun, icon.color);
+            Assert.AreEqual("LEADERBOARDS", trophy.GetComponentInChildren<TMP_Text>().text);
+            foreach (string tab in new[] { "LOADOUT", "PLAY", "CAREER", "Leaderboard" })
+                Assert.IsFalse(Nav(tab).GetComponentsInChildren<Image>().Any(image => image.name.StartsWith("Icon")), "text-only navigation: " + tab);
             EventSystem.current.SetSelectedGameObject(trophy.gameObject);
             ExecuteEvents.Execute(trophy.gameObject, new BaseEventData(EventSystem.current), ExecuteEvents.submitHandler);
             Assert.AreEqual(LobbyMenu.Trophy, menu.Current);
-            Assert.AreEqual(LobbyKit.Sun, icon.color, "selection preserves the coloured trophy");
             menu.Close();
             yield return null;
             Assert.AreSame(trophy.gameObject, EventSystem.current.currentSelectedGameObject);
