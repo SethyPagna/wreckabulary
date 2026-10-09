@@ -99,6 +99,31 @@ namespace Wreckabulary.Tests
             Assert.That(Popups(), Has.Some.Contains("12 <size=60%>DMG"));
         }
 
+        [UnityTest] public IEnumerator ControllerReticleShowsItsActualGrabTrigger()
+        {
+            var pad = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Gamepad>();
+            try
+            {
+                yield return TestScenes.Load(Session.DibsScene);
+                var player = Object.FindAnyObjectByType<PlayerJoinManager>().Join(new GamepadBinding(pad));
+                var rounds = RoundManager.Instance; rounds.CountdownTime = .1f; rounds.StartMatch();
+                yield return TestScenes.WaitUntil(() => rounds.Phase == Phase.Playing, 3, "controller round playing");
+                foreach (var other in World.Players)
+                    if (other != player) { other.Frozen = true; if (other.TryGetComponent<BotController>(out var bot)) bot.enabled = false; }
+                player.Respawn(new Vector3(0, .05f, -7)); player.FaceTowards(Vector3.forward); player.ResetLook();
+                yield return new WaitForSeconds(.4f);
+                var camera = CameraRig.Instance.ViewCamera;
+                var ray = camera.ViewportPointToRay(new Vector3(.5f, .5f));
+                var ball = CatalogGear.Create(GameConfig.Current.Items.Get("BALL"));
+                var at = ray.GetPoint(Vector3.Dot(player.transform.position + Vector3.up * .8f + player.Facing - ray.origin, ray.direction));
+                var body = ball.GetComponent<Rigidbody>(); body.useGravity = false; body.position = ball.transform.position = at;
+                Physics.SyncTransforms(); yield return new WaitForSeconds(.2f);
+                Assert.AreSame(body, player.Combat.GrabTarget());
+                Assert.AreEqual("RT", Object.FindAnyObjectByType<GameHud>().transform.Find("Crosshair/Interaction key").GetComponent<TMP_Text>().text);
+            }
+            finally { if (pad.added) UnityEngine.InputSystem.InputSystem.RemoveDevice(pad); }
+        }
+
         [UnityTest] public IEnumerator NearbyHitNumbersReserveSeparateScreenPositions()
         {
             yield return TestScenes.Load(Session.DibsScene);

@@ -807,7 +807,12 @@ namespace Wreckabulary
                 (LocalPlayer.Combat.GrabTarget() || LocalPlayer.Combat.DownedTeammateNearby());
             var color = available ? Hex(0x9ff8d3) : Hex(0xfff8e8);
             foreach (var tick in crosshairTicks) tick.color = color;
-            if (interactPrompt) interactPrompt.text = available ? ControlHints.KeyOf(DesktopBinding.Shared.Interact) : "";
+            if (interactPrompt) interactPrompt.text = !available ? "" : LocalPlayer.Binding switch
+            {
+                GamepadBinding => "RT",
+                TouchBinding => "GRAB",
+                _ => ControlHints.KeyOf(DesktopBinding.Shared.Interact),
+            };
         }
 
         void FindLocalPlayer()

@@ -17,7 +17,7 @@ Confirmed: old pickup selected the nearest body in a forward overlap sphere; old
 
 ## Verification
 
-21/21 health/stamina EditMode tests passed. Native runs passed 56/56, 39/39, 40/40 and 36/36. These overlapping runs cover 61 unique native tests, including existing controls, HUD, catalogue items and wall interactions. Raw evidence: Logs/interaction-*.xml and .log.
+21/21 health/stamina EditMode tests passed. Native runs passed 56/56, 39/39, 40/40 and 36/36. These overlapping runs cover 62 unique native tests, including existing controls, HUD, catalogue items and wall interactions. Raw evidence: Logs/interaction-*.xml and .log.
 
 Nine actual Unity ScreenCapture frames cover reachable E targeting, held ball, hand release, simultaneous DMG/PTS with 70 STA, feedback ON/OFF, ultrawide and 720p. Visual inspection caught overlapping labels and vertical stacking through the ceiling; both were corrected and recaptured. This is self-review.
 
@@ -30,3 +30,5 @@ Unity documents the initial-overlap limitation addressed by the centre-ray fallb
 The preexisting TMP fallback still matches its start-of-task backup byte-for-byte. Lunar source/scripts remain untouched. The optional toolkit install preview proposed 282 unrelated changes and was not applied. Tests use the project's established native editor workflow, with one editor at a time; no package, hook or global setup was installed.
 
 Stamina checkpoint 8c47686 is pushed as SethyPagna without a coauthor. Windows packaging/startup results will follow.
+
+Final input audit: gamepad reticle shows RT; touch shows GRAB; keyboard follows the saved rebound key. Controller/HUD/controls verification passed 21/21 in GPU-enabled batch PlayMode. Its first windowed run failed during setup/teardown from UnityEditor.ExposablePopupMenu / ProjectBrowser GUI exceptions; no game errors were suppressed. The failed log/XML remain available.

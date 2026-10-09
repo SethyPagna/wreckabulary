@@ -1,7 +1,7 @@
 {
   "status": "tests-passed-build-pending",
   "unity": "6000.6.3f1",
-  "nativeUniquePassed": 61,
+  "nativeUniquePassed": 62,
   "runs": [
     {
       "name": "interaction-rules-01",
@@ -42,6 +42,22 @@
       "passed": 36,
       "failed": 0,
       "sha256": "bdc68cd310718044bf3db730a243c53428b7b863909a38c79e800044347a982c"
+    },
+    {
+      "name": "interaction-prompts-final",
+      "result": "Failed(Child)",
+      "total": 21,
+      "passed": 0,
+      "failed": 21,
+      "sha256": "84996aafc8c33d72d20d8c1e92fc375636bee8a9400142783613b251ec1d581f"
+    },
+    {
+      "name": "interaction-prompts-verified",
+      "result": "Passed",
+      "total": 21,
+      "passed": 21,
+      "failed": 0,
+      "sha256": "d813204ec244eca89a3782aae0ee17bec4fe7d1d070e5de98baeaf004e41f7e4"
     }
   ],
   "screenshots": {
@@ -54,5 +70,6 @@
     "07-clean-hit-feedback-off.png": "b6a0247fe736d7bde66fa842f4fd9351d847f83043e7806864ceda385d32033c",
     "08-ultrawide-stamina.png": "eded54f58cb1a41b06678a711890afcefc4d127bdf88cefb20d38922a994f981",
     "09-compact-stamina.png": "89e125831fb9eccbd91d58126fae21eaa11c2e77f95588bb458a49e8707830e3"
-  }
+  },
+  "editorIssue": "interaction-prompts-final failed in setup/teardown from UnityEditor.ExposablePopupMenu / ProjectBrowser NullReferenceException, before gameplay checks. GPU-enabled batch rerun avoided the editor GUI and passed all 21 checks."
 }
