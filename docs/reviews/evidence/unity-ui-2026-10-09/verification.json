@@ -1,5 +1,5 @@
 {
-  "status": "native-verified-windows-build-pending",
+  "status": "verified",
   "engine": "6000.6.3f1",
   "baseline": "9d054bdc3d594299c8cf0ff325d7a9430182af5e",
   "recordedUtc": "2026-10-09T00:06:20.122598+00:00",
@@ -52,10 +52,27 @@
     "recipes": "Four columns, scroll to final rows; readable at all three resolutions",
     "home": "Three bright GPT backgrounds with native avatar and icon/text navigation"
   },
-  "windowsBuild": null,
+  "windowsBuild": {
+    "result": "Succeeded",
+    "errors": 0,
+    "totalBytes": 226767191,
+    "log": "Logs/ui-windows-build.log",
+    "executable": "Builds/Windows/Wreckabulary.exe",
+    "executableSha256": "96b492cb271111251fe42b8646e65370a1b7b566773a1e35b34c3f2d1ae70873",
+    "startup": {
+      "log": "Logs/ui-windows-player.log",
+      "responsive": true,
+      "seconds": 72.45,
+      "graphics": "Direct3D 11",
+      "input": "Windows.Gaming.Input",
+      "errors": 0,
+      "scope": "Packaged startup only; native gameplay and UI verified separately."
+    }
+  },
   "limits": [
     "Local multiplayer retained; no online transport added.",
     "Fifteen full-suite skips are explicitly selected capture/animation probes; the new UI capture is run separately.",
     "Images are GPT illustrations; in-world character and recipe previews remain native imported 3D models."
-  ]
+  ],
+  "featureCommit": "014d85679233ca7c5fb761ab9e8e3804153203b4"
 }

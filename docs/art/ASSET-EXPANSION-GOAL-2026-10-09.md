@@ -6,7 +6,7 @@ User authorization: continue after the current interface/lobby delivery, generat
 
 ## First dependency
 
-Finish `docs/reviews/UI-REFINEMENT-2026-10-09.md`: native menu behavior, actual screenshots at 16:9 and 21:9, packaged startup, and a clean Git checkpoint. EditMode currently passes 315 tests; rules pass 234. The first broad PlayMode attempt ended without a result file and is **unverified**.
+Completed the UI/lobby delivery in `docs/reviews/UI-REFINEMENT-2026-10-09.md`: 315 EditMode tests, 319 PlayMode tests (15 explicit skips), 234 rule tests and 18 reviewed native frames. Windows build and packaged startup passed. Checkpoint 014d856 is pushed; Winter House Party production is active.
 
 ## Production queue
 

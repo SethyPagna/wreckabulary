@@ -1,6 +1,6 @@
 # Unity interface and lobby refinement
 
-STATUS: IN PROGRESS
+STATUS: COMPLETE
 
 Baseline: `9d054bd` on `main`. Requested scope: transparent tile-only letter/hand tray; readable typography and recipes; working pause controls, persisted rebinding and reset; detailed minimap with unboxed labels; brighter lobby with icon/text navigation; selectable themes, wardrobe/accessories and per-recipe styles.
 
@@ -31,8 +31,9 @@ Unity must run only after all Assets writers freeze. Preserve existing authored 
 - First native UI journey passed and captured 18 actual frames at 1600×900, 2100×900 and 1280×720. Independent pixel review accepted the bright home themes and clear tray/map. It caught a distorted reused timer font and a shop miniature partly obscured by the panel; both were repaired and recaptured. Initial frames are preserved under `Logs/checkpoints/ui-first-capture-20261009`.
 - Final full PlayMode regression: **319 passed, 0 failed, 15 skipped**, 411.504 seconds (`Logs/ui-full-playmode.xml`). This includes the repaired input fixture, timer mesh/atlas regression, native preview projection, mixed recipe finishes, pause/rebinding lifecycle and the existing gameplay suites. The 15 skipped cases are explicit capture/animation probes; the UI capture is executed separately.
 - Final native capture passed: **18 frames**, 22.412 seconds. Reviewed frame06 shows the entire miniature clear of the shop panel; frame08 shows a readable timer. All three home themes, the recipe layouts and pause/settings screens passed pixel review.
-- Windows build and packaged startup remain pending. Machine-readable evidence is saved with the final frames in `evidence/unity-ui-2026-10-09/verification.json`.
+- Windows build succeeded with **0 errors**, **226,767,191 bytes**. Packaged Direct3D 11 startup remained responsive with zero logged errors for **72.45 seconds** before the smoke process was closed. Gameplay and UI acceptance use the native tests/captures above. Machine-readable evidence and executable SHA-256 are in `evidence/unity-ui-2026-10-09/verification.json`.
+- Feature checkpoint **014d856** was pushed to `main` as SethyPagna without coauthor trailers. Known generated build-setting/material churn was preserved under `Logs/checkpoints/ui-build-side-effects` and restored; authored scenes and placement were retained.
 
-## Recoverable next action
+## Next active work
 
-Commit and push the native-verified feature checkpoint as SethyPagna without coauthor trailers. Build Windows, smoke-test packaged startup, preserve and restore known generated build churn, then complete this UI report and begin Winter House Party under the ongoing asset-expansion goal.
+Continue Winter House Party under the ongoing asset-expansion goal. The UI delivery is complete; winter source assets, image provenance and native integration are tracked separately in `docs/art/WINTER-HOUSE-PARTY-2026-10-09.md`. Open the latest editable workspace with `OPEN-LATEST-UNITY.cmd` beside the checkout.
