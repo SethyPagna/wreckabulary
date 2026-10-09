@@ -42,5 +42,33 @@
     "15-winter-restored-solo.png": "035c5bf1d40877445fe4dccc72d4333789dd68736142284412a6556e74ea330d",
     "16-winter-selected-mode.png": "d015b66fdb3703dc788925c91b4be8fce9e4801fc5fb9992ace57c87c6b110e9"
   },
-  "windows": "pending"
+  "windows": {
+    "result": "Succeeded",
+    "errors": 0,
+    "bytes": 233836879,
+    "log": "Logs/lobby-party-windows.log",
+    "files": [
+      {
+        "file": "Builds/Windows/Wreckabulary.exe",
+        "sha256": "96b492cb271111251fe42b8646e65370a1b7b566773a1e35b34c3f2d1ae70873"
+      },
+      {
+        "file": "Builds/Windows/Wreckabulary_Data/Managed/Wreckabulary.dll",
+        "sha256": "86200dfd31985aef88b9380949a421143a52a583a6479ff1f0b9de4476c2e0df"
+      },
+      {
+        "file": "Builds/Windows/Wreckabulary_Data/resources.assets",
+        "sha256": "b51b20e61eff8866ce6718dc676937b5569f1eaf0bac439cb353207bf086f256"
+      }
+    ],
+    "smoke": {
+      "pid": 27760,
+      "responsive": true,
+      "seconds": 111.7990859,
+      "loggedErrors": 0,
+      "launchStyle": "Hidden",
+      "scope": "Packaged Windows startup only; native screenshots and interaction checks are recorded separately."
+    }
+  },
+  "sourceCommit": "3fe398b"
 }

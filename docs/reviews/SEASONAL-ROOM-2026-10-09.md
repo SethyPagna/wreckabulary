@@ -1,6 +1,6 @@
 # Editable Pinwheel winter corner
 
-STATUS: NATIVE VERIFIED; INCLUDED IN NEXT WINDOWS PACKAGE
+STATUS: NATIVE VERIFIED; INCLUDED IN WINDOWS PACKAGE 3fe398b
 
 Baseline: a09ed63. Added a native tree, three wrapped gifts, a wall-mounted wreath and brass garland to the saved Pinwheel living room. This is authored map decoration; previewing a lobby theme does not change the map.
 
@@ -18,4 +18,4 @@ The collection uses six renderers and 5,088 triangles. Five meshes and all mater
 - The final native run passed **7/7 tests in 17.33 seconds**, including all six camera-cutaway cases and the seasonal journey. Seven actual screenshots show solo TPP at 16:9/21:9, upward wall detail, post-reset decoration, two/four local seats and active Moving Day. The four-seat match includes active foam shields. Moving Day Retry preserves the same corner while resetting gameplay furniture. Evidence: `Logs/seasonal-room-native-verified.xml` and `.log`.
 - A fresh editor process reran the production authoring command and reported `PINWHEEL_WINTER_PRESERVED`. The prefab SHA-256 was unchanged: `569e4abc1db1c81a624965e972940e976494161568072e9b8e0446db23b230ae`.
 
-Source and failed first-capture evidence remain in `Logs/checkpoints`; final native artifacts are under `docs/reviews/evidence/unity-seasonal-room-2026-10-09`. Native visual review is by the implementing agent for this batch. Windows package refresh is pending. Lunar icon/model/audio integration remains separate and incomplete; the ongoing asset-expansion goal stays active.
+Source and failed first-capture evidence remain in `Logs/checkpoints`; final native artifacts are under `docs/reviews/evidence/unity-seasonal-room-2026-10-09`. Native visual review is by the implementing agent for this batch. Windows package 3fe398b includes this corner: build succeeded with zero errors and packaged startup passed. See LOBBY-PARTY-2026-10-09.md and its verification.json for hashes and scope. Lunar icon/model/audio integration remains separate and incomplete; the ongoing asset-expansion goal stays active.
