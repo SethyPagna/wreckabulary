@@ -49,6 +49,10 @@ namespace Wreckabulary
         GameObject avatar;
         SkinnedMeshRenderer[] meshes;
         PlayableGraph graph;
+        AnimationMixerPlayable animationMixer;
+        AnimationClipPlayable emotePlayable;
+        const float EmoteFade = .14f;
+        float emoteDuration;
         Camera cam;
         CameraRig rig;
         bool rigWasEnabled, cameraTaken;
@@ -67,6 +71,8 @@ namespace Wreckabulary
         public bool ArtworkShown => artwork;
         public bool ThemeEffectsEnabled => themeEffects;
         public Transform ItemPreview => itemPreview;
+        public bool IsPresenting => cameraTaken && isActiveAndEnabled;
+        public bool IsEmoting => graph.IsValid() && emotePlayable.IsValid();
 
         void OnEnable() => LobbyThemes.Changed += ApplyTheme;
         void OnDisable() { LobbyThemes.Changed -= ApplyTheme; Release(); }
@@ -93,8 +99,9 @@ namespace Wreckabulary
 
         public bool PreviewItem(string word, string skin)
         {
-            if (string.IsNullOrWhiteSpace(word) || skin is not ("Classic" or "Candy" or "Arcade")) return false;
+            if (string.IsNullOrWhiteSpace(word)) return false;
             word = word.ToUpperInvariant();
+            if (!GameConfig.Current.Items.TryGet(word, out var item) || !item.HasSkin(skin)) return false;
             var library = ModelLibrary.Load();
             if (!library || !library.Find("Items/" + word)) return false;
             if (itemPreview && previewWord == word && previewSkin == skin) return true;
@@ -211,6 +218,7 @@ namespace Wreckabulary
 
         public void Dress(Outfit outfit)
         {
+            StopEmote();
             if (!avatar && !SpawnAvatar()) return;
             PlayerAppearance.Dress(meshes, outfit);
         }
@@ -230,14 +238,57 @@ namespace Wreckabulary
             if (animator && idle)
             {
                 animator.applyRootMotion = false;
+                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
                 graph = PlayableGraph.Create("Lobby avatar");
                 graph.SetTimeUpdateMode(DirectorUpdateMode.UnscaledGameTime);
+                animationMixer = AnimationMixerPlayable.Create(graph, 2);
+                graph.Connect(AnimationClipPlayable.Create(graph, idle), 0, animationMixer, 0);
+                animationMixer.SetInputWeight(0, 1f);
                 var output = AnimationPlayableOutput.Create(graph, "Lobby avatar", animator);
-                output.SetSourcePlayable(AnimationClipPlayable.Create(graph, idle));
+                output.SetSourcePlayable(animationMixer);
                 graph.Play();
             }
             Place(true);
             return true;
+        }
+
+        /// <summary>Plays a cosmetic Generic clip once, using unscaled lobby time and no root motion.</summary>
+        public bool PlayEmote(AnimationClip clip)
+        {
+            if (!IsPresenting || !graph.IsValid() || !clip || clip.legacy || clip.isHumanMotion ||
+                clip.length <= 0f || float.IsNaN(clip.length) || float.IsInfinity(clip.length)) return false;
+            StopEmote();
+            emotePlayable = AnimationClipPlayable.Create(graph, clip);
+            emotePlayable.SetApplyFootIK(false);
+            emotePlayable.SetTime(0d);
+            emotePlayable.SetDuration(clip.length);
+            graph.Connect(emotePlayable, 0, animationMixer, 1);
+            animationMixer.SetInputWeight(1, 0f);
+            emoteDuration = clip.length;
+            return true;
+        }
+
+        public void StopEmote()
+        {
+            if (!graph.IsValid() || !emotePlayable.IsValid()) return;
+            animationMixer.SetInputWeight(1, 0f);
+            animationMixer.SetInputWeight(0, 1f);
+            graph.Disconnect(animationMixer, 1);
+            graph.DestroyPlayable(emotePlayable);
+            emotePlayable = default;
+            emoteDuration = 0f;
+        }
+
+        void Update()
+        {
+            if (!IsEmoting) return;
+            if (!IsPresenting) { StopEmote(); return; }
+            float time = (float)emotePlayable.GetTime();
+            if (time >= emoteDuration) { StopEmote(); return; }
+            float fade = Mathf.Min(EmoteFade, emoteDuration * .5f);
+            float weight = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(Mathf.Min(time, emoteDuration - time) / fade));
+            animationMixer.SetInputWeight(0, 1f - weight);
+            animationMixer.SetInputWeight(1, weight);
         }
 
         public void Turn(float degrees) => targetYaw += degrees;
@@ -455,6 +506,7 @@ namespace Wreckabulary
 
         public void Release()
         {
+            StopEmote();
             ClearItemPreview();
             if (!cameraTaken) return;
             if (cam)
@@ -524,8 +576,8 @@ namespace Wreckabulary
 
         void OnDestroy()
         {
-            if (graph.IsValid()) graph.Destroy();
             Release();
+            if (graph.IsValid()) graph.Destroy();
             TactileMaterials.Release(gameObject);
             if (lookProfile) Destroy(lookProfile);
             if (skyTexture) Destroy(skyTexture);

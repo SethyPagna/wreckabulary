@@ -298,6 +298,7 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator PauseAudioAndGraphicsChangeLiveValuesAndResetDefaults()
         {
+            string savedPack = PlayerPrefs.HasKey(GameSoundPacks.PreferenceKey) ? PlayerPrefs.GetString(GameSoundPacks.PreferenceKey) : null;
             var savedGraphics = GraphicsOptions.Keys.Select(k => PlayerPrefs.HasKey(k) ? PlayerPrefs.GetString(k) : null).ToArray();
             bool hadVolume = PlayerPrefs.HasKey(LobbyMenu.VolumeKey), hadVsync = PlayerPrefs.HasKey(LobbyMenu.VsyncKey), hadMute = PlayerPrefs.HasKey("wv.muted");
             float savedVolume = PlayerPrefs.GetFloat(LobbyMenu.VolumeKey, 1f), liveVolume = AudioListener.volume;
@@ -341,6 +342,7 @@ namespace Wreckabulary.Tests
             }
             finally
             {
+                if (savedPack == null) PlayerPrefs.DeleteKey(GameSoundPacks.PreferenceKey); else PlayerPrefs.SetString(GameSoundPacks.PreferenceKey, savedPack);
                 for (int i = 0; i < GraphicsOptions.Keys.Length; i++)
                     if (savedGraphics[i] == null) PlayerPrefs.DeleteKey(GraphicsOptions.Keys[i]); else PlayerPrefs.SetString(GraphicsOptions.Keys[i], savedGraphics[i]);
                 if (hadVolume) PlayerPrefs.SetFloat(LobbyMenu.VolumeKey, savedVolume); else PlayerPrefs.DeleteKey(LobbyMenu.VolumeKey);

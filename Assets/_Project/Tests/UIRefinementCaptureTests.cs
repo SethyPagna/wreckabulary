@@ -253,7 +253,7 @@ namespace Wreckabulary.Tests
             finally { Object.Destroy(pixels); }
         }
 
-        sealed class GameViewScope : IDisposable
+        internal sealed class GameViewScope : IDisposable
         {
             const BindingFlags Members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
             readonly object group;

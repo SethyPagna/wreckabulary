@@ -68,10 +68,10 @@ namespace Wreckabulary.Rules
         }
 
         public bool Owns(string kind, string value) =>
-            (kind == "skin" && value == "Classic") ||
+            (kind == "skin" && (value == "Classic" || value == "Winter")) ||
             (kind == "colour" && FreeColours.Contains(value)) ||
             (kind == "piece" && FreePieces.Contains(value)) ||
-            (kind == "theme" && value == "sunroom") ||
+            (kind == "theme" && (value == "sunroom" || value == "winter")) ||
             (kind == "look" && CosmeticBundles.Find(value)?.OwnedBy(this) == true) ||
             Owned.Contains(kind + ":" + value);
 

@@ -111,6 +111,7 @@ namespace Wreckabulary
             Stage = new GameObject("Lobby stage").AddComponent<LobbyStage>();
             LobbyThemes.Restore();
             Stage.Show(Map, Outfit);
+            Stage.gameObject.AddComponent<LobbyCollectionDecor>();
             Stage.SetThemeEffects(PlayerPrefs.GetInt("wv.theme.effects", 1) != 0);
             BuildCanvas();
             BuildBar();

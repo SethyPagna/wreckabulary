@@ -34,7 +34,8 @@ namespace Wreckabulary
         {
             new LobbyTheme("sunroom", "Sunroom Social", 0, 0xD59D4D, 0x63B6A0, 0x243F3B, 0xFFF4DF),
             new LobbyTheme("candy", "Candy Carnival", 300, 0xD96385, 0x74B7AC, 0x573E48, 0xFFF0F2),
-            new LobbyTheme("lantern", "Lantern Festival", 350, 0xD76543, 0x347E7B, 0x553329, 0xFFF0D7)
+            new LobbyTheme("lantern", "Lantern Festival", 350, 0xD76543, 0x347E7B, 0x553329, 0xFFF0D7),
+            new LobbyTheme("winter", "Winter House Party", 0, 0xB53642, 0x3D8970, 0x263E36, 0xFFF4E2)
         });
 
         static LobbyTheme current;

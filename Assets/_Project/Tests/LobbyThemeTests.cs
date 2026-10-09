@@ -85,7 +85,7 @@ namespace Wreckabulary.Tests
             PlayerPrefs.SetString(LobbyThemes.PreferenceKey, "removed-theme");
             LobbyThemes.Restore();
             Assert.AreEqual("sunroom", LobbyThemes.Current.Id);
-            CollectionAssert.AreEqual(new[] { 0, 300, 350 }, LobbyThemes.All.Select(theme => theme.Price));
+            CollectionAssert.AreEqual(new[] { 0, 300, 350, 0 }, LobbyThemes.All.Select(theme => theme.Price));
         }
 
         [UnityTest]

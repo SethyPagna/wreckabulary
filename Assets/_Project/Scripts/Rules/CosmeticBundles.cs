@@ -64,7 +64,9 @@ namespace Wreckabulary.Rules
             new CosmeticBundle("arcade", "Midnight Arcade", "Arcade Social", "Grape crewneck, shades + Arcade SHIELD", 550, new[] { "colour:grape", "skin:Arcade" },
                 "Crewneck", "Cap", "grape", "charcoal", "ink", "navy", "charcoal", "sky", "navy", true, "SHIELD", "Arcade"),
             new CosmeticBundle("lantern", "Lantern Walker", "Lantern Festival", "Warm hoodie, gold glasses and satchel", 0, Array.Empty<string>(),
-                "Hoodie", "Hood", "tangerine", "cocoa", "sunflower", "tan", "tomato", "gold", "brick", true)
+                "Hoodie", "Hood", "tangerine", "cocoa", "sunflower", "tan", "tomato", "gold", "brick", true),
+            new CosmeticBundle("winter", "Holly Housemate", "Winter House Party", "Red hoodie, forest boots and cream mittens", 0, Array.Empty<string>(),
+                "Hoodie", "Hood", "tomato", "olive", "putty", "forest", "tomato", "gold", "olive", false)
         });
 
         public static CosmeticBundle Find(string id) => All.FirstOrDefault(bundle => bundle.Id == id);

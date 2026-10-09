@@ -147,6 +147,7 @@ namespace Wreckabulary
         {
             "Candy" => (LobbyKit.Hex(0xff7ac8), LobbyKit.Hex(0x7fe3ff)),
             "Arcade" => (LobbyKit.Hex(0x3a1fd1), LobbyKit.Hex(0x00e0c6)),
+            "Winter" => (LobbyKit.Hex(0x236c57), LobbyKit.Hex(0xe4b451)),
             _ => (LobbyKit.WoodHi, LobbyKit.WoodLo),
         };
 
@@ -1276,6 +1277,9 @@ namespace Wreckabulary
         {
             NameField(Setting(list, "Name", "Shows over your head and on the boards."));
             Toggle(Setting(list, "Sound", "Every sound in the game."), "Sound", !GameFeedback.Muted, on => GameFeedback.Muted = !on);
+            Choose(Setting(list, "Sound pack"), "Sound pack", GameSoundPacks.Ids.Select(id => (id, GameSoundPacks.Label(id))).ToList(),
+                GameSoundPacks.Selected, id => GameSoundPacks.Select(id), 340);
+            LobbyKit.Pill(Setting(list, "Listen"), "Preview sound pack", "Preview sound", 20, () => GameSoundPacks.Preview()).Size(220, 46);
             Stepper(Setting(list, "Volume", "Ten steps, from silent to full."), "Volume", Mathf.RoundToInt(AudioListener.volume * 100) + "%", step =>
             {
                 AudioListener.volume = Mathf.Clamp01(Mathf.Round(AudioListener.volume * 10f + step) / 10f);

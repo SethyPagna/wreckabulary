@@ -96,6 +96,9 @@ namespace Wreckabulary
         void BuildPauseAudio(Transform list)
         {
             PauseToggle(list, "Sound", () => !GameFeedback.Muted, enabled => GameFeedback.Muted = !enabled);
+            PauseStepper(list, "Sound pack", () => GameSoundPacks.Label(GameSoundPacks.Selected), step =>
+                GameSoundPacks.Select(Next(GameSoundPacks.Ids, GameSoundPacks.Selected, step)));
+            PauseAction(list, "Preview sound pack", "PREVIEW SOUND", () => GameSoundPacks.Preview());
             PauseStepper(list, "Volume", () => Mathf.RoundToInt(AudioListener.volume * 100f) + "%", step =>
             {
                 AudioListener.volume = Mathf.Clamp01(Mathf.Round(AudioListener.volume * 10f + step) / 10f);
@@ -105,6 +108,7 @@ namespace Wreckabulary
             PauseAction(list, "Reset audio", "RESET AUDIO", () =>
             {
                 GameFeedback.Muted = false;
+                GameSoundPacks.Select("default");
                 AudioListener.volume = 1f;
                 PlayerPrefs.DeleteKey(LobbyMenu.VolumeKey);
                 PlayerPrefs.Save();

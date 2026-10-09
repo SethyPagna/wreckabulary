@@ -53,6 +53,7 @@ namespace Wreckabulary
             LobbyKit.SectionLabel(list, "Set the scene");
             var themes = LobbyKit.Grid(list, "Themes", Card, 16);
             foreach (var theme in LobbyThemes.All) ThemeCard(themes, theme);
+            WinterEmote(list);
             LobbyKit.SectionLabel(list, "Collected looks");
             var looks = LobbyKit.Grid(list, "Looks", Card, 16);
             foreach (var bundle in CosmeticBundles.All) LookCard(looks, bundle);
@@ -68,6 +69,26 @@ namespace Wreckabulary
             LobbyKit.SectionLabel(list, "Top colours");
             var colours = LobbyKit.Grid(list, "Colours", Card, 16);
             foreach (var offer in Career.Shop.Where(o => o.Kind == "colour")) ColourCard(colours, offer);
+        }
+
+        void WinterEmote(Transform parent)
+        {
+            var collection = Art.SeasonalCollection.Winter;
+            if (!collection || !collection.emote) return;
+            LobbyKit.SectionLabel(parent, "Winter House Party · yours to keep");
+            var row = LobbyKit.Row(parent, "Winter emote", 8);
+            row.Size(-1, 58);
+            LobbyKit.TextAction(row, "Play winter shuffle", "WINTER SHUFFLE", 24, PlayWinterEmote,
+                icon: LobbyIcons.Chevron).Size(-1, 52, 1);
+            LobbyKit.TextAction(row, "Stop winter shuffle", "STOP", 19, () => Menu.Stage.StopEmote()).Size(100, 52);
+        }
+
+        public void PlayWinterEmote()
+        {
+            var collection = Art.SeasonalCollection.Winter;
+            if (!collection || !collection.emote) return;
+            Menu.Stage.ClearItemPreview();
+            Menu.Stage.PlayEmote(collection.emote);
         }
 
         RectTransform ArtCard(Transform parent, ShopOffer offer, string title, string description, bool worn, out RectTransform art)

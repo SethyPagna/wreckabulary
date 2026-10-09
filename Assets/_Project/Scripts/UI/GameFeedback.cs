@@ -10,6 +10,7 @@ namespace Wreckabulary
         static AudioSource speaker;
         static readonly Dictionary<GameCue, AudioClip> clips = new();
         static readonly Dictionary<GameCue, float> last = new();
+        public static event System.Action<GameCue, AudioClip> Played;
 
         public static bool Muted
         {
@@ -21,14 +22,19 @@ namespace Wreckabulary
         static void Reset()
         {
             foreach (var clip in clips.Values) if (clip) UnityEngine.Object.Destroy(clip);
-            clips.Clear(); last.Clear(); speaker = null;
+            clips.Clear(); last.Clear(); speaker = null; Played = null;
         }
 
         public static void Play(GameCue cue)
+            => PlayInternal(cue, GameSoundPacks.Selected, false);
+
+        public static bool Preview(GameCue cue, string pack)
+            => (pack == "default" || pack == "winter") && PlayInternal(cue, pack, true);
+
+        static bool PlayInternal(GameCue cue, string pack, bool preview)
         {
-            if (Muted) return;
-            if (last.TryGetValue(cue, out float at) && Time.unscaledTime - at < 0.055f) return;
-            last[cue] = Time.unscaledTime;
+            if (Muted || AudioListener.volume <= 0f || AudioListener.pause) return false;
+            if (last.TryGetValue(cue, out float at) && Time.unscaledTime - at < 0.055f) return false;
             if (!speaker)
             {
                 var root = new GameObject("House sound cues");
@@ -36,8 +42,13 @@ namespace Wreckabulary
                 speaker = root.AddComponent<AudioSource>();
                 speaker.playOnAwake = false; speaker.spatialBlend = 0f; speaker.volume = 0.13f;
             }
-            if (!clips.TryGetValue(cue, out var clip)) clips[cue] = clip = Make(cue);
+            bool bankClip = GameSoundPacks.TryPick(cue, pack, preview, out var clip, out int variant);
+            if (!bankClip && !clips.TryGetValue(cue, out clip)) clips[cue] = clip = Make(cue);
             speaker.PlayOneShot(clip);
+            last[cue] = Time.unscaledTime;
+            if (bankClip) GameSoundPacks.Played(cue, preview, variant);
+            Played?.Invoke(cue, clip);
+            return true;
         }
 
         static AudioClip Make(GameCue cue)
