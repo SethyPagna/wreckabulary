@@ -28,6 +28,10 @@ namespace Wreckabulary.Rules
         public float DodgeInvulnerableSeconds = 0.15f;
         public float DodgeDistance = 4f;
         public float DodgeCooldown = 1.5f;
+        public float MaxStamina = 100f;
+        public float DodgeStamina = 30f;
+        public float StaminaRegen = 20f;
+        public float StaminaRegenDelay = 1f;
         public float JumpHeight = 1.1f;
         public float GroundAccel = 36f;
         public float GroundFriction = 28f;
@@ -98,6 +102,8 @@ namespace Wreckabulary.Rules
             Need(ReviveHealth > 0 && ReviveHealth <= MaxHealth, "reviveHealth must be within max health");
             Need(DodgeInvulnerableSeconds <= DodgeSeconds, "dodge invulnerability can't outlast the dodge");
             Need(DodgeSeconds > 0 && DodgeDistance >= 0, "a dodge needs a duration and a distance");
+            Need(MaxStamina > 0 && DodgeStamina >= 0 && DodgeStamina <= MaxStamina, "dodge stamina must fit the stamina pool");
+            Need(StaminaRegen >= 0 && StaminaRegenDelay >= 0, "stamina recovery cannot be negative");
             Need(JumpHeight > 0, "jumpHeight must be positive");
             Need(GroundAccel > 0 && GroundFriction > 0, "groundAccel and groundFriction must be positive");
             return problems;
@@ -178,6 +184,10 @@ namespace Wreckabulary.Rules
             r.DodgeInvulnerableSeconds = n["dodgeInvulnerable"].Float(r.DodgeInvulnerableSeconds);
             r.DodgeDistance = n["dodgeDistance"].Float(r.DodgeDistance);
             r.DodgeCooldown = n["dodgeCooldown"].Float(r.DodgeCooldown);
+            r.MaxStamina = n["maxStamina"].Float(r.MaxStamina);
+            r.DodgeStamina = n["dodgeStamina"].Float(r.DodgeStamina);
+            r.StaminaRegen = n["staminaRegen"].Float(r.StaminaRegen);
+            r.StaminaRegenDelay = n["staminaRegenDelay"].Float(r.StaminaRegenDelay);
             r.JumpHeight = n["jumpHeight"].Float(r.JumpHeight);
             r.GroundAccel = n["groundAccel"].Float(r.GroundAccel);
             r.GroundFriction = n["groundFriction"].Float(r.GroundFriction);
