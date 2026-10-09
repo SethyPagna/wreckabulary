@@ -1,5 +1,5 @@
 {
-  "status": "Native verified; Windows package pending",
+  "status": "Verified",
   "baseline": "23a089b",
   "engine": "6000.6.3f1",
   "tests": {
@@ -59,5 +59,35 @@
       "sha256": "09f28985ce4798bbfcc0b3ebf346175a4b54365eff7f7ac164dee3358db7a38b"
     }
   ],
-  "review": "Root and independent read-only reviewer accepted final contrast, subtitle and aspect-ratio alignment."
+  "review": "Root and independent read-only reviewer accepted final contrast, subtitle and aspect-ratio alignment.",
+  "sourceCommit": "a2b379b",
+  "windows": {
+    "result": "Succeeded",
+    "errors": 0,
+    "bytes": 233814383,
+    "log": "Logs/lobby-navigation-windows-build.log",
+    "smoke": {
+      "pid": 3060,
+      "name": "Wreckabulary",
+      "responsive": true,
+      "seconds": 69.2616856,
+      "loggedErrors": 0,
+      "launchStyle": "Hidden",
+      "scope": "Packaged Windows startup only; native render and interaction verification is recorded separately."
+    },
+    "files": [
+      {
+        "file": "Builds/Windows/Wreckabulary.exe",
+        "sha256": "96b492cb271111251fe42b8646e65370a1b7b566773a1e35b34c3f2d1ae70873"
+      },
+      {
+        "file": "Builds/Windows/Wreckabulary_Data/Managed/Wreckabulary.dll",
+        "sha256": "5fd8c68ce170b07a08ee7c41182db06a38543fce0c7eb0d025218653f924b486"
+      },
+      {
+        "file": "Builds/Windows/Wreckabulary_Data/resources.assets",
+        "sha256": "15f65b4fd5239a18387c1db45757a0cc1d4ffa93d86e4baf08461dcab25c8657"
+      }
+    ]
+  }
 }
