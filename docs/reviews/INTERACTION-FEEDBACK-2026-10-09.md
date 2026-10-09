@@ -1,6 +1,6 @@
 # Interaction, feedback and stamina
 
-STATUS: TESTS PASSED; WINDOWS BUILD PENDING
+STATUS: COMPLETE
 
 Scope: shared crosshair/pointer aim for E pickup and hand-origin throws, physical reach and obstruction, persistent damage/points switches, real dodge stamina beside health. Starting revision f2f60d7. Preserve preexisting TMP fallback and Lunar source changes.
 
@@ -29,6 +29,8 @@ Unity documents the initial-overlap limitation addressed by the centre-ray fallb
 
 The preexisting TMP fallback still matches its start-of-task backup byte-for-byte. Lunar source/scripts remain untouched. The optional toolkit install preview proposed 282 unrelated changes and was not applied. Tests use the project's established native editor workflow, with one editor at a time; no package, hook or global setup was installed.
 
-Stamina checkpoint 8c47686 is pushed as SethyPagna without a coauthor. Windows packaging/startup results will follow.
+Stamina checkpoint 8c47686 is pushed as SethyPagna without a coauthor. Windows packaging/startup completed below.
 
 Final input audit: gamepad reticle shows RT; touch shows GRAB; keyboard follows the saved rebound key. Controller/HUD/controls verification passed 21/21 in GPU-enabled batch PlayMode. Its first windowed run failed during setup/teardown from UnityEditor.ExposablePopupMenu / ProjectBrowser GUI exceptions; no game errors were suppressed. The failed log/XML remain available.
+
+Final Windows package: **b9aa07b**, succeeded with **0 build errors**, 233,848,879 bytes. The normally launched packaged player remained responsive for 129.4 seconds with no logged runtime errors, then was closed by its verified PID because the hidden player declined a normal close request. Exact binary/resource hashes and startup observation are in verification.json. Twenty generated paths were preserved locally and restored to their pre-build bytes. No test player or Unity editor is intentionally left running. This proves packaged startup; gameplay/rendering evidence comes from the native Unity tests and screenshots.

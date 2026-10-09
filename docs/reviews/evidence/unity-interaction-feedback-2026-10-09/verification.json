@@ -1,5 +1,5 @@
 {
-  "status": "tests-passed-build-pending",
+  "status": "complete",
   "unity": "6000.6.3f1",
   "nativeUniquePassed": 62,
   "runs": [
@@ -71,5 +71,31 @@
     "08-ultrawide-stamina.png": "eded54f58cb1a41b06678a711890afcefc4d127bdf88cefb20d38922a994f981",
     "09-compact-stamina.png": "89e125831fb9eccbd91d58126fae21eaa11c2e77f95588bb458a49e8707830e3"
   },
-  "editorIssue": "interaction-prompts-final failed in setup/teardown from UnityEditor.ExposablePopupMenu / ProjectBrowser NullReferenceException, before gameplay checks. GPU-enabled batch rerun avoided the editor GUI and passed all 21 checks."
+  "editorIssue": "interaction-prompts-final failed in setup/teardown from UnityEditor.ExposablePopupMenu / ProjectBrowser NullReferenceException, before gameplay checks. GPU-enabled batch rerun avoided the editor GUI and passed all 21 checks.",
+  "finishedUtc": "2026-10-09T06:37:15.307294+00:00",
+  "windowsBuild": {
+    "sourceCommit": "b9aa07b",
+    "result": "Succeeded",
+    "errors": 0,
+    "bytes": 233848879,
+    "launcher": "Builds/Windows/Wreckabulary.exe",
+    "normalStartup": {
+      "Id": 1184,
+      "Responding": true,
+      "Seconds": 129.4461992,
+      "Cpu": 247.234375
+    },
+    "runtimeErrors": [],
+    "log": "Logs/interaction-windows-startup-final.log",
+    "sha256": {
+      "Builds/Windows/Wreckabulary_Data/Managed/Wreckabulary.dll": "a6ad06f779e7d4c0f9befe857ae957b7355fc2e4aed6e705b8541f3814edb481",
+      "Builds/Windows/Wreckabulary_Data/resources.assets": "2ec78f477571f60964c471a665c3eec1f0143d6ae81049e6ad3cc05db33d3e60"
+    },
+    "cleanup": "Normal close returned false for the hidden test player; stopped only its verified PID 1184."
+  },
+  "preservation": {
+    "generatedPathsRestored": 20,
+    "tmpFallbackUnchanged": true,
+    "lunarSourceUntouched": true
+  }
 }
