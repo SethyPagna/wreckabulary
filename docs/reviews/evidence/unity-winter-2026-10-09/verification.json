@@ -91,7 +91,49 @@
   "limits": [
     "Physical speaker listening and subjective audio quality not verified.",
     "This batch adds lobby decoration; seasonal gameplay-room integration remains queued.",
-    "Winter finish cards still use shared recipe illustration icons; actual model previews display the chosen materials.",
-    "Packaged Windows build validation pending this checkpoint."
-  ]
+    "Winter finish cards still use shared recipe illustration icons; actual model previews display the chosen materials."
+  ],
+  "nativeCheckpoint": "a8212582b48c08fd549bf2cf38d2f4d721d2ad39",
+  "windows": {
+    "result": "Succeeded",
+    "errors": 0,
+    "bytes": 233812607,
+    "buildLog": "Logs/winter-windows-build.log",
+    "files": [
+      {
+        "path": "Builds/Windows/Wreckabulary.exe",
+        "bytes": 667136,
+        "sha256": "96b492cb271111251fe42b8646e65370a1b7b566773a1e35b34c3f2d1ae70873"
+      },
+      {
+        "path": "Builds/Windows/Wreckabulary_Data/Managed/Wreckabulary.dll",
+        "bytes": 646144,
+        "sha256": "2c7bb64e5b16acedfc0ac9186a4bdc663792e477f89f2c280d0b4fbda06b2207"
+      },
+      {
+        "path": "Builds/Windows/Wreckabulary_Data/resources.assets",
+        "bytes": 69423636,
+        "sha256": "c483efce3af1813e82d42ab746e53d76fdd9827f29cd69680e303c1bbe669ab4"
+      }
+    ],
+    "startup": {
+      "pid": 25884,
+      "name": "Wreckabulary",
+      "responsive": true,
+      "seconds": 84.7629233,
+      "loggedErrors": 0,
+      "scope": "Packaged Windows startup only; native gameplay/captures tested separately"
+    }
+  },
+  "visualReview": {
+    "reviewers": 2,
+    "frames": [
+      "01",
+      "04",
+      "06",
+      "07",
+      "08"
+    ],
+    "result": "No blocking overlap, clipping, floating or scale problem in reviewed final frames. Revised backdrop removes duplicate decorations."
+  }
 }

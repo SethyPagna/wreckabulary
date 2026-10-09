@@ -1,6 +1,6 @@
 # Winter House Party production
 
-STATUS: NATIVE VERIFIED; WINDOWS PACKAGE PENDING
+STATUS: COMPLETE — first lobby/props/emote/sound batch; continuing seasonal-map and later-collection work is tracked separately.
 
 Baseline: UI delivery `59124d5`, pushed as SethyPagna after native tests and Windows startup validation. All asset writers froze before the first winter Unity import.
 
@@ -22,11 +22,12 @@ Baseline: UI delivery `59124d5`, pushed as SethyPagna after native tests and Win
 - First native capture: 1/1 passed, 10 frames (15.72 s). Independent review found sound placement at 16:9/21:9 and clear dance/SHIELD/SODA previews, but duplicated background and native decorations. A GPT background revision removes the illustrated tree/gifts/wreath; original and revision are preserved. Final recapture passed with 10 inspected frames using the revised backdrop; no duplicated tree/gifts/wreath remains.
 - Full PlayMode: 333 passed, 0 failed, 16 explicit capture/advanced-animation cases skipped (492.92 s).
 - Final explicit capture plus DSP output checks: 2/2 passed (22.57 s). All six PCM variants produced finite, nonclipping native mixer output; mute, zero-master and pause gates remained silent and settings restored. Physical speaker listening remains unverified.
-- Packaged Windows build validation pending this checkpoint.
+- Windows build: succeeded, zero errors, 233,812,607 bytes. Packaged Direct3D 11 / Windows.Gaming.Input startup remained responsive for 84.76 seconds with zero logged errors. This is a startup smoke check, separate from native gameplay tests. Engine launcher, gameplay DLL and resource archive hashes are recorded in verification.json.
+- Source/native checkpoint a821258 is pushed as SethyPagna without coauthor trailers. Final visual review accepted the revised collection. Nineteen known build side effects were preserved under Logs/checkpoints/winter-build-side-effects and restored.
 - Exact pre-import recovery snapshot: Logs/checkpoints/winter-pre-import-20261009.zip (89 paths, 16,181,000 bytes).
 
 ## Ownership and recovery
 
 Root integrates/tests/captures/commits. Props, animation and audio source lanes are frozen. The central builder is Wreckabulary.EditorTools.WinterCollectionBuilder.Build. Source, inspection renders and measurements live under ArtSource/Collections/Winter. Generator scripts live under Tools/AssetPipeline.
 
-Next: build the Windows player, run startup smoke validation, preserve known build churn, record the result and push the package-verification checkpoint. Then continue seasonal gameplay rooms and subsequent collections using SEASONAL-MAP-PREFLIGHT-2026-10-09.md. The larger asset-expansion goal stays active. Native recipe thumbnails and subjective sound review remain follow-up refinements.
+Next: continue seasonal gameplay rooms and subsequent collections using SEASONAL-MAP-PREFLIGHT-2026-10-09.md. Lunar lantern GPT artwork and native source production have started outside Assets. The larger asset-expansion goal stays active. Native recipe thumbnails and subjective sound review remain follow-up refinements.

@@ -6,7 +6,7 @@ User authorization: continue after the current interface/lobby delivery, generat
 
 ## First dependency
 
-Completed the UI/lobby delivery in `docs/reviews/UI-REFINEMENT-2026-10-09.md`: 315 EditMode tests, 319 PlayMode tests (15 explicit skips), 234 rule tests and 18 reviewed native frames. Windows build and packaged startup passed. Checkpoint 014d856 is pushed; Winter House Party production is active.
+Completed the UI/lobby delivery in `docs/reviews/UI-REFINEMENT-2026-10-09.md`: 315 EditMode tests, 319 PlayMode tests (15 explicit skips), 234 rule tests and 18 reviewed native frames. Windows build and packaged startup passed. Checkpoints 014d856/59124d5 are pushed. Winter lobby/prop/emote/audio batch a821258 is also pushed and native verified: 328 EditMode, 333 full PlayMode passes (16 explicit skips), separate final capture/DSP checks 2/2, 10 screenshots, six real mixer outputs, Windows build/startup passed. See WINTER-HOUSE-PARTY-2026-10-09.md. Seasonal gameplay rooms, stickers and later collections remain active work.
 
 ## Production queue
 
