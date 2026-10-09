@@ -31,6 +31,8 @@ namespace Wreckabulary
 
         public float Current => Model.Current;
         public float Max => Model.Max;
+        public float Stamina => Model.Stamina;
+        public float StaminaFraction => Model.MaxStamina > 0 ? Model.Stamina / Model.MaxStamina : 0f;
         public float Fraction => Max > 0f ? Current / Max : 0f;
         public LifeState State => Model.State;
         public bool IsAlive => Model.IsAlive;
@@ -117,7 +119,7 @@ namespace Wreckabulary
             if (r.Blocked)
             {
                 if (controller) controller.Knock(dir * speed, 0f);
-                Popup.Show("BLOCKED", at, Color.white, 2.5f);
+                if (CombatFeedbackOptions.ShowDamage) Popup.Show("BLOCKED", at, Color.white, 2.5f);
                 Damaged?.Invoke(this, hit, r);
                 return false;
             }
@@ -125,12 +127,12 @@ namespace Wreckabulary
             if (controller) controller.Knock(dir * speed + Vector3.up * speed * 0.35f, r.HitStun);
             if (r.Damage > 0f)
             {
-                Popup.Show(Mathf.CeilToInt(r.Damage).ToString(), at, new Color(1f, 0.42f, 0.3f), 3f);
+                Popup.Damage(r.Damage, at);
                 CameraRig.Shake(0.12f);
             }
             else if (r.Absorbed > 0f)
             {
-                Popup.Show("SOAKED", at, new Color(0.62f, 0.86f, 1f), 2.5f);
+                if (CombatFeedbackOptions.ShowDamage) Popup.Show("SOAKED", at, new Color(0.62f, 0.86f, 1f), 2.5f);
             }
 
             int drop = rules.LettersDroppedPerHit;

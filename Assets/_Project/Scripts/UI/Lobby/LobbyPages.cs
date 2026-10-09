@@ -1270,6 +1270,10 @@ namespace Wreckabulary
         void General(Transform list)
         {
             NameField(Setting(list, "Name", "Shows over your head and on the boards."));
+            Toggle(Setting(list, "Damage numbers"), "Damage numbers", CombatFeedbackOptions.ShowDamage, on => CombatFeedbackOptions.ShowDamage = on);
+            Toggle(Setting(list, "Points per hit"), "Points per hit", CombatFeedbackOptions.ShowPoints, on => CombatFeedbackOptions.ShowPoints = on);
+            LobbyKit.Pill(Setting(list, "Combat feedback"), "Reset feedback", "Reset feedback", 20,
+                () => { CombatFeedbackOptions.ResetToDefaults(); Refresh(); }).Size(220, 46);
             Toggle(Setting(list, "Sound", "Every sound in the game."), "Sound", !GameFeedback.Muted, on => GameFeedback.Muted = !on);
             Choose(Setting(list, "Sound pack"), "Sound pack", GameSoundPacks.Ids.Select(id => (id, GameSoundPacks.Label(id))).ToList(),
                 GameSoundPacks.Selected, id => GameSoundPacks.Select(id), 340);

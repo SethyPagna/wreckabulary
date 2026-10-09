@@ -56,6 +56,7 @@ namespace Wreckabulary
         {
             if (IsBroken || Invulnerable) return;
             if (damage <= 0f) return;
+            Popup.Damage(Mathf.Min(health, damage), transform.position + Vector3.up * 1.25f);
             health -= damage;
             if (health <= 0f) Break();
             else

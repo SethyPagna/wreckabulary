@@ -26,6 +26,7 @@ namespace Wreckabulary
         public ItemDefinition Definition => definition;
         public bool IsSpent => spent;
         public bool IsUsing => usingItem;
+        public bool IsHeld => holder;
         public ShieldStats Shield => definition?.Shield;
         public float DurabilityLeft => durabilityLeft < 0f ? (definition != null ? Mathf.Max(1, definition.Durability) : 1f) : durabilityLeft;
         public MeleeStats Stats => definition?.Melee ?? (legacyStats ??= new MeleeStats

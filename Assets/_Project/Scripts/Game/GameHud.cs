@@ -72,6 +72,9 @@ namespace Wreckabulary
         GameObject typewriterControls;
         TextMeshProUGUI typewriterChoice;
         TextMeshProUGUI matchTag, matchTitle, matchDetail, roomPill, objective, statusText;
+        TextMeshProUGUI staminaValue, interactPrompt;
+        Image staminaFill;
+        readonly List<Image> crosshairTicks = new();
         TextMeshProUGUI aliveText, hintText, hpValue, shieldText, bagPanelCount, touchToggle, spellKey, bagKey;
         TextMeshProUGUI craftStatus, buildLabel, playLabel;
         Image craftProgress;
@@ -351,12 +354,19 @@ namespace Wreckabulary
                 var piece = CreateImage(bar, cross, new Vector2(.5f, .5f), Vector2.zero, size, OnGame);
                 var shadow = piece.gameObject.AddComponent<Shadow>(); shadow.effectColor = Shade; shadow.effectDistance = new Vector2(0f, -2f);
             }
-            hpValue = Text("HP", vitals, new Vector2(0f, 1f), new Vector2(46f, -8f), new Vector2(220f, 64f), 60f, OnGame, TextAlignmentOptions.Left);
+            hpValue = Text("HP", vitals, new Vector2(0f, 1f), new Vector2(46f, -8f), new Vector2(162f, 64f), 56f, OnGame, TextAlignmentOptions.Left);
             hpValue.rectTransform.pivot = new Vector2(0f, 1f);
             OnGameText(hpValue);
-            shieldText = Text("Shield", vitals, new Vector2(0f, 1f), new Vector2(206f, -30f), new Vector2(154f, 26f), 18f, Hex(0x9ff8d3), TextAlignmentOptions.Left);
+            shieldText = Text("Shield", vitals, new Vector2(0f, 1f), new Vector2(46f, -67f), new Vector2(154f, 26f), 18f, Hex(0x9ff8d3), TextAlignmentOptions.Left);
             shieldText.rectTransform.pivot = new Vector2(0f, 1f);
             OnGameText(shieldText);
+            staminaValue = Text("Stamina", vitals, new Vector2(0f, 1f), new Vector2(220f, -14f), new Vector2(140f, 46f), 36f, Hex(0x9ff8d3), TextAlignmentOptions.Left);
+            staminaValue.rectTransform.pivot = new Vector2(0f, 1f);
+            OnGameText(staminaValue);
+            var track = CreateImage("Stamina track", vitals, new Vector2(0f, 1f), new Vector2(220f, -63f), new Vector2(130f, 5f), Hex(0x10292b, .75f));
+            track.rectTransform.pivot = new Vector2(0f, 1f);
+            staminaFill = CreateImage("Stamina fill", track.transform, new Vector2(0f, .5f), Vector2.zero, new Vector2(130f, 5f), Hex(0x9ff8d3));
+            staminaFill.rectTransform.pivot = new Vector2(0f, .5f);
         }
 
         void BuildTray()
@@ -436,6 +446,7 @@ namespace Wreckabulary
             {
                 var tick = CreateImage(label, root, Vector2.zero, at, size, Hex(0xfff8e8));
                 tick.rectTransform.pivot = Vector2.zero;
+                crosshairTicks.Add(tick);
                 var outline = tick.gameObject.AddComponent<Outline>();
                 outline.effectColor = Hex(0x10292b, .8f);
                 outline.effectDistance = new Vector2(1f, -1f);
@@ -447,6 +458,8 @@ namespace Wreckabulary
             Tick("Bottom", new Vector2(10f, 0f), new Vector2(2f, 6f));
             Tick("Left", new Vector2(0f, 10f), new Vector2(6f, 2f));
             Tick("Right", new Vector2(16f, 10f), new Vector2(6f, 2f));
+            interactPrompt = Text("Interaction key", root, new Vector2(.5f, 0f), new Vector2(0f, -22f), new Vector2(260f, 30f), 22f, Hex(0x9ff8d3), TextAlignmentOptions.Center);
+            OnGameText(interactPrompt);
             crosshair = root.gameObject;
             crosshair.SetActive(false);
         }
@@ -782,12 +795,21 @@ namespace Wreckabulary
             SyncComposer(); RefreshComposer();
             if (Time.unscaledTime < nextRefresh) return;
             nextRefresh = Time.unscaledTime + .08f;
-            FindLocalPlayer(); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshSkills(); RefreshNavigation();
+            FindLocalPlayer(); RefreshInteraction(aiming); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshSkills(); RefreshNavigation();
             FitCards();
             if (BagOpen) RefreshBagContents();
             if (playRect) playRect.gameObject.SetActive(!LocalPlayer);
             if (playLabel) playLabel.text = "PLAY";
         }
+        void RefreshInteraction(bool aiming)
+        {
+            bool available = aiming && LocalPlayer && LocalPlayer.CanAct && !LocalPlayer.Combat.IsChanneling &&
+                (LocalPlayer.Combat.GrabTarget() || LocalPlayer.Combat.DownedTeammateNearby());
+            var color = available ? Hex(0x9ff8d3) : Hex(0xfff8e8);
+            foreach (var tick in crosshairTicks) tick.color = color;
+            if (interactPrompt) interactPrompt.text = available ? ControlHints.KeyOf(DesktopBinding.Shared.Interact) : "";
+        }
+
         void FindLocalPlayer()
         {
             if (LocalPlayer && LocalPlayer.isActiveAndEnabled) return;
@@ -858,6 +880,10 @@ namespace Wreckabulary
             if (!LocalPlayer) return;
             var health = LocalPlayer.Health;
             hpValue.text = health.IsDowned ? $"DOWN <size=40%>{Mathf.CeilToInt(health.BleedOutLeft)}s</size>" : $"{Mathf.CeilToInt(health.Current)}<size=30%> HP</size>";
+            staminaValue.text = $"{Mathf.CeilToInt(health.Stamina)}<size=45%> STA</size>";
+            var staminaColor = health.Stamina < health.Rules.DodgeStamina ? Hex(0xffc568) : Hex(0x9ff8d3);
+            staminaValue.color = staminaFill.color = staminaColor;
+            staminaFill.rectTransform.sizeDelta = new Vector2(130f * health.StaminaFraction, 5f);
             bool low = health.IsDowned || health.Current < 30f;
             hpValue.color = low ? LowHp : OnGame;
             hpValue.rectTransform.localScale = Vector3.one * (low ? 1f + .06f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 5f)) : 1f);

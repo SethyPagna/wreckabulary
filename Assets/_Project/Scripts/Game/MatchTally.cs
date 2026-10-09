@@ -80,7 +80,12 @@ namespace Wreckabulary
 
         void OnDamaged(PlayerHealth victim, HitInfo hit, HitResult result)
         {
-            if (local && hit.AttackerId == local.Index && victim != local.Health) { damage += result.Damage; roundDamage += result.Damage; }
+            if (!local || hit.AttackerId != local.Index || victim == local.Health || result.Damage <= 0f) return;
+            int before = Mathf.RoundToInt(damage);
+            damage += result.Damage;
+            roundDamage += result.Damage;
+            var player = victim.GetComponent<PlayerController>();
+            Popup.Points(Mathf.RoundToInt(damage) - before, player ? player.OverheadPosition : victim.transform.position + Vector3.up * 2f);
         }
 
         void OnSummoned(string word) { crafted++; roundCrafted++; }

@@ -386,7 +386,7 @@ namespace Wreckabulary
             Gap(card, 12.5f);
             CardButton(card, "Pause controls", "Controls", () => ShowPauseSettings("controls"), false, 50f);
             Gap(card, 10f);
-            CardButton(card, "Pause settings", "Audio & graphics", () => ShowPauseSettings("audio"), false, 50f);
+            CardButton(card, "Pause settings", "Settings", () => ShowPauseSettings("audio"), false, 50f);
             Gap(card, 10f);
             CardButton(card, "Pause how to play", "How to play", () => ShowHelp(true), false, 50f);
             Gap(card, 12.5f);
