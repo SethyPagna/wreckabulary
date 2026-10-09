@@ -20,10 +20,14 @@ namespace Wreckabulary
         static void Load()
         {
             if (display || failed) return;
-            display = Make("LilitaOne-Regular", 72, 10);
-            body = Make("Nunito-ExtraBold", 56, 7);
-            black = Make("Nunito-Black", 56, 7);
+            display = Make("LilitaOne-Regular", 96, 12);
+            body = Make("Nunito-ExtraBold", 80, 10);
+            black = Make("Nunito-Black", 80, 10);
             if (!display || !body || !black) { failed = true; display = body = black = null; return; }
+            // TMP's styled-glyph lookup requires an explicit face for bold text, including ellipsis.
+            display.fontWeightTable[7].regularTypeface = display;
+            body.fontWeightTable[7].regularTypeface = black;
+            black.fontWeightTable[7].regularTypeface = black;
             stroke = Preset(display, false);
             drop = Preset(display, true);
         }
@@ -32,9 +36,13 @@ namespace Wreckabulary
         {
             var font = Resources.Load<Font>("Fonts/" + file);
             if (!font) { Debug.LogWarning("Lobby font missing: Resources/Fonts/" + file); return null; }
-            var asset = TMP_FontAsset.CreateFontAsset(font, size, padding, GlyphRenderMode.SDFAA, 1024, 1024);
+            var asset = TMP_FontAsset.CreateFontAsset(font, size, padding, GlyphRenderMode.SDFAA, 2048, 2048);
             if (!asset) return null;
             asset.name = file;
+            asset.isMultiAtlasTexturesEnabled = true;
+            // TMP resolves ellipsis and underline before laying out the first visible text.
+            asset.TryAddCharacters("_… ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,:;!?'-–—()/+%&=·−");
+            foreach (var atlas in asset.atlasTextures) if (atlas) atlas.filterMode = FilterMode.Bilinear;
             if (GameAssets.I && GameAssets.I.font) asset.fallbackFontAssetTable = new List<TMP_FontAsset> { GameAssets.I.font };
             return asset;
         }

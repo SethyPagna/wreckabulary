@@ -2,6 +2,7 @@ using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 namespace Wreckabulary.Tests
 {
@@ -18,6 +19,68 @@ namespace Wreckabulary.Tests
 
         [UnitySetUp] public IEnumerator SetUp() => TestScenes.Reset();
         [UnityTearDown] public IEnumerator TearDown() => TestScenes.Reset();
+
+        [UnityTest]
+        public IEnumerator LobbyFontsRenderEllipsisFromTheirOwnPrimedAtlas()
+        {
+            yield return TestScenes.Load(Session.HubScene);
+            var canvas = new GameObject("Font overflow probe", typeof(Canvas));
+            canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+            try
+            {
+                var label = new GameObject("Overflow", typeof(RectTransform), typeof(TMPro.TextMeshProUGUI))
+                    .GetComponent<TMPro.TextMeshProUGUI>();
+                label.transform.SetParent(canvas.transform, false);
+                label.rectTransform.sizeDelta = new Vector2(150, 60);
+                label.fontSize = 28;
+                label.textWrappingMode = TMPro.TextWrappingModes.NoWrap;
+                label.text = "A long readable settings description";
+                foreach (var font in new[] { LobbyFonts.Display, LobbyFonts.Body, LobbyFonts.Black })
+                {
+                    Assert.IsTrue(font.characterLookupTable.ContainsKey(0x2026), font.name + " must have a resident ellipsis glyph.");
+                    label.font = font;
+                    foreach (var style in new[] { TMPro.FontStyles.Normal, TMPro.FontStyles.Bold })
+                    {
+                        label.fontStyle = style;
+                        label.overflowMode = TMPro.TextOverflowModes.Ellipsis;
+                        label.ForceMeshUpdate();
+                        Assert.AreEqual(TMPro.TextOverflowModes.Ellipsis, label.overflowMode, font.name + " " + style + " must not silently fall back to truncation.");
+                        bool renderedEllipsis = false;
+                        for (int i = 0; i < label.textInfo.characterCount; i++)
+                            renderedEllipsis |= label.textInfo.characterInfo[i].character == '…';
+                        Assert.IsTrue(renderedEllipsis, font.name + " " + style + " must render the overflow indicator.");
+                    }
+                }
+            }
+            finally { Object.DestroyImmediate(canvas); }
+        }
+
+        [UnityTest]
+        public IEnumerator TimerMeshUsesTheCurrentFontAtlasAfterRestylingLegacyText()
+        {
+            yield return TestScenes.Load(Session.DibsScene);
+            var hud = Object.FindAnyObjectByType<GameHud>();
+            var timer = hud.transform.Find("Safe HUD/Side column/Timer/Timer").GetComponent<TMPro.TextMeshProUGUI>();
+            Assert.AreSame(LobbyFonts.Body, timer.font);
+            foreach (string value in new[] { "2:41", "0:09" })
+            {
+                hud.SetTimer(value);
+                Canvas.ForceUpdateCanvases();
+                timer.ForceMeshUpdate();
+                Assert.AreEqual(value.Length, timer.textInfo.characterCount);
+                Assert.AreSame(timer.font.atlasTexture, timer.materialForRendering.mainTexture,
+                    "The scene's old font material must not return when its outline is applied.");
+                for (int i = 0; i < timer.textInfo.characterCount; i++)
+                {
+                    var character = timer.textInfo.characterInfo[i];
+                    Assert.AreEqual(value[i], character.character);
+                    Assert.IsTrue(character.isVisible);
+                    var atlas = character.fontAsset.atlasTextures[character.textElement.glyph.atlasIndex];
+                    var material = timer.textInfo.meshInfo[character.materialReferenceIndex].material;
+                    Assert.AreSame(atlas, material.mainTexture, "Each digit mesh must sample its own glyph atlas.");
+                }
+            }
+        }
 
         [UnityTest]
         public IEnumerator PauseRestoresFrozenPlayersAndTheOriginalSimulationSpeed()
@@ -55,10 +118,28 @@ namespace Wreckabulary.Tests
             var bag = hud.transform.Find("Safe HUD/Letter bag");
             var first = (RectTransform)bag.Find("Gear slot 1");
             var second = (RectTransform)bag.Find("Gear slot 2");
+            Assert.IsNull(bag.GetComponent<Image>(), "The tray leaves the game visible between its individual slots.");
+            Assert.IsNull(bag.Find("Heading"));
+            Assert.IsNull(bag.Find("Bag count"));
+            Assert.Greater(first.GetComponent<Image>().color.a, 0f);
+            Assert.Greater(second.GetComponent<Image>().color.a, 0f);
+            Assert.Greater(bag.Find("Letter 1/Face").GetComponent<Image>().color.a, 0f);
+            Assert.AreEqual("", first.Find("Word").GetComponent<TMPro.TMP_Text>().text, "An empty hand uses an icon, not explanatory copy.");
+            Assert.IsTrue(first.Find("Open hand").GetComponent<RawImage>().enabled);
             Assert.AreEqual(first.anchoredPosition.x, second.anchoredPosition.x);
             Assert.Greater(first.anchoredPosition.y, second.anchoredPosition.y);
             Assert.Greater(first.anchoredPosition.x, ((RectTransform)bag.Find("Letter 1")).anchoredPosition.x);
             Assert.AreEqual(1f, bag.GetComponent<CanvasGroup>().alpha);
+            var side = hud.transform.Find("Safe HUD/Side column");
+            foreach (var name in new[] { "Alive", "Timer", "Room", "Objective" })
+                Assert.IsNull(side.Find(name).GetComponent<Image>(), name + " uses text and icons without a filled card.");
+            foreach (var path in new[] { "Alive/Count", "Room/Room name", "Objective/Objective text" })
+            {
+                var label = side.Find(path).GetComponent<TMPro.TMP_Text>();
+                Assert.GreaterOrEqual(label.fontSize, 20f, path);
+                Assert.Greater(label.color.r, .9f, "HUD text stays light over the world.");
+                Assert.IsNotNull(label.GetComponent<Shadow>(), path + " needs a subtle shadow over pale surfaces.");
+            }
             hud.StateController.FadeDuration = 0f;
             hud.TogglePause();
             Assert.IsTrue(bag.gameObject.activeInHierarchy);

@@ -200,11 +200,13 @@ namespace Wreckabulary.Tests
             Assert.AreSame(stage.Camera, sky.worldCamera);
             Assert.IsTrue(sky.enabled);
             Assert.IsFalse(sky.GetComponent<GraphicRaycaster>(), "the sky never takes clicks");
-            Assert.Greater(stage.Camera.backgroundColor.r, stage.Camera.backgroundColor.g, "a plum dusk: not the hub's teal, and no blue backdrop (user, 6 Oct 2026)");
+            Assert.AreEqual(LobbyThemes.Current.Surface, stage.Camera.backgroundColor, "the lobby follows the equipped bright theme");
             var look = stage.GetComponentsInChildren<Volume>().Single(v => v.name == "Lobby look");
             Assert.Greater(look.priority, GraphicsOptions.Look.priority, "the lobby grade wins over the default look");
             Assert.IsTrue(look.sharedProfile.Has<Vignette>() && look.sharedProfile.Has<DepthOfField>());
-            Assert.AreEqual(2, stage.GetComponentsInChildren<Light>().Count(l => l.type == LightType.Spot && l.enabled), "a key and a rim light on you");
+            Assert.IsTrue(look.sharedProfile.TryGet<Vignette>(out var vignette));
+            Assert.AreEqual(0f, vignette.intensity.value, "the new bright showroom does not darken the screen corners");
+            Assert.AreEqual(3, stage.GetComponentsInChildren<Light>().Count(l => l.type == LightType.Spot && l.enabled), "warm key, fill and rim lights keep the whole avatar readable");
         }
 
         [UnityTest]
@@ -593,13 +595,14 @@ namespace Wreckabulary.Tests
                     rebind.onClick.Invoke();
                     yield return null;
                     Assert.IsTrue(KeyBindings.Listening, "waits for the new key");
-                    Assert.IsTrue(root.GetComponentsInChildren<TMPro.TMP_Text>().Any(t => t.text == "PRESS A KEY"));
+                    Assert.IsNotNull(root.GetComponentInChildren<ControlsPanel>());
+                    Assert.IsTrue(root.GetComponentsInChildren<TMPro.TMP_Text>().Any(t => t.text == "PRESS A KEY…"));
                     KeyBindings.Stop();
                     yield return null;
                     Assert.IsFalse(KeyBindings.Listening);
                     Assert.IsTrue(DesktopBinding.Shared.Map.enabled, "keys work again after");
                     Assert.IsNotNull(root.GetComponentsInChildren<RectTransform>().FirstOrDefault(r => r.name == "Sensitivity more"), "mouse sensitivity");
-                    Assert.IsNotNull(root.GetComponentsInChildren<RectTransform>().FirstOrDefault(r => r.name == "Invert on"), "invert Y");
+                    Assert.IsNotNull(root.GetComponentsInChildren<RectTransform>().FirstOrDefault(r => r.name == "Invert mouse Y"), "invert Y");
                     Assert.IsNotNull(root.GetComponentsInChildren<RectTransform>().FirstOrDefault(r => r.name == "Reset controls"));
                 }
             }
@@ -633,6 +636,32 @@ namespace Wreckabulary.Tests
             yield return null;
             Assert.AreEqual(-1, Application.targetFrameRate);
             Assert.IsFalse(GraphicsOptions.Customised, "reset forgets the saved settings");
+        }
+
+        [UnityTest]
+        public IEnumerator ReduceThemeMotionUpdatesTheStageAndSavedPreference()
+        {
+            bool had = PlayerPrefs.HasKey("wv.theme.effects");
+            int saved = PlayerPrefs.GetInt("wv.theme.effects", 1);
+            try
+            {
+                PlayerPrefs.DeleteKey("wv.theme.effects");
+                yield return OpenLobby();
+                var menu = LobbyMenu.Instance;
+                Assert.IsTrue(menu.Stage.ThemeEffectsEnabled);
+                Click("Settings");
+                Click("Reduce theme motion on");
+                Assert.IsFalse(menu.Stage.ThemeEffectsEnabled);
+                Assert.AreEqual(0, PlayerPrefs.GetInt("wv.theme.effects", 1));
+                Click("Reduce theme motion off");
+                Assert.IsTrue(menu.Stage.ThemeEffectsEnabled);
+                Assert.AreEqual(1, PlayerPrefs.GetInt("wv.theme.effects"));
+            }
+            finally
+            {
+                if (had) PlayerPrefs.SetInt("wv.theme.effects", saved); else PlayerPrefs.DeleteKey("wv.theme.effects");
+                PlayerPrefs.Save();
+            }
         }
 
         [UnityTest]
