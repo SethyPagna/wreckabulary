@@ -843,7 +843,7 @@ namespace Wreckabulary
             (LobbyKit.Hex(0xd9e2f2), LobbyKit.Hex(0xf7f9fd), LobbyKit.Hex(0xffffff), LobbyKit.Hex(0x8f9cb0)),
             (LobbyKit.Hex(0xffbf8a), LobbyKit.Hex(0xffeedf), LobbyKit.Hex(0xffd5ad), LobbyKit.Hex(0xb4601f)),
         };
-        const int Places = 5;
+        const int Places = 5, ChipsPerRow = 5;
         string board;
 
         public override string Id => LobbyMenu.Trophy;
@@ -858,10 +858,15 @@ namespace Wreckabulary
             if (!LobbyMenu.Modes.Contains(board)) board = LobbyMenu.Modes.Contains(Menu.Mode) ? Menu.Mode : LobbyMenu.Modes[0];
             var body = Side("Leaderboards", "Best single-match score in each mode.");
             var column = LobbyKit.Column(body, "Column", 10, 6).Fill();
-            var chips = LobbyKit.Row(column, "Boards", 10);
-            chips.Size(-1, 96);
-            chips.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-            foreach (string mode in LobbyMenu.Modes) Chip(chips, mode);
+            for (int first = 0; first < LobbyMenu.Modes.Length; first += ChipsPerRow)
+            {
+                var chips = LobbyKit.Row(column, "Boards", 10);
+                chips.Size(-1, 92);
+                chips.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+                var modes = LobbyMenu.Modes.Skip(first).Take(ChipsPerRow).ToArray();
+                foreach (string mode in modes) Chip(chips, mode);
+                for (int empty = modes.Length; empty < ChipsPerRow; empty++) LobbyKit.Rect(chips, "Empty").Size(-1, -1, 1);
+            }
             LobbyKit.Rect(column, "Gap").Size(-1, 4);
 
             var rows = Rows(career, board);

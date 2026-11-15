@@ -18,8 +18,9 @@ namespace Wreckabulary.Tests
             MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, GameSoundPacks.PreferenceKey,
             KeyBindings.OverridesKey, KeyBindings.LegacyBackupKey
         }).ToArray();
-        static readonly string[] IntKeys = { "wv.muted", LobbyMenu.VsyncKey, CombatFeedbackOptions.DamageKey,
-            CombatFeedbackOptions.PointsKey, "wv.theme.effects", KeyBindings.InvertKey };
+        static readonly string[] IntKeys = new[] { "wv.muted", LobbyMenu.VsyncKey, CombatFeedbackOptions.DamageKey,
+            CombatFeedbackOptions.PointsKey, "wv.theme.effects", KeyBindings.InvertKey, ScreenShake.Key, ControlTips.LearnedKey, ControlTips.SeenKey }
+            .Concat(GameplayPrefs.Keys).Distinct().ToArray();
         static readonly string[] FloatKeys = { LobbyMenu.VolumeKey, KeyBindings.SensitivityKey };
         const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
         string[] strings;
@@ -29,6 +30,7 @@ namespace Wreckabulary.Tests
         float volume, sensitivity;
         int vsync;
         bool invert;
+        Wreckabulary.Rules.ShakeLevel shake;
         string bindings;
         SettingsPage page;
 
@@ -40,7 +42,7 @@ namespace Wreckabulary.Tests
             hadFloats = FloatKeys.Select(PlayerPrefs.HasKey).ToArray(); floats = FloatKeys.Select(key => PlayerPrefs.GetFloat(key)).ToArray();
             volume = AudioListener.volume; vsync = QualitySettings.vSyncCount;
             bindings = DesktopBinding.Shared.Map.SaveBindingOverridesAsJson();
-            sensitivity = KeyBindings.Sensitivity; invert = KeyBindings.InvertY;
+            sensitivity = KeyBindings.Sensitivity; invert = KeyBindings.InvertY; shake = ScreenShake.Level;
             yield return TestScenes.Reset();
             yield return TestScenes.Load(Session.HubScene);
             yield return TestScenes.WaitUntil(() => LobbyMenu.Instance && GameHud.Active && !GameHud.Active.StateController.IsTransitioning,
@@ -65,7 +67,7 @@ namespace Wreckabulary.Tests
             yield return TestScenes.Reset();
             DesktopBinding.Shared.Map.RemoveAllBindingOverrides();
             if (!string.IsNullOrEmpty(bindings)) DesktopBinding.Shared.Map.LoadBindingOverridesFromJson(bindings);
-            KeyBindings.SetSensitivity(sensitivity); KeyBindings.SetInvertY(invert);
+            KeyBindings.SetSensitivity(sensitivity); KeyBindings.SetInvertY(invert); ScreenShake.Level = shake;
             for (int i = 0; i < StringKeys.Length; i++)
                 if (hadStrings[i]) PlayerPrefs.SetString(StringKeys[i], strings[i]); else PlayerPrefs.DeleteKey(StringKeys[i]);
             for (int i = 0; i < IntKeys.Length; i++)
@@ -100,8 +102,44 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(frame.Confirmation.gameObject.activeSelf);
             Tab("help");
             Assert.AreEqual("House games", page.Root.GetComponentsInChildren<TMPro.TMP_Text>().Single(text => text.name == "Help scope").text);
-            Assert.IsTrue(page.Root.GetComponentsInChildren<TMPro.TMP_Text>().Any(text => text.text == "Wordbound controls: Controls tab → Wordbound."));
+            Assert.IsTrue(page.Root.GetComponentsInChildren<TMPro.TMP_Text>().Any(text => text.text == "Course controls: Controls tab → Courses."));
             yield return null;
+        }
+
+        RectTransform GameplayList() => page.Root.GetComponentsInChildren<RectTransform>().Single(rect => rect.name == "Tab content")
+            .GetComponentsInChildren<ScrollRect>().Single().content;
+
+        [UnityTest]
+        public IEnumerator GameplayOffersScreenShakeAndTheFourDisplaySwitches()
+        {
+            Tab("gameplay");
+            CollectionAssert.AreEqual(SettingsPage.GameplayRows, GameplayList().Cast<Transform>().Select(row => row.name).ToArray());
+            foreach (var level in new[] { Wreckabulary.Rules.ShakeLevel.Off, Wreckabulary.Rules.ShakeLevel.Low, Wreckabulary.Rules.ShakeLevel.Full })
+            {
+                Button("Screen shake " + level).onClick.Invoke(); yield return null;
+                Assert.AreEqual(level, ScreenShake.Level);
+                Assert.AreEqual((int)level, PlayerPrefs.GetInt(ScreenShake.Key));
+                Assert.AreEqual("Screen shake " + level, EventSystem.current.currentSelectedGameObject.name, "the pad stays on the choice");
+            }
+            var switches = new (string name, Func<bool> read)[]
+            {
+                ("Damage numbers", () => GameplayPrefs.DamageNumbers), ("Effect words", () => GameplayPrefs.EffectWords),
+                ("Furniture names", () => GameplayPrefs.FurnitureNames), ("Control tips", () => GameplayPrefs.ControlTips),
+            };
+            foreach (var (name, read) in switches)
+            {
+                Button(name + " off").onClick.Invoke(); yield return null;
+                Assert.IsFalse(read(), name);
+                Assert.AreEqual(name + " off", EventSystem.current.currentSelectedGameObject.name);
+                Button(name + " on").onClick.Invoke(); yield return null;
+                Assert.IsTrue(read(), name);
+            }
+            Canvas.ForceUpdateCanvases();
+            foreach (var text in GameplayList().GetComponentsInChildren<TMPro.TMP_Text>())
+            {
+                text.ForceMeshUpdate();
+                Assert.IsFalse(text.isTextTruncated || text.isTextOverflowing, text.name + ": " + text.text);
+            }
         }
 
         [UnityTest]

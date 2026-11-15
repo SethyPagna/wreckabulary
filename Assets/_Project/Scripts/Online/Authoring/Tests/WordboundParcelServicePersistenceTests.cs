@@ -7,6 +7,7 @@ using UnityEngine;
 using Wreckabulary.Online;
 using Wreckabulary.Online.Editor;
 using Wreckabulary.Rules.Wordbound;
+using Wreckabulary.WordboundRuntime;
 
 namespace Wreckabulary.Tests
 {
@@ -145,6 +146,27 @@ namespace Wreckabulary.Tests
             Assert.IsNotNull(course.CreateContent(course.Resolve()));
             CollectionAssert.AreEqual(sourceBytes, File.ReadAllBytes(sourcePath));
             CollectionAssert.AreEqual(sourceMeta, File.ReadAllBytes(sourcePath + ".meta"));
+        }
+
+        [Test]
+        public void DepotAreaFinishesCoverEveryGroundRoomOnceAndLeaveParcelServiceV1Unstyled()
+        {
+            var finishes = WordboundParcelServiceDressingSetup.DepotFinishes();
+            var style = ScriptableObject.CreateInstance<WordboundRoomStyleProfile>();
+            try
+            {
+                style.Rooms.AddRange(finishes); style.Validate();
+                var modules = Create(folder + "/ParcelService.asset").ReadDocument().Modules;
+                CollectionAssert.AreEquivalent(modules.Where(m => m.LayerId == "Packing").Select(m => m.Id), finishes.Select(f => f.ModuleId));
+                Assert.AreEqual("Yard", finishes.Single(f => f.Outdoor).ModuleId);
+                var areas = new[] { "Yard", "Dock", "Hall", "Counter", "Lockers", "Garage" };
+                Assert.AreEqual(areas.Length, finishes.Where(f => areas.Contains(f.ModuleId))
+                    .Select(f => (f.Palette.Floor, f.Palette.Wall, f.Ground)).Distinct().Count());
+                var legacy = AssetDatabase.LoadAssetAtPath<WordboundCourseAsset>(WordboundParcelServiceSetup.LegacyPath);
+                Assert.IsNotNull(legacy);
+                Assert.IsTrue(legacy.ReadDocument().Modules.All(m => style.ForModule(m.Id) == null));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(style); }
         }
 
         [Test]

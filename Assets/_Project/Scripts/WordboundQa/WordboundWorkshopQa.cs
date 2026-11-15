@@ -149,6 +149,10 @@ namespace Wreckabulary.Qa
             workshop = launcher.GetComponent<WordboundWorkshop>();
             if (!workshop) throw new QaFailException("The launcher did not open its workshop.");
             if (workshop.RecoveryChoicePending) throw new QaFailException("The isolated QA workshop unexpectedly requires recovery.");
+            if (!workshop.StartOpen) throw new QaFailException("The map editor did not open on its start screen.");
+            context.Note("workshop_start_screen", true);
+            yield return context.WaitFrames(3);
+            yield return CaptureVerified(context, "wordbound_workshop_start", "workshop_start");
             var data = Resources.Load<GameData>(GameData.ResourcePath);
             workshop.OpenFlagship(WordboundFlagshipContent.Create(ItemCatalogue.FromJson(data.items.text)));
             history = workshop.History;

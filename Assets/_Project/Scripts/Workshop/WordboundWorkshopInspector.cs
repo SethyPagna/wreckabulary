@@ -59,12 +59,14 @@ namespace Wreckabulary.Workshop
             StepTabsRow();
             if (controllerTools) ControllerPanel();
             inspectorScroll = GUILayout.BeginScrollView(inspectorScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
+            padScroll = 1;
             string hint = SelectionHint();
             if (hint.Length != 0) Hint(hint);
             if (step == WorkshopStep.Build) BuildStep();
             else if (step == WorkshopStep.Objects || step == WorkshopStep.Puzzles) FillStep();
             else if (step == WorkshopStep.Rules) RulesStep();
             else ShareStep();
+            padScroll = 0;
             GUILayout.EndScrollView();
             if (Event.current.type == EventType.Repaint) inspectorScrollRect = GUILayoutUtility.GetLastRect();
         }
@@ -73,18 +75,48 @@ namespace Wreckabulary.Workshop
         {
             int current = StepTab(step);
             float available = inspectorWidth - panel.padding.horizontal - 4;
-            float total = StepTabs.Sum(label => GUI.skin.button.CalcSize(new GUIContent(label)).x + GUI.skin.button.margin.horizontal);
+            float total = StepTabs.Sum(label => GUI.skin.button.CalcSize(new GUIContent(label)).x + GUI.skin.button.margin.horizontal + BadgeSize);
             int columns = total <= available ? StepTabs.Length : 2;
+            if (padCounting) padTabs = padCount;
+            var issues = TabIssues();
             for (int i = 0; i < StepTabs.Length; i++)
             {
                 if (i % columns == 0) GUILayout.BeginHorizontal();
                 GUI.SetNextControlName("Workshop step " + StepTabs[i]);
-                if (ui.Button(new GUIContent(StepTabs[i], StepHints[i]), i == current ? ui.Selected : null,
+                string hint = issues[i] == 0 ? StepHints[i] : StepHints[i] + " · " + issues[i] + " to fix";
+                if (PadButton(new GUIContent(StepTabs[i], hint), i == current ? ui.Selected : null,
                     GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
                     ShowStep(i == 0 ? WorkshopStep.Build : i == 1 ? lastFill : i == 2 ? WorkshopStep.Rules : WorkshopStep.Share);
+                if (issues[i] > 0 && Event.current.type == EventType.Repaint) IssueBadge(GUILayoutUtility.GetLastRect(), issues[i]);
                 if (i % columns == columns - 1 || i == StepTabs.Length - 1) GUILayout.EndHorizontal();
             }
             GUILayout.Space(ui.Gap);
+        }
+
+        const float BadgeSize = 18;
+        readonly int[] tabIssues = new int[WorkshopIssueTabs.Tabs];
+
+        int[] TabIssues()
+        {
+            Array.Copy(displayCache.IssueTabs, tabIssues, tabIssues.Length);
+            if (LastPreview != null && !LastPreview.Success)
+                foreach (var issue in LastPreview.Issues) tabIssues[WorkshopIssueTabs.Tab(issue, display)]++;
+            if (lastPlaytestIssue.Length != 0) tabIssues[WorkshopIssueTabs.Fill]++;
+            return tabIssues;
+        }
+
+        void IssueBadge(Rect tab, int count)
+        {
+            var badge = new Rect(tab.xMax - BadgeSize - 3, tab.y + 3, BadgeSize, BadgeSize);
+            var tint = GUI.color;
+            try
+            {
+                GUI.color = ui.Error;
+                GUI.DrawTexture(badge, Texture2D.whiteTexture);
+                GUI.color = tint;
+                GUI.Label(badge, count > 9 ? "9+" : count.ToString(System.Globalization.CultureInfo.InvariantCulture), badgeStyle);
+            }
+            finally { GUI.color = tint; }
         }
 
         void BuildStep()
@@ -106,7 +138,7 @@ namespace Wreckabulary.Workshop
             foreach (var definition in rooms)
             {
                 GUI.SetNextControlName(ObjectLabel(definition.Id));
-                if (ui.Button(new GUIContent(ObjectLabel(definition.Id) + " · " + Metres(definition.WidthMm) + " × " + Metres(definition.DepthMm) + " m",
+                if (PadButton(new GUIContent(ObjectLabel(definition.Id) + " · " + Metres(definition.WidthMm) + " × " + Metres(definition.DepthMm) + " m",
                     "Choose, then click the map to place it"), placing == definition.Id ? ui.Selected : null,
                     GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(RowWidth)))
                 { CancelGesture(); placing = definition.Id; status = "Click the map to place " + ObjectLabel(placing) + " · Esc cancels"; }
@@ -118,23 +150,36 @@ namespace Wreckabulary.Workshop
         {
             GUILayout.Label(selected.Count == 1 ? RoomCaption(selected[0].Id) : selected.Count + " rooms", heading, GUILayout.Width(RowWidth));
             GUILayout.BeginHorizontal();
-            if (ToolButton("Rotate", LobbyIcons.Turn, "Rotate · R")) Edit("Rotate", draft => WorkshopCommands.RotateSelection(draft, Pivot(selected), 1));
-            if (ToolButton("Duplicate", LobbyIcons.Duplicate, "Duplicate · Ctrl+D")) Edit("Duplicate", draft => WorkshopCommands.Duplicate(draft, new CoursePoint(draft.GridMm * 2, 0, draft.GridMm * 2)));
+            if (ToolButton("Turn", LobbyIcons.Turn, "Turn · R")) Edit("Turn", draft => WorkshopCommands.RotateSelection(draft, Pivot(selected), 1));
+            if (ToolButton("Copy", LobbyIcons.Duplicate, "Copy · Ctrl+D")) Edit("Copy", draft => WorkshopCommands.Duplicate(draft, new CoursePoint(draft.GridMm * 2, 0, draft.GridMm * 2)));
             if (ToolButton("Delete", LobbyIcons.Delete, "Delete · Del")) Edit("Delete", WorkshopCommands.Delete);
             GUILayout.EndHorizontal();
+            Hint(GizmoHint);
             if (selected.Count == 1) RoomSize(selected[0]);
-            if (selected.Count == 2 && WideButton("Connect rooms", "Add a walkway, bridge or stairs between the two rooms")) Connect(selected[0], selected[1]);
+            if (selected.Count == 2 && WideButton("Connect rooms", "Add a door, bridge or stairs between the two rooms")) Connect(selected[0], selected[1]);
+            if (selected.Count == 1 && display.Modules.Count > 1) ConnectPicker(selected[0]);
             if (selected.Count == 1 && WideButton("Fill this room ›", "Add objects and puzzles to this room")) ShowStep(lastFill);
             var links = display.Connections.Where(link => selected.Any(module => module.Id == link.FromModuleId || module.Id == link.ToModuleId)).ToList();
-            if (Section("connections", "Connections · " + links.Count, false))
+            if (Section("connections", "Doors & stairs · " + links.Count, false))
             {
                 foreach (var link in links)
-                    GUILayout.Label(ReferenceCaptionFor("connection", link.Id) + " · " + link.Kind +
+                    GUILayout.Label(ReferenceCaptionFor("connection", link.Id) + " · " + LinkKind(link.Kind) +
                         (link.GatePuzzleId.Length == 0 ? "" : " · opens after " + PuzzleCaption(link.GatePuzzleId)), ui.Wrapped, GUILayout.Width(RowWidth));
-                if (links.Count == 0) GUILayout.Label("None yet · select two rooms, then Connect rooms.", ui.Wrapped, GUILayout.Width(RowWidth));
+                if (links.Count == 0) GUILayout.Label("None yet · use Connect to… above.", ui.Wrapped, GUILayout.Width(RowWidth));
             }
             GUILayout.Space(ui.Gap);
         }
+
+        void ConnectPicker(CourseModule room)
+        {
+            string chosen = InspectorChoice("Connect to", "", display.Modules.Where(module => module.Id != room.Id).Select(module => module.Id),
+                id => ReferenceCaptionFor("room", id), null, "Choose a room…");
+            if (chosen.Length == 0) return;
+            var other = display.Modules.FirstOrDefault(module => module.Id == chosen);
+            if (other != null) Connect(room, other);
+        }
+
+        static string LinkKind(string kind) => kind switch { "Walk" => "walkway", "Bridge" => "bridge", "Stairs" => "stairs", "Door" => "door", _ => kind.ToLowerInvariant() };
 
         void BuildAdvanced(List<CourseModule> selected)
         {
@@ -156,14 +201,14 @@ namespace Wreckabulary.Workshop
         void HelpPanel()
         {
             GUILayout.Label("Drag to move · Shift adds to the selection\nDrag room edges to resize\nDrag a value's name to adjust it\n" +
-                "Right drag orbits · Middle drag pans\nWheel zooms · F frames the selection", ui.Wrapped, GUILayout.Width(RowWidth));
+                "Right drag orbits · Middle drag pans\nWheel zooms · F fits the selection", ui.Wrapped, GUILayout.Width(RowWidth));
             ControllerPanel();
         }
 
         void FillStep()
         {
             int fill = step == WorkshopStep.Puzzles ? 1 : 0;
-            int next = GUILayout.Toolbar(fill, new[] { "Objects", "Puzzles" }, GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(RowWidth));
+            int next = PadToolbar(fill, new[] { "Objects", "Puzzles" }, GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(RowWidth));
             if (next != fill) ShowStep(next == 1 ? WorkshopStep.Puzzles : WorkshopStep.Objects);
             var selected = SelectedRooms();
             if (selected.Count == 0) return;
@@ -193,10 +238,10 @@ namespace Wreckabulary.Workshop
             RouteInspector();
             if (Advanced(ref rulesAdvanced))
             {
-                seed = Field("Seed", seed, name: "Layout seed");
-                if (WideButton("Use this seed", "The seed picks one layout for random objects and alternative paths"))
-                    Edit("Set seed", draft => draft.Seed = seed);
-                inspectorAdvancedIds = GUILayout.Toggle(inspectorAdvancedIds, "Show internal names", GUILayout.Width(RowWidth));
+                seed = Field("Random layout number", seed, name: "Random layout number");
+                if (WideButton("Use this number", "The number picks one layout for random objects and alternative paths"))
+                    Edit("Set random layout number", draft => draft.Seed = seed);
+                inspectorAdvancedIds = PadToggle(inspectorAdvancedIds, new GUIContent("Show IDs"), GUI.skin.toggle, GUILayout.Width(RowWidth));
             }
         }
 
@@ -229,15 +274,16 @@ namespace Wreckabulary.Workshop
         bool InspectorChoiceButton(string label, string id, string caption)
         {
             GUI.SetNextControlName("workshop-choice:" + label + ":" + id);
-            return ui.Button(new GUIContent(caption, id), null, GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(RowWidth));
+            return ui.Button(new GUIContent(caption, id), null, GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(RowWidth)) |
+                PadHit("workshop-choice:" + label + ":" + id);
         }
 
         string InspectorChoice(string label, string current, IEnumerable<string> available,
-            Func<string, string> caption = null, string emptyChoice = null)
+            Func<string, string> caption = null, string emptyChoice = null, string placeholder = null)
         {
             caption ??= ReferenceCaption;
             var values = available.Distinct(StringComparer.Ordinal).ToArray();
-            if (ChoiceRow(label, (current.Length == 0 ? emptyChoice ?? "Choose…" : caption(current)) + " ▾"))
+            if (ChoiceRow(label, (current.Length == 0 ? emptyChoice ?? placeholder ?? "Choose…" : caption(current)) + " ▾"))
             { inspectorChoiceOpen = inspectorChoiceOpen == label ? "" : label; inspectorChoiceSearch = ""; }
             if (inspectorChoiceOpen != label) return current;
             if (emptyChoice != null && InspectorChoiceButton(label, "none", emptyChoice))
@@ -304,9 +350,9 @@ namespace Wreckabulary.Workshop
                 display.Checkpoints.Where(c => c.ModuleId == stop.ModuleId).Select(c => c.Id));
             else if (supply != null) name = NumberedReference(RoomCaption(supply.ModuleId) + " · " + supply.Letters, id,
                 display.Supplies.Where(s => s.ModuleId == supply.ModuleId && s.Letters == supply.Letters).Select(s => s.Id));
-            else if (safe != null) name = NumberedReference(RoomCaption(safe.ModuleId) + " safe-return point", id,
+            else if (safe != null) name = NumberedReference(RoomCaption(safe.ModuleId) + " respawn spot", id,
                 display.RecoveryAnchors.Where(r => r.ModuleId == safe.ModuleId).Select(r => r.Id));
-            else if (spawn != null) name = RoomCaption(spawn.ModuleId) + " · " + (spawn.Kind == "Respawn" ? "Respawn point" : "Start point") + " " +
+            else if (spawn != null) name = RoomCaption(spawn.ModuleId) + " · " + (spawn.Kind == "Respawn" ? "Knockout respawn" : "Start point") + " " +
                 (display.Spawns.Where(s => s.ModuleId == spawn.ModuleId && s.Kind == spawn.Kind).ToList().FindIndex(s => s.Id == id) + 1);
             else if (route != null) name = NumberedReference(RoomCaption(route.EntryModuleId) + " → " + RoomCaption(route.ExitModuleId), id,
                 display.RouteSections.Where(r => r.EntryModuleId == route.EntryModuleId && r.ExitModuleId == route.ExitModuleId).Select(r => r.Id));
@@ -324,11 +370,11 @@ namespace Wreckabulary.Workshop
         {
             "Room" or "Path start" or "Path end" or "Lap start" or "Lap finish" => "room",
             "Checkpoint" or "Checkpoints in travel order" or "Add to checkpoints in travel order" => "checkpoint",
-            "Safe-return point" => "recovery",
-            "Recipe letters" or "Tool letters" or "Receiver letters" => "supply",
-            "Breakable source" or "Wind receiver" => "zone",
-            "Tool recipe" or "Receiver recipe" => "asset",
-            "Connection" or "Arrives through" or "Connections in travel order" or "Add to connections in travel order" => "connection",
+            "Respawn spot" => "recovery",
+            "Recipe letters" or "Tool letters" or "Wind target letters" => "supply",
+            "Breakable source" or "Wind target" => "zone",
+            "Tool recipe" or "Wind target item" => "asset",
+            "Connection" or "Arrives through" or "Doors & stairs in travel order" or "Add to doors & stairs in travel order" => "connection",
             "Path" or "Paths in order" or "Add to paths in order" => "route",
             "Available after puzzles" or "Required puzzles in order" or "Add to available after puzzles" or "Add to required puzzles in order" => "puzzle",
             "Start point" => "spawn",

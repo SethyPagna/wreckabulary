@@ -58,7 +58,7 @@ namespace Wreckabulary.EditorTests
         public void StepsAndListsUsePlainNames()
         {
             CollectionAssert.AreEqual(new[] { "Build", "Fill", "Rules", "Test & Share" }, StaticField<string[]>("StepTabs"));
-            CollectionAssert.AreEqual(new[] { "Start points", "Checkpoints", "Paths", "Laps", "Safe-return points" }, StaticField<string[]>("RouteTabs"));
+            CollectionAssert.AreEqual(new[] { "Start points", "Checkpoints", "Paths", "Laps", "Respawn spots" }, StaticField<string[]>("RouteTabs"));
             CollectionAssert.AreEqual(new[] { "One object", "Scatter area", "Random mix" }, StaticField<string[]>("PlacementKinds"));
             var labels = StaticField<string[]>("StepTabs").Concat(StaticField<string[]>("StepHints")).Concat(StaticField<string[]>("RouteTabs"))
                 .Concat(StaticField<string[]>("PlacementKinds")).Concat((string[])Field("controllerActions").GetValue(workshop));

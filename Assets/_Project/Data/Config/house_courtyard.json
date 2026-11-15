@@ -1489,30 +1489,30 @@
   }
  ],
  "neverClose": [
-  "FountainSquare"
+  "Garage"
  ],
  "clearOutOrders": {
   "Dibs": [
    "Orchard",
    "Library",
-   "Garage",
    "Kitchen",
    "Study",
    "Bedroom",
-   "Dining",
    "LivingRoom",
-   "Walkway"
+   "Walkway",
+   "Dining",
+   "FountainSquare"
   ],
   "Duos": [
    "Orchard",
    "Library",
-   "Garage",
    "Kitchen",
    "Study",
    "Bedroom",
-   "Dining",
    "LivingRoom",
-   "Walkway"
+   "Walkway",
+   "Dining",
+   "FountainSquare"
   ],
   "MovingOut": [
    "Orchard",
@@ -1533,20 +1533,20 @@
  },
  "movingDay": [
   {
-   "word": "BED",
-   "room": "Bedroom"
+   "word": "TABLE",
+   "room": "Dining"
   },
   {
-   "word": "TABLE",
+   "word": "STOOL",
    "room": "Kitchen"
   },
   {
-   "word": "SOFA",
-   "room": "LivingRoom"
+   "word": "LAMP",
+   "room": "Library"
   },
   {
-   "word": "LAMP",
-   "room": "Study"
+   "word": "BED",
+   "room": "Bedroom"
   }
  ],
  "keepsakes": [

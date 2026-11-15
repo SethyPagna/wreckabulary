@@ -8,6 +8,11 @@ namespace Wreckabulary.Rules.Wordbound
 {
     public static class CourseResolver
     {
+        public const int GeneratorVersion = 1, VariantGeneratorVersion = 2;
+        public const string LayoutStream = "Layouts";
+
+        public static int GeneratorFor(int schema) => schema >= 3 ? VariantGeneratorVersion : GeneratorVersion;
+
         public static CourseResolution Resolve(CourseDocument document, CourseCatalogue catalogue, CourseResolveRequest request)
         {
             var result = new CourseResolution();
@@ -21,12 +26,12 @@ namespace Wreckabulary.Rules.Wordbound
             { result.Validation.Add("document.bounds", "$", document.Id, e.Message); return result; }
             var data = new CourseManifestData
             {
-                Schema = frozen.Schema, CanonicalVersion = frozen.Schema,
+                Schema = frozen.Schema, CanonicalVersion = frozen.Schema, GeneratorVersion = GeneratorFor(frozen.Schema),
                 Seed = request.Seed, Document = frozen, SourceHash = CourseJson.Sha256(CourseJson.ExportDocument(frozen)),
-                CatalogueHash = catalogue.Hash, Play = CoursePlayData.From(request.Play)
+                CatalogueHash = catalogue.Hash, Play = CoursePlayData.From(request.Play), LayoutId = PickLayout(frozen, request.Seed)
             };
             data.Supplies = ResolveSupplies(frozen, request.Play);
-            data.Placements = Place(frozen, catalogue, request, result.Validation);
+            data.Placements = Place(frozen, catalogue, request, LayoutZoneIds(frozen, data.LayoutId), result.Validation);
             if (!result.Validation.Ok) return result;
             CourseValidation last = null;
             for (int attempt = 0; attempt < request.MaxAttempts; attempt++)
@@ -38,16 +43,25 @@ namespace Wreckabulary.Rules.Wordbound
                     foreach (var lap in frozen.Laps.OrderBy(x => x.Number))
                     {
                         var alternatives = new List<CourseAlternative>();
+                        CourseRouteSection choice = null;
                         foreach (string id in lap.SectionIds)
                         {
                             var section = frozen.RouteSections.Single(s => s.Id == id);
+                            if (section.Kind == CourseRouteSection.ChoiceKind) { choice = section; alternatives.Add(null); continue; }
                             var pool = section.Alternatives.OrderBy(x => x.Id, StringComparer.Ordinal).ToList();
                             if (pool.Count > 1 && previous.TryGetValue(id, out string prior)) pool.RemoveAll(a => a.Id == prior);
                             var random = CourseRandom.Stream(request.Seed, "Routes", id, lap.Number, attempt);
                             var chosen = Weighted(pool, a => a.Weight, ref random);
                             alternatives.Add(chosen); previous[id] = chosen.Id;
                         }
-                        data.Laps.Add(CourseValidator.SelectLap(frozen, lap, alternatives));
+                        if (choice == null) { data.Laps.Add(CourseValidator.SelectLap(frozen, lap, alternatives)); continue; }
+                        int slot = lap.SectionIds.IndexOf(choice.Id);
+                        foreach (var option in choice.Alternatives.OrderBy(x => x.OptionId, StringComparer.Ordinal))
+                        {
+                            var variant = alternatives.ToList();
+                            variant[slot] = option;
+                            data.Laps.Add(CourseValidator.SelectLap(frozen, lap, variant, option.OptionId));
+                        }
                     }
                 last = new CourseValidation();
                 CourseValidator.ValidateSelectedProgression(data, last);
@@ -92,10 +106,28 @@ namespace Wreckabulary.Rules.Wordbound
             }
             return supplies;
         }
-        static List<CoursePlacementData> Place(CourseDocument d, CourseCatalogue catalogue, CourseResolveRequest request, CourseValidation v)
+        internal static string PickLayout(CourseDocument d, string seed)
+        {
+            if (d.Layouts.Count == 0) return "";
+            var random = CourseRandom.Stream(seed, LayoutStream, d.Id);
+            return Weighted(d.Layouts.OrderBy(x => x.Id, StringComparer.Ordinal).ToList(), x => x.Weight, ref random).Id;
+        }
+        internal static HashSet<string> LayoutZoneIds(CourseDocument d, string layoutId) =>
+            Active(d, d.Zones.Select(z => z.Id), l => l.ZoneIds, layoutId);
+        internal static HashSet<string> LayoutSpawnIds(CourseDocument d, string layoutId) =>
+            Active(d, d.Spawns.Select(s => s.Id), l => l.SpawnIds, layoutId);
+        static HashSet<string> Active(CourseDocument d, IEnumerable<string> all, Func<CourseLayout, List<string>> members, string layoutId)
+        {
+            var owned = new HashSet<string>(d.Layouts.SelectMany(members), StringComparer.Ordinal);
+            var chosen = new HashSet<string>(d.Layouts.Where(l => l.Id == layoutId).SelectMany(members), StringComparer.Ordinal);
+            return new HashSet<string>(all.Where(id => !owned.Contains(id) || chosen.Contains(id)), StringComparer.Ordinal);
+        }
+        static List<CoursePlacementData> Place(CourseDocument d, CourseCatalogue catalogue, CourseResolveRequest request,
+            HashSet<string> activeZones, CourseValidation v)
         {
             var canonical = new List<CoursePlacementData>();
-            foreach (var zone in d.Zones.OrderBy(z => z.Purpose == "Resources" ? 0 : z.Purpose == "Props" ? 1 : 2).ThenBy(z => z.Id, StringComparer.Ordinal))
+            foreach (var zone in d.Zones.Where(z => activeZones.Contains(z.Id))
+                .OrderBy(z => z.Purpose == "Resources" ? 0 : z.Purpose == "Props" ? 1 : 2).ThenBy(z => z.Id, StringComparer.Ordinal))
             {
                 var random = CourseRandom.Stream(request.Seed, zone.Purpose, zone.Id);
                 int count = random.Range(0, 1000) < zone.ChancePermille ? random.Range(zone.MinCount, zone.MaxCount + 1) : 0;

@@ -27,7 +27,7 @@
       ],
       "family": "MeleeSwing",
       "hands": 1,
-      "durability": 26,
+      "durability": 20,
       "melee": {
         "damage": 14,
         "reach": 1.5,
@@ -68,7 +68,7 @@
       "hands": 1,
       "durability": 20,
       "thrown": {
-        "damage": 12,
+        "damage": 15,
         "speed": 22,
         "lob": false,
         "recoverable": true,
@@ -391,7 +391,7 @@
       "hands": 1,
       "durability": 40,
       "melee": {
-        "damage": 6,
+        "damage": 13,
         "reach": 1.7,
         "arc": 130,
         "windup": 0.16,
@@ -428,7 +428,7 @@
       "hands": 1,
       "durability": 24,
       "melee": {
-        "damage": 15,
+        "damage": 22,
         "reach": 2.4,
         "arc": 22,
         "windup": 0.36,
@@ -705,6 +705,9 @@
         ]
       },
       "BROOM": {
+        "melee": {
+          "damage": 17
+        },
         "traits": [
           {
             "kind": "Heavy",

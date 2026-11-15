@@ -27,6 +27,11 @@ namespace Wreckabulary.Online
             public AvatarExpressionDriver Expression;
             public bool Carrying, TwoHanded;
             public float DefenseBlend;
+            public long Tile = -1;
+            public bool GroundKnown;
+            public float Ground;
+            public Vector3 GroundFrom;
+            public Vector2 Fan;
             public void Dispose() { Expression?.Dispose(); Motion?.Dispose(); World?.Dispose(); Held?.Dispose(); }
         }
 
@@ -41,6 +46,11 @@ namespace Wreckabulary.Online
         readonly Dictionary<int, ItemInstance> inventoryItems = new Dictionary<int, ItemInstance>();
         readonly HashSet<string> presentPlayers = new HashSet<string>(StringComparer.Ordinal);
         readonly WordboundDefensePose defaultDefensePose = new WordboundDefensePose();
+        readonly WordboundLetterFan letterFan = new WordboundLetterFan();
+        readonly List<View> letters = new List<View>();
+        readonly HashSet<Rigidbody> groundIgnored = new HashSet<Rigidbody>();
+        readonly RaycastHit[] groundHits = new RaycastHit[64];
+        const float FanSpeed = 1.5f, Regrounding = .01f;
         [SerializeField] AvatarExpressionProfile expressionProfile;
         WordboundVisualResolver resolver;
         WordboundGameplayController controller;
@@ -163,6 +173,7 @@ namespace Wreckabulary.Online
             view.Key = key; view.NetworkKey = body.VisualKey; view.Size = size;
             view.Parent = parent; view.Appearance = null; view.Seat = -1;
             view.Actor = body.Body.ActorId.ToString();
+            view.Tile = TileNumber(body, key); view.GroundKnown = false; view.Fan = Vector2.zero;
             if (key == "player")
             {
                 string id = body.Body.BodyId.ToString();
@@ -248,6 +259,7 @@ namespace Wreckabulary.Online
                     view.Carrying = false; view.TwoHanded = false;
                     view.World?.Show(view.Body.Body.BodyActive);
                 }
+                RestLetters(deltaTime);
                 foreach (var view in views)
                 {
                     if (view.World == null || view.Body.Body.BodyActive || view.Body.CarrierSeat < 0) continue;
@@ -264,6 +276,47 @@ namespace Wreckabulary.Online
                 foreach (var view in views) ShowHeld(view, deltaTime);
             }
             catch (Exception error) { SetFault(error); }
+        }
+
+        void RestLetters(float deltaTime)
+        {
+            letters.Clear(); groundIgnored.Clear(); letterFan.Clear();
+            foreach (var view in views)
+            {
+                if (view.World == null || view.Tile < 0 && view.Key != "player") continue;
+                var rigidbody = view.Body.Body.Rigidbody;
+                if (rigidbody) groundIgnored.Add(rigidbody);
+                if (view.Tile >= 0 && view.Body.Body.BodyActive && view.Body.CarrierSeat < 0 && view.World.Root && view.Parent)
+                    letters.Add(view);
+            }
+            foreach (var view in letters)
+            {
+                var at = view.Parent.position;
+                if (!view.GroundKnown || (at - view.GroundFrom).sqrMagnitude > Regrounding * Regrounding)
+                {
+                    WordboundLetterRest.TryGround(view.Body.gameObject.scene.GetPhysicsScene(), at, groundIgnored, groundHits, out view.Ground);
+                    view.GroundFrom = at; view.GroundKnown = true;
+                }
+                letterFan.Add(view.Tile, at.x, view.Ground, at.z);
+            }
+            letterFan.Spread();
+            float step = float.IsNaN(deltaTime) || float.IsInfinity(deltaTime) ? 0 : Mathf.Clamp(deltaTime, 0, .1f) * FanSpeed;
+            for (int i = 0; i < letters.Count; i++)
+            {
+                var view = letters[i];
+                view.Fan = Vector2.MoveTowards(view.Fan, new Vector2(letterFan.OffsetX(i), letterFan.OffsetZ(i)), step);
+                var at = view.Parent.position;
+                view.World.Root.transform.SetPositionAndRotation(new Vector3(at.x + view.Fan.x, view.Ground, at.z + view.Fan.y),
+                    WordboundLetterRest.Flat(view.Parent.rotation));
+            }
+        }
+
+        static long TileNumber(WordboundGameplayBody body, string key)
+        {
+            if (body.Body.BodyKind != (int)WorldBodyKind.Tile || !key.StartsWith("letter:", StringComparison.Ordinal)) return -1;
+            string id = body.Body.BodyId.ToString();
+            return id.StartsWith("tile:", StringComparison.Ordinal) &&
+                long.TryParse(id.Substring(5), NumberStyles.None, CultureInfo.InvariantCulture, out long tile) ? tile : -1;
         }
 
         View Carrier(View source)
@@ -290,7 +343,7 @@ namespace Wreckabulary.Online
                 view.Held = replacement; view.HeldSkin = skin;
             }
             var hand = view.Key == "keepsake" && carrier.World.LeftHand ? carrier.World.LeftHand : carrier.World.RightHand;
-            view.Held.PlaceAtHand(carrier.Parent, hand, view.Body.Body.ItemMode == (int)ItemState.Held);
+            view.Held.PlaceAtHand(carrier.Parent, hand, view.Body.Body.ItemMode == (int)ItemState.Held, carrier.World.BodyScale);
             ApplyDefensePose(view, carrier, hand, deltaTime);
             view.Held.Show(true);
         }

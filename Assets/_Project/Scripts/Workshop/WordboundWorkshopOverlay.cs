@@ -28,6 +28,32 @@ namespace Wreckabulary.Workshop
             return (to - from).sqrMagnitude > .0001f;
         }
 
+        public const float TurnRadius = 10, ArrowSize = 11;
+
+        public static (Vector2 left, Vector2 right) ArrowHead(Vector2 from, Vector2 tip, float size)
+        {
+            var back = from - tip;
+            back = back.sqrMagnitude < .0001f ? Vector2.down : back.normalized;
+            return (tip + Turned(back, 28) * size, tip + Turned(back, -28) * size);
+        }
+
+        public static Vector2[] TurnArc(Vector2 centre, float radius, int segments)
+        {
+            var points = new Vector2[Mathf.Max(1, segments) + 1];
+            for (int i = 0; i < points.Length; i++)
+            {
+                float angle = (200 - 220f * i / (points.Length - 1)) * Mathf.Deg2Rad;
+                points[i] = centre + new Vector2(Mathf.Cos(angle), -Mathf.Sin(angle)) * radius;
+            }
+            return points;
+        }
+
+        static Vector2 Turned(Vector2 value, float degrees)
+        {
+            float radians = degrees * Mathf.Deg2Rad, cos = Mathf.Cos(radians), sin = Mathf.Sin(radians);
+            return new Vector2(value.x * cos - value.y * sin, value.x * sin + value.y * cos);
+        }
+
         static bool Clip(double direction, double offset, ref double first, ref double last)
         {
             if (direction == 0) return offset >= 0;
@@ -135,9 +161,57 @@ namespace Wreckabulary.Workshop
             GUI.Box(visual, new GUIContent(caption, hint), active ? activeViewHandle : viewHandle);
         }
 
+        const string GizmoHint = "Drag the arrows to move · drag the curve to turn";
+        static readonly Color TurnColour = new Color(1, .82f, .3f);
+
+        bool Moving(WorkshopHandle handle) => dragging && activeHandle == handle;
+
+        void HandleSpot(Vector2 at, float radius, string hint)
+        {
+            var area = new Rect(at.x - radius - 3, at.y - radius - 3, radius * 2 + 6, radius * 2 + 6);
+            labelSpace.Add(area);
+            GUI.Label(area, new GUIContent("", hint));
+        }
+
+        void ArrowHandle(Vector2 from, Vector2 tip, Color colour, bool active)
+        {
+            if (!LocalViewport.Contains(tip)) return;
+            var (left, right) = WordboundWorkshopOverlay.ArrowHead(from, tip, WordboundWorkshopOverlay.ArrowSize);
+            var tint = active ? Color.white : colour;
+            DrawScreenLine(left, tip, tint); DrawScreenLine(right, tip, tint); DrawScreenLine(left, right, tint);
+            HandleSpot(tip, 14, "Drag the arrow to move this way");
+        }
+
+        void IconHandle(Vector2 at, string icon, string hint, bool active)
+        {
+            if (!LocalViewport.Contains(at)) return;
+            ViewHandle(at, "", hint, 22, 17, active);
+            if (Event.current.type != EventType.Repaint) return;
+            var tint = GUI.color;
+            try { GUI.color = ui.Ink; GUI.DrawTexture(new Rect(at.x - 8, at.y - 8, 16, 16), LobbyIcons.Get(icon).texture, ScaleMode.ScaleToFit, true); }
+            finally { GUI.color = tint; }
+        }
+
+        void TurnHandle(Vector2 centre, bool active)
+        {
+            if (!LocalViewport.Contains(centre)) return;
+            var arc = WordboundWorkshopOverlay.TurnArc(centre, WordboundWorkshopOverlay.TurnRadius, 10);
+            var tint = active ? Color.white : TurnColour;
+            for (int i = 1; i < arc.Length; i++) DrawScreenLine(arc[i - 1], arc[i], tint);
+            var (left, right) = WordboundWorkshopOverlay.ArrowHead(arc[arc.Length - 2], arc[arc.Length - 1], 6);
+            DrawScreenLine(left, arc[arc.Length - 1], tint); DrawScreenLine(right, arc[arc.Length - 1], tint);
+            HandleSpot(centre, 14, "Drag the curve to turn");
+        }
+
         void DrawWorldLine(CoursePoint from, CoursePoint to, Color color)
         {
             if (Event.current.type != EventType.Repaint || !view.ProjectSegment(from, to, viewport, out var a, out var b)) return;
+            DrawScreenLine(a, b, color);
+        }
+
+        void DrawScreenLine(Vector2 a, Vector2 b, Color color)
+        {
+            if (Event.current.type != EventType.Repaint || !WordboundWorkshopOverlay.ClipLine(LocalViewport, ref a, ref b)) return;
             var matrix = GUI.matrix; var previous = GUI.color;
             try
             {

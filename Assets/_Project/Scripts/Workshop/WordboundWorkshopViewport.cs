@@ -112,8 +112,12 @@ namespace Wreckabulary.Workshop
             UpdateCamera();
         }
 
-        public void Sync(WorkshopSnapshot state, CourseCatalogue approved, ResolvedCourse resolved = null)
+        public void Sync(WorkshopSnapshot state, CourseCatalogue approved, ResolvedCourse resolved = null) =>
+            Sync(state, (state ?? throw new ArgumentNullException(nameof(state))).Course(), approved, resolved);
+
+        public void Sync(WorkshopSnapshot state, CourseDocument document, CourseCatalogue approved, ResolvedCourse resolved = null)
         {
+            if (document == null) throw new ArgumentNullException(nameof(document));
             var style = RoomStyleProvider?.Invoke();
             if (style) style.Validate();
             var dressing = ModuleDressingProvider?.Invoke();
@@ -125,7 +129,6 @@ namespace Wreckabulary.Workshop
             if (content) { content.gameObject.SetActive(false); Destroy(content.gameObject); }
             content = new GameObject("Draft geometry").transform; content.SetParent(stage.transform, false);
             modules.Clear(); authored.Clear(); fixedVisuals.Clear(); fixedZones.Clear();
-            var document = state.Course();
             foreach (var zone in document.Zones.Where(zone => zone.Placement == "Fixed")) fixedZones[zone.Id] = zone;
             var layers = document.Layers.OrderBy(layer => layer.HeightMm).Select(layer => layer.Id).ToList();
             foreach (var module in document.Modules)

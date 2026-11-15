@@ -137,7 +137,7 @@ namespace Wreckabulary.OfflineGameplayTests
             var gameplay = client.Gameplay;
             var hud = client.GetComponent<WordboundMatchHud>();
             var course = Read<ResolvedCourse>(hud, "course");
-            Assert.AreEqual("Return to lobby", Read<string>(hud, "returnLabel"));
+            Assert.AreEqual("Leave match", Read<string>(hud, "returnLabel"));
             Assert.AreSame(sourceAssets.UiTheme, hud.Theme);
             Assert.AreSame(sourceAssets.StoryProfile, hud.StoryProfile);
             Assert.AreEqual(soloMap == WordboundSoloEntry.ParcelHallMap ? WordboundArrivalVariant.CourseId : WordboundFlagshipContent.CourseId, course.CopyDocument().Id);
@@ -174,9 +174,9 @@ namespace Wreckabulary.OfflineGameplayTests
                 Assert.IsNotEmpty(gameplay.Fault);
                 Assert.IsTrue(view.MenuOpen);
                 string notice = Read<string>(hud, "persistentNotice");
-                Assert.AreEqual("The session stopped. Choose Return to lobby to continue.", notice);
+                Assert.AreEqual("The session stopped. Choose Leave match to continue.", notice);
                 StringAssert.DoesNotContain("synthetic private fault detail", notice);
-                Assert.AreEqual("Return to lobby", Read<string>(hud, "returnLabel"));
+                Assert.AreEqual("Leave match", Read<string>(hud, "returnLabel"));
                 yield return Await(gameplay.Stop(), "Fault shutdown before the ordinary lobby return", 30);
             }
             Task returning = client.ReturnToMenu();

@@ -25,7 +25,7 @@ MonoBehaviour:
     Target: {x: -5.5, y: 0.9, z: -9}
     FieldOfView: 50
   ParcelService:
-    Module: Service
-    Position: {x: -2.2, y: 1.7, z: -2.6}
-    Target: {x: 3, y: 0.9, z: 1}
-    FieldOfView: 50
+    Module: Hall
+    Position: {x: -12, y: 5, z: -10}
+    Target: {x: 2, y: 1.5, z: 6}
+    FieldOfView: 55

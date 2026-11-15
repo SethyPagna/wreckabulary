@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -14,13 +15,20 @@ namespace Wreckabulary
         static readonly Stack<VisibilityScope> pipelineScopes = new();
         static readonly Dictionary<Renderer, CameraCutawayRenderer> prepared = new();
         static readonly List<CameraCutawayRenderer> releasing = new();
+        static readonly ProfilerMarker ApplyMarker = new("Cutaway.Apply");
         static long nextToken;
         static bool subscribed;
         Camera lens;
         UnityEngine.Object owner;
         readonly List<PlayerController> participants = new(4);
+        readonly List<PlayerController> current = new(4);
+        readonly List<Vector3> plannedFeet = new(4);
+        readonly List<Renderer> occluderShadows = new();
         IReadOnlyList<PlayerController> suppliedParticipants;
-        IReadOnlyCollection<Renderer> occluders;
+        IReadOnlyList<Renderer> occluders;
+        int plannedFrame = -1, plannedVersion;
+        Vector3 plannedAt;
+        Quaternion plannedFacing;
         public StoreyCutaway World { get; private set; }
         public PlayerController FollowedPlayer { get; private set; }
         public bool IsOverview => !FollowedPlayer;
@@ -45,7 +53,7 @@ namespace Wreckabulary
             RestoreAll();
             if (lens) cameras.Remove(lens);
             owner = null;
-            Visibility.Clear();
+            Forget();
             if (cameras.Count == 0) { Unsubscribe(); ReleaseRenderers(); }
         }
 
@@ -53,6 +61,7 @@ namespace Wreckabulary
             IReadOnlyList<PlayerController> overviewParticipants = null)
         {
             if (World != world) Visibility.Reset();
+            plannedFrame = -1;
             this.owner = owner;
             World = world;
             FollowedPlayer = followed;
@@ -64,33 +73,98 @@ namespace Wreckabulary
             if (owner != source) return;
             owner = null;
             occluders = null;
-            Visibility.Clear();
+            Forget();
         }
 
-        public void SetOccluders(IReadOnlyCollection<Renderer> renderers) => occluders = renderers;
+        public void SetOccluders(IReadOnlyList<Renderer> renderers) => occluders = renderers;
+
+        void Forget()
+        {
+            Visibility.Clear();
+            occluderShadows.Clear();
+            plannedFrame = -1;
+        }
 
         public void RefreshVisibility()
         {
-            Visibility.Clear();
+            Forget();
             if (!owner || !isActiveAndEnabled) return;
-            participants.Clear();
-            if (FollowedPlayer) participants.Add(FollowedPlayer);
-            else if (suppliedParticipants != null)
+            CollectParticipants(participants);
+            if (World)
             {
-                foreach (var player in suppliedParticipants)
-                    if (player && player.isActiveAndEnabled && !player.IsEliminated) participants.Add(player);
+                World.Evaluate(lens, participants, IsOverview, Visibility);
+                Stamp();
             }
-            else if (World) World.CollectParticipants(participants);
-            else foreach (var player in Wreckabulary.World.Players)
-                if (player && player.isActiveAndEnabled && player.gameObject.scene == gameObject.scene &&
-                    !player.IsEliminated && player.Binding is not BotBinding) participants.Add(player);
-            if (World) World.Evaluate(lens, participants, IsOverview, Visibility);
             else EvaluateStandalone();
-            if (occluders != null)
-                foreach (var renderer in occluders)
-                    if (renderer && !Visibility.Hidden.Contains(renderer)) Visibility.Shadows.Add(renderer);
+            AddOccluders();
             foreach (var renderer in Visibility.Hidden) PrepareRenderer(renderer);
             foreach (var renderer in Visibility.Shadows) PrepareRenderer(renderer);
+        }
+
+        void RefreshForRender()
+        {
+            if (!PlanStillHolds())
+            {
+                RefreshVisibility();
+                return;
+            }
+            World.RecheckDynamic(participants, Visibility);
+            foreach (var renderer in occluderShadows) Visibility.Shadows.Remove(renderer);
+            occluderShadows.Clear();
+            AddOccluders();
+            foreach (var renderer in Visibility.dynamicHidden) PrepareRenderer(renderer);
+            foreach (var renderer in occluderShadows) PrepareRenderer(renderer);
+        }
+
+        void CollectParticipants(List<PlayerController> destination)
+        {
+            destination.Clear();
+            if (FollowedPlayer) destination.Add(FollowedPlayer);
+            else if (suppliedParticipants != null)
+            {
+                for (int i = 0; i < suppliedParticipants.Count; i++)
+                {
+                    var player = suppliedParticipants[i];
+                    if (player && player.isActiveAndEnabled && !player.IsEliminated) destination.Add(player);
+                }
+            }
+            else if (World) World.CollectParticipants(destination);
+            else foreach (var player in Wreckabulary.World.Players)
+                if (player && player.isActiveAndEnabled && player.gameObject.scene == gameObject.scene &&
+                    !player.IsEliminated && player.Binding is not BotBinding) destination.Add(player);
+        }
+
+        void Stamp()
+        {
+            if (!lens) return;
+            plannedFrame = Time.frameCount;
+            plannedVersion = World.Version;
+            plannedAt = lens.transform.position;
+            plannedFacing = lens.transform.rotation;
+            plannedFeet.Clear();
+            foreach (var player in participants) plannedFeet.Add(player.transform.position);
+        }
+
+        bool PlanStillHolds()
+        {
+            if (plannedFrame != Time.frameCount || !World || !lens || World.Version != plannedVersion) return false;
+            var view = lens.transform;
+            if (!view.position.Equals(plannedAt) || !view.rotation.Equals(plannedFacing)) return false;
+            CollectParticipants(current);
+            if (current.Count != participants.Count) return false;
+            for (int i = 0; i < current.Count; i++)
+                if (!ReferenceEquals(current[i], participants[i]) || !current[i].transform.position.Equals(plannedFeet[i])) return false;
+            return true;
+        }
+
+        void AddOccluders()
+        {
+            if (occluders == null) return;
+            for (int i = 0; i < occluders.Count; i++)
+            {
+                var renderer = occluders[i];
+                if (renderer && !Visibility.Hidden.Contains(renderer) && Visibility.Shadows.Add(renderer)) occluderShadows.Add(renderer);
+            }
         }
 
         static void PrepareRenderer(Renderer renderer)
@@ -127,12 +201,18 @@ namespace Wreckabulary
 
         void EvaluateStandalone()
         {
-            foreach (var surface in CutawaySurface.Active)
+            var active = CutawaySurface.Active;
+            for (int s = 0; s < active.Count; s++)
             {
+                var surface = active[s];
                 if (!surface || surface.gameObject.scene != gameObject.scene) continue;
-                foreach (var renderer in surface.Renderers)
+                var renderers = surface.Renderers;
+                for (int i = 0; i < renderers.Count; i++)
+                {
+                    var renderer = renderers[i];
                     if (renderer && (IsOverview || StoreyCutaway.Obstructs(lens, renderer.bounds, participants)))
                         Visibility.Shadows.Add(renderer);
+                }
             }
         }
 
@@ -140,11 +220,14 @@ namespace Wreckabulary
         {
             if (World) return World.ProbeCeilings(from, direction, reach, radius);
             float available = reach;
-            foreach (var surface in CutawaySurface.Active)
+            var active = CutawaySurface.Active;
+            for (int s = 0; s < active.Count; s++)
             {
+                var surface = active[s];
                 if (!surface || surface.gameObject.scene != gameObject.scene || surface.Kind == CutawayKind.UpperWall) continue;
-                foreach (var renderer in surface.Renderers)
-                    available = StoreyCutaway.ProbeCeiling(renderer, from, direction, available, radius);
+                var renderers = surface.Renderers;
+                for (int i = 0; i < renderers.Count; i++)
+                    available = StoreyCutaway.ProbeCeiling(renderers[i], from, direction, available, radius);
             }
             return available;
         }
@@ -155,16 +238,23 @@ namespace Wreckabulary
             var scope = pool.Count > 0 ? pool.Pop() : new RenderScope();
             scope.token = ++nextToken;
             scopes.Add(scope);
-            if (camera && camera.cameraType == CameraType.Game && cameras.TryGetValue(camera, out var view) && view && view.owner)
+            var view = Planned(camera);
+            if (view) view.RefreshForRender();
+            using (ApplyMarker.Auto())
             {
-                view.RefreshVisibility();
-                foreach (var renderer in view.Visibility.Hidden) scope.Add(renderer, true);
-                foreach (var renderer in view.Visibility.Shadows)
-                    if (!view.Visibility.Hidden.Contains(renderer)) scope.Add(renderer, false);
+                if (view)
+                {
+                    foreach (var renderer in view.Visibility.Hidden) scope.Add(renderer, true);
+                    foreach (var renderer in view.Visibility.Shadows)
+                        if (!view.Visibility.Hidden.Contains(renderer)) scope.Add(renderer, false);
+                }
+                scope.Apply();
             }
-            scope.Apply();
             return new VisibilityScope(scope.token);
         }
+
+        static CameraCutaway Planned(Camera camera) =>
+            camera && camera.cameraType == CameraType.Game && cameras.TryGetValue(camera, out var view) && view && view.owner ? view : null;
 
         static void BeginRender(ScriptableRenderContext _, Camera camera) => pipelineScopes.Push(BeginCameraVisibility(camera));
         static void EndRender(ScriptableRenderContext _, Camera camera)

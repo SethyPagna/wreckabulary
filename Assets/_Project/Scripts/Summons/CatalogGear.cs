@@ -6,6 +6,16 @@ namespace Wreckabulary
 {
     public static class CatalogGear
     {
+        static Material foamMaterial;
+        static Mesh bubbleMesh;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            foamMaterial = null;
+            bubbleMesh = null;
+        }
+
         public static HeldWeapon Create(ItemDefinition item)
         {
             var root = new GameObject(item.Id);
@@ -58,8 +68,8 @@ namespace Wreckabulary
             visual.transform.SetParent(owner.visual ? owner.visual : owner.transform, false);
             visual.transform.localPosition = Vector3.up * 0.8f;
             var color = GameFeedback.SkillColor(item.Id);
-            var material = Resources.Load<Material>("VFX/FoamBubble");
-            var mesh = Resources.Load<Mesh>("VFX/BubbleSphere");
+            var material = foamMaterial ? foamMaterial : (foamMaterial = Resources.Load<Material>("VFX/FoamBubble"));
+            var mesh = bubbleMesh ? bubbleMesh : (bubbleMesh = Resources.Load<Mesh>("VFX/BubbleSphere"));
             if (material && mesh) Bubble(visual.transform, "Foam film", mesh, material, 1.5f);
             var bubbles = new Transform[7];
             var positions = new Vector3[bubbles.Length];

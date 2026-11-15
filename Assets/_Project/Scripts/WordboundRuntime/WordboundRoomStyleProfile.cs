@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using Wreckabulary.Art;
+using Wreckabulary.Rules.Wordbound;
 
 namespace Wreckabulary.WordboundRuntime
 {
@@ -16,6 +18,22 @@ namespace Wreckabulary.WordboundRuntime
         public Color Inset = new Color(.37f, .65f, .73f);
         public Color Accent = new Color(.93f, .62f, .22f);
         public Material FloorMaterial, WallMaterial, CeilingMaterial, FrameMaterial, InsetMaterial, AccentMaterial;
+    }
+
+    [Serializable]
+    public sealed class WordboundRoomFinish
+    {
+        [Tooltip("Course module ID. Rooms without an entry keep their layer palette.")]
+        public string ModuleId = "";
+        public WordboundRoomPalette Palette = new WordboundRoomPalette();
+        [Tooltip("Generated floor pattern. Planks keeps the original floor.")]
+        public Surfaces.Kind Ground = Surfaces.Kind.Planks;
+        [Tooltip("Metres per floor pattern repeat. Zero uses the pattern's own size.")]
+        [Range(0, 12)] public float GroundTile;
+        [Tooltip("Open-air room: free edges become a low wall with a railing up to the existing collision height; walls shared with buildings show the building's own finish.")]
+        public bool Outdoor;
+        [Range(.3f, 1.5f)] public float BoundaryHeight = .6f;
+        public Color Railing = new Color(.21f, .28f, .25f);
     }
 
     [CreateAssetMenu(menuName = "Wreckabulary/Wordbound/Room architecture", fileName = "RoomArchitecture")]
@@ -41,6 +59,8 @@ namespace Wreckabulary.WordboundRuntime
         [Tooltip("Optional wall illustration, used only when insets are enabled. Its source file is never changed.")]
         public Texture2D WallArtwork;
         public List<WordboundRoomPalette> Palettes = Defaults();
+        [Tooltip("Optional finishes for individual rooms. Shared walls then show each room's own side.")]
+        public List<WordboundRoomFinish> Rooms = new List<WordboundRoomFinish>();
 
         public static List<WordboundRoomPalette> Defaults() => new List<WordboundRoomPalette>
         {
@@ -54,6 +74,7 @@ namespace Wreckabulary.WordboundRuntime
         };
 
         public WordboundRoomPalette ForLayer(string id) => Palettes.FirstOrDefault(p => p.LayerId == id) ?? Palettes[0];
+        public WordboundRoomFinish ForModule(string id) => Rooms?.FirstOrDefault(r => r != null && r.ModuleId == id);
 
         public void Validate()
         {
@@ -70,9 +91,22 @@ namespace Wreckabulary.WordboundRuntime
                 throw new ArgumentException("Room woodwork must use a finite opaque colour.");
             foreach (var p in Palettes)
                 foreach (var c in new[] { p.Floor, p.Wall, p.Ceiling, p.Frame, p.Inset, p.Accent })
-                    if (!Within(c.r, 0, 1) || !Within(c.g, 0, 1) || !Within(c.b, 0, 1) || !Within(c.a, 1, 1))
-                        throw new ArgumentException("Room palette colours must be finite opaque colours.");
+                    if (!Opaque(c)) throw new ArgumentException("Room palette colours must be finite opaque colours.");
+            if (Rooms == null) return;
+            if (Rooms.Count > 32 || Rooms.Any(r => r == null || r.Palette == null || !WordboundIdentity.IsId(r.ModuleId)) ||
+                Rooms.Select(r => r.ModuleId).Distinct(StringComparer.Ordinal).Count() != Rooms.Count)
+                throw new ArgumentException("Room finishes need at most 32 entries with distinct module IDs.");
+            foreach (var r in Rooms)
+            {
+                var p = r.Palette;
+                if (!Enum.IsDefined(typeof(Surfaces.Kind), r.Ground) || r.Ground == Surfaces.Kind.Rug ||
+                    r.GroundTile != 0 && !Within(r.GroundTile, .5f, 12) || !Within(r.BoundaryHeight, .3f, 1.5f) ||
+                    !new[] { p.Floor, p.Wall, p.Ceiling, p.Frame, p.Inset, p.Accent, r.Railing }.All(Opaque))
+                    throw new ArgumentException("Room finishes need a repeating floor pattern, supported sizes and finite opaque colours.");
+            }
         }
+
+        static bool Opaque(Color c) => Within(c.r, 0, 1) && Within(c.g, 0, 1) && Within(c.b, 0, 1) && Within(c.a, 1, 1);
 
         static bool Within(float value, float min, float max) => !float.IsNaN(value) && !float.IsInfinity(value) && value >= min && value <= max;
         static Color Hex(uint value) => new Color32((byte)(value >> 16), (byte)(value >> 8), (byte)value, 255);

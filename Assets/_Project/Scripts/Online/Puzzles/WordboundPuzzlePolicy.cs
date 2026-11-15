@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Wreckabulary.Rules;
 using Wreckabulary.Rules.Wordbound;
@@ -41,18 +42,38 @@ namespace Wreckabulary.Online
             state.PhaseTick >= 1 && state.PhaseTick <= completedTick &&
             state.ProgressTicks == completedTick - state.PhaseTick + 1;
 
-        public static bool ActiveObjective(ResolvedCourse course, TeamProgress team, string puzzleId) =>
-            course != null && team != null && !team.Finished && team.Lap >= 0 && team.Lap < course.Laps.Count &&
-            team.NextCheckpoint < course.Laps[team.Lap].Checkpoints.Count &&
-            course.Laps[team.Lap].Checkpoints[team.NextCheckpoint].PuzzleIds.Contains(puzzleId) &&
-            course.Puzzles.Single(p => p.Id == puzzleId).PrerequisiteIds.All(id => team.CompletedPuzzles.Contains(id));
+        public static bool ActiveObjective(ResolvedCourse course, TeamProgress team, string puzzleId)
+        {
+            if (course == null || team == null || team.Finished || team.Lap < 0 || team.Lap >= course.Laps.Count ||
+                team.NextCheckpoint >= course.Laps[team.Lap].Checkpoints.Count ||
+                !course.Laps[team.Lap].Checkpoints[team.NextCheckpoint].PuzzleIds.Contains(puzzleId)) return false;
+            var prerequisites = Puzzle(course, puzzleId).PrerequisiteIds;
+            for (int i = 0; i < prerequisites.Count; i++)
+                if (!team.HasPuzzle(prerequisites[i])) return false;
+            return true;
+        }
 
-        public static bool LiveRecipe(MatchSnapshot frame, WorldBodyState body, string recipe, int team)
+        internal static ResolvedCoursePuzzle Puzzle(ResolvedCourse course, string puzzleId)
+        {
+            var puzzles = course.Puzzles;
+            ResolvedCoursePuzzle found = null;
+            int count = 0;
+            for (int i = 0; i < puzzles.Count; i++)
+                if (puzzles[i].Id == puzzleId) { found = puzzles[i]; count++; }
+            return count == 1 ? found : puzzles.Single(p => p.Id == puzzleId);
+        }
+
+        public static bool LiveRecipe(MatchSnapshot frame, WorldBodyState body, string recipe, int team) =>
+            LiveRecipe(frame, body, recipe, team, null);
+
+        internal static bool LiveRecipe(MatchSnapshot frame, WorldBodyState body, string recipe, int team,
+            IReadOnlyDictionary<int, ItemInstance> uniqueItems)
         {
             if (frame == null || body == null || body.Kind != WorldBodyKind.Item || !body.Active || !body.Kinematic ||
                 body.OwnerTeam != team || !body.Id.StartsWith("item:", StringComparison.Ordinal) ||
                 !int.TryParse(body.Id.Substring(5), out int id)) return false;
-            var item = frame.Economy.Items.SingleOrDefault(i => i.Id == id);
+            var item = uniqueItems == null ? frame.Economy.Items.SingleOrDefault(i => i.Id == id) :
+                uniqueItems.TryGetValue(id, out var found) ? found : null;
             return item != null && item.Word == recipe && item.Origin == ItemOrigin.Crafted && item.State == ItemState.Deployed;
         }
     }

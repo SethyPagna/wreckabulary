@@ -134,6 +134,9 @@ namespace Wreckabulary.Tests
             var side = hud.transform.Find("Safe HUD/Side column");
             foreach (var name in new[] { "Alive", "Timer", "Room", "Objective" })
                 Assert.IsNull(side.Find(name).GetComponent<Image>(), name + " uses text and icons without a filled card.");
+            var backing = side.Find("Room/Backing").GetComponent<Image>();
+            Assert.Less(backing.color.r, .2f, "The room name sits on a dark pill, so a name tag in the world behind it can't blur it.");
+            Assert.Greater(backing.color.a, .7f);
             foreach (var path in new[] { "Alive/Count", "Room/Room name", "Objective/Objective text" })
             {
                 var label = side.Find(path).GetComponent<TMPro.TMP_Text>();
@@ -158,7 +161,7 @@ namespace Wreckabulary.Tests
             Popup.Damage(8, new Vector3(3f, 1f, 5f));
             Popup.Show("SPILL!", new Vector3(-3f, 1f, 5f), Color.white);
             var texts = Object.FindObjectsByType<Popup>(FindObjectsSortMode.None).Select(p => p.GetComponent<TMPro.TextMeshPro>()).ToArray();
-            var damage = texts.Where(t => t.text.Contains("DMG")).ToArray();
+            var damage = texts.Where(t => Wreckabulary.Rules.HitText.IsDamageNumber(t.text)).ToArray();
             Assert.AreEqual(2, damage.Length);
             var material = damage[0].fontSharedMaterial;
             Assert.AreSame(material, damage[1].fontSharedMaterial, "Hits share one damage material instead of one per number.");

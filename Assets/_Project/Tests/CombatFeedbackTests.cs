@@ -28,7 +28,7 @@ namespace Wreckabulary.Tests
         bool? focus;
         [UnitySetUp] public IEnumerator SetUp()
         {
-            foreach (string key in new[] { CombatFeedbackOptions.DamageKey, CombatFeedbackOptions.PointsKey })
+            foreach (string key in GameplayPrefs.Keys.Append(CombatFeedbackOptions.PointsKey))
                 saved[key] = PlayerPrefs.HasKey(key) ? PlayerPrefs.GetInt(key) : null;
             focus = GameHud.PauseOnFocusLossOverride; GameHud.PauseOnFocusLossOverride = false;
             CombatFeedbackOptions.ResetToDefaults();
@@ -43,6 +43,7 @@ namespace Wreckabulary.Tests
         }
         static void Click(Transform root, string name) => root.GetComponentsInChildren<Button>().Single(b => b.name == name).onClick.Invoke();
         static string[] Popups() => Object.FindObjectsByType<Popup>(FindObjectsSortMode.None).Select(p => p.GetComponent<TMP_Text>().text).ToArray();
+        static bool Numbered() => Popups().Any(HitText.IsDamageNumber);
         static void ClearPopups() { foreach (var popup in Object.FindObjectsByType<Popup>(FindObjectsSortMode.None)) Object.DestroyImmediate(popup.gameObject); }
 
         [UnityTest] public IEnumerator SettingsPersistIndependentlyAcrossPauseAndLobbyAndReset()
@@ -81,13 +82,13 @@ namespace Wreckabulary.Tests
             var hit = HitInfo.From(player.Index, player.Team, rules.Unarmed, null, 0, 1);
             ClearPopups();
             Assert.IsTrue(victim.Health.ApplyDamage(hit));
-            Assert.That(Popups(), Has.Some.Contains("DMG")); Assert.That(Popups(), Has.Some.Contains("PTS"));
+            Assert.IsTrue(Numbered()); Assert.That(Popups(), Has.Some.Contains("PTS"));
             CombatFeedbackOptions.ShowDamage = false; ClearPopups();
             victim.Health.ApplyDamage(hit);
-            Assert.That(Popups(), Has.None.Contains("DMG")); Assert.That(Popups(), Has.Some.Contains("PTS"));
+            Assert.IsFalse(Numbered()); Assert.That(Popups(), Has.Some.Contains("PTS"));
             CombatFeedbackOptions.ShowPoints = false; CombatFeedbackOptions.ShowDamage = true; ClearPopups();
             victim.Health.ApplyDamage(hit);
-            Assert.That(Popups(), Has.Some.Contains("DMG")); Assert.That(Popups(), Has.None.Contains("PTS"));
+            Assert.IsTrue(Numbered()); Assert.That(Popups(), Has.None.Contains("PTS"));
             CombatFeedbackOptions.ShowDamage = false; ClearPopups();
             victim.Health.ApplyDamage(hit);
             Assert.IsEmpty(Popups());
@@ -96,7 +97,7 @@ namespace Wreckabulary.Tests
             var prop = new GameObject("Feedback prop", typeof(Rigidbody)).AddComponent<Smashable>(); prop.Init("BOX", 100);
             prop.TakeHit(12); Assert.IsEmpty(Popups());
             CombatFeedbackOptions.ShowDamage = true; prop.TakeHit(12);
-            Assert.That(Popups(), Has.Some.Contains("12 <size=60%>DMG"));
+            CollectionAssert.AreEqual(new[] { "12" }, Popups(), "A hit shows just the number.");
         }
 
         [UnityTest] public IEnumerator ControllerReticleShowsItsActualGrabTrigger()

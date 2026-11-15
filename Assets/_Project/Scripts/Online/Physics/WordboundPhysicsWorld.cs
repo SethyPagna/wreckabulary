@@ -33,6 +33,13 @@ namespace Wreckabulary.Online
         readonly WordboundThrownContactBuffer thrownContacts = new WordboundThrownContactBuffer();
         Exception contactFailure;
         MatchSnapshot frame;
+        MatchSnapshot movementFrame;
+        readonly Dictionary<string, WorldBodyState> snapshotStates = new Dictionary<string, WorldBodyState>(StringComparer.Ordinal);
+        readonly Dictionary<string, ItemInstance> snapshotItems = new Dictionary<string, ItemInstance>();
+        readonly Dictionary<int, PlayerInventory> inventories = new Dictionary<int, PlayerInventory>();
+        readonly HashSet<int> repeatedInventories = new HashSet<int>();
+        Dictionary<string, ItemInstance> shields;
+        bool repeatedShields;
         long appliedRevision;
         long simulationRevision;
         bool simulating;
@@ -193,10 +200,14 @@ namespace Wreckabulary.Online
             if (frame != null && (snapshot.Epoch < frame.Epoch ||
                 snapshot.Epoch == frame.Epoch && snapshot.Progress.Tick < frame.Progress.Tick))
                 throw new ArgumentException("Physics restoration cannot rewind within the same authority epoch.");
-            var states = snapshot.Bodies.ToDictionary(b => b.Id, StringComparer.Ordinal);
+            var states = snapshotStates;
+            states.Clear();
+            foreach (var body in snapshot.Bodies) states.Add(body.Id, body);
             if (pendingComposition && states.Count != bodies.Count)
                 throw new ArgumentException("Complete the pending body registry before applying a snapshot.");
-            var itemStates = snapshot.Economy.Items.ToDictionary(i => "item:" + i.Id);
+            var itemStates = snapshotItems;
+            itemStates.Clear();
+            foreach (var item in snapshot.Economy.Items) itemStates.Add("item:" + item.Id, item);
             foreach (var state in states.Values)
                 if (state.Kind == WorldBodyKind.Item) WordboundPhysicsPolicy.ValidateItemMode(state, itemStates[state.Id].State);
             foreach (var pair in bodies)
@@ -204,7 +215,7 @@ namespace Wreckabulary.Online
                 if (pair.Value == null || !states.TryGetValue(pair.Key, out var next))
                     throw new ArgumentException("Reconcile despawned bodies before applying this snapshot.");
                 WordboundPhysicsPolicy.ValidateUpdate(pair.Value.Canonical, next);
-                if (WordboundPhysicsPolicy.Actor(next, Binding) != pair.Value.ActorId.ToString())
+                if (WordboundPhysicsPolicy.Actor(next, Binding) != pair.Value.Actor)
                     throw new ArgumentException("Snapshot changes a registered body's authenticated seat.");
             }
             frame = snapshot;
@@ -231,17 +242,17 @@ namespace Wreckabulary.Online
         {
             scale = 1;
             if (ShouldFreeze) return false;
-            var player = frame.Progress.Players.SingleOrDefault(p => p.Id == actor);
-            var stats = frame.Actors.SingleOrDefault(a => a.PlayerId == actor);
+            var player = OnlyPlayer(frame.Progress.Players, actor);
+            var stats = OnlyActor(frame.Actors, actor);
             int index = SeatIndex(actor);
             if (player == null || stats == null || index < 0 || !player.Connected || player.Returned || player.Eliminated ||
                 stats.Health <= 0 || stats.StunnedUntilTick > frame.Progress.Tick) return false;
-            var inventory = frame.Economy.Players.Single(p => p.PlayerId == index);
+            var inventory = Inventory(index);
             if (!inventory.CanAct) return false;
             scale = inventory.Craft == null ? 1 : Rules.CraftMoveSpeed;
             if (stats.Defense != null)
             {
-                var shield = frame.Economy.Items.Single(i => "item:" + i.Id == stats.Defense.ItemEntityId);
+                var shield = Shield(stats.Defense.ItemEntityId);
                 scale *= WordboundDefensePolicy.MoveScale(stats.Defense, items.Get(shield.Word).Shield, frame.Progress.Tick);
             }
             return true;
@@ -414,6 +425,55 @@ namespace Wreckabulary.Online
             return IsHost && frame != null && index >= 0 && bodies.TryGetValue("player:" + index, out body) &&
                 body.Canonical.Active && AdmittedActor(body.Object.InputAuthority) == actor;
         }
+        static PlayerProgress OnlyPlayer(IReadOnlyList<PlayerProgress> players, string actor)
+        {
+            PlayerProgress found = null;
+            int count = 0;
+            for (int i = 0; i < players.Count; i++)
+                if (players[i].Id == actor) { found = players[i]; count++; }
+            return count <= 1 ? found : players.SingleOrDefault(p => p.Id == actor);
+        }
+
+        static MatchActorState OnlyActor(IReadOnlyList<MatchActorState> actors, string actor)
+        {
+            MatchActorState found = null;
+            int count = 0;
+            for (int i = 0; i < actors.Count; i++)
+                if (actors[i].PlayerId == actor) { found = actors[i]; count++; }
+            return count <= 1 ? found : actors.SingleOrDefault(a => a.PlayerId == actor);
+        }
+
+        void IndexMovementFrame()
+        {
+            if (ReferenceEquals(movementFrame, frame)) return;
+            movementFrame = null;
+            inventories.Clear(); repeatedInventories.Clear(); shields = null; repeatedShields = false;
+            foreach (var inventory in frame.Economy.Players)
+                if (!inventories.TryAdd(inventory.PlayerId, inventory)) repeatedInventories.Add(inventory.PlayerId);
+            movementFrame = frame;
+        }
+
+        PlayerInventory Inventory(int index)
+        {
+            IndexMovementFrame();
+            return !repeatedInventories.Contains(index) && inventories.TryGetValue(index, out var inventory) ? inventory :
+                frame.Economy.Players.Single(p => p.PlayerId == index);
+        }
+
+        ItemInstance Shield(string bodyId)
+        {
+            IndexMovementFrame();
+            if (shields == null)
+            {
+                var index = new Dictionary<string, ItemInstance>(StringComparer.Ordinal);
+                foreach (var item in frame.Economy.Items)
+                    if (!index.TryAdd("item:" + item.Id, item)) repeatedShields = true;
+                shields = index;
+            }
+            return !repeatedShields && bodyId != null && shields.TryGetValue(bodyId, out var shield) ? shield :
+                frame.Economy.Items.Single(i => "item:" + i.Id == bodyId);
+        }
+
         int SeatIndex(string actor)
         {
             for (int i = 0; i < Binding.Seats.Count; i++) if (Binding.Seats[i].PlayerId == actor) return i;

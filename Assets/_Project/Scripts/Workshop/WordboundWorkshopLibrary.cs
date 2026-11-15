@@ -38,7 +38,7 @@ namespace Wreckabulary.Workshop
                 foreach (var issue in LastPreview.Issues.Take(8)) { var found = issue; Add(found.Message, () => FocusIssue(found)); }
             if (lastPlaytestIssue.Length != 0) Add(lastPlaytestIssue, () => { ShowStep(WorkshopStep.Puzzles); sections["controls"] = true; });
             if (localPlaytest && SelectedModeEnabled && !CanPlaytestLocally)
-                Add("Test alone works in Time Trial or Freeplay. Friends can play this mode online.", () => ShowStep(WorkshopStep.Rules));
+                Add(LocalTestNeed + " · this mode needs more players.", () => ShowStep(WorkshopStep.Rules));
             return items;
         }
 
@@ -63,9 +63,11 @@ namespace Wreckabulary.Workshop
             }
             if (Section("play", "Play", true))
             {
-                GUI.enabled = PlaytestRequested != null && SelectedModeEnabled && (!localPlaytest || CanPlaytestLocally);
+                string blocker = TestBlocker;
+                GUI.enabled = blocker.Length == 0;
                 if (WideButton("Test alone", "Play this map on your own · runs the check first", ui.Primary)) Attempt(RequestPlaytest);
                 GUI.enabled = true;
+                if (blocker.Length != 0) TestFix(blocker);
                 if (OnlinePlaytestRequested != null)
                 {
                     GUI.enabled = SelectedModeEnabled;
@@ -84,24 +86,23 @@ namespace Wreckabulary.Workshop
                 {
                     saveAsName = Field("Name", saveAsName, name: "New map name");
                     GUILayout.BeginHorizontal(GUILayout.Width(RowWidth));
-                    if (ui.Button(new GUIContent("Save as new map", "Save a copy with this name and keep editing the copy"), ui.Primary,
+                    if (PadButton(new GUIContent("Save as new map", "Save a copy with this name and keep editing the copy"), ui.Primary,
                         GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true))) Attempt(SaveAsNewMap);
-                    if (ui.Button(new GUIContent("Cancel"), null, GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true))) savingAs = false;
+                    if (PadButton(new GUIContent("Cancel"), null, GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true))) savingAs = false;
                     GUILayout.EndHorizontal();
                 }
                 else if (WideButton("Save as new map…", "Save a copy under a new name; the original stays in My maps"))
                 { savingAs = true; saveAsName = CopyName(display.Title); }
-                if (WideButton("My maps", "See every map you have saved and open one")) Attempt(OpenLibrary);
             }
             if (Section("sharing", "Share", true))
             {
-                if (WideButton("Share code", "Copy a code friends can paste into their workshop")) OpenShare();
+                if (WideButton("Share code", "Copy a code friends can paste into their map editor")) OpenShare();
                 if (WideButton("Open file", "Open a .wordbound.json or .course.json map file")) Attempt(OpenFiles);
             }
             if (Advanced(ref shareAdvanced))
             {
-                if (WideButton("Save to file", "Write a map file into the workshop folder")) Attempt(SaveToFile);
-                GUILayout.Label("Workshop folder: " + storage.Folder, ui.Wrapped, GUILayout.Width(RowWidth));
+                if (WideButton("Save to file", "Write a map file into your map folder")) Attempt(SaveToFile);
+                GUILayout.Label("Map folder: " + storage.Folder, ui.Wrapped, GUILayout.Width(RowWidth));
             }
         }
 
@@ -112,9 +113,20 @@ namespace Wreckabulary.Workshop
             return name + suffix;
         }
 
+        void TestFix(string blocker)
+        {
+            Hint(blocker + ".");
+            if (PlaytestRequested == null) return;
+            if (!SelectedModeEnabled) { if (WideButton("Open Rules", "Choose a mode this map supports")) ShowStep(WorkshopStep.Rules); return; }
+            bool race = display.SupportedModes.Contains("TimeRun"), free = display.SupportedModes.Contains("Freestyle");
+            if (WideButton(race ? "Switch to Time Trial" : free ? "Switch to Freeplay" : "Add Freeplay to this map",
+                "Test alone needs a mode one player can play"))
+                Attempt(() => { if (race) SelectMode("TimeRun"); else if (free) SelectMode("Freestyle"); else EnableFreestyleSandbox(); });
+        }
+
         void KeepCurrentMap()
         {
-            if (History.Revision == savedRevision && storage.HasRecovery(History.Current.Course().Id)) return;
+            if (History.Revision == savedRevision && storage.HasRecovery(CurrentCourse.Id)) return;
             storage.Save(History.Current); savedRevision = History.Revision; saveError = "";
         }
 
@@ -149,10 +161,8 @@ namespace Wreckabulary.Workshop
             RequireRecoveryChoice();
             CancelGesture(); CommitTypedTitle();
             if (History.Revision != savedRevision) SaveNow();
-            libraryScroll = Vector2.zero; libraryOpen = true;
-            try { libraryEntries = WorkshopStorage.Library(storageFolder ?? storage.Folder); libraryError = ""; }
-            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
-            { libraryEntries = Array.Empty<WorkshopMapEntry>(); libraryError = error.Message; }
+            libraryScroll = Vector2.zero; libraryOpen = true; startScreen = false; deleteConfirm = "";
+            RefreshLibrary();
         }
 
         bool SameFolder(string a, string b) => string.Equals(Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar),
@@ -170,19 +180,20 @@ namespace Wreckabulary.Workshop
             return false;
         }
 
-        string SourceLabel(WorkshopMapEntry entry) => entry.Source == "" ? HasAssignedCourse ? "Assigned course" : "Workshop" :
-            entry.Source == FlagshipSource ? "Flagship" : entry.Source == ParcelSource ? "Parcel Depot" :
-            entry.Source == LegacyParcelSource ? "Parcel Service (old)" :
+        string SourceLabel(WorkshopMapEntry entry) => entry.Source == "" ? !HasAssignedCourse ? "Older map" :
+            QaBuild || assignedTitle.Length == 0 ? "Assigned course" : assignedTitle :
+            entry.Source == FlagshipSource ? "The Lost Address" : entry.Source == ParcelSource ? "Parcel Depot" :
+            entry.Source == LegacyParcelSource ? "Older Parcel Depot" :
             TemplateSource(entry.Source, out var template) ? TemplateLabel(template) : entry.Source;
 
         string OpenBlocker(WorkshopMapEntry entry)
         {
             if (!entry.Readable) return entry.Problem;
             if (entry.Source == "") return HasAssignedCourse || SameFolder(entry.Folder, storage.Folder) ? "" :
-                "Saved by an older version · open its template to continue it.";
-            if (entry.Source == FlagshipSource) return flagshipContent != null ? "" : "The Flagship course isn't available here.";
+                "Saved by an older version · it can't open here.";
+            if (entry.Source == FlagshipSource) return flagshipContent != null ? "" : "The Lost Address isn't available here.";
             if (entry.Source == ParcelSource) return HasParcelService && parcelServiceUnavailable == null ? "" : "Parcel Depot isn't available here.";
-            if (entry.Source == LegacyParcelSource) return "Made on the old Parcel Service layout · it can't open on Parcel Depot.";
+            if (entry.Source == LegacyParcelSource) return "Made on an older Parcel Depot · it can't open here.";
             return TemplateSource(entry.Source, out _) ? "" : "This map belongs to a course that isn't available here.";
         }
 
@@ -219,47 +230,87 @@ namespace Wreckabulary.Workshop
         void LibraryPanel()
         {
             GUILayout.BeginArea(ModalRect(760), panel);
-            GUILayout.Label("My maps", heading);
-            GUILayout.Label("Your maps save themselves. Open one to keep editing it.", ui.Wrapped);
+            GUILayout.Label(startScreen ? "Map editor" : "My maps", heading);
             libraryScroll = GUILayout.BeginScrollView(libraryScroll);
-            float open = Mathf.Ceil(GUI.skin.button.CalcSize(new GUIContent("Editing")).x) + 12;
-            foreach (var entry in libraryEntries)
-            {
-                bool current = IsCurrentMap(entry);
-                string blocker = OpenBlocker(entry);
-                GUILayout.BeginHorizontal(cardStyle);
-                GUILayout.Label((current ? "● " : "") + (entry.Readable ? entry.Title : "Unreadable save · " + entry.CourseId) + "\n" +
-                    SourceLabel(entry) + " · " + When(entry.SavedUtc) + (inspectorAdvancedIds ? " · " + entry.CourseId : ""), ui.Wrapped, GUILayout.ExpandWidth(true));
-                GUI.enabled = !current && blocker.Length == 0;
-                if (Button(current ? "Editing" : "Open", blocker.Length == 0 ? "Open " + entry.Title : blocker, open)) { var chosen = entry; Attempt(() => OpenSavedMap(chosen)); }
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
-            }
-            if (libraryEntries.Count == 0) GUILayout.Label("No saved maps yet · make a change and it saves itself.", ui.Wrapped);
+            padScroll = 2;
+            if (startScreen && continueEntry != null) ContinueButton(continueEntry);
+            if (PadButton(new GUIContent("New blank map", StarterHint(WorkshopStarter.Blank)), startScreen && continueEntry == null ? ui.Primary : null,
+                GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true))) QueueStarter(WorkshopStarter.Blank);
             GUILayout.Space(ui.Gap * 2);
-            GUILayout.Label("Templates", sectionStyle);
-            GUILayout.Label("Opens the map you last worked on for that template. Use Save as new map for another copy.", ui.Wrapped);
-            var sources = new List<(string label, int choice)>();
-            if (HasAssignedCourse) sources.Add(("Assigned course", 1));
-            foreach (WorkshopTemplate template in Enum.GetValues(typeof(WorkshopTemplate))) sources.Add((TemplateLabel(template), 2 + (int)template));
-            if (flagshipContent != null) sources.Add(("Flagship", 5));
-            if (HasParcelService) sources.Add(("Parcel Depot", 6));
-            int columns = Mathf.Max(1, Mathf.Min(3, Mathf.FloorToInt((ModalRect(760).width - 40) / 200)));
-            for (int i = 0; i < sources.Count; i++)
-            {
-                if (i % columns == 0) GUILayout.BeginHorizontal();
-                var (label, choice) = sources[i];
-                bool active = choice == 1 ? UsesAssignedCourse : choice == 5 ? usesFlagship : choice == 6 ? UsesParcelService :
-                    currentTemplate.HasValue && 2 + (int)currentTemplate.Value == choice;
-                if (ui.Button(new GUIContent((active ? "● " : "") + label), active ? ui.Selected : null, GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
-                { libraryOpen = false; if (!active) QueueSourceChoice(choice); }
-                if (i % columns == columns - 1 || i == sources.Count - 1) GUILayout.EndHorizontal();
-            }
+            GUILayout.Label("New from a starter", sectionStyle);
+            GUILayout.Label("Each starter opens as a new map of your own.", ui.Wrapped);
+            StarterGrid();
+            GUILayout.Space(ui.Gap * 2);
+            GUILayout.Label("My maps", sectionStyle);
+            GUILayout.Label("Your maps save themselves.", ui.Wrapped);
+            foreach (var entry in libraryEntries) MapRow(entry);
+            if (libraryEntries.Count == 0) GUILayout.Label("No saved maps yet · start one above.", ui.Wrapped);
+            padScroll = 0;
             GUILayout.EndScrollView();
+            if (Event.current.type == EventType.Repaint) libraryScrollRect = GUILayoutUtility.GetLastRect();
             if (libraryError.Length != 0) GUILayout.Label(libraryError, ui.Wrapped);
             GUILayout.Label(status, ui.Wrapped);
-            if (Button("Close")) libraryOpen = false;
+            if (Button(startScreen ? CloseLabel ?? "Exit" : "Close", startScreen ? "Leave the map editor" : "Back to your map"))
+            { if (startScreen) LeaveStart(); else libraryOpen = false; }
             GUILayout.EndArea();
+        }
+
+        void ContinueButton(WorkshopMapEntry entry)
+        {
+            if (PadButton(new GUIContent("Continue · " + entry.Title + "\n" + SourceLabel(entry) + " · " + When(entry.SavedUtc), "Keep editing your latest map"),
+                ui.Primary, GUILayout.MinHeight(ui.ModuleHeight), GUILayout.ExpandWidth(true)))
+            { var chosen = entry; Attempt(() => { if (IsCurrentMap(chosen)) CloseStart(); else OpenSavedMap(chosen); }); }
+            GUILayout.Space(ui.Gap);
+        }
+
+        void StarterGrid()
+        {
+            var shown = Starters.Where(starter => (starter != WorkshopStarter.ParcelDepot || HasParcelService) &&
+                (starter != WorkshopStarter.LostAddress || flagshipContent != null)).ToList();
+            int extra = QaBuild && HasAssignedCourse ? 1 : 0, count = shown.Count + extra;
+            int columns = Mathf.Max(1, Mathf.Min(3, Mathf.FloorToInt((ModalRect(760).width - 40) / 200)));
+            for (int i = 0; i < count; i++)
+            {
+                if (i % columns == 0) GUILayout.BeginHorizontal();
+                if (i < shown.Count)
+                {
+                    var starter = shown[i]; string blocker = StarterBlocker(starter);
+                    GUI.enabled = blocker.Length == 0;
+                    if (PadButton(new GUIContent(StarterLabel(starter), blocker.Length == 0 ? StarterHint(starter) : blocker), null,
+                        GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true))) QueueStarter(starter);
+                    GUI.enabled = true;
+                }
+                else if (PadButton(new GUIContent("Assigned course", "QA · opens the assigned course as it is"), UsesAssignedCourse ? ui.Selected : null,
+                    GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
+                { libraryOpen = startScreen = false; if (!UsesAssignedCourse) QueueSourceChoice(1); }
+                if (i % columns == columns - 1 || i == count - 1) GUILayout.EndHorizontal();
+            }
+        }
+
+        void MapRow(WorkshopMapEntry entry)
+        {
+            bool current = IsCurrentMap(entry);
+            string blocker = OpenBlocker(entry), removal = DeleteBlocker(entry), key = EntryKey(entry);
+            float each = Mathf.Ceil(GUI.skin.button.CalcSize(new GUIContent("Editing")).x) + 12;
+            GUILayout.BeginHorizontal(cardStyle);
+            GUILayout.Label((current ? "● " : "") + (entry.Readable ? entry.Title : "Unreadable save · " + entry.CourseId) + "\n" +
+                SourceLabel(entry) + " · " + When(entry.SavedUtc) + (inspectorAdvancedIds ? " · " + entry.CourseId : ""), ui.Wrapped, GUILayout.ExpandWidth(true));
+            if (deleteConfirm == key)
+            {
+                if (Button("Delete", "Delete " + entry.Title + " · it leaves My maps", each)) { var chosen = entry; Attempt(() => DeleteMap(chosen)); }
+                if (Button("Keep", "Keep this map", each)) deleteConfirm = "";
+            }
+            else
+            {
+                GUI.enabled = !current && blocker.Length == 0;
+                if (Button(current ? "Editing" : "Open", blocker.Length == 0 ? "Open " + entry.Title : blocker, each)) { var chosen = entry; Attempt(() => OpenSavedMap(chosen)); }
+                GUI.enabled = entry.Readable;
+                if (Button("Copy", "Make a copy of " + entry.Title, each)) { var chosen = entry; Attempt(() => DuplicateMap(chosen)); }
+                GUI.enabled = removal.Length == 0;
+                if (Button("Delete", removal.Length == 0 ? "Delete " + entry.Title : removal, each)) deleteConfirm = key;
+                GUI.enabled = true;
+            }
+            GUILayout.EndHorizontal();
         }
 
         void OpenFiles()
@@ -282,9 +333,10 @@ namespace Wreckabulary.Workshop
             GUILayout.BeginArea(ModalRect(760), panel);
             GUILayout.Label("Open a map file", heading);
             if (pendingImport != null) { ImportConfirmation(); GUILayout.EndArea(); return; }
-            GUILayout.Label("Map files in your workshop folder. To open a file from a friend, put it in this folder and refresh:", ui.Wrapped);
+            GUILayout.Label("Map files in your map folder. To open a file from a friend, put it in this folder and refresh:", ui.Wrapped);
             GUILayout.Label(storage.Folder, ui.Wrapped);
             libraryScroll = GUILayout.BeginScrollView(libraryScroll);
+            padScroll = 2;
             float open = Mathf.Ceil(GUI.skin.button.CalcSize(new GUIContent("Open")).x) + 12;
             foreach (var file in fileEntries)
             {
@@ -296,7 +348,9 @@ namespace Wreckabulary.Workshop
                 GUILayout.EndHorizontal();
             }
             if (fileEntries.Count == 0) GUILayout.Label("No .wordbound.json or .course.json files here yet. Save to file writes one.", ui.Wrapped);
+            padScroll = 0;
             GUILayout.EndScrollView();
+            if (Event.current.type == EventType.Repaint) libraryScrollRect = GUILayoutUtility.GetLastRect();
             if (libraryError.Length != 0) GUILayout.Label(libraryError, ui.Wrapped);
             GUILayout.Label(status, ui.Wrapped);
             GUILayout.BeginHorizontal();
@@ -353,9 +407,9 @@ namespace Wreckabulary.Workshop
             GUILayout.Label("Share map", heading);
             if (pendingImport != null) { ImportConfirmation(); GUILayout.EndArea(); return; }
             int selected = shareDraftOnly ? 1 : 0;
-            int next = GUILayout.Toolbar(selected, new[] { "Playable code", "Layout only" }, GUILayout.MinHeight(ui.RowHeight));
+            int next = PadToolbar(selected, new[] { "Playable code", "Layout only" }, GUILayout.MinHeight(ui.RowHeight));
             if (next != selected) Attempt(() => PrepareShare(next == 1));
-            GUILayout.Label(shareDraftOnly ? "Just the rooms, objects and puzzles · no mode or layout seed." :
+            GUILayout.Label(shareDraftOnly ? "Just the rooms, objects and puzzles · no mode or random layout." :
                 "The map with its mode and layout · friends play exactly this.", ui.Wrapped);
             GUI.SetNextControlName("Shared course JSON");
             shareText = GUILayout.TextArea(shareText, WorkshopShare.MaximumBytes, GUILayout.ExpandHeight(true));
@@ -369,7 +423,7 @@ namespace Wreckabulary.Workshop
                 else shareText = pasted;
             }
             if (Button("Import…", "Open the pasted code as your map")) Attempt(() => SetPendingImport(ParseImport(shareText)));
-            if (Button("Save to file", "Write this map into the workshop folder")) Attempt(() => ShowStatus("Saved " + Path.GetFileName(shareDraftOnly ?
+            if (Button("Save to file", "Write this map into your map folder")) Attempt(() => ShowStatus("Saved " + Path.GetFileName(shareDraftOnly ?
                 storage.SaveShare(History.Current) : storage.SavePlayableShare(History.Current, Catalogue, PlayRequirements))));
             if (Button("Done")) { sharing = false; SetPendingImport(null); }
             GUILayout.EndHorizontal(); GUILayout.EndArea();

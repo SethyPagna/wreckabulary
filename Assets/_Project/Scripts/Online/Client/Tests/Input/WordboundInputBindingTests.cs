@@ -673,6 +673,26 @@ namespace Wreckabulary.Online.Tests
         }
 
         [Test]
+        public void DpadLeftAndRightPickEquipmentWithoutMovingWhileRbAimsAndR3Cycles()
+        {
+            UsePad();
+            var left = Read(new GamepadState().WithButton(GamepadButton.DpadLeft));
+            Assert.AreEqual(1, left.slot);
+            Assert.AreEqual(Vector2.zero, left.move, "The D-pad picks equipment instead of walking.");
+            Assert.AreEqual(0, Read(new GamepadState().WithButton(GamepadButton.DpadLeft)).slot, "Holding the D-pad picks once.");
+            Read(new GamepadState());
+            var right = Read(new GamepadState().WithButton(GamepadButton.DpadRight));
+            Assert.AreEqual(2, right.slot);
+            Assert.IsFalse(right.swap || right.attack || right.jump || right.drop || right.aimHeld);
+            Read(new GamepadState());
+            var aim = Read(new GamepadState().WithButton(GamepadButton.RightShoulder));
+            Assert.IsTrue(aim.aimHeld, "RB still aims in Wordbound matches.");
+            Assert.AreEqual(0, aim.slot);
+            Read(new GamepadState());
+            Assert.IsTrue(Read(new GamepadState().WithButton(GamepadButton.RightStick)).swap, "R3 still cycles gear.");
+        }
+
+        [Test]
         public void ControllerMenuHasBoundedRepeatConfirmBackAndScrollWithoutGameplayActions()
         {
             UsePad();

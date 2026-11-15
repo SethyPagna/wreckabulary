@@ -20,14 +20,17 @@ namespace Wreckabulary.Workshop
         void FloorPanel()
         {
             var style = RoomStyleProvider?.Invoke();
-            foreach (var layer in display.Layers.OrderBy(item => item.HeightMm))
+            var ordered = display.Layers.OrderBy(item => item.HeightMm).ToList();
+            int ground = Math.Max(0, ordered.FindIndex(item => item.HeightMm >= 0));
+            for (int index = 0; index < ordered.Count; index++)
             {
+                var layer = ordered[index];
                 bool active = History.Current.ActiveLayer == layer.Id;
                 string size = FloorSize(layer.Id), state = (History.Current.HiddenLayers.Contains(layer.Id) ? " · hidden" : "") +
                     (History.Current.LockedLayers.Contains(layer.Id) ? " · locked" : "");
                 GUI.SetNextControlName("Floor " + layer.Id);
-                if (ui.Button(new GUIContent((active ? "● " : "") + layer.Id + "\n" + Metres(layer.HeightMm) + " m · " + size + state,
-                    "Floor " + layer.Id + " · height " + Metres(layer.HeightMm) + " m · rooms cover " + size +
+                if (PadButton(new GUIContent((active ? "● " : "") + ObjectLabel(layer.Id) + "\n" + LevelName(index - ground) + " · " + size + state,
+                    ObjectLabel(layer.Id) + " · height " + Metres(layer.HeightMm) + " m · rooms cover " + size +
                     (style && style.Enabled ? " · room style swatch is read-only, from the visual profile" : "")),
                     active ? ui.Selected : null, GUILayout.MinHeight(ui.ModuleHeight), GUILayout.Width(RowWidth)))
                     SelectFloor(layer.Id);
@@ -43,15 +46,15 @@ namespace Wreckabulary.Workshop
         void FloorAdvanced()
         {
             var current = display.Layers.FirstOrDefault(item => item.Id == History.Current.ActiveLayer);
-            GUILayout.Label("Floor " + History.Current.ActiveLayer, rowLabel, GUILayout.Width(RowWidth), GUILayout.MinHeight(ui.RowHeight));
+            GUILayout.Label("Floor: " + ObjectLabel(History.Current.ActiveLayer), rowLabel, GUILayout.Width(RowWidth), GUILayout.MinHeight(ui.RowHeight));
             GUILayout.BeginHorizontal(GUILayout.Width(RowWidth));
-            if (ui.Button(new GUIContent(History.Current.HiddenLayers.Contains(History.Current.ActiveLayer) ? "Show floor" : "Hide floor",
+            if (PadButton(new GUIContent(History.Current.HiddenLayers.Contains(History.Current.ActiveLayer) ? "Show floor" : "Hide floor",
                 "Show or hide the current floor"), null, GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
             {
                 CancelGesture();
                 Edit("Floor visibility", draft => Toggle(draft.HiddenLayers, draft.ActiveLayer));
             }
-            if (ui.Button(new GUIContent(History.Current.LockedLayers.Contains(History.Current.ActiveLayer) ? "Unlock floor" : "Lock floor",
+            if (PadButton(new GUIContent(History.Current.LockedLayers.Contains(History.Current.ActiveLayer) ? "Unlock floor" : "Lock floor",
                 "Lock the current floor so nothing on it moves"), null, GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
             {
                 CancelGesture();
@@ -63,7 +66,7 @@ namespace Wreckabulary.Workshop
                 var (below, above) = WorkshopCommands.LayerRange(display, current.Id);
                 bool adjusting = scrubbing == "Floor height";
                 floorHeight = Field("Height m", floorHeight, GridMetres, .1, "Floor height", (below + 100) / 1000d, (above - 100) / 1000d);
-                if (adjusting) status = "Floor " + current.Id + " · " + floorHeight + " m · release to apply";
+                if (adjusting) status = ObjectLabel(current.Id) + " · " + floorHeight + " m · release to apply";
                 bool apply = ScrubReleased("Floor height");
                 if (!adjusting && floorHeight != Metres(current.HeightMm))
                     apply |= WideButton("Set height " + floorHeight + " m", "Move this floor and all its rooms to the typed height");
@@ -81,7 +84,7 @@ namespace Wreckabulary.Workshop
         {
             var editing = display.Zones.FirstOrDefault(item => item.Id == zoneId && item.ModuleId == module.Id);
             GUI.SetNextControlName("Workshop placement kind");
-            int nextMode = GUILayout.Toolbar(zoneMode, PlacementKinds.Select((label, index) => new GUIContent(label, PlacementHints[index])).ToArray(),
+            int nextMode = PadToolbar(zoneMode, PlacementKinds.Select((label, index) => new GUIContent(label, PlacementHints[index])).ToArray(),
                 GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(RowWidth));
             if (nextMode != zoneMode)
             {
@@ -106,13 +109,14 @@ namespace Wreckabulary.Workshop
             if (editing != null)
             {
                 GUILayout.BeginHorizontal(GUILayout.Width(RowWidth));
-                if (ui.Button(new GUIContent("Apply", "Apply these settings"), null, GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
+                if (PadButton(new GUIContent("Apply", "Apply these settings"), ui.Primary, GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
                     ApplyPlacementSettings(module.Id);
-                if (ui.Button(new GUIContent("Cancel", "Discard these changes"), null, GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
+                if (PadButton(new GUIContent("Cancel", "Discard these changes"), null, GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
                     CancelPlacementSettings();
                 GUILayout.EndHorizontal();
             }
-            if (WideButton(zoneMode == 0 ? editing == null ? "Place object" : "Reposition object" : editing == null ? "Draw area" : "Redraw area", null, ui.Primary))
+            if (WideButton(zoneMode == 0 ? editing == null ? "Place object" : "Move object" : editing == null ? "Draw area" : "Redraw area", null,
+                editing == null ? ui.Primary : null))
             {
                 CancelGesture(); drawingZone = true;
                 status = zoneMode == 0 ? "Click where the object goes · Esc cancels" : "Drag across the room to draw the area · Esc cancels";
@@ -123,7 +127,7 @@ namespace Wreckabulary.Workshop
                 {
                     GUILayout.BeginHorizontal();
                     GUI.SetNextControlName("workshop-choice:Placement:" + zone.Id);
-                    if (ui.Button(new GUIContent(ZoneCaption(zone), zone.Id), zone.Id == zoneId ? ui.Selected : null,
+                    if (PadButton(new GUIContent(ZoneCaption(zone), zone.Id), zone.Id == zoneId ? ui.Selected : null,
                         GUILayout.Width(Mathf.Max(40, RowWidth - ui.RowHeight - 10)), GUILayout.MinHeight(ui.RowHeight))) SelectZone(zone);
                     if (Button("×", "Delete " + ZoneCaption(zone), ui.RowHeight)) Edit("Delete objects", draft =>
                     {
@@ -135,6 +139,7 @@ namespace Wreckabulary.Workshop
             if (!string.IsNullOrEmpty(zoneId) && WideButton("New placement")) { CancelGesture(); zoneId = ""; }
         }
         static int PoolCount(string text) => text.Split(',').Count(entry => entry.Trim().Length > 0);
+        static string LevelName(int level) => level == 0 ? "Ground floor" : level < 0 ? "Below ground " + -level : "Floor " + (level + 1);
 
         void SetFloorHeight(string id)
         {
@@ -182,16 +187,15 @@ namespace Wreckabulary.Workshop
 
         void PlacementRangeFields(CourseModule module)
         {
-            bool open = Section("range", "Area range, turns & floors", ref placementLimits);
+            bool open = Section("range", "Area limits", ref placementLimits);
             if (Event.current.type == EventType.Repaint) placementRangeY = GUILayoutUtility.GetLastRect().y;
             if (!open) return;
-            Pair("X m", "X range", "min", ref rangeMinX, "max", ref rangeMaxX, GridMetres, .1);
-            Pair("Z m", "Z range", "min", ref rangeMinZ, "max", ref rangeMaxZ, GridMetres, .1);
-            Pair("Height m", "Height range", "min", ref rangeMinY, "max", ref rangeMaxY, .25, .05);
-            placementHelp = GUILayout.Toggle(placementHelp, "Help", GUILayout.Width(RowWidth));
-            if (placementHelp)
+            Pair("Width m", "Width", "from", ref rangeMinX, "to", ref rangeMaxX, GridMetres, .1);
+            Pair("Depth m", "Depth", "from", ref rangeMinZ, "to", ref rangeMaxZ, GridMetres, .1);
+            Pair("Height m", "Height", "from", ref rangeMinY, "to", ref rangeMaxY, .25, .05);
+            if (Section(null, "What do these mean?", ref placementHelp))
             {
-                GUILayout.Label("World metres. Height is the bottom of the object.", ui.Wrapped, GUILayout.Width(RowWidth));
+                GUILayout.Label("Map metres, across and front to back. Height is the bottom of the object.", ui.Wrapped, GUILayout.Width(RowWidth));
                 GUILayout.Label("The whole object must fit in this room.", ui.Wrapped, GUILayout.Width(RowWidth));
             }
             GUILayout.Label("Turns", rowLabel, GUILayout.Width(RowWidth));
@@ -199,7 +203,7 @@ namespace Wreckabulary.Workshop
             foreach (int yaw in PlacementYaws)
             {
                 bool picked = rangeYaws.Contains(yaw);
-                bool next = GUILayout.Toggle(picked, yaw + "°", "Button");
+                bool next = PadToggle(picked, new GUIContent(yaw + "°"), GUI.skin.button);
                 if (next != picked) { if (next) rangeYaws.Add(yaw); else rangeYaws.Remove(yaw); }
             }
             GUILayout.EndHorizontal();
@@ -211,8 +215,8 @@ namespace Wreckabulary.Workshop
             {
                 bool picked = rangeLayers.Contains(layer.Id), enabled = GUI.enabled;
                 GUI.enabled = enabled && !(picked && layer.Id == module.LayerId);
-                bool next = GUILayout.Toggle(picked, new GUIContent(layer.Id + (layer.Id == module.LayerId ? " · this room" : ""),
-                    "Limits the allowed floors. Objects still stay in this room."), "Button", GUILayout.Width(RowWidth));
+                bool next = PadToggle(picked, new GUIContent(ObjectLabel(layer.Id) + (layer.Id == module.LayerId ? " · this room" : ""),
+                    "Limits the allowed floors. Objects still stay in this room."), GUI.skin.button, GUILayout.Width(RowWidth));
                 GUI.enabled = enabled;
                 if (next != picked) { if (next) rangeLayers.Add(layer.Id); else rangeLayers.Remove(layer.Id); }
             }
@@ -261,8 +265,8 @@ namespace Wreckabulary.Workshop
         void PoolWeightRows()
         {
             GUILayout.Label("Bigger amount = more likely · drag a name to adjust", ui.Wrapped, GUILayout.Width(RowWidth));
-            advancedPool = GUILayout.Toggle(advancedPool, "Edit as text", GUILayout.Width(RowWidth));
-            if (advancedPool) { pool = Field("Mix", pool, name: "ID:amount, ID:amount"); return; }
+            advancedPool = PadToggle(advancedPool, new GUIContent("Type the mix"), GUI.skin.toggle, GUILayout.Width(RowWidth));
+            if (advancedPool) { pool = Field("Mix", pool, name: "Mix as text · OBJECT:amount, OBJECT:amount"); return; }
             var entries = pool.Split(',').Select(entry => entry.Trim()).Where(entry => entry.Length > 0).ToList();
             int remove = -1;
             for (int i = 0; i < entries.Count; i++)
@@ -275,7 +279,7 @@ namespace Wreckabulary.Workshop
                 weight = Scrub(GUILayoutUtility.GetLastRect(), "Weight " + id, weight, 1, 1, 1, 10000);
                 GUI.SetNextControlName("Weight " + id);
                 weight = GUILayout.TextField(weight, 5, GUILayout.Width(52), GUILayout.MinHeight(25));
-                if (GUILayout.Button(new GUIContent("×", "Remove " + id), GUILayout.Width(28), GUILayout.Height(25))) remove = i;
+                if (GUILayout.Button(new GUIContent("×", "Remove " + id), GUILayout.Width(28), GUILayout.Height(25)) | PadHit("Remove " + id)) remove = i;
                 GUILayout.EndHorizontal();
                 if (parts.Length <= 2) entries[i] = id + ":" + weight;
             }

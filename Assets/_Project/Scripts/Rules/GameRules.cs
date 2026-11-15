@@ -70,6 +70,17 @@ namespace Wreckabulary.Rules
 
         public int EscapeKeys = 1;
 
+        public int KnockoutsToWin { get => Setting("knockoutsToWin", 0); set => SetSetting("knockoutsToWin", value); }
+        public int TeamLives { get => Setting("teamLives", 0); set => SetSetting("teamLives", value); }
+        public float HoldBonusSeconds { get => Setting("holdBonus", 0f); set => SetSetting("holdBonus", value); }
+        Dictionary<string, float> settings;
+
+        public float Setting(string key, float fallback) => settings != null && key != null && settings.TryGetValue(key, out float value) ? value : fallback;
+
+        public int Setting(string key, int fallback) => (int)Math.Round(Setting(key, (float)fallback));
+
+        public void SetSetting(string key, float value) => (settings ??= new Dictionary<string, float>(StringComparer.Ordinal))[key] = value;
+
         public float CraftSeconds(ItemDefinition item) => CraftBaseSeconds + CraftPerLetterSeconds * item.Letters.Count;
 
         public float BleedOutFor(int timesDowned)
@@ -83,6 +94,7 @@ namespace Wreckabulary.Rules
         {
             var copy = (GameRules)MemberwiseClone();
             copy.BleedOutSeconds = (float[])BleedOutSeconds.Clone();
+            if (settings != null) copy.settings = new Dictionary<string, float>(settings, StringComparer.Ordinal);
             var u = Unarmed;
             copy.Unarmed = new MeleeStats
             {
@@ -114,6 +126,7 @@ namespace Wreckabulary.Rules
             Need(StaminaRegen >= 0 && StaminaRegenDelay >= 0, "stamina recovery cannot be negative");
             Need(JumpHeight > 0, "jumpHeight must be positive");
             Need(GroundAccel > 0 && GroundFriction > 0, "groundAccel and groundFriction must be positive");
+            Need(KnockoutsToWin >= 0 && TeamLives >= 0 && HoldBonusSeconds >= 0, "knockoutsToWin, teamLives and holdBonus can't be negative");
             return problems;
         }
     }
@@ -123,7 +136,11 @@ namespace Wreckabulary.Rules
         readonly Dictionary<string, GameRules> modes = new Dictionary<string, GameRules>(StringComparer.Ordinal);
         public GameRules Defaults { get; private set; } = new GameRules();
 
+        readonly List<string> layered = new List<string>();
+
         public IEnumerable<string> Modes => modes.Keys;
+
+        public IReadOnlyList<string> LayeredModes => layered;
 
         public GameRules For(string mode)
         {
@@ -148,6 +165,25 @@ namespace Wreckabulary.Rules
 
         public void Override(string mode, JsonNode settings) => Apply(For(mode), settings);
 
+        public void Layer(string json, string source = "modes_house.json")
+        {
+            var root = Json.Parse(json, source);
+            foreach (string key in root.Keys)
+                if (key != "notes" && key != "modes") throw root.Error($"'{key}' is not a House modes setting");
+            var list = root["modes"];
+            foreach (string mode in list.Keys)
+            {
+                var n = list[mode];
+                if (modes.ContainsKey(mode)) throw n.Error($"'{mode}' is a rules.json mode; House modes may only add new ones");
+                string from = n["base"].String("");
+                if (from.Length > 0 && !modes.ContainsKey(from)) throw n.Error($"base '{from}' is not a known mode");
+                var rules = Apply((from.Length > 0 ? modes[from] : Defaults).Clone(), n, layered: true);
+                rules.Mode = mode;
+                modes[mode] = rules;
+                layered.Add(mode);
+            }
+        }
+
         public List<string> Validate()
         {
             var problems = Defaults.Validate();
@@ -166,13 +202,15 @@ namespace Wreckabulary.Rules
             "exitNeedsKey", "keyAfterRooms", "randomExit", "exitKeys",
         };
 
+        static readonly HashSet<string> HouseOnly = new HashSet<string>(StringComparer.Ordinal) { "base", "knockoutsToWin", "teamLives", "holdBonus", "settings" };
+
         static readonly string[] ClearOutKeys = { "enabled", "firstAt", "interval", "warn", "fill", "damagePerSecond", "damageGrowth" };
 
-        static GameRules Apply(GameRules r, JsonNode n)
+        static GameRules Apply(GameRules r, JsonNode n, bool layered = false)
         {
             if (n.IsNull) return r;
             foreach (string key in n.Keys)
-                if (!Known.Contains(key)) throw n.Error($"'{key}' is not a rules setting");
+                if (!Known.Contains(key) && !(layered && HouseOnly.Contains(key))) throw n.Error(layered || !HouseOnly.Contains(key) ? $"'{key}' is not a rules setting" : $"'{key}' belongs in modes_house.json");
             r.MaxHealth = n["maxHealth"].Float(r.MaxHealth);
             r.SpawnProtectionSeconds = n["spawnProtection"].Float(r.SpawnProtectionSeconds);
             r.MaxLetters = n["maxLetters"].Int(r.MaxLetters);
@@ -236,6 +274,14 @@ namespace Wreckabulary.Rules
             r.EscapeKeyAfterRooms = n["keyAfterRooms"].Int(r.EscapeKeyAfterRooms);
             r.EscapeRandomExit = n["randomExit"].Bool(r.EscapeRandomExit);
             r.EscapeKeys = n["exitKeys"].Int(r.EscapeKeys);
+            r.KnockoutsToWin = n["knockoutsToWin"].Int(r.KnockoutsToWin);
+            r.TeamLives = n["teamLives"].Int(r.TeamLives);
+            r.HoldBonusSeconds = n["holdBonus"].Float(r.HoldBonusSeconds);
+            if (n.Has("settings"))
+            {
+                var extra = n["settings"];
+                foreach (string key in extra.Keys) r.SetSetting(key, extra[key].Float());
+            }
             return r;
         }
     }

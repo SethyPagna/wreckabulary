@@ -127,7 +127,7 @@ namespace Wreckabulary.Rules.Wordbound
                 var checkpoint = d.Checkpoints.SingleOrDefault(c => c.Id == site.CheckpointId);
                 var lap = d.Laps.SingleOrDefault(l => l.Number == site.Lap);
                 if (puzzle == null || checkpoint == null || lap == null || checkpoint.ModuleId != puzzle.ModuleId ||
-                    !checkpoint.PuzzleIds.Contains(site.PuzzleId) || !lap.SectionIds.SelectMany(id =>
+                    !CandidatePuzzles(checkpoint).Contains(site.PuzzleId) || !lap.SectionIds.SelectMany(id =>
                         d.RouteSections.Where(s => s.Id == id).SelectMany(s => s.Alternatives)).Any(a => a.CheckpointIds.Contains(site.CheckpointId)))
                 { Error("The site must refer to a puzzle checkpoint on its authored lap."); continue; }
                 var module = d.Modules.SingleOrDefault(m => m.Id == puzzle.ModuleId);

@@ -12,7 +12,7 @@ namespace Wreckabulary
         [Tooltip("When more tiles than this are loose, the oldest one is recycled.")]
         [SerializeField] int maxActive = 160;
 
-        readonly Stack<LetterTile> free = new();
+        readonly List<LetterTile> free = new();
         readonly List<LetterTile> active = new();
 
         public IReadOnlyList<LetterTile> Active => active;
@@ -31,7 +31,7 @@ namespace Wreckabulary
             {
                 var t = Instantiate(tilePrefab, transform);
                 t.gameObject.SetActive(false);
-                free.Push(t);
+                free.Add(t);
             }
         }
 
@@ -43,10 +43,25 @@ namespace Wreckabulary
         public LetterTile Get(char letter)
         {
             if (free.Count == 0 && active.Count >= maxActive) Release(active[0]);
-            var t = free.Count > 0 ? free.Pop() : Instantiate(tilePrefab, transform);
+            var t = free.Count > 0 ? TakeFree(char.ToUpperInvariant(letter)) : Instantiate(tilePrefab, transform);
             t.gameObject.SetActive(true);
             t.SetLetter(letter);
             active.Add(t);
+            return t;
+        }
+
+        LetterTile TakeFree(char letter)
+        {
+            int same = -1, blank = -1;
+            for (int i = free.Count - 1; i >= 0 && same < 0; i--)
+            {
+                char shown = free[i].ShownLetter;
+                if (shown == letter) same = i;
+                else if (shown == '\0' && blank < 0) blank = i;
+            }
+            int pick = same >= 0 ? same : blank >= 0 ? blank : free.Count - 1;
+            var t = free[pick];
+            free.RemoveAt(pick);
             return t;
         }
 
@@ -54,7 +69,7 @@ namespace Wreckabulary
         {
             if (!active.Remove(t)) return;
             t.gameObject.SetActive(false);
-            free.Push(t);
+            free.Add(t);
         }
 
         public void ReleaseAll()

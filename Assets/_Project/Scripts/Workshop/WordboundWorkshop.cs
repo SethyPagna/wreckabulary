@@ -29,17 +29,21 @@ namespace Wreckabulary.Workshop
                 var rect = ui.ToolbarRect(viewport.size);
                 if (!showRandomness)
                 {
-                    rect.width = Mathf.Min(rect.width, ui.RowHeight * 3 + 132 + ui.Padding * 2 + ui.Gap * 6);
+                    rect.width = Mathf.Min(rect.width, MapToolsWidth + ui.Padding * 2 + ui.Gap * 6);
                     rect.height = ui.ChromeHeight;
                 }
                 return rect;
             }
         }
+        float MapToolsWidth => toolStyle == null ? ui.RowHeight * 3 + 132 :
+            ToolWidth("Grid 0.5 m", null) + ToolWidth("Random layout", LobbyIcons.Dice) + ToolWidth("Fit", LobbyIcons.Frame) + ToolWidth("Top view", LobbyIcons.Arrow);
         Rect ToolbarReserved => Rect.MinMaxRect(0, 0, ToolbarRect.xMax + 8, ToolbarRect.yMax + 8);
         WorkshopStorage storage;
         string storageFolder;
         CourseDocument display;
         CourseValidation validation;
+        readonly WorkshopDisplayCache displayCache = new WorkshopDisplayCache();
+        CourseDocument CurrentCourse => displayCache.For(History.Current);
         readonly Dictionary<WorkshopTemplate, DraftSession> drafts = new Dictionary<WorkshopTemplate, DraftSession>();
         WorkshopTemplate? currentTemplate;
         Vector2 inspectorScroll, pointerStart;
@@ -55,13 +59,18 @@ namespace Wreckabulary.Workshop
         float uiScale = 1;
         string resizingZone;
         CoursePoint resizeAnchor, resizePoint;
-        GUIStyle panel, heading, selectedBox, ghostBox, normalBox, issueBox, sectionStyle, rowLabel, rowField, cardStyle, cardTitle, hintStyle, singleLineButton;
+        GUIStyle panel, heading, selectedBox, ghostBox, normalBox, issueBox, sectionStyle, rowLabel, rowField, cardStyle, cardTitle, hintStyle, singleLineButton,
+            toolStyle, toolIconStyle, badgeStyle;
+        float savedWidth;
         const string SectionPrefix = "wv.workshop.section.", TitleControl = "workshop-text:Map name";
         const float ScrubPixels = 6, MinimumField = 44;
         static readonly int ScrubHint = "WordboundWorkshopScrub".GetHashCode();
         readonly Dictionary<string, bool> sections = new Dictionary<string, bool>(StringComparer.Ordinal);
         float rowWidth = 200;
-        string scrubbing, scrubReleased, floorHeight = "0";
+        string scrubbing, scrubReleased, floorHeight = "0", layoutCourse, layoutSeed;
+        CoursePlayRequirements layoutPlay;
+        CourseCatalogue layoutCatalogue;
+        ResolvedCourse layoutManifest;
         double scrubValue;
         static string DefaultFolder => Path.Combine(Application.persistentDataPath, "wordbound-workshop");
 
@@ -84,6 +93,7 @@ namespace Wreckabulary.Workshop
         {
             RequireRecoveryChoice();
             if (OnlineStarting) throw new InvalidOperationException("Wait for online preparation to finish before changing courses.");
+            CloseStart();
             if (currentTemplate == template && (folder == null || folder == storageFolder)) return;
             var preset = WorkshopTemplates.Create(template);
             SaveAndRememberDraft();
@@ -104,12 +114,12 @@ namespace Wreckabulary.Workshop
                 "Recovered template autosave", "Recovered previous template save", "Start fresh from the template");
             AskAboutDamagedLastMap(templateStorage, last, problem, back);
         }
-        public void ResumeEditing() { Visible = true; Refresh(); }
+        public void ResumeEditing() { CloseStart(); Visible = true; Refresh(); }
         public void RequestClose()
         {
             if (OnlineStarting || RecoveryChoicePending || History == null || storage == null) return;
             Attempt(() => {
-                CancelGesture(); CommitTypedTitle(); storage.Save(History.Current); savedRevision = History.Revision; saveError = "";
+                CancelGesture(); CommitTypedTitle(); KeepCurrentMap();
                 CloseRequested?.Invoke(); Visible = false;
             });
         }
@@ -119,7 +129,7 @@ namespace Wreckabulary.Workshop
             if (!SelectedModeEnabled) throw new InvalidOperationException("Choose a mode this map supports in Rules before checking it.");
             CancelGesture();
             LastPreview = History.Preview(Catalogue, PlayRequirements);
-            if (view != null) view.Sync(History.Current, Catalogue, LastPreview.Success ? LastPreview.Manifest : null);
+            if (view != null) view.Sync(History.Current, CurrentCourse, Catalogue, LastPreview.Success ? LastPreview.Manifest : DraftLayout());
             lastPlaytestIssue = LastPreview.Success ? WorkshopPhysicalSites.PlaytestIssue(LastPreview.Manifest) : "";
             status = !LastPreview.Success ? LastPreview.Issues.FirstOrDefault()?.Message ?? "The check found a problem" :
                 lastPlaytestIssue.Length == 0 ? "Map checked · ready to test with this mode and layout" : "Map checked · " + lastPlaytestIssue;
@@ -129,8 +139,7 @@ namespace Wreckabulary.Workshop
         {
             LastPlaytestDraft = null;
             if (!SelectedModeEnabled) { ShowStatus("Choose a mode this map supports in Rules before testing."); return; }
-            if (localPlaytest && !CanPlaytestLocally)
-            { ShowStatus("Test alone works in Time Trial or Freeplay with one player. Choose one in Rules."); return; }
+            if (localPlaytest && !CanPlaytestLocally) { ShowStatus(LocalTestNeed + " · switch mode in Rules."); return; }
             if (PlaytestRequested == null) { status = "Testing is unavailable in this view."; return; }
             var result = Preview();
             if (result.Success)
@@ -144,14 +153,16 @@ namespace Wreckabulary.Workshop
         {
             workshopPadGate.Suspend();
             displayRevision = -1; savedRevision = -1; placing = null; dragging = marquee = panning = drawingZone = sharing = false;
-            libraryOpen = filesOpen = savingAs = titleEditing = false; SetPendingImport(null); lastPlaytestIssue = "";
+            libraryOpen = filesOpen = savingAs = titleEditing = startScreen = false; SetPendingImport(null); lastPlaytestIssue = "";
+            deleteConfirm = "";
             zoneId = ""; resizingZone = null; LastPreview = null; step = WorkshopStep.Build; lastFill = WorkshopStep.Objects;
             inspectorScroll = Vector2.zero; inspectorChoiceOpen = ""; newPuzzle = false; CancelGesture(); Frame();
         }
         void Refresh()
         {
             if (History == null || History.Revision == displayRevision) return;
-            display = History.Current.Course(); validation = CourseValidator.Validate(display, Catalogue, PlayRequirements);
+            displayCache.Update(History.Current, Catalogue, PlayRequirements);
+            display = displayCache.Document; validation = displayCache.Validation;
             if (!titleEditing) title = display.Title;
             seed = History.Current.Seed;
             var selected = display.Modules.FirstOrDefault(module => History.Current.Selection.Contains(module.Id));
@@ -161,7 +172,24 @@ namespace Wreckabulary.Workshop
             layerHeight = Metres(WorkshopCommands.NextLayerHeight(display, Catalogue));
             floorHeight = Metres(display.Layers.FirstOrDefault(layer => layer.Id == History.Current.ActiveLayer)?.HeightMm ?? 0);
             displayRevision = History.Revision; autosaveAt = Time.unscaledTime + 1f; LastPreview = null; lastPlaytestIssue = "";
-            if (view != null) view.Sync(History.Current, Catalogue);
+            if (view != null) view.Sync(History.Current, display, Catalogue, DraftLayout());
+        }
+        ResolvedCourse DraftLayout()
+        {
+            if (History == null || Catalogue == null || PlayRequirements == null) return null;
+            var current = History.Current;
+            string course = current.CourseJsonText;
+            if (course == layoutCourse && current.Seed == layoutSeed && ReferenceEquals(PlayRequirements, layoutPlay) &&
+                ReferenceEquals(Catalogue, layoutCatalogue)) return layoutManifest;
+            layoutCourse = course; layoutSeed = current.Seed; layoutPlay = PlayRequirements; layoutCatalogue = Catalogue; layoutManifest = null;
+            if (CurrentCourse.Zones.All(zone => zone.Placement == "Fixed" && zone.Pool.Count == 1)) return null;
+            try
+            {
+                var resolved = History.Preview(Catalogue, PlayRequirements);
+                if (resolved.Success) layoutManifest = resolved.Manifest;
+            }
+            catch (Exception error) when (error is ArgumentException || error is InvalidOperationException || error is FormatException) { }
+            return layoutManifest;
         }
         void Update()
         {
@@ -169,8 +197,10 @@ namespace Wreckabulary.Workshop
             if (RecoveryChoicePending) { ProcessRecoveryChoice(Application.isFocused); return; }
             ProcessSourceChoice(Application.isFocused);
             Refresh();
-            if (view != null) view.Active = Visible;
-            ControllerInput(Application.isFocused);
+            if (view != null) view.Active = Visible && !libraryOpen;
+            TrackPadScreen();
+            if (DialogOpen) DialogControllerInput(Application.isFocused);
+            else ControllerInput(Application.isFocused);
             if (History.Revision == savedRevision || Time.unscaledTime < autosaveAt) return;
             SaveNow();
         }
@@ -186,7 +216,7 @@ namespace Wreckabulary.Workshop
         }
         void RememberLast()
         {
-            try { storage.RememberLastMap(History.Current.Course().Id); }
+            try { storage.RememberLastMap(CurrentCourse.Id); }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is ArgumentException) { }
         }
         string SaveState => saveError.Length != 0 ? "Not saved" : History.Revision == savedRevision ? "Saved ✓" : "Saving…";
@@ -215,31 +245,41 @@ namespace Wreckabulary.Workshop
         {
             GUI.SetNextControlName(label);
             var height = GUILayout.MinHeight(label.Contains("\n") ? ui.ModuleHeight : ui.RowHeight);
-            return width > 0 ? ui.Button(new GUIContent(label, tooltip ?? label), null, height, GUILayout.Width(width))
+            bool clicked = width > 0 ? ui.Button(new GUIContent(label, tooltip ?? label), null, height, GUILayout.Width(width))
                 : ui.Button(new GUIContent(label, tooltip ?? label), label.Contains("\n") ? null : singleLineButton, height);
+            return PadHit(label) | clicked;
         }
         bool WideButton(string label, string tooltip = null, GUIStyle style = null)
         {
             GUI.SetNextControlName(label);
-            return ui.Button(new GUIContent(label, tooltip ?? label), style,
+            bool clicked = ui.Button(new GUIContent(label, tooltip ?? label), style,
                 GUILayout.MinHeight(label.Contains("\n") ? ui.ModuleHeight : ui.RowHeight), GUILayout.Width(RowWidth));
+            return PadHit(label) | clicked;
         }
-        bool ToolButton(string label, string icon, string tooltip = null)
+        float ToolIcon => Mathf.Min(22, ui.RowHeight - 10);
+        float ToolWidth(string label, string icon) => Mathf.Ceil(toolStyle.CalcSize(new GUIContent(label)).x) +
+            (icon == null ? 0 : ToolIcon + 6) + toolStyle.margin.horizontal;
+        bool ToolButton(string label, string icon, string tooltip = null, float turn = 0)
         {
             GUI.SetNextControlName(label);
-            bool clicked = ui.Button(new GUIContent("", tooltip ?? label), null,
-                GUILayout.Width(ui.RowHeight), GUILayout.Height(ui.RowHeight));
+            float width = ToolWidth(label, icon) - toolStyle.margin.horizontal;
+            bool clicked = ui.Button(new GUIContent(label, tooltip ?? label), toolIconStyle,
+                GUILayout.Width(width), GUILayout.Height(ui.RowHeight));
+            clicked |= PadHit(label);
             if (Event.current.type != EventType.Repaint) return clicked;
             var rect = GUILayoutUtility.GetLastRect();
-            float size = Mathf.Min(22, rect.height - 10);
-            var tint = GUI.color;
+            var spot = new Rect(rect.x + toolStyle.padding.left, rect.center.y - ToolIcon * .5f, ToolIcon, ToolIcon);
+            var tint = GUI.color; var matrix = GUI.matrix;
             try
             {
                 GUI.color = GUI.enabled ? ui.Ink : ui.DisabledText.normal.textColor;
-                GUI.DrawTexture(new Rect(rect.center - Vector2.one * size * .5f, Vector2.one * size),
-                    LobbyIcons.Get(icon).texture, ScaleMode.ScaleToFit, true);
+                if (turn != 0)
+                {
+                    GUI.matrix = Matrix4x4.identity; GUIUtility.RotateAroundPivot(turn, spot.center); GUI.matrix = matrix * GUI.matrix;
+                }
+                GUI.DrawTexture(spot, LobbyIcons.Get(icon).texture, ScaleMode.ScaleToFit, true);
             }
-            finally { GUI.color = tint; }
+            finally { GUI.color = tint; GUI.matrix = matrix; }
             return clicked;
         }
         void Hint(string text) => GUILayout.Label(text, hintStyle, GUILayout.Width(RowWidth));
@@ -254,8 +294,8 @@ namespace Wreckabulary.Workshop
         bool Section(string name, string caption, ref bool open)
         {
             GUI.SetNextControlName("workshop-section:" + (name ?? caption));
-            bool next = GUILayout.Toggle(open, (open ? "▾  " : "▸  ") + caption, sectionStyle,
-                GUILayout.Width(RowWidth), GUILayout.MinHeight(ui.RowHeight));
+            bool next = PadFlip(open, GUILayout.Toggle(open, (open ? "▾  " : "▸  ") + caption, sectionStyle,
+                GUILayout.Width(RowWidth), GUILayout.MinHeight(ui.RowHeight)), caption);
             if (next != open && name != null) RememberSection(name, next);
             open = next;
             return next;
@@ -326,6 +366,7 @@ namespace Wreckabulary.Workshop
             GUI.SetNextControlName("workshop-choice:" + label + ":open");
             bool clicked = ui.Button(new GUIContent(caption, caption), null,
                 GUILayout.Width(Mathf.Max(40, width - (inline ? head + 8 : 4))), GUILayout.MinHeight(ui.RowHeight));
+            clicked |= PadHit(label + ":" + caption);
             GUILayout.EndHorizontal();
             return clicked;
         }
@@ -390,6 +431,13 @@ namespace Wreckabulary.Workshop
             cardTitle = new GUIStyle(sectionStyle) { wordWrap = true, clipping = TextClipping.Overflow };
             hintStyle = new GUIStyle(ui.Wrapped);
             singleLineButton = new GUIStyle(GUI.skin.button) { wordWrap = false };
+            toolStyle = new GUIStyle(singleLineButton) { alignment = TextAnchor.MiddleLeft };
+            toolIconStyle = new GUIStyle(toolStyle);
+            toolIconStyle.padding.left += Mathf.RoundToInt(ToolIcon + 6);
+            badgeStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = Mathf.Max(10, GUI.skin.label.fontSize - 2),
+                padding = new RectOffset(0, 0, 0, 0), margin = new RectOffset(0, 0, 0, 0) };
+            badgeStyle.normal.textColor = Color.white;
+            savedWidth = new[] { "Saved ✓", "Saving…", "Not saved" }.Max(text => CaptionWidth(text));
             hintStyle.normal.textColor = Color.Lerp(ui.Ink, ui.DisabledText.normal.textColor, .35f);
         }
         void OnGUI()
@@ -400,6 +448,13 @@ namespace Wreckabulary.Workshop
             GUI.matrix = Matrix4x4.Scale(new Vector3(uiScale, uiScale, 1));
             if (RecoveryChoicePending) { Styles(); RecoveryPanel(); return; }
             Styles(); Refresh();
+            bool repaint = Event.current.type == EventType.Repaint;
+            if (repaint) BeginPadPass();
+            DrawWorkshop();
+            if (repaint && EndPadPass()) PadClickPass();
+        }
+        void DrawWorkshop()
+        {
             if (OnlineStarting) { OnlinePreparationPanel(); return; }
             if (sharing) { SharePanel(); return; }
             if (libraryOpen) { LibraryPanel(); return; }
@@ -423,24 +478,24 @@ namespace Wreckabulary.Workshop
             GUILayout.BeginArea(new Rect(8, 8, ScreenWidth - 16, ui.ChromeHeight), panel); GUILayout.BeginHorizontal();
             TitleField(Mathf.Round(Mathf.Clamp(ScreenWidth * .22f, 160, 380)));
             GUILayout.Space(ui.Gap);
-            var format = WorkshopModes.FormatOf(PlayRequirements);
-            string mode = "Mode: " + WorkshopModes.Name(PlayRequirements.ModeId) +
-                (PlayRequirements.ModeId == "TeamRace" || PlayRequirements.ModeId == "BrawlRace" ? " · " + format : "") + " ▾";
-            if (Button(mode, "Choose how this map is played")) ShowStep(WorkshopStep.Rules);
-            GUILayout.Space(ui.Gap);
-            string saved = SaveState;
-            float savedWidth = new[] { "Saved ✓", "Saving…", "Not saved" }.Max(text => CaptionWidth(text));
-            GUILayout.Label(new GUIContent(saved, saveError.Length == 0 ? "Your map saves itself a moment after each change." : saveError),
+            GUILayout.Label(new GUIContent(SaveState, saveError.Length == 0 ? "Your map saves itself a moment after each change." : saveError),
                 rowLabel, GUILayout.Width(savedWidth), GUILayout.MinHeight(ui.RowHeight));
             GUILayout.FlexibleSpace();
-            GUI.enabled = PlaytestRequested != null;
+            string blocker = TestBlocker;
+            if (blocker.Length != 0 && PlaytestRequested != null && Button(blocker + " ›", "Choose a mode you can test on your own"))
+                ShowStep(WorkshopStep.Rules);
+            if (Button("My maps", "Open, copy or start another map")) Attempt(OpenLibrary);
+            GUI.enabled = blocker.Length == 0;
             if (Button("Test", "Play this map on your own · runs the check first"))
                 Attempt(() => { RequestPlaytest(); if (LastPlaytestDraft == null) ShowStep(WorkshopStep.Share); });
             GUI.enabled = true;
             if (Button("Share", "Share code and map files")) OpenShare();
-            if (Button(CloseLabel ?? "Exit", "Leave the workshop · your map is saved")) RequestClose();
+            if (Button(CloseLabel ?? "Exit", "Leave the map editor · your map is saved")) RequestClose();
             GUILayout.EndHorizontal(); GUILayout.EndArea();
         }
+        const string LocalTestNeed = "Test needs Time Trial or Freeplay";
+        string TestBlocker => PlaytestRequested == null ? "Testing isn't available here" :
+            !SelectedModeEnabled ? "Choose a mode in Rules to test" : localPlaytest && !CanPlaytestLocally ? LocalTestNeed : "";
         void TitleField(float width)
         {
             var input = Event.current;
@@ -475,7 +530,7 @@ namespace Wreckabulary.Workshop
             GUI.enabled = History.CanUndo; if (ToolButton("Undo", LobbyIcons.Undo, "Undo · Ctrl+Z")) StepHistory(false); GUI.enabled = true;
             GUI.enabled = History.CanRedo; if (ToolButton("Redo", LobbyIcons.Redo, "Redo · Ctrl+Y")) StepHistory(true); GUI.enabled = true;
             GUILayout.Space(ui.Gap);
-            string floor = "Floor: " + History.Current.ActiveLayer;
+            string floor = "Floor: " + ObjectLabel(History.Current.ActiveLayer);
             GUILayout.Label(floor, rowLabel, GUILayout.Width(CaptionWidth(floor)), GUILayout.MinHeight(ui.RowHeight));
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal(); GUILayout.EndArea();
@@ -487,16 +542,16 @@ namespace Wreckabulary.Workshop
             GUILayout.BeginHorizontal();
             if (Button("Grid " + Metres(History.Current.GridMm) + " m", "Change how far things snap when you move them"))
                 Edit("Grid", draft => draft.GridMm = draft.GridMm == 500 ? 1000 : draft.GridMm == 1000 ? 100 : 500);
-            if (ToolButton("Layout", LobbyIcons.Dice, showRandomness ? "Hide layout choices" : "Layout · keep it or shuffle each game"))
+            if (ToolButton("Random layout", LobbyIcons.Dice, showRandomness ? "Hide the random layout choices" : "Keep one layout or shuffle it each game"))
                 showRandomness = !showRandomness;
-            if (ToolButton("Frame", LobbyIcons.Frame, "Frame the selection, or the whole floor · F")) FrameSelection();
-            if (ToolButton("Top view", LobbyIcons.Eye, "Look straight down")) { EnsureView(); view.Top(); }
+            if (ToolButton("Fit", LobbyIcons.Frame, "Fit the selection, or the whole floor, in view · F")) FrameSelection();
+            if (ToolButton("Top view", LobbyIcons.Arrow, "Look straight down", 90)) { EnsureView(); view.Top(); }
             GUILayout.EndHorizontal();
             if (showRandomness)
             {
                 GUILayout.BeginHorizontal();
                 int locked = History.Current.SeedLocked ? 0 : 1;
-                int next = GUILayout.Toolbar(locked, new[] { "Keep layout", "Shuffle each game" }, GUILayout.MinHeight(ui.RowHeight));
+                int next = PadToolbar(locked, new[] { "Keep layout", "Shuffle each game" }, GUILayout.MinHeight(ui.RowHeight));
                 if (next != locked) Edit(next == 0 ? "Keep layout" : "Shuffle each game", draft => draft.SeedLocked = next == 0);
                 GUI.enabled = !History.Current.SeedLocked;
                 if (ToolButton("Try another layout", LobbyIcons.Dice, "Try another random layout"))
@@ -613,7 +668,7 @@ namespace Wreckabulary.Workshop
                 throw new ArgumentException("Enter a number.");
             return checked((int)Math.Round(metres * 1000));
         }
-        static string TemplateLabel(WorkshopTemplate template) => template == WorkshopTemplate.RaceCircuit ? "Race Circuit" :
-            template == WorkshopTemplate.CombatArena ? "Combat Arena" : "Freeplay World";
+        static string TemplateLabel(WorkshopTemplate template) => template == WorkshopTemplate.RaceCircuit ? "Race circuit" :
+            template == WorkshopTemplate.CombatArena ? "Arena" : "Freeplay world";
     }
 }

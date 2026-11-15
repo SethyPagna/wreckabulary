@@ -96,7 +96,7 @@ namespace Wreckabulary.Online
             foreach (var site in proof.Plan.Sites.Where(s => s.Authored != null && s.Authored.Fixtures.Count > 0))
                 foreach (var team in frame.Progress.Teams)
                 {
-                    var previous = frame.Mechanisms.Single(m => m.Team == team.Team && m.Lap == site.Lap && m.PuzzleId == site.PuzzleId);
+                    var previous = MechanismsFor(frame).Single(team.Team, site.Lap, site.PuzzleId);
                     long units = previous.Physical.MotionUnits;
                     if (!previous.Solved && !team.Finished)
                     {
@@ -199,9 +199,10 @@ namespace Wreckabulary.Online
                     if (site.Authored.Fixtures.Count > 0) Reset();
                     continue;
                 }
-                var puzzle = proof.Course.Puzzles.Single(p => p.Id == site.PuzzleId);
-                var recipe = controller.Bodies.Values.OrderBy(b => b.Canonical.Id, StringComparer.Ordinal)
-                    .FirstOrDefault(b => Qualifies(frame, team.Team, site.Socket, puzzle, b));
+                var puzzle = WordboundPuzzlePolicy.Puzzle(proof.Course, site.PuzzleId);
+                WordboundNetworkBody recipe = null;
+                foreach (var candidate in OrderedBodies())
+                    if (Qualifies(frame, team.Team, site.Socket, puzzle, candidate)) { recipe = candidate; break; }
                 if (recipe == null) { Reset(); continue; }
                 bool continuous = previous.ActivatedTick >= 0 && previous.ItemEntityId == recipe.Canonical.Id;
                 var evidence = continuous ? previous.Physical.WithMotion(units) : idle;
@@ -246,7 +247,7 @@ namespace Wreckabulary.Online
                         auxiliary = frame.Bodies.Where(b => b.Kind == WorldBodyKind.Item &&
                             (b.OwnerTeam == team.Team || b.OwnerTeam == -1) &&
                             proof.Course.Placements.Any(p => p.Id == b.SourceId && p.ZoneId == site.PropSourceZoneId) &&
-                            frame.Economy.Items.Any(i => "item:" + i.Id == b.Id && i.State == ItemState.Destroyed))
+                            DestroyedItemFor(frame, b.Id))
                             .OrderBy(b => b.Id, StringComparer.Ordinal).Select(b => b.Id).FirstOrDefault() ?? "";
                     complete = auxiliary != "";
                     return complete;
@@ -262,7 +263,7 @@ namespace Wreckabulary.Online
                     return true;
                 case "RedirectWind":
                     if (auxiliary == "")
-                        auxiliary = controller.Bodies.Values.OrderBy(b => b.Canonical.Id, StringComparer.Ordinal)
+                        auxiliary = OrderedBodies()
                             .Where(b => WindReceiver(frame, team.Team, site, b) &&
                                 Inside(site.ReceiverStartBounds, Vector(frame.Bodies.Single(p => p.Id == b.Canonical.Id).Position)) &&
                                 windPushes.Contains(recipe.Canonical.Id + "/" + b.Canonical.Id))
@@ -296,7 +297,7 @@ namespace Wreckabulary.Online
         {
             if (body.Canonical.Kind != WorldBodyKind.Item || !body.Canonical.Active || body.Rigidbody.isKinematic ||
                 body.Canonical.OwnerTeam != team && body.Canonical.OwnerTeam != -1) return false;
-            var item = frame.Economy.Items.SingleOrDefault(i => "item:" + i.Id == body.Canonical.Id);
+            var item = ItemForOrDefault(frame, body.Canonical.Id);
             return item != null && item.Word == site.WindReceiverRecipeId &&
                 (item.State == ItemState.World || item.State == ItemState.Thrown) &&
                 (item.Origin == ItemOrigin.Crafted || proof.Course.Placements.Any(p =>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -24,7 +25,7 @@ namespace Wreckabulary.Online
         string returnLabel = "Return to party";
         int seat, team;
         bool initialized, crafting, journalOpen, helpOpen, defenseHeld;
-        string defenseItem = "";
+        int defenseItem = -1, preparedFrame = -1;
         double nextDefenseInput;
         Vector2 recipeScroll;
         long receiptSequence, receiptEpoch = -1;
@@ -39,6 +40,7 @@ namespace Wreckabulary.Online
             inventoryPanel = new HudPanel(), menuHintPanel = new HudPanel();
         bool panelsReady;
         public event Action ReturnRequested;
+        public event Action PlayAgainRequested;
         public WordboundUiTheme Theme;
         public WordboundStoryProfile StoryProfile;
         readonly WordboundUiStyles ui = new WordboundUiStyles();
@@ -67,14 +69,17 @@ namespace Wreckabulary.Online
             view.MenuCommandsRead += ReadMenuCommands;
             view.MenuRequested += MenuRequested;
             initialized = true;
+            PrepareIntro();
             ApplyFrame(controller.Frame);
         }
 
         void ApplyFrame(MatchSnapshot next)
         {
+            var before = frame;
             frame = next;
             canonicalBodies.Clear();
             if (next == null) { inventory = null; actor = null; return; }
+            ObserveProgress(before, next);
             foreach (var body in next.Bodies) canonicalBodies.Add(body.Id, body);
             inventory = next.Economy.Players.Single(p => p.PlayerId == seat);
             RefreshRecipes();
@@ -90,9 +95,10 @@ namespace Wreckabulary.Online
 
         void ReadCommands(PlayerCommands input)
         {
+            NoteIntroInput(input);
             if (input.spellDown)
             {
-                ReleaseDefense(); crafting = true; journalOpen = false; helpOpen = false;
+                ReleaseDefense(); crafting = true; journalOpen = false; helpOpen = false; resultsOpen = false; leaveConfirm = false;
                 PrepareRecipeMenu();
                 menuFocus.Reset(selectedRecipe == null ? FirstCraftableRecipe() : "recipe:" + selectedRecipe);
                 revealMenuSelection = true; view.SetMenuOpen(true); return;
@@ -140,18 +146,17 @@ namespace Wreckabulary.Online
         {
             var item = held ? SelectedShield() : null;
             if (item == null) { ReleaseDefense(); return; }
-            string id = "item:" + item.Id;
-            if (defenseHeld && defenseItem != id) ReleaseDefense();
+            if (defenseHeld && defenseItem != item.Id) ReleaseDefense();
             if (Time.unscaledTimeAsDouble < nextDefenseInput) return;
             nextDefenseInput = Time.unscaledTimeAsDouble + WordboundDefensePolicy.RefreshTicks / (double)ModeDefinition.TickRate;
-            if (Send(WordboundAction.Block, value: "Hold")) { defenseHeld = true; defenseItem = id; }
+            if (Send(WordboundAction.Block, value: "Hold")) { defenseHeld = true; defenseItem = item.Id; }
         }
 
         void ReleaseDefense()
         {
             if (!defenseHeld) return;
             defenseHeld = false;
-            defenseItem = "";
+            defenseItem = -1;
             nextDefenseInput = 0;
             if (controller && controller.Frame != null) Send(WordboundAction.Block, value: "Release");
         }
@@ -160,15 +165,18 @@ namespace Wreckabulary.Online
         {
             if (!initialized) return;
             ExecuteMenuAction(Application.isFocused);
+            ShowResultsOnce();
+            if (eyeHeld && (!view || view.MenuOpen || !Application.isFocused)) ReleaseEye();
             if (!defenseHeld) return;
             var shield = SelectedShield();
             if (!view || view.MenuOpen || !Application.isFocused || controller.IsSimulationPaused ||
-                shield == null || defenseItem != "item:" + shield.Id) ReleaseDefense();
+                shield == null || defenseItem != shield.Id) ReleaseDefense();
         }
 
         void MenuRequested()
         {
-            ReleaseDefense(); crafting = false; helpOpen = false; ResetMenuInput();
+            ReleaseDefense(); crafting = false; helpOpen = false; leaveConfirm = false; ResetMenuInput();
+            if (!double.IsNaN(introShownAt)) CloseIntro();
             if (view.MenuOpen) PrepareRecipeMenu();
         }
         void ConnectionFailed(string reason)
@@ -203,24 +211,33 @@ namespace Wreckabulary.Online
                 return null;
             WordboundNetworkBody best = null;
             float score = float.PositiveInfinity;
+            Vector3 origin = view.Player.Rigidbody.position;
             foreach (var body in controller.PresentedBodies)
             {
                 if (!body || body.Object == null || !body.Object.IsValid || !body.BodyActive || body.Rigidbody == null ||
-                    body.Runner != view.Player.Runner || !canonicalBodies.TryGetValue(body.BodyId.ToString(), out var state) ||
-                    !state.Active || body.BodyKind != (int)state.Kind) continue;
-                var kind = state.Kind;
-                if (kind != WorldBodyKind.Item && kind != WorldBodyKind.Tile && kind != WorldBodyKind.Keepsake ||
-                    !mode.CanInteract(team, state.OwnerTeam, state.Protected)) continue;
-                Vector3 offset = body.Rigidbody.position - view.Player.Rigidbody.position;
-                float squared = offset.sqrMagnitude;
-                if (squared > 9f) continue;
-                var screen = view.Camera.WorldToViewportPoint(body.Rigidbody.position + Vector3.up * .35f);
+                    body.Runner != view.Player.Runner || !Interactable(body.BodyKind)) continue;
+                float squared = (body.Rigidbody.position - origin).sqrMagnitude;
+                if (squared > 9f || !canonicalBodies.TryGetValue(body.BodyId.ToString(), out var state) ||
+                    !state.Active || body.BodyKind != (int)state.Kind || !mode.CanInteract(team, state.OwnerTeam, state.Protected)) continue;
+                var screen = view.SteadyViewportPoint(body.Rigidbody.position + Vector3.up * .35f);
                 if (screen.z <= 0 || screen.x < 0 || screen.x > 1 || screen.y < 0 || screen.y > 1) continue;
                 float candidate = squared + Mathf.Abs(screen.x - .5f) * 3;
                 if (candidate >= score || !VisibleFromPlayer(playerState, body)) continue;
                 best = body; score = candidate;
             }
             return best;
+        }
+
+        static bool Interactable(int kind) => kind == (int)WorldBodyKind.Item || kind == (int)WorldBodyKind.Tile ||
+            kind == (int)WorldBodyKind.Keepsake;
+
+        ItemInstance ItemFor(string bodyId)
+        {
+            if (frame == null || bodyId == null || !bodyId.StartsWith("item:", StringComparison.Ordinal) ||
+                !int.TryParse(bodyId.Substring(5), NumberStyles.None, CultureInfo.InvariantCulture, out int id)) return null;
+            foreach (var item in frame.Economy.Items)
+                if (item.Id == id && bodyId == "item:" + item.Id) return item;
+            return null;
         }
 
         bool VisibleFromPlayer(WorldBodyState playerState, WordboundNetworkBody target)
@@ -278,7 +295,7 @@ namespace Wreckabulary.Online
                 case WorldBodyKind.Tile: Send(WordboundAction.CollectLetter, id); break;
                 case WorldBodyKind.Keepsake: Send(WordboundAction.TakeKeepsake); break;
                 case WorldBodyKind.Item:
-                    var item = frame.Economy.Items.FirstOrDefault(i => id == "item:" + i.Id);
+                    var item = ItemFor(id);
                     if (item == null) return;
                     var puzzle = InteractionPuzzle(item);
                     if (puzzle != null) Send(WordboundAction.UsePuzzle, puzzle.Id, value: id);
@@ -297,7 +314,7 @@ namespace Wreckabulary.Online
             float width = Screen.width / scale, height = Screen.height / scale;
             try
             {
-                if (!panelsReady || Event.current.type == EventType.Layout) PreparePanels();
+                if (!panelsReady || preparedFrame != Time.frameCount) PreparePanels();
                 if (view.MenuOpen) Menu(width, height, Application.isFocused);
                 else
                 {
@@ -363,35 +380,10 @@ namespace Wreckabulary.Online
             }
         }
 
-        string ObjectiveText(TeamProgress progress)
-        {
-            int lap = progress.Lap, checkpoint = progress.NextCheckpoint;
-            if (progress.Finished || lap < 0 || lap >= course.Laps.Count) return "Course complete.";
-            var route = course.Laps[lap].Checkpoints;
-            if (checkpoint < 0 || checkpoint >= route.Count) return "Bring the keepsake to the lap finish.";
-            var completed = progress.CompletedPuzzles;
-            var puzzle = course.Puzzles.FirstOrDefault(p => route[checkpoint].PuzzleIds.Contains(p.Id) && !completed.Contains(p.Id));
-            if (puzzle == null) return "Bring the keepsake to the next checkpoint.";
-            return puzzle.PresetId switch
-            {
-                "CollectLetters" => "Smash the marked furniture, collect its letters, and spell " + puzzle.RecipeId + ".",
-                "PlaceObject" => "Place " + puzzle.RecipeId + " on the marked socket.",
-                "RedirectWind" => "Place " + puzzle.RecipeId + " to push the loose stool into its target.",
-                "TimedMechanism" => "Use " + puzzle.RecipeId + " to slow the arm. Carry the keepsake through.",
-                "BuildRoute" => "Use " + puzzle.RecipeId + " to reach the raised marker.",
-                "BalanceWeight" => "Cover both floor pads with " + puzzle.RecipeId + ".",
-                _ => "Spell " + puzzle.RecipeId + " and use it at the marked puzzle."
-            };
-        }
+        string ObjectiveText(TeamProgress progress) => CourseGuidance.Race(course, progress, actorId, frame).Text;
 
-        string ResultText(MatchResult result)
-        {
-            if (!result.Confirmed) return "Confirming result…";
-            if (result.Outcome == "Draw") return "Draw";
-            if (result.Outcome == "TimeExpired") return "Time's up";
-            return result.WinningTeams.Contains(team) ? "You won!" : "Match complete";
-        }
-
+        string ResultText(MatchResult result) => !result.Confirmed || frame == null ? "Confirming result…" :
+            CourseGuidance.Summary(mode, course, frame, actorId, result.Outcome, result.WinningTeams).Title;
 
         static string RefusalText(string code) => code switch
         {
@@ -401,7 +393,7 @@ namespace Wreckabulary.Online
             "Capacity" => "Object limit reached. Try again after unused objects clear.",
             "BlockedPlacement" => "That spot is blocked. Move to a clear space.",
             "BlockedRelease" => "Make room in front of you before putting the item down.",
-            "EmptySlot" => "Choose an occupied equipment slot.",
+            "EmptySlot" => "That hand is empty.",
             "NotAlive" => "Wait until you recover.",
             "StaleRevision" => "The object changed. Try again.",
             "TooEarly" => "Wait a moment before trying again.",
@@ -413,11 +405,13 @@ namespace Wreckabulary.Online
             _ => "That action could not be completed."
         };
 
-        void OnDisable() { ReleaseDefense(); ResetMenuInput(); }
+        void OnDisable() { ReleaseDefense(); ResetMenuInput(); ReleaseEye(); }
 
         void OnDestroy()
         {
             ui.Dispose();
+            DisposeGuidance();
+            DisposeLookEye();
             if (controller) { controller.FrameChanged -= ApplyFrame; controller.Faulted -= ConnectionFailed; }
             if (view)
             {

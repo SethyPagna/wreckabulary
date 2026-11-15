@@ -488,7 +488,7 @@ namespace Wreckabulary.Tests
             foreach (var action in d.Map.actions)
                 foreach (var binding in action.bindings)
                     Assert.IsFalse(binding.path is "<Keyboard>/f" or "<Keyboard>/g", action.name + " is bound to " + binding.path);
-            Assert.AreEqual("Hold R, ' or Numpad6, or LB", ControlHints.Drop);
+            Assert.AreEqual("R", ControlHints.For(d, PlayerControl.Drop), "each seat is shown its own drop key, not every device's");
         }
 
         static HeldWeapon Craft(PlayerController p, string word)

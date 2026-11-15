@@ -39,6 +39,8 @@ namespace Wreckabulary.Online
         }
         readonly Dictionary<string, WordboundNetworkBody> bodies = new Dictionary<string, WordboundNetworkBody>(StringComparer.Ordinal);
         readonly Dictionary<string, WordboundGameplayBody> presentations = new Dictionary<string, WordboundGameplayBody>(StringComparer.Ordinal);
+        readonly HashSet<string> presentIds = new HashSet<string>(StringComparer.Ordinal);
+        readonly List<string> absentIds = new List<string>();
         readonly QueryRelay query = new QueryRelay();
         IWordboundGameplaySession session;
         NetworkRunner runner;
@@ -408,9 +410,12 @@ namespace Wreckabulary.Online
         PlayerRef InputAuthority(WorldBodyState state)
         {
             if (state.Kind != WorldBodyKind.Player || !state.Active) return PlayerRef.None;
-            var peers = runner.ActivePlayers.Where(p => session.TryGetAdmittedActor(p, out var actor) && actor == state.SourceId).ToArray();
-            if (peers.Length > 1) throw new InvalidOperationException("An active canonical player has duplicate admitted peers.");
-            return peers.Length == 0 ? PlayerRef.None : peers[0];
+            var found = PlayerRef.None;
+            int count = 0;
+            foreach (var peer in runner.ActivePlayers)
+                if (session.TryGetAdmittedActor(peer, out var actor) && actor == state.SourceId && count++ == 0) found = peer;
+            if (count > 1) throw new InvalidOperationException("An active canonical player has duplicate admitted peers.");
+            return found;
         }
 
         void ReceiveReplica(string json, OnlineSnapshotMark mark)
@@ -463,16 +468,21 @@ namespace Wreckabulary.Online
         {
             if (!runner.IsServer)
             {
-                var present = new HashSet<string>(StringComparer.Ordinal);
+                presentIds.Clear();
                 foreach (var obj in runner.GetAllNetworkObjects())
                 {
                     var view = obj.GetComponent<WordboundGameplayBody>();
-                    if (view == null || view.Body.BodyId.ToString() == "") continue;
-                    string id = view.Body.BodyId.ToString();
-                    if (!present.Add(id)) throw new InvalidOperationException("Replicated canonical body ID is duplicated.");
+                    if (view == null) continue;
+                    string id = view.Body.BodyText;
+                    if (id == "") continue;
+                    if (!presentIds.Add(id)) throw new InvalidOperationException("Replicated canonical body ID is duplicated.");
                     if (!presentations.ContainsKey(id)) Watch(id, view);
                 }
-                foreach (var id in presentations.Keys.Where(id => !present.Contains(id)).ToArray()) Unwatch(id);
+                absentIds.Clear();
+                foreach (var id in presentations.Keys)
+                    if (!presentIds.Contains(id)) absentIds.Add(id);
+                foreach (var id in absentIds) Unwatch(id);
+                absentIds.Clear();
             }
             string localId = "player:" + WordboundGameplayPlan.Seat(Authority.Match.Binding, localActor);
             WordboundNetworkBody next = presentations.TryGetValue(localId, out var local) && local != null &&

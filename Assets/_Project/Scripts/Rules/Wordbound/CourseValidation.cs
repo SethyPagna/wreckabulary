@@ -56,6 +56,7 @@ namespace Wreckabulary.Rules.Wordbound
             ValidateGeometry(document, catalogue, play, v);
             if (v.Ok) ValidatePhysicalSites(document, catalogue, v);
             if (v.Ok) ValidateProgression(document, catalogue, play, v);
+            if (v.Ok) ValidateVariants(document, catalogue, play, v);
             return v;
         }
 
@@ -65,7 +66,7 @@ namespace Wreckabulary.Rules.Wordbound
             if (d == null) { v.Add("document.null", "$", "", "Provide a course document."); return v; }
             ValidateFields(d, "$", v, 0);
             if (!v.Ok) return v;
-            if (d.Schema != 1 && d.Schema != 2) v.Add("schema.unsupported", "$.schema", d.Id, "Only course schemas 1 and 2 are supported.");
+            if (d.Schema < 1 || d.Schema > CourseDocument.LatestSchema) v.Add("schema.unsupported", "$.schema", d.Id, "Only course schemas 1 to 3 are supported.");
             if (!ValidId(d.Id)) v.Add("id.invalid", "$.id", "", "Use 1–48 ASCII letters, digits, underscores or hyphens.");
             if (d.Title == null || d.Title.Length < 1 || d.Title.Length > 80 || d.Title != d.Title.Trim() || d.Title.Any(char.IsControl))
                 v.Add("title.invalid", "$.title", d.Id, "Use a trimmed title of 1–80 characters.");
@@ -83,6 +84,8 @@ namespace Wreckabulary.Rules.Wordbound
             Check(d.RouteSections, CourseLimits.Sections, x => x.Id, "routeSections", v);
             Check(d.Zones, CourseLimits.Zones, x => x.Id, "zones", v);
             Check(d.ReservedVolumes, 1024, x => x.Id, "reservedVolumes", v);
+            Check(d.StoryAnchors, CourseLimits.StoryAnchors, x => x.Id, "storyAnchors", v);
+            Check(d.Layouts, CourseLimits.Layouts, x => x.Id, "layouts", v);
             if (d.Laps == null || d.Laps.Count > 3 || d.Laps.Any(x => x == null) ||
                 d.Laps.Select(x => x.Number).Distinct().Count() != d.Laps.Count)
                 v.Add("laps.invalid", "$.laps", d.Id, "Provide at most three distinct lap definitions.");
@@ -139,6 +142,7 @@ namespace Wreckabulary.Rules.Wordbound
                     !Yaw(zone.FixedYaw) || !zone.Bounds.Contains(zone.FixedPosition)))
                     v.Add("zone.fixed", "$.zones", zone.Id, "A fixed placement needs one asset, count one, certainty and one matching rotation inside its bounds.");
             }
+            ValidateVariantShapes(d, v);
             if (v.Ok) ValidatePhysicalSiteShapes(d, v);
             return v;
         }

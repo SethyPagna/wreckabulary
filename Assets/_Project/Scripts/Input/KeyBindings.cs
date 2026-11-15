@@ -61,7 +61,7 @@ namespace Wreckabulary
                 foreach (var row in new[] { ("Move forward", "Up"), ("Move back", "Down"), ("Move left", "Left"), ("Move right", "Right") })
                     yield return (row.Item1, move, Part(move, row.Item2));
             foreach (var row in new[] {
-                ("Smash, throw, place, block", "Attack"), ("Aim (hold)", "Aim"), ("Jump", "Jump"), ("Dodge", "Dodge"),
+                ("Smash, throw, place, block", "Attack"), ("Aim (hold)", "Aim"), ("Look around (hold)", "Look around"), ("Jump", "Jump"), ("Dodge", "Dodge"),
                 ("Pick up, hold to revive", "Interact"), ("Spell a word", "Spell"), ("Drop gear (hold)", "Drop"),
                 ("Hand 1", "Hand 1"), ("Hand 2", "Hand 2"), ("Bag and map (hold)", "Bag"), ("Pause", "Pause") })
             {

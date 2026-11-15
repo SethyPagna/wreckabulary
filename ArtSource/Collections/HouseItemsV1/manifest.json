@@ -51,7 +51,12 @@
         -0.2,
         0.2415,
         0
-      ]
+      ],
+      "rebuilt": {
+        "script": "Tools/AssetPipeline/rebuild_house_items.py",
+        "bytes": 100908,
+        "sha256": "40d56c3b2c2c8c5af8923da1a7b1d0bf56c2a94a08cdb56c159bf0f00af543e9"
+      }
     },
     {
       "word": "RACK",
@@ -89,7 +94,12 @@
         0,
         0.56,
         0
-      ]
+      ],
+      "rebuilt": {
+        "script": "Tools/AssetPipeline/rebuild_house_items.py",
+        "bytes": 146764,
+        "sha256": "aaff6bd38aca258757de7b3c4664fda8ff16392778bab7bc0989c751b36191bf"
+      }
     },
     {
       "word": "MIRROR",
@@ -127,7 +137,12 @@
         0,
         0.3,
         0
-      ]
+      ],
+      "rebuilt": {
+        "script": "Tools/AssetPipeline/rebuild_house_items.py",
+        "bytes": 94028,
+        "sha256": "a8427a0fc74714485fb6e53206cc1ac1b66a84f3705eb9b3871c4d2c98fd22c7"
+      }
     },
     {
       "word": "SPEAKER",
@@ -165,7 +180,12 @@
         0,
         0.45,
         0
-      ]
+      ],
+      "rebuilt": {
+        "script": "Tools/AssetPipeline/rebuild_house_items.py",
+        "bytes": 156764,
+        "sha256": "7e2e06f9aa283a49ca2b1194707bf187cc042384695e9e468bb64fdfaab9076f"
+      }
     },
     {
       "word": "BENCH",
@@ -203,7 +223,12 @@
         0,
         0.2619,
         0
-      ]
+      ],
+      "rebuilt": {
+        "script": "Tools/AssetPipeline/rebuild_house_items.py",
+        "bytes": 105756,
+        "sha256": "22ba2eeff33d91902ec4a24147528f5e01083b52744b51a0e89d4c3a1a8f52ad"
+      }
     },
     {
       "word": "TOASTER",
@@ -241,7 +266,12 @@
         0,
         0.1038,
         0
-      ]
+      ],
+      "rebuilt": {
+        "script": "Tools/AssetPipeline/rebuild_house_items.py",
+        "bytes": 106748,
+        "sha256": "9d122a43ee112cf11b19e718757ce94a6b83745917dda432ce1561b5868512f7"
+      }
     },
     {
       "word": "BEAR",
@@ -280,7 +310,12 @@
         0.225,
         0
       ],
-      "yaw": 270
+      "yaw": 270,
+      "rebuilt": {
+        "script": "Tools/AssetPipeline/rebuild_house_items.py",
+        "bytes": 129916,
+        "sha256": "52c801648fed9f81df7976696d2572660ca7cbbc2d9cda1ec4a57da1dc00a911"
+      }
     }
   ]
 }

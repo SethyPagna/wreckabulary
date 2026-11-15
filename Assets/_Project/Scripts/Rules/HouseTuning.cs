@@ -221,15 +221,43 @@ namespace Wreckabulary.Rules
                     if (t.Kind == TraitKind.Crush && item.Melee == null)
                         problems.Add($"{item.Id}: crush is a melee build-up; it has no melee stats.");
                 }
-                var crush = list.FirstOrDefault(t => t.Kind == TraitKind.Crush);
-                float average = crush == null ? 1f : 1f + (crush.Amount - 1f) / crush.Every;
+                float average = CrushAverage(item.Id);
                 if (item.Melee != null && item.Family is HandlingFamily.MeleeSwing or HandlingFamily.MeleeThrust
                     && item.Melee.Damage * average / item.Melee.Cycle > RecipeDifficulty.MaxMeleeDps(tier) + 1e-3f)
                     problems.Add($"{item.Id} is {tier}: {item.Melee.Damage * average / item.Melee.Cycle:0.0} melee damage a second is over its {RecipeDifficulty.MaxMeleeDps(tier)}.");
                 if (item.Thrown != null && item.Thrown.Damage > RecipeDifficulty.MaxThrownDamage(tier) + 1e-3f)
                     problems.Add($"{item.Id} is {tier}: {item.Thrown.Damage} thrown damage is over its {RecipeDifficulty.MaxThrownDamage(tier)}.");
             }
+            problems.AddRange(Inversions(items.Enabled.Where(Swung).ToList(), "melee damage a second", MeleeDps));
+            problems.AddRange(Inversions(items.Enabled.Where(Swung).ToList(), "damage before it breaks", MeleeLifetime));
+            problems.AddRange(Inversions(items.Enabled.Where(Thrown).ToList(), "thrown damage", i => i.Thrown.Damage));
             return problems;
+        }
+
+        static bool Swung(ItemDefinition item) => item.Melee != null && item.Use == null && item.Thrown == null && item.Deploy == null
+            && item.Family is HandlingFamily.MeleeSwing or HandlingFamily.MeleeThrust;
+
+        static bool Thrown(ItemDefinition item) => item.Thrown != null && item.Use == null;
+
+        float CrushAverage(string id)
+        {
+            var crush = Trait(id, TraitKind.Crush);
+            return crush == null ? 1f : 1f + (crush.Amount - 1f) / crush.Every;
+        }
+
+        public float MeleeDps(ItemDefinition item) => item.Melee.Damage * CrushAverage(item.Id) / item.Melee.Cycle;
+
+        public float MeleeLifetime(ItemDefinition item) => item.Melee.Damage * CrushAverage(item.Id) * Math.Max(1, item.Durability);
+
+        static IEnumerable<string> Inversions(List<ItemDefinition> kind, string measure, Func<ItemDefinition, float> strength)
+        {
+            foreach (var item in kind)
+            {
+                var tier = RecipeDifficulty.TierOf(item.Id);
+                var rival = kind.Where(other => RecipeDifficulty.TierOf(other.Id) < tier).OrderByDescending(strength).FirstOrDefault();
+                if (rival != null && strength(item) < strength(rival) - 1e-3f)
+                    yield return $"{item.Id} is {tier} but its {measure} ({strength(item):0.0}) is below {RecipeDifficulty.TierOf(rival.Id)} {rival.Id} ({strength(rival):0.0}); a harder word must never make a weaker item.";
+            }
         }
     }
 }

@@ -17,8 +17,21 @@ namespace Wreckabulary
         readonly List<Keepsake> keepsakes = new();
         Vector3 extraction;
         float began, nextCheck, finishedAt;
+        readonly IdleWatch idle = new();
+        readonly List<Combatant> combatants = new();
+        int idleMask, clockSeconds = -1, checklistPacked = -1, checklistIdle = -1;
+        string clockText = "", checklist, shownMain, shownHint;
         public State Current { get; private set; }
-        public int PackedCount => keepsakes.Count(k => k.Packed);
+        public string Checklist => checklist ?? "";
+        public int PackedCount
+        {
+            get
+            {
+                int packed = 0;
+                foreach (var keepsake in keepsakes) if (keepsake.Packed) packed++;
+                return packed;
+            }
+        }
         public int KeepsakeCount => keepsakes.Count;
         public Vector3 ExtractionPoint => extraction;
         public float TimeLeft => Mathf.Max(0f, Match.Rules.RoundTimeLimitSeconds - (Time.time - began));
@@ -72,6 +85,10 @@ namespace Wreckabulary
             foreach (var p in joins.Players) { joins.Place(p); p.Frozen = true; }
             joins.AllowJoining = true;
             joins.RespawnKnockedOut = false;
+            idle.Clear();
+            idleMask = 0;
+            clockSeconds = checklistPacked = -1;
+            shownMain = shownHint = null;
             Current = State.Countdown;
             began = Time.time;
         }
@@ -82,24 +99,26 @@ namespace Wreckabulary
             switch (Current)
             {
                 case State.Waiting:
-                    hud.SetInstruction(ControlHints.Join("join"), "");
+                    Instruct(ControlHints.Join("join"), "");
                     if (joins.HumanCount > 0) Restart();
                     break;
                 case State.Countdown:
-                    hud.SetInstruction("", "");
+                    Instruct("", "");
                     hud.ShowCountdown(Mathf.Max(1, Mathf.CeilToInt(3f - (Time.time - began))), $"MOVING OUT · {room.Layout.Name.ToUpperInvariant()}");
                     if (Time.time - began >= 3f)
                     {
                         Current = State.Playing; began = Time.time;
                         foreach (var p in joins.Players) p.Frozen = false;
+                        idle.Clear();
                         clearOut.Begin();
                         hud.ShowGo();
                         hud.Toast($"Carry {KeepsakeCount} keepsakes to the van. Drop them inside the circle.");
                     }
                     break;
                 case State.Playing:
-                    hud.SetTimer(RoundManager.FormatTime(TimeLeft));
-                    hud.SetInstruction(clearOut.Message, "");
+                    hud.SetTimer(Clock(TimeLeft));
+                    idleMask = CrewPresence.IdleMask(idle, joins.Players);
+                    Instruct(clearOut.Message, "");
                     CheckObjectives();
                     break;
                 case State.Complete:
@@ -107,9 +126,32 @@ namespace Wreckabulary
                     if (hud.ResultShown && Time.time - finishedAt > 1.6f && joins.AnyStartPressed()) hud.ConfirmResult();
                     break;
             }
-            hud.SetChecklist("<b>KEEPSAKES</b>\n" + string.Join("\n", keepsakes.Select(k => k.Packed
-                ? $"<color=#8FD18B>{k.Word} packed</color>" : $"{k.Word} • {k.Room}")));
+            hud.SetChecklist(KeepsakeList());
             hud.SetScoreboard(joins.Players, _ => 0, 0, false);
+        }
+
+        string KeepsakeList()
+        {
+            int packed = PackedCount;
+            if (checklist != null && packed == checklistPacked && idleMask == checklistIdle) return checklist;
+            checklistPacked = packed; checklistIdle = idleMask;
+            string waiting = idleMask == 0 ? "" : "\n" + IdleWatch.Notice(idleMask);
+            return checklist = "<b>KEEPSAKES</b>\n" + string.Join("\n", keepsakes.Select(k => k.Packed
+                ? $"<color=#8FD18B>{k.Word} packed</color>" : $"{k.Word} • {k.Room}")) + waiting;
+        }
+
+        string Clock(float seconds)
+        {
+            int shown = Mathf.Max(0, Mathf.CeilToInt(seconds));
+            if (shown != clockSeconds) { clockSeconds = shown; clockText = RoundManager.FormatTime(shown); }
+            return clockText;
+        }
+
+        void Instruct(string main, string hint)
+        {
+            if (ReferenceEquals(main, shownMain) && ReferenceEquals(hint, shownHint)) return;
+            shownMain = main; shownHint = hint;
+            hud.SetInstruction(main, hint);
         }
 
         void CheckObjectives()
@@ -128,11 +170,20 @@ namespace Wreckabulary
                     hud.Toast("A keepsake saved! Find the others.");
                 }
             }
-            var combatants = joins.Players.Select(p => new Combatant(p.Index, p.Team, p.Health.State)).ToArray();
+            combatants.Clear();
+            foreach (var p in joins.Players) combatants.Add(new Combatant(p.Index, p.Team, p.Health.State));
             foreach (int id in WinCheck.Unrevivable(combatants)) World.PlayerById(id)?.Health.Eliminate();
-            var survivors = joins.Players.Where(p => !p.IsEliminated).ToArray();
-            if (survivors.Length == 0 || TimeLeft <= 0f) Finish(false);
-            else if (PackedCount == KeepsakeCount && survivors.All(p => p.Health.IsAlive && AtVan(p.transform.position))) Finish(true);
+            int survivors = 0, waiting = 0, aboard = 0;
+            foreach (var p in joins.Players)
+            {
+                if (p.IsEliminated) continue;
+                survivors++;
+                if (!CrewPresence.Waits(idleMask, p)) continue;
+                waiting++;
+                if (p.Health.IsAlive && AtVan(p.transform.position)) aboard++;
+            }
+            if (survivors == 0 || TimeLeft <= 0f) Finish(false);
+            else if (PackedCount == KeepsakeCount && waiting > 0 && aboard == waiting) Finish(true);
         }
 
         public bool AtVan(Vector3 p) => World.Flat(p - extraction).sqrMagnitude <= 2.4f * 2.4f && Mathf.Abs(p.y - extraction.y) < 1.5f;

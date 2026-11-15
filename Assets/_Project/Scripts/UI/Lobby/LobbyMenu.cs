@@ -22,8 +22,10 @@ namespace Wreckabulary
         public const string Practice = "practice", Matchmaking = "matchmaking", Workshop = "workshop";
         public const string TutorialMode = "Tutorial", WorkshopMode = "Workshop", RoomMode = "Room";
         public const string VolumeKey = "wv.volume", VsyncKey = "wv.vsync";
-        public static readonly string[] Modes = { "Dibs", "Duos", "MovingOut", "MovingDay", "Escape" };
-        public static readonly string[] PracticeModes = { TutorialMode, "Dibs", "Duos", "MovingOut", "MovingDay", "Escape" };
+        public static readonly string[] Modes = HouseModes.All
+            .Where(mode => mode.Family is HouseModeFamily.Battle or HouseModeFamily.Coop or HouseModeFamily.WordGames)
+            .OrderBy(mode => mode.Family).Select(mode => mode.Id).ToArray();
+        public static readonly string[] PracticeModes = new[] { TutorialMode }.Concat(Modes).ToArray();
         public static string DefaultMode => TutorialDirector.Done ? Modes[0] : TutorialMode;
         public static float StartDelay = 3f;
         public const int PartyMax = 4;
@@ -40,7 +42,7 @@ namespace Wreckabulary
         public Career Career { get; private set; }
         public string Map { get; private set; }
         public string Queue { get; private set; } = Practice;
-        public string Mode { get; private set; } = "Dibs";
+        public string Mode { get; private set; } = HouseModes.Dibs;
         public string SavedHome { get; private set; }
         public string SavedHomeName { get; private set; }
         public string MapLabel => SavedHome != null ? SavedHomeName : Map == Session.LobbyRandomMap ? "Random house"
@@ -146,7 +148,8 @@ namespace Wreckabulary
             Career = MatchTally.LoadCareer();
             if (Career.Keep(Outfit.ItemSkins.Values.FirstOrDefault() ?? "Classic", Outfit.ColourOf("Top") ?? ""))
                 MatchTally.SaveCareer(Career);
-            Map = GameConfig.Current.Houses.ContainsKey(Session.MapId) ? Session.MapId : GameConfig.Current.Houses.Keys.First();
+            Map = Session.LobbyMap == Session.LobbyRandomMap ? Session.LobbyRandomMap
+                : GameConfig.Current.Houses.ContainsKey(Session.MapId) ? Session.MapId : GameConfig.Current.Houses.Keys.First();
             string rememberedHome = Session.LobbyHome;
             string mode = Session.LobbyMode;
             if (mode == null || (mode == TutorialMode && TutorialDirector.Done)) mode = DefaultMode;
@@ -753,6 +756,7 @@ namespace Wreckabulary
         public void Choose(string queue = null, string mode = null, string map = null)
         {
             if (Starting) CancelStart();
+            string before = Mode;
             if (queue != null) Queue = queue;
             if (mode != null) Mode = mode;
             if (Queue == Workshop) Mode = WorkshopMode;
@@ -762,12 +766,12 @@ namespace Wreckabulary
                 map ??= returnMap;
                 returnMap = null;
             }
-            if (Mode == "Escape") map = Session.LobbyRandomMap;
-            else if (Map == Session.LobbyRandomMap && map == null) map = RealMap();
+            if (Mode == HouseModes.Escape) map = Session.LobbyRandomMap;
+            else if (Queue != Workshop && map == null && Map == Session.LobbyRandomMap && before == HouseModes.Escape) map = Session.LobbyMap ?? RealMap();
             if (Mode == WorkshopMode && !HomeDesigner.Supports(map ?? Map))
             {
-                if (map == null && Map != Session.LobbyRandomMap) returnMap = Map;
-                map = HomeDesigner.Supports(Map) ? null : "pinwheel";
+                if (map == null) returnMap = Session.LobbyMap ?? Map;
+                map = HomeDesigner.Supports(Map) ? null : HomeDesigner.Supports(RealMap()) ? RealMap() : "pinwheel";
             }
             if (map != null || Queue != Practice || !HomeDesigner.Playable(Mode)) SavedHome = SavedHomeName = null;
             Session.LobbyQueue = Queue;
@@ -786,6 +790,7 @@ namespace Wreckabulary
                     if (Stage) Stage.SetMap(map);
                 }
             }
+            if (Queue == Practice && Mode != HouseModes.Escape) Session.LobbyMap = Map;
             RefreshBar();
             if (Current == Home && pages.TryGetValue(Home, out var home)) home.Refresh();
         }
@@ -887,18 +892,23 @@ namespace Wreckabulary
         public static string Seats(string mode, int humans = 1)
         {
             humans = Mathf.Clamp(humans, 1, PartyMax);
-            int bots = PartyMax - humans;
+            var house = HouseModes.Find(mode);
+            int seats = house?.BotSeats ?? 0, bots = Mathf.Max(0, seats - humans), side = seats / 2;
             return mode switch
             {
-                "Escape" => "",
-                "Dibs" => humans == 1 ? "you + 3 bots" : bots == 0 ? "4 players" : $"{humans} players + {bots} bot{(bots > 1 ? "s" : "")}",
-                "Duos" => humans switch
+                HouseModes.Escape => "",
+                HouseModes.Duos => humans switch
                 {
                     1 => "you and a bot vs 2 bots",
                     2 => "2 players, each with a bot",
                     3 => "3 players and a bot",
                     _ => "2 v 2",
                 },
+                _ when house is { Teams: true } && side > 0 => humans == 1
+                    ? $"you and {side - 1} bots vs {side} bots"
+                    : $"{humans} players + {bots} bots, {side} v {side}",
+                _ when seats > 0 => humans == 1 ? $"you + {bots} bot{(bots == 1 ? "" : "s")}"
+                    : bots == 0 ? $"{humans} players" : $"{humans} players + {bots} bot{(bots > 1 ? "s" : "")}",
                 _ => humans == 1 ? "solo" : $"{humans} players",
             };
         }
@@ -917,6 +927,7 @@ namespace Wreckabulary
             SetWorkshopHidden(workshopOpen);
             if (hidden || (uiState && uiState.IsTransitioning)) return;
             AgeNotices();
+            if (ModeGuides.Open) return;
             PollParty();
             if (Starting)
             {

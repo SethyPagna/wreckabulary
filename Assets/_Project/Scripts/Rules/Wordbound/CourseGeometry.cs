@@ -123,7 +123,7 @@ namespace Wreckabulary.Rules.Wordbound
                 if (!modules.ContainsKey(c.ModuleId) || !d.RecoveryAnchors.Any(r => r.Id == c.RecoveryAnchorId) ||
                     (!string.IsNullOrEmpty(c.EntryConnectionId) && !d.Connections.Any(x => x.Id == c.EntryConnectionId)))
                     v.Add("checkpoint.reference", "$.checkpoints", c.Id, "Unknown module, recovery anchor or entry connection.");
-                foreach (string id in c.PuzzleIds)
+                foreach (string id in CandidatePuzzles(c))
                     if (!puzzles.ContainsKey(id)) v.Add("checkpoint.puzzle", "$.checkpoints", c.Id, "Unknown puzzle ID.");
             }
             foreach (var z in d.Zones)

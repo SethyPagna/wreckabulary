@@ -23,6 +23,8 @@ namespace Wreckabulary
         public bool aimAtPointer;
         public Vector2 pointer;
         public Vector2 lookDelta;
+        public bool lookAround;
+        public Vector2 orbit;
     }
 
     public abstract class InputBinding
@@ -66,11 +68,16 @@ namespace Wreckabulary
         public enum Side { Left, Right }
 
         readonly Side side;
+        readonly string id;
         HoldToFire dropHold;
 
-        public KeyboardBinding(Side side) => this.side = side;
+        public KeyboardBinding(Side side)
+        {
+            this.side = side;
+            id = $"keyboard-{side}";
+        }
 
-        public override string Id => $"keyboard-{side}";
+        public override string Id => id;
 
         static float Axis(KeyControl positive, KeyControl negative) =>
             (positive.isPressed ? 1f : 0f) - (negative.isPressed ? 1f : 0f);
@@ -145,13 +152,28 @@ namespace Wreckabulary
         public readonly Gamepad Pad;
         float lastStickY;
         HoldToFire dropHold;
+        string id;
+        int idDevice;
 
         public GamepadBinding(Gamepad pad) => Pad = pad;
 
         public const float LookYawSpeed = 3f, LookPitchSpeed = 2f;
 
-        public override string Id => $"gamepad-{Pad.deviceId}";
+        public override string Id
+        {
+            get
+            {
+                int device = Pad.deviceId;
+                if (id == null || idDevice != device)
+                {
+                    idDevice = device;
+                    id = $"gamepad-{device}";
+                }
+                return id;
+            }
+        }
         public override bool CanLook => true;
+        public bool BagHeld => !KeyBindings.GameplayBlocked && Pad != null && Pad.added && Pad.rightShoulder.isPressed;
 
         public override void Read(ref PlayerCommands c)
         {
@@ -160,10 +182,16 @@ namespace Wreckabulary
 
             var stick = Pad.leftStick.ReadValue();
             if (stick.magnitude < 0.2f) stick = Vector2.zero;
-            c.move = Vector2.ClampMagnitude(stick + Pad.dpad.ReadValue(), 1f);
+            c.move = Vector2.ClampMagnitude(stick, 1f);
             var look = Pad.rightStick.ReadValue();
             c.look = look.magnitude < 0.3f ? Vector2.zero : look;
             c.lookDelta = new Vector2(c.look.x * LookYawSpeed, -c.look.y * LookPitchSpeed) * Time.deltaTime;
+            if (CameraRig.TakesLook && Pad.leftStickButton.isPressed)
+            {
+                c.lookAround = true;
+                c.orbit = c.lookDelta;
+                c.look = c.lookDelta = Vector2.zero;
+            }
 
             c.grab = Pad.rightTrigger.wasPressedThisFrame;
             c.grabHeld = Pad.rightTrigger.isPressed;
@@ -173,6 +201,7 @@ namespace Wreckabulary
             c.blockHeld = Pad.leftTrigger.isPressed;
             c.drop = dropHold.Update(Pad.leftShoulder.isPressed, Time.unscaledTime);
             c.swap = Pad.rightStickButton.wasPressedThisFrame;
+            c.slot = Pad.dpad.left.wasPressedThisFrame ? 1 : Pad.dpad.right.wasPressedThisFrame ? 2 : 0;
             c.spellHeld = Pad.buttonNorth.isPressed;
             c.spellDown = Pad.buttonNorth.wasPressedThisFrame;
             c.spellUp = Pad.buttonNorth.wasReleasedThisFrame;
@@ -206,7 +235,7 @@ namespace Wreckabulary
             Next.swap = false;
             Next.slot = 0;
             Next.spellDown = Next.spellUp = Next.up = Next.down = Next.start = false;
-            Next.lookDelta = Vector2.zero;
+            Next.lookDelta = Next.orbit = Vector2.zero;
         }
 
         public override bool JoinPressed() => false;

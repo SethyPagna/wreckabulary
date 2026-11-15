@@ -107,22 +107,31 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("View / Share", ControllerLegend(panel, "Pause").text);
             Assert.AreEqual("—", ControllerLegend(panel, "Aim").text, "House controllers look with the stick, without an aim-held button.");
             Assert.AreEqual("Hold Y / Triangle", ControllerLegend(panel, "Spell").text);
-            Assert.AreEqual(15, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
+            Assert.AreEqual("Hold RB / R1", ControllerLegend(panel, "Bag").text);
+            Assert.AreEqual("D-pad left\nR3 swaps hands", ControllerLegend(panel, "Hand 1").text);
+            Assert.AreEqual("D-pad right\nR3 swaps hands", ControllerLegend(panel, "Hand 2").text);
+            Assert.That(panel.GetComponentsInChildren<TMP_Text>(true).Where(text => text.name == "Controller Move").Select(text => text.text),
+                Is.Not.Empty.And.All.EqualTo("Left stick"), "Every move row shows the stick.");
+            Assert.AreEqual("Hold L3 + right stick", ControllerLegend(panel, "Look around").text);
+            Assert.AreEqual(16, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
             SubmitLegend(panel, "Wordbound controls");
             yield return null;
-            Assert.AreEqual("WORDBOUND CONTROLS", title.text);
+            Assert.AreEqual("COURSE CONTROLS", title.text);
             Assert.AreEqual("RB / R1", ControllerLegend(panel, "Aim").text);
             Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text);
             Assert.AreEqual("Y / Triangle", ControllerLegend(panel, "Spell").text);
             Assert.AreEqual("R3 cycles gear", ControllerLegend(panel, "Bag").text);
-            Assert.AreEqual(14, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
+            Assert.AreEqual(15, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
             Assert.IsFalse(ButtonNamed(panel, "Rebind Dodge").gameObject.activeInHierarchy, "Dodge is not a Wordbound action.");
+            Assert.IsTrue(ButtonNamed(panel, "Rebind Look around (hold)").gameObject.activeInHierarchy, "Courses look around too.");
+            Assert.AreEqual("Hold L3 + right stick", ControllerLegend(panel, "Look around").text);
             foreach (string name in new[] { "Hand 1", "Hand 2" })
             {
                 var slot = ButtonNamed(panel, "Rebind " + name);
                 Assert.IsTrue(slot.gameObject.activeInHierarchy, "Direct keyboard equipment selection is supported.");
                 Assert.AreEqual("Equipment " + name.Substring(name.Length - 1), slot.transform.parent.parent.GetComponentInChildren<TMP_Text>().text);
-                Assert.AreEqual("—", ControllerLegend(panel, name).text, "The controller cycles gear instead of directly selecting a numbered slot.");
+                Assert.AreEqual(name == "Hand 1" ? "D-pad left" : "D-pad right", ControllerLegend(panel, name).text,
+                    "The controller selects each numbered equipment slot directly.");
             }
             Assert.AreSame(jump, ButtonNamed(panel, "Rebind Jump"));
             Assert.AreSame(ButtonNamed(panel, "Wordbound controls").gameObject, EventSystem.current.currentSelectedGameObject);
@@ -133,12 +142,12 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(ButtonNamed(panel, "House controls").interactable);
             Assert.IsFalse(ButtonNamed(panel, "Wordbound controls").interactable);
             ButtonNamed(panel, "House controls").onClick.Invoke();
-            Assert.AreEqual("WORDBOUND CONTROLS", title.text);
+            Assert.AreEqual("COURSE CONTROLS", title.text);
             Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text, "Even a stale callback cannot switch legends while listening.");
             Assert.IsTrue(panel.CancelRebind());
             yield return null;
             Assert.IsFalse(panel.IsListening);
-            Assert.AreEqual("WORDBOUND CONTROLS", title.text, "Cancel/Refresh must preserve the fixed mode context.");
+            Assert.AreEqual("COURSE CONTROLS", title.text, "Cancel/Refresh must preserve the fixed mode context.");
             Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text, "Cancel/Refresh preserves the displayed game family.");
             Assert.AreEqual(before, keys.Map.SaveBindingOverridesAsJson()); Assert.AreEqual(version, KeyBindings.Version);
             SubmitLegend(panel, "House controls");
@@ -147,6 +156,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("View / Share", ControllerLegend(panel, "Pause").text);
             Assert.AreEqual("Hold Y / Triangle", ControllerLegend(panel, "Spell").text);
             Assert.IsTrue(ButtonNamed(panel, "Rebind Dodge").gameObject.activeInHierarchy);
+            Assert.IsTrue(ButtonNamed(panel, "Rebind Look around (hold)").gameObject.activeInHierarchy);
             Assert.AreSame(jump, ButtonNamed(panel, "Rebind Jump"));
             Assert.AreEqual(before, keys.Map.SaveBindingOverridesAsJson()); Assert.AreEqual(version, KeyBindings.Version);
             panel.Close();
@@ -240,6 +250,63 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("<Keyboard>/space", DesktopBinding.Shared.Jump.bindings[0].effectivePath);
             KeyBindings.Load(DesktopBinding.Shared.Map);
             Assert.AreEqual("F", ControlHints.KeyOf(DesktopBinding.Shared.Spell));
+        }
+
+        [UnityTest]
+        public IEnumerator PadHandsAndBagUseFreeButtonsWhileSavedKeyboardBindingsStillLoad()
+        {
+            var binding = new GamepadBinding(pad);
+            PlayerCommands Read()
+            {
+                var commands = default(PlayerCommands);
+                binding.Read(ref commands);
+                return commands;
+            }
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.DpadLeft));
+            yield return null;
+            var left = Read();
+            Assert.AreEqual(1, left.slot);
+            Assert.AreEqual(Vector2.zero, left.move, "The D-pad picks a hand instead of walking.");
+            Assert.IsFalse(left.swap || left.attack || left.jump || left.dodge || left.spellDown || left.grab || left.start);
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.DpadRight));
+            yield return null;
+            Assert.AreEqual(2, Read().slot);
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.RightShoulder));
+            yield return null;
+            var bag = Read();
+            Assert.IsTrue(binding.BagHeld);
+            Assert.AreEqual(0, bag.slot);
+            Assert.IsFalse(bag.swap || bag.attack || bag.jump || bag.dodge || bag.spellHeld || bag.grabHeld || bag.blockHeld || bag.start);
+            InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = new Vector2(0f, .9f) }.WithButton(GamepadButton.RightStick));
+            yield return null;
+            var swap = Read();
+            Assert.IsFalse(binding.BagHeld);
+            Assert.IsTrue(swap.swap, "R3 still swaps hands.");
+            Assert.Greater(swap.move.y, .8f, "The left stick still moves.");
+            InputSystem.QueueStateEvent(pad, new GamepadState());
+            yield return null;
+
+            var keys = DesktopBinding.Shared;
+            Assert.AreEqual("<Keyboard>/tab", keys.Bag.bindings[0].effectivePath);
+            Assert.AreEqual("<Keyboard>/1", keys.Hand1.bindings[0].effectivePath);
+            Assert.AreEqual("<Keyboard>/2", keys.Hand2.bindings[0].effectivePath);
+            Assert.IsFalse(keys.Map.bindings.Any(item => (item.effectivePath ?? "").StartsWith("<Gamepad>", StringComparison.Ordinal)),
+                "Pad buttons stay out of the rebindable keyboard map.");
+            KeyBindings.Assign(keys.Bag, 0, "<Keyboard>/g");
+            KeyBindings.Assign(keys.Hand1, 0, "<Keyboard>/z");
+            using var fresh = new DesktopBinding();
+            Assert.AreEqual("<Keyboard>/g", fresh.Bag.bindings[0].effectivePath);
+            Assert.AreEqual("<Keyboard>/z", fresh.Hand1.bindings[0].effectivePath);
+            Assert.AreEqual("<Keyboard>/2", fresh.Hand2.bindings[0].effectivePath);
+            Assert.AreEqual("G", GameHud.BagKeyLabel(keys));
+            Assert.AreEqual(ControlHints.PadBag, GameHud.BagKeyLabel(binding));
+            Assert.AreEqual("1", GameHud.HandKeyLabel(keys, 0));
+            Assert.AreEqual("‹", GameHud.HandKeyLabel(binding, 0));
+            Assert.AreEqual("›", GameHud.HandKeyLabel(binding, 1));
+            var padHelp = GameHud.HelpEntries(true);
+            CollectionAssert.Contains(padHelp, (ControlHints.PadBag, "hold for bag and map"));
+            CollectionAssert.Contains(padHelp, (ControlHints.PadHands, "switch hand"));
+            CollectionAssert.Contains(GameHud.HelpEntries(false), ("G", "hold for bag and map"));
         }
 
         [Test]

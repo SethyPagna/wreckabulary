@@ -89,9 +89,9 @@ namespace Wreckabulary.Rules.Wordbound
                     return i;
             return -1;
         }
-        internal static CourseLapSelection SelectLap(CourseDocument d, CourseLap lap, IList<CourseAlternative> alternatives)
+        internal static CourseLapSelection SelectLap(CourseDocument d, CourseLap lap, IList<CourseAlternative> alternatives, string optionId = "")
         {
-            var selected = new CourseLapSelection { Number = lap.Number, StartModuleId = lap.StartModuleId, FinishModuleId = lap.FinishModuleId, NarrativeId = lap.NarrativeId };
+            var selected = new CourseLapSelection { Number = lap.Number, StartModuleId = lap.StartModuleId, FinishModuleId = lap.FinishModuleId, NarrativeId = lap.NarrativeId, OptionId = optionId };
             for (int i = 0; i < alternatives.Count; i++)
             {
                 var alt = alternatives[i];
@@ -118,6 +118,7 @@ namespace Wreckabulary.Rules.Wordbound
             var supplies = d.Supplies.ToDictionary(s => s.Id, StringComparer.Ordinal);
             var anchors = d.RecoveryAnchors.ToDictionary(r => r.Id, StringComparer.Ordinal);
             var connections = d.Connections.ToDictionary(c => c.Id, StringComparer.Ordinal);
+            var resources = data.Placements.Where(p => p.Purpose == "Resources" && p.TeamIndex <= 0).ToList();
             foreach (var lap in data.Laps)
             {
                 if (lap.CheckpointIds.Count == 0 || lap.CheckpointIds.Distinct(StringComparer.Ordinal).Count() != lap.CheckpointIds.Count ||
@@ -126,9 +127,8 @@ namespace Wreckabulary.Rules.Wordbound
                 { v.Add("lap.checkpoints", "$.laps", lap.Number.ToString(), "A lap needs distinct ordered checkpoints ending at its finish."); continue; }
                 var trail = Trail(d, lap.StartModuleId, lap.ConnectionIds, v, lap.Number.ToString());
                 if (trail == null) continue;
-                var done = new HashSet<string>(StringComparer.Ordinal);
-                var collected = new HashSet<string>(StringComparer.Ordinal);
-                var inventory = new LetterBag();
+                var state = new ProgressionState();
+                var solutionPuzzles = new HashSet<string>(StringComparer.Ordinal);
                 string safeModule = lap.StartModuleId;
                 int cpIndex = 0;
                 for (int step = 0; step <= lap.ConnectionIds.Count; step++)
@@ -136,52 +136,107 @@ namespace Wreckabulary.Rules.Wordbound
                     while (cpIndex < lap.CheckpointIds.Count && lap.CheckpointSteps[cpIndex] == step)
                     {
                         var checkpoint = checkpoints[lap.CheckpointIds[cpIndex]];
-                        foreach (string id in checkpoint.PuzzleIds)
-                        {
-                            var puzzle = puzzles[id];
-                            if (done.Contains(id)) { v.Add("puzzle.repeated", "$.laps", id, "A required puzzle appears twice in this lap."); continue; }
-                            var reachable = Reachable(d, trail[step], done);
-                            var safeReachable = Reachable(d, safeModule, done);
-                            if (!puzzle.PrerequisiteIds.All(done.Contains) || !reachable.Contains(puzzle.ModuleId))
-                            { v.Add("puzzle.prefix", "$.laps", id, "Puzzle prerequisites or location are unavailable at this checkpoint."); continue; }
-                            foreach (var supply in d.Supplies)
-                                if (reachable.Contains(supply.ModuleId) && supply.AfterPuzzleIds.All(done.Contains) && collected.Add("s/" + supply.Id))
-                                    inventory.Add(LetterBag.FromWord(supply.Letters));
-                            foreach (var placement in data.Placements.Where(p => p.Purpose == "Resources" && p.TeamIndex <= 0))
-                                if (reachable.Contains(placement.ModuleId) && collected.Add("p/" + placement.Id))
-                                    inventory.Add(LetterBag.FromWord(placement.Letters));
-                            var needed = LetterBag.FromWord(puzzle.RequiredLetters);
-                            var recovery = new LetterBag();
-                            foreach (string supplyId in puzzle.RecoverySupplyIds)
-                            {
-                                var supply = supplies[supplyId];
-                                if (supply.Protected && supply.Renewable && supply.AfterPuzzleIds.All(done.Contains) &&
-                                    reachable.Contains(supply.ModuleId) && safeReachable.Contains(supply.ModuleId) &&
-                                    Reachable(d, supply.ModuleId, done).Contains(puzzle.ModuleId))
-                                    recovery.Add(LetterBag.FromWord(supply.Letters));
-                            }
-                            if (!recovery.Contains(needed))
-                            { v.Add("resource.recovery", "$.laps", id, "Protected renewable recovery supplies must cover every required letter before this objective, including from the last safe checkpoint."); continue; }
-                            var missing = inventory.Missing(needed);
-                            if (!missing.IsEmpty) inventory.Add(missing);
-                            if (puzzle.ConsumeLetters && !inventory.TryRemove(needed))
-                            { v.Add("resource.prefix", "$.laps", id, "Not enough letters at this progression prefix."); continue; }
-                            inventory.Add(LetterBag.FromWord(puzzle.RewardLetters));
-                            done.Add(id);
-                            if (!Reachable(d, puzzle.ModuleId, done).Contains(trail[step]))
-                                v.Add("puzzle.return", "$.laps", id, "Completing the puzzle must allow return to its route checkpoint.");
-                        }
                         var anchor = anchors[checkpoint.RecoveryAnchorId];
-                        if (!anchor.AfterPuzzleIds.All(done.Contains) || !Reachable(d, trail[step], done).Contains(anchor.ModuleId) ||
-                            !Reachable(d, anchor.ModuleId, done).Contains(trail[step]))
+                        string at = trail[step];
+                        bool Recoverable(ProgressionState s) => anchor.AfterPuzzleIds.All(s.Done.Contains) &&
+                            Reachable(d, at, s.Done).Contains(anchor.ModuleId) && Reachable(d, anchor.ModuleId, s.Done).Contains(at);
+                        bool recoverable;
+                        if (checkpoint.Solutions.Count == 0)
+                        {
+                            Complete(checkpoint.PuzzleIds, state, at, safeModule, false);
+                            recoverable = Recoverable(state);
+                        }
+                        else
+                        {
+                            var outcomes = new List<ProgressionState>();
+                            foreach (var solution in checkpoint.Solutions.OrderBy(s => s.Id, StringComparer.Ordinal))
+                            {
+                                var branch = state.Copy();
+                                Complete(solution.PuzzleIds, branch, at, safeModule, true);
+                                outcomes.Add(branch);
+                            }
+                            recoverable = outcomes.All(Recoverable);
+                            state = ProgressionState.Common(outcomes);
+                        }
+                        if (!recoverable)
                             v.Add("recovery.unreachable", "$.laps", checkpoint.Id, "Recovery must remain reachable and allow return to the checkpoint.");
                         safeModule = anchor.ModuleId; cpIndex++;
                     }
                     if (step == lap.ConnectionIds.Count) break;
                     var connection = connections[lap.ConnectionIds[step]];
-                    if (!string.IsNullOrEmpty(connection.GatePuzzleId) && !done.Contains(connection.GatePuzzleId))
+                    if (!string.IsNullOrEmpty(connection.GatePuzzleId) && !state.Done.Contains(connection.GatePuzzleId))
                     { v.Add("gate.prefix", "$.laps", connection.Id, "The selected route crosses a gate before completing its puzzle."); break; }
                 }
+
+                void Complete(IEnumerable<string> ids, ProgressionState s, string at, string safe, bool solution)
+                {
+                    foreach (string id in ids)
+                    {
+                        var puzzle = puzzles[id];
+                        bool repeated = s.Done.Contains(id) || solutionPuzzles.Contains(id);
+                        if (solution) solutionPuzzles.Add(id);
+                        if (repeated) { v.Add("puzzle.repeated", "$.laps", id, "A required puzzle appears twice in this lap."); continue; }
+                        var reachable = Reachable(d, at, s.Done);
+                        var safeReachable = Reachable(d, safe, s.Done);
+                        if (!puzzle.PrerequisiteIds.All(s.Done.Contains) || !reachable.Contains(puzzle.ModuleId))
+                        { v.Add("puzzle.prefix", "$.laps", id, "Puzzle prerequisites or location are unavailable at this checkpoint."); continue; }
+                        foreach (var supply in d.Supplies)
+                            if (reachable.Contains(supply.ModuleId) && supply.AfterPuzzleIds.All(s.Done.Contains) && s.Collected.Add("s/" + supply.Id))
+                                s.Inventory.Add(LetterBag.FromWord(supply.Letters));
+                        foreach (var placement in resources)
+                            if (reachable.Contains(placement.ModuleId) && s.Collected.Add("p/" + placement.Id))
+                                s.Inventory.Add(LetterBag.FromWord(placement.Letters));
+                        var needed = LetterBag.FromWord(puzzle.RequiredLetters);
+                        var recovery = new LetterBag();
+                        foreach (string supplyId in puzzle.RecoverySupplyIds)
+                        {
+                            var supply = supplies[supplyId];
+                            if (supply.Protected && supply.Renewable && supply.AfterPuzzleIds.All(s.Done.Contains) &&
+                                reachable.Contains(supply.ModuleId) && safeReachable.Contains(supply.ModuleId) &&
+                                Reachable(d, supply.ModuleId, s.Done).Contains(puzzle.ModuleId))
+                                recovery.Add(LetterBag.FromWord(supply.Letters));
+                        }
+                        if (!recovery.Contains(needed))
+                        { v.Add("resource.recovery", "$.laps", id, "Protected renewable recovery supplies must cover every required letter before this objective, including from the last safe checkpoint."); continue; }
+                        var missing = s.Inventory.Missing(needed);
+                        if (!missing.IsEmpty) s.Inventory.Add(missing);
+                        if (puzzle.ConsumeLetters && !s.Inventory.TryRemove(needed))
+                        { v.Add("resource.prefix", "$.laps", id, "Not enough letters at this progression prefix."); continue; }
+                        s.Inventory.Add(LetterBag.FromWord(puzzle.RewardLetters));
+                        s.Done.Add(id);
+                        if (!Reachable(d, puzzle.ModuleId, s.Done).Contains(at))
+                            v.Add("puzzle.return", "$.laps", id, "Completing the puzzle must allow return to its route checkpoint.");
+                    }
+                }
+            }
+        }
+
+        sealed class ProgressionState
+        {
+            public HashSet<string> Done = new HashSet<string>(StringComparer.Ordinal);
+            public HashSet<string> Collected = new HashSet<string>(StringComparer.Ordinal);
+            public LetterBag Inventory = new LetterBag();
+            public ProgressionState Copy() => new ProgressionState
+            {
+                Done = new HashSet<string>(Done, StringComparer.Ordinal),
+                Collected = new HashSet<string>(Collected, StringComparer.Ordinal),
+                Inventory = new LetterBag(Inventory)
+            };
+            public static ProgressionState Common(IReadOnlyList<ProgressionState> branches)
+            {
+                var common = branches[0].Copy();
+                foreach (var branch in branches.Skip(1))
+                {
+                    common.Done.IntersectWith(branch.Done);
+                    common.Collected.IntersectWith(branch.Collected);
+                }
+                common.Inventory = new LetterBag();
+                for (char letter = 'A'; letter <= 'Z'; letter++)
+                {
+                    int least = branches.Min(b => b.Inventory[letter]);
+                    if (least > 0) common.Inventory.Add(letter, least);
+                }
+                return common;
             }
         }
     }

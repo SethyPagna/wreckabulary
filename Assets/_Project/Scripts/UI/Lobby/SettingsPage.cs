@@ -16,6 +16,10 @@ namespace Wreckabulary
             { ("profile", "Profile"), ("audio", "Audio"), ("gameplay", "Gameplay"), ("graphics", "Graphics"), ("controls", "Controls"), ("help", "Help") };
         static readonly (string id, string label)[] DisplayModes =
             { ("borderless", "Borderless"), ("fullscreen", "Full screen"), ("windowed", "Windowed") };
+        public static readonly (string id, string label)[] ShakeChoices =
+            { (ShakeLevel.Off.ToString(), "Off"), (ShakeLevel.Low.ToString(), "Low"), (ShakeLevel.Full.ToString(), "Full") };
+        public static readonly string[] GameplayRows =
+            { "Screen shake", "Damage numbers", "Effect words", "Furniture names", "Control tips", "Points per hit", "Combat feedback", "Reduce theme motion" };
         const float KeepFor = 10f;
 
         public override string Id => LobbyMenu.Settings;
@@ -64,7 +68,7 @@ namespace Wreckabulary
                 saved.Validate();
                 authoredFrame = LobbyRuntimeTypography.Instantiate(saved.Page, Root, false);
                 authoredFrame.Bind(Menu.Close, revertTo.HasValue);
-                authoredFrame.FitHeight(tab switch { "profile" => 500, "gameplay" => 540, "audio" => 560, _ => 860 });
+                authoredFrame.FitHeight(tab switch { "profile" => 500, "gameplay" => 820, "audio" => 560, _ => 860 });
                 body = authoredFrame.Body;
             }
             else body = Panel(new Vector2(.12f, 0), new Vector2(.88f, 1), "Settings");
@@ -84,7 +88,7 @@ namespace Wreckabulary
             if (revertTo.HasValue && !authoredFrame) holder.offsetMin = new Vector2(0, 92);
             if (tab == "controls")
             {
-                controlsPanel = ControlsPanel.Mount(holder);
+                controlsPanel = ControlsPanel.Mount(TouchLayouts.Available ? TouchLayoutRow(holder) : holder);
                 scroll = controlsPanel.GetComponentInChildren<ScrollRect>();
                 First = controlsPanel.FirstSelectable;
             }
@@ -136,9 +140,13 @@ namespace Wreckabulary
 
         void Gameplay(Transform list)
         {
+            Choose(Setting(list, "Screen shake", "How much the camera shakes on big hits."), "Screen shake", ShakeChoices,
+                ScreenShake.Level.ToString(), id => ScreenShake.Level = (ShakeLevel)Enum.Parse(typeof(ShakeLevel), id), 330);
+            Toggle(Setting(list, "Damage numbers", "A number pops up on every hit."), "Damage numbers", GameplayPrefs.DamageNumbers, on => GameplayPrefs.DamageNumbers = on);
+            Toggle(Setting(list, "Effect words", "Words like CRUSH! and DAZED on special hits."), "Effect words", GameplayPrefs.EffectWords, on => GameplayPrefs.EffectWords = on);
+            Toggle(Setting(list, "Furniture names", "Word labels over the furniture you can smash."), "Furniture names", GameplayPrefs.FurnitureNames, on => GameplayPrefs.FurnitureNames = on);
             Toggle(Setting(list, "Control tips", "One tip at a time until you've used each control. Turn on again to replay them."),
-                "Control tips", ControlTips.Enabled, on => ControlTips.Enabled = on);
-            Toggle(Setting(list, "Damage numbers"), "Damage numbers", CombatFeedbackOptions.ShowDamage, on => CombatFeedbackOptions.ShowDamage = on);
+                "Control tips", GameplayPrefs.ControlTips, on => GameplayPrefs.ControlTips = on);
             Toggle(Setting(list, "Points per hit"), "Points per hit", CombatFeedbackOptions.ShowPoints, on => CombatFeedbackOptions.ShowPoints = on);
             LobbyKit.Pill(Setting(list, "Combat feedback"), "Reset feedback", "Reset feedback", 20,
                 () => { CombatFeedbackOptions.ResetToDefaults(); RefreshSetting("Reset feedback"); }).Size(220, 46);
@@ -148,6 +156,19 @@ namespace Wreckabulary
                 PlayerPrefs.Save();
                 if (Menu.Stage) Menu.Stage.SetThemeEffects(!on);
             });
+        }
+
+        RectTransform TouchLayoutRow(RectTransform holder)
+        {
+            var controls = Setting(holder, "Touch layout", "Move, resize and fade the on-screen buttons.");
+            ((RectTransform)controls.parent).Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -92), Vector2.zero);
+            var book = TouchLayouts.Book;
+            LobbyKit.Text(controls, book.Name(book.Active), 20, LobbyKit.Muted, TextAlignmentOptions.MidlineRight).Size(170, 40);
+            LobbyKit.Pill(controls, "Edit touch layout", "Edit layout", 20, () => TouchLayoutEditor.Show(() =>
+            {
+                if (Root && Root.gameObject.activeInHierarchy) RefreshSetting("Edit touch layout");
+            })).Size(200, 46);
+            return LobbyKit.Rect(holder, "Below touch layout").Place(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0, -104));
         }
 
         void Audio(Transform list)
@@ -227,7 +248,7 @@ namespace Wreckabulary
             kicker.name = "Help scope";
             kicker.color = LobbyKit.Cyan;
             kicker.Size(-1, 32);
-            Wrapped(column, "Wordbound controls: Controls tab → Wordbound.", 17, LobbyKit.Muted, 42);
+            Wrapped(column, "Course controls: Controls tab → Courses.", 17, LobbyKit.Muted, 42);
             LobbyKit.Text(column, "Smash. Spell. Play.", 28, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft).Size(-1, 42);
             var steps = LobbyKit.Column(column, "Steps", 8);
             steps.Size(-1, 352);

@@ -30,7 +30,7 @@ namespace Wreckabulary.Workshop
             ResetView(); Refresh(); savedRevision = History.Revision;
             assignedDraft = CaptureDraft();
             authoredOpening = initial; recoveredOpening = null; recoveryError = "";
-            recoveryCourseId = course.Id; authoredLabel = course.Title + " · " + course.Id;
+            recoveryCourseId = course.Id; authoredLabel = course.Title + " · " + course.Id; assignedTitle = course.Title;
             recoveredLabel = ""; recoveryScroll = Vector2.zero;
             recoveryDecision = recoverySelection = 0; recoveryUsesBackup = false;
             recoveryUnreadable = false; recoveryStorage = storage; recoveryReturn = null; recoveryFreshLabel = "";
@@ -148,7 +148,7 @@ namespace Wreckabulary.Workshop
             }
             else
             {
-                GUILayout.Label("Continue your course", heading);
+                GUILayout.Label("Saved draft found", heading);
                 GUILayout.Label("A draft is already saved for this course. Choose before editing. Nothing is saved until you choose.", recoveryText);
                 GUILayout.Label("Course: " + authoredLabel, recoveryText);
                 if (recoveredOpening != null) GUILayout.Label(recoveredLabel, recoveryText);

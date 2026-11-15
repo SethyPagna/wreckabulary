@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 using Wreckabulary.Rules;
 
@@ -7,6 +8,8 @@ namespace Wreckabulary
     public sealed class StoreyCutaway : MonoBehaviour
     {
         public static StoreyCutaway Instance { get; private set; }
+        public static int Evaluations { get; private set; }
+        static readonly ProfilerMarker EvaluateMarker = new("Cutaway.Evaluate"), RecheckMarker = new("Cutaway.Recheck");
         const float Interval = .2f, Hysteresis = .3f, Margin = .6f, BodyHeight = 1.8f, WallHeight = 1.1f;
         HouseLayout layout;
         List<float> floors;
@@ -29,12 +32,13 @@ namespace Wreckabulary
             internal readonly List<(int storey, Rect area)> liftedAreas = new();
             internal readonly Dictionary<PlayerController, int> storeyOf = new();
             internal readonly List<PlayerController> removed = new();
+            internal readonly List<Renderer> dynamicHidden = new();
             public int TopStorey { get; internal set; }
             public float FocusY { get; internal set; }
             public bool WouldHide(Renderer renderer) => renderer && (Hidden.Contains(renderer) || Shadows.Contains(renderer));
             public void Clear()
             {
-                Hidden.Clear(); Shadows.Clear(); LiftedRooms.Clear(); liftedAreas.Clear();
+                Hidden.Clear(); Shadows.Clear(); LiftedRooms.Clear(); liftedAreas.Clear(); dynamicHidden.Clear();
                 TopStorey = 0; FocusY = 0f;
             }
             public void Reset() { Clear(); storeyOf.Clear(); removed.Clear(); }
@@ -43,9 +47,11 @@ namespace Wreckabulary
         public int TopStorey => defaultView.TopStorey;
         public float FocusY => defaultView.FocusY;
         public IReadOnlyCollection<string> LiftedRooms => defaultView.LiftedRooms;
+        internal int Version { get; private set; }
 
         public void Configure(HouseLayout house, Transform geometry, bool makeDefault = true)
         {
+            Version++;
             layout = house;
             floors = house.StoreyFloors();
             rooms.Clear(); fixedParts.Clear(); fixedSet.Clear(); surfaces.Clear(); flightParts.Clear(); ceilings.Clear();
@@ -79,7 +85,7 @@ namespace Wreckabulary
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => Instance = null;
+        static void ResetStatics() { Instance = null; Evaluations = 0; }
         void OnDestroy() { if (Instance == this) Instance = null; }
         void LateUpdate()
         {
@@ -111,15 +117,38 @@ namespace Wreckabulary
 
         public void Evaluate(Camera camera, IReadOnlyList<PlayerController> participants, bool overhead, VisibilityPlan plan)
         {
-            plan.Clear();
-            if (layout == null || floors == null || floors.Count == 0) return;
+            Evaluations++;
+            using (EvaluateMarker.Auto())
+            {
+                plan.Clear();
+                if (!Configured) return;
+                EvaluateFixedParts(camera, participants, overhead, plan);
+                HideDynamicParts(participants, plan);
+            }
+        }
+
+        internal void RecheckDynamic(IReadOnlyList<PlayerController> participants, VisibilityPlan plan)
+        {
+            using (RecheckMarker.Auto())
+            {
+                foreach (var renderer in plan.dynamicHidden) plan.Hidden.Remove(renderer);
+                plan.dynamicHidden.Clear();
+                if (Configured) HideDynamicParts(participants, plan);
+            }
+        }
+
+        bool Configured => layout != null && floors != null && floors.Count > 0;
+
+        void EvaluateFixedParts(Camera camera, IReadOnlyList<PlayerController> participants, bool overhead, VisibilityPlan plan)
+        {
             plan.removed.Clear();
             foreach (var player in plan.storeyOf.Keys)
                 if (!player || !Contains(participants, player)) plan.removed.Add(player);
             foreach (var gone in plan.removed) plan.storeyOf.Remove(gone);
             int top = 0, low = int.MaxValue;
-            foreach (var player in participants)
+            for (int i = 0; i < participants.Count; i++)
             {
+                var player = participants[i];
                 if (!player) continue;
                 int storey = StoreyAt(player.transform.position.y);
                 if (plan.storeyOf.TryGetValue(player, out int was) && storey < was && StoreyAt(player.transform.position.y + Hysteresis) >= was) storey = was;
@@ -135,8 +164,9 @@ namespace Wreckabulary
                 var ray = -camera.transform.forward;
                 projection = new Vector2(ray.x, ray.z) / ray.y;
             }
-            if (overhead) foreach (var player in participants)
+            if (overhead) for (int i = 0; i < participants.Count; i++)
             {
+                var player = participants[i];
                 if (!player) continue;
                 var at = player.transform.position;
                 for (int above = plan.storeyOf[player] + 1; above <= top; above++)
@@ -164,8 +194,9 @@ namespace Wreckabulary
                 var bounds = renderer.bounds;
                 bool hidden = part.storey > top || Lifted(plan, part.storey, Area(bounds));
                 if (!hidden && overhead && flightParts.Contains(renderer))
-                    foreach (var player in participants)
+                    for (int i = 0; i < participants.Count; i++)
                     {
+                        var player = participants[i];
                         if (!player) continue;
                         var at = player.transform.position;
                         float over = bounds.max.y - at.y;
@@ -174,18 +205,30 @@ namespace Wreckabulary
                     }
                 if (hidden) plan.Hidden.Add(renderer);
             }
+        }
+
+        void HideDynamicParts(IReadOnlyList<PlayerController> participants, VisibilityPlan plan)
+        {
             RefreshDynamicParts();
+            int top = plan.TopStorey;
             foreach (var renderer in dynamicParts)
             {
                 if (!renderer) continue;
                 var bounds = renderer.bounds;
                 int storey = StoreyAt(bounds.min.y);
                 if (storey <= top && !Lifted(plan, storey, Area(bounds))) continue;
-                bool mine = false;
-                foreach (var player in participants)
-                    if (player && renderer.transform.IsChildOf(player.transform)) { mine = true; break; }
-                if (!mine) plan.Hidden.Add(renderer);
+                if (!CarriedBy(renderer.transform, participants) && plan.Hidden.Add(renderer)) plan.dynamicHidden.Add(renderer);
             }
+        }
+
+        static bool CarriedBy(Transform part, IReadOnlyList<PlayerController> participants)
+        {
+            for (int i = 0; i < participants.Count; i++)
+            {
+                var player = participants[i];
+                if (player && part.IsChildOf(player.transform)) return true;
+            }
+            return false;
         }
 
         void RefreshDynamicParts()
@@ -205,8 +248,9 @@ namespace Wreckabulary
         internal static bool Obstructs(Camera camera, Bounds bounds, IReadOnlyList<PlayerController> participants)
         {
             if (!camera) return false;
-            foreach (var player in participants)
+            for (int i = 0; i < participants.Count; i++)
             {
+                var player = participants[i];
                 if (!player) continue;
                 var delta = player.transform.position + Vector3.up * .9f - camera.transform.position;
                 if (bounds.IntersectRay(new Ray(camera.transform.position, delta.normalized), out float distance) && distance < delta.magnitude) return true;
@@ -241,7 +285,7 @@ namespace Wreckabulary
                 Mathf.Max(feet.x, head.x) + Margin, Mathf.Max(feet.y, head.y) + Margin);
         }
         static bool Contains(IReadOnlyList<PlayerController> players, PlayerController target)
-        { foreach (var player in players) if (player == target) return true; return false; }
+        { for (int i = 0; i < players.Count; i++) if (players[i] == target) return true; return false; }
         static bool Lifted(VisibilityPlan plan, int storey, Rect area)
         { foreach (var entry in plan.liftedAreas) if (entry.storey == storey && entry.area.Overlaps(area)) return true; return false; }
         int StoreyAt(float y)

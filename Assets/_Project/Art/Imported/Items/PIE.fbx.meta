@@ -17,6 +17,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: red_Classic
+    second: {fileID: 2100000, guid: 70fd46482218ea942be50f13a295cf4d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: wood_light_Classic
     second: {fileID: 2100000, guid: 2e90cf7537c859347b7878bf1937f5d8, type: 2}
   materials:

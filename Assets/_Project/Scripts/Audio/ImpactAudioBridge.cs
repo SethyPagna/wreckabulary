@@ -7,12 +7,14 @@ namespace Wreckabulary.Audio
     {
         static int scopes;
         static bool hooked;
+        static ImpactAudioLibrary houseLibrary;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             scopes = 0;
             hooked = false;
+            houseLibrary = null;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -41,8 +43,8 @@ namespace Wreckabulary.Audio
         {
             get
             {
-                var library = Resources.Load<ImpactAudioLibrary>(ImpactAudioLibrary.ResourcePath);
-                return library && library.useInHouseModes;
+                if (!houseLibrary) houseLibrary = Resources.Load<ImpactAudioLibrary>(ImpactAudioLibrary.ResourcePath);
+                return houseLibrary && houseLibrary.useInHouseModes;
             }
         }
 

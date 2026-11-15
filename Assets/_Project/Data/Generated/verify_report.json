@@ -11,7 +11,7 @@
   {
    "name": "BLADE",
    "kind": "item",
-   "triangles": 4384,
+   "triangles": 4440,
    "problems": []
   },
   {
@@ -23,19 +23,19 @@
   {
    "name": "BALL",
    "kind": "item",
-   "triangles": 3156,
+   "triangles": 3696,
    "problems": []
   },
   {
    "name": "PLATE",
    "kind": "item",
-   "triangles": 1952,
+   "triangles": 2080,
    "problems": []
   },
   {
    "name": "TABLE",
    "kind": "item",
-   "triangles": 4320,
+   "triangles": 3564,
    "problems": []
   },
   {
@@ -59,31 +59,31 @@
   {
    "name": "SOAP",
    "kind": "item",
-   "triangles": 2352,
+   "triangles": 2510,
    "problems": []
   },
   {
    "name": "FOAM",
    "kind": "item",
-   "triangles": 4000,
+   "triangles": 6182,
    "problems": []
   },
   {
    "name": "BOMB",
    "kind": "item",
-   "triangles": 2236,
+   "triangles": 2776,
    "problems": []
   },
   {
    "name": "ARROW",
    "kind": "item",
-   "triangles": 144,
+   "triangles": 1100,
    "problems": []
   },
   {
    "name": "BOW",
    "kind": "item",
-   "triangles": 684,
+   "triangles": 788,
    "problems": []
   },
   {
@@ -101,25 +101,25 @@
   {
    "name": "PAN",
    "kind": "item",
-   "triangles": 1136,
+   "triangles": 1618,
    "problems": []
   },
   {
    "name": "SHIELD",
    "kind": "item",
-   "triangles": 172,
+   "triangles": 336,
    "problems": []
   },
   {
    "name": "SPEAR",
    "kind": "item",
-   "triangles": 2028,
+   "triangles": 3028,
    "problems": []
   },
   {
    "name": "APPLE",
    "kind": "item",
-   "triangles": 1764,
+   "triangles": 1324,
    "problems": []
   },
   {
@@ -131,19 +131,19 @@
   {
    "name": "PIE",
    "kind": "item",
-   "triangles": 4640,
+   "triangles": 4424,
    "problems": []
   },
   {
    "name": "SODA",
    "kind": "item",
-   "triangles": 2372,
+   "triangles": 2912,
    "problems": []
   },
   {
    "name": "WATER",
    "kind": "item",
-   "triangles": 2544,
+   "triangles": 3596,
    "problems": []
   },
   {
@@ -155,13 +155,13 @@
   {
    "name": "BOX",
    "kind": "item",
-   "triangles": 1772,
+   "triangles": 672,
    "problems": []
   },
   {
    "name": "CABINET",
    "kind": "item",
-   "triangles": 3600,
+   "triangles": 4200,
    "problems": []
   },
   {
@@ -185,13 +185,13 @@
   {
    "name": "DESK",
    "kind": "item",
-   "triangles": 5344,
+   "triangles": 4588,
    "problems": []
   },
   {
    "name": "SHELF",
    "kind": "item",
-   "triangles": 3024,
+   "triangles": 4320,
    "problems": []
   },
   {
@@ -209,19 +209,19 @@
   {
    "name": "CLOCK",
    "kind": "item",
-   "triangles": 3536,
+   "triangles": 6000,
    "problems": []
   },
   {
    "name": "FAN",
    "kind": "item",
-   "triangles": 4828,
+   "triangles": 5260,
    "problems": []
   },
   {
    "name": "MUG",
    "kind": "item",
-   "triangles": 1228,
+   "triangles": 1448,
    "problems": []
   },
   {
@@ -233,13 +233,13 @@
   {
    "name": "POT",
    "kind": "item",
-   "triangles": 2320,
+   "triangles": 2152,
    "problems": []
   },
   {
    "name": "VASE",
    "kind": "item",
-   "triangles": 1760,
+   "triangles": 4896,
    "problems": []
   },
   {
@@ -473,7 +473,7 @@
   {
    "name": "Round_Rug",
    "kind": "environment",
-   "triangles": 1408,
+   "triangles": 3072,
    "problems": []
   },
   {
@@ -587,7 +587,7 @@
   {
    "name": "Avatar",
    "kind": "avatar",
-   "triangles": 63110,
+   "triangles": 65086,
    "problems": [],
    "clips": [
     "Block_Plate",

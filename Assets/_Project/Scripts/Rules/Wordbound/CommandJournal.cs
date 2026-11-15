@@ -115,6 +115,8 @@ namespace Wreckabulary.Rules.Wordbound
         readonly string identityHash;
         readonly Dictionary<string, long> frontiers;
         readonly Dictionary<string, SortedDictionary<long, CommandReceipt>> receipts;
+        static readonly HashSet<(string, long)> NoConflicts = new HashSet<(string, long)>();
+        CommandJournalSnapshot captured;
         public long Epoch { get; private set; }
 
         public CommandJournal(string matchIdentityHash, IEnumerable<string> playerIds, long epoch = 0)
@@ -137,9 +139,10 @@ namespace Wreckabulary.Rules.Wordbound
             if (batch.Length > MaximumBatch || batch.Any(c => c == null))
                 throw new ArgumentException("Command batch exceeds bounds.");
             if (batch.Length == 0) return Array.Empty<CommandReceipt>();
-            var ordered = batch.OrderBy(c => c.ActorId, StringComparer.Ordinal).ThenBy(c => c.Command.Sequence)
+            var ordered = batch.Length == 1 ? batch : batch.OrderBy(c => c.ActorId, StringComparer.Ordinal).ThenBy(c => c.Command.Sequence)
                 .ThenBy(c => c.Command.PayloadHash, StringComparer.Ordinal).ToArray();
-            var conflicts = ordered.Where(c => c.ActorId != null && frontiers.ContainsKey(c.ActorId) && c.Command.Epoch == Epoch)
+            var conflicts = batch.Length == 1 ? NoConflicts : ordered
+                .Where(c => c.ActorId != null && frontiers.ContainsKey(c.ActorId) && c.Command.Epoch == Epoch)
                 .GroupBy(c => (c.ActorId, c.Command.Sequence))
                 .Where(g => g.Select(c => c.Command.PayloadHash).Distinct(StringComparer.Ordinal).Count() > 1)
                 .Select(g => g.Key).ToHashSet();
@@ -168,6 +171,7 @@ namespace Wreckabulary.Rules.Wordbound
                     var effect = target.ApplyValidatedCommand(command);
                     if (effect == null) throw new InvalidOperationException("Command target returned no result.");
                     var receipt = new CommandReceipt(command, tick, effect);
+                    captured = null;
                     frontiers[command.ActorId] = packet.Sequence;
                     var history = receipts[command.ActorId];
                     history.Add(packet.Sequence, receipt);
@@ -187,10 +191,11 @@ namespace Wreckabulary.Rules.Wordbound
         public void AdvanceEpoch(long nextEpoch)
         {
             if (nextEpoch != Epoch + 1 || nextEpoch == long.MaxValue) throw new ArgumentOutOfRangeException(nameof(nextEpoch));
+            captured = null;
             Epoch = nextEpoch;
         }
 
-        public CommandJournalSnapshot Capture() => new CommandJournalSnapshot(identityHash, Epoch,
+        public CommandJournalSnapshot Capture() => captured ??= new CommandJournalSnapshot(identityHash, Epoch,
             frontiers, receipts.Values.SelectMany(history => history.Values));
 
         public void Restore(CommandJournalSnapshot snapshot)
@@ -210,6 +215,7 @@ namespace Wreckabulary.Rules.Wordbound
                 if (history.Length != expected || history.Where((r, i) => r.Sequence != pair.Value - expected + 1 + i).Any())
                     throw new ArgumentException("Journal receipts do not match the processed frontier.");
             }
+            captured = null;
             foreach (var pair in snapshot.Frontiers)
             {
                 frontiers[pair.Key] = pair.Value;

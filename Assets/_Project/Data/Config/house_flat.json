@@ -1480,7 +1480,9 @@
    "Diner",
    "Lounge",
    "Bedroom",
-   "KidsRoom"
+   "KidsRoom",
+   "LivingRoom",
+   "Kitchen"
   ],
   "Duos": [
    "Bathroom2",
@@ -1489,7 +1491,9 @@
    "Diner",
    "Lounge",
    "Bedroom",
-   "KidsRoom"
+   "KidsRoom",
+   "LivingRoom",
+   "Kitchen"
   ],
   "MovingOut": [
    "Bathroom2",
@@ -1510,20 +1514,20 @@
  },
  "movingDay": [
   {
-   "word": "BED",
-   "room": "Bedroom"
+   "word": "SOFA",
+   "room": "Lounge"
   },
   {
-   "word": "SOFA",
-   "room": "LivingRoom"
+   "word": "FAN",
+   "room": "KidsRoom"
+  },
+  {
+   "word": "MAT",
+   "room": "Hall"
   },
   {
    "word": "TABLE",
    "room": "Roof"
-  },
-  {
-   "word": "LAMP",
-   "room": "KidsRoom"
   }
  ],
  "keepsakes": [

@@ -138,9 +138,10 @@ namespace Wreckabulary.Rules
 
         public static double LegacyScale(string id) => id == "pinwheel" ? 1.4 : id == "courtyard" ? 1.5 : 1;
 
-        public static readonly IReadOnlyList<string> PlayableModes = new[] { "Dibs", "Duos" };
+        public static readonly IReadOnlyList<string> PlayableModes = HouseModes.All
+            .Where(mode => mode.Family == HouseModeFamily.Battle || mode.Family == HouseModeFamily.WordGames).Select(mode => mode.Id).ToArray();
 
-        public static bool Playable(string mode) => mode == "Dibs" || mode == "Duos";
+        public static bool Playable(string mode) => mode != null && PlayableModes.Contains(mode);
 
         public bool TryFurnish(HomeLayout layout, out List<HomeFurniture> furniture, out string error)
         {

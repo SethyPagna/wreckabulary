@@ -366,11 +366,13 @@ namespace Wreckabulary.Tests
             yield return null;
             var page = menu.Page<PlayPage>().Root;
             var posters = page.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("Mode ")).Select(b => b.name.Substring(5)).ToArray();
-            CollectionAssert.AreEqual(new[] { "Tutorial", "Dibs", "Duos", "MovingOut", "MovingDay", "Escape" }, posters,
-                "the tutorial comes first, then the original five house modes");
-            Assert.AreEqual(GameConfig.Current.Houses.Count, page.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("Map ")), "every house");
+            CollectionAssert.AreEqual(new[] { "Tutorial", "Dibs", "Duos", Wreckabulary.Rules.HouseModes.FreeForAll, "War", "MovingOut", "MovingDay", "Escape", "ShoppingList", "RiddleRush" },
+                posters, "the tutorial comes first, then battle, co-op and word games");
+            Assert.AreEqual(GameConfig.Current.Houses.Count + 1, page.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("Map ")), "every house, then Random");
             Assert.IsFalse(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Rays"), "decorative rays are excluded from the redesigned choices");
-            Assert.IsTrue(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Start"), "plans mark where players start");
+            Assert.IsFalse(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Start" || r.name == "Fitted plan"), "map cards show pictures, not floor-plan skeletons");
+            Assert.IsTrue(page.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("Map ")).All(b => b.GetComponentsInChildren<RectTransform>().Count(r => r.name == "Map picture") == 1),
+                "one picture per house");
             AssertNoEllipsis(page, "PLAY");
             Assert.AreEqual("Duos", LobbyMenu.ModeName("Duos"), "Use the same display name as the direct Play mode choice.");
 
@@ -501,6 +503,35 @@ namespace Wreckabulary.Tests
             Click("Home");
             yield return null;
             Assert.AreEqual(LobbyMenu.Home, menu.Current, "Home stays home");
+        }
+
+        [UnityTest]
+        public IEnumerator TheModeGuideOpensFromTheGoalLineAndOwnsBackAndPaging()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            menu.Choose(LobbyMenu.Practice, HouseModes.Dibs, "pinwheel");
+            Click("PLAY");
+            yield return null;
+            var icon = menu.Page<PlayPage>().Root.GetComponentsInChildren<Button>().SingleOrDefault(b => b.name == PlayPage.GuideIcon);
+            Assert.AreEqual(ModeGuides.Has(HouseModes.Dibs), icon != null, "the goal line offers the guide when one exists");
+            if (!icon) yield break;
+            try
+            {
+                EventSystem.current.SetSelectedGameObject(icon.gameObject);
+                icon.onClick.Invoke();
+                yield return null;
+                Assert.IsTrue(ModeGuides.Open);
+                Assert.AreEqual(HouseModes.Dibs, ModeGuides.Mode);
+                yield return Press(GamepadButton.RightShoulder);
+                Assert.AreEqual(LobbyMenu.Play, menu.Current, "paging belongs to the guide while it is open");
+                yield return Press(GamepadButton.East);
+                Assert.IsFalse(ModeGuides.Open, "B closes the guide");
+                Assert.AreEqual(LobbyMenu.Play, menu.Current, "and leaves the Play page open");
+                yield return Press(GamepadButton.East);
+                Assert.AreEqual(LobbyMenu.Home, menu.Current, "with the guide closed, B closes the page again");
+            }
+            finally { ModeGuides.Close(); }
         }
 
         [UnityTest]
@@ -802,7 +833,7 @@ namespace Wreckabulary.Tests
             var modeButtons = modes.GetComponentsInChildren<Button>();
             CollectionAssert.AreEquivalent(LobbyMenu.PracticeModes.Select(mode => "Mode " + mode)
                 .Concat(new[] { "Solo TimeRun", "Solo Freestyle" }), modeButtons.Select(button => button.name),
-                "The tutorial, all five house modes and both courses are directly available.");
+                "The tutorial, every house mode and both courses are directly available.");
             float modeHeight = 0f;
             foreach (var button in modeButtons)
             {
@@ -1294,7 +1325,7 @@ namespace Wreckabulary.Tests
             CollectionAssert.AreEquivalent(new[] { "TABLE", "PLANT" }, saved.Props.Select(prop => prop.Word), "Play saves the house first");
             Assert.AreEqual(LobbyMenu.Play, menu.Current);
             Assert.AreEqual(LobbyMenu.Practice, menu.Queue);
-            Assert.IsTrue(HomeDesigner.Playable(menu.Mode), "a saved home starts in Dibs or Duos");
+            Assert.IsTrue(HomeDesigner.Playable(menu.Mode), "a saved home starts in a mode that can play it");
             Assert.AreEqual(map, menu.SavedHome);
             Assert.AreSame(Find(PlayPage.SavedHomeCard + map).gameObject, Selected, "the saved home is ready to play");
             Click("Mode Duos");

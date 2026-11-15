@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Linq;
 using UnityEngine;
 using Wreckabulary.Rules;
@@ -9,6 +10,7 @@ namespace Wreckabulary.Online
     public sealed partial class WordboundLauncher
     {
         const string SoloStartupFailure = "Solo could not start. Return to the lobby and try again.";
+        string playAgainMode;
 
         public static IWordboundPuzzleContent CreateSoloContent(string items, string rules, string mode, string seed, string map = "LostAddress")
             => CreateSoloContent(items, rules, mode, seed, map, null);
@@ -62,9 +64,13 @@ namespace Wreckabulary.Online
                 await client.StartLocal(content, Assets.BodyPrefabs(), Assets.GameplayScene(),
                     controls: Session.Bindings.FirstOrDefault(), cameraProfile: source && source.CameraProfile ? source.CameraProfile : Assets.CameraProfile,
                     visualProfile: source && source.VisualProfile ? source.VisualProfile : Assets.VisualProfile, uiTheme: Assets.UiTheme, storyProfile: Assets.StoryProfile,
-                    returnLabel: "Return to lobby");
-                if (!destroying && generation == localGeneration && localClient == client && LobbyCamera)
-                    LobbyCamera.enabled = false;
+                    returnLabel: "Leave match");
+                if (!destroying && generation == localGeneration && localClient == client)
+                {
+                    if (LobbyCamera) LobbyCamera.enabled = false;
+                    var hud = client.GetComponent<WordboundMatchHud>();
+                    if (hud) hud.PlayAgainRequested += () => PlayAgain(client, mode);
+                }
             }
             catch (Exception)
             {
@@ -85,6 +91,20 @@ namespace Wreckabulary.Online
             }
         }
 
+        async void PlayAgain(WordboundLocalMatchClient client, string mode)
+        {
+            if (destroying || localClient != client || playAgainMode != null) return;
+            playAgainMode = mode;
+            try { await client.ReturnToMenu(); }
+            catch
+            {
+                playAgainMode = null;
+                if (client) client.ShowStartupFailure();
+                return;
+            }
+            if (localClient == client) playAgainMode = null;
+        }
+
         void ReturnedFromSolo(WordboundLocalMatchClient client)
         {
             if (destroying || localClient != client) return;
@@ -95,8 +115,17 @@ namespace Wreckabulary.Online
             if (LobbyCamera) LobbyCamera.enabled = true;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            string again = playAgainMode;
+            playAgainMode = null;
+            if (again != null) { StartCoroutine(StartSoloNextFrame(again)); return; }
             WordboundSoloEntry.MarkReturned();
             if (!Session.GoHome()) failure = "The main lobby is unavailable in this build.";
+        }
+
+        IEnumerator StartSoloNextFrame(string mode)
+        {
+            yield return null;
+            if (!destroying) StartSolo(mode);
         }
     }
 }

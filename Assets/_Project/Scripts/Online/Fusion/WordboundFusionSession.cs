@@ -86,6 +86,7 @@ namespace Wreckabulary.Online
         readonly OnlineConnectionService connections;
         readonly OnlineCheckpointService checkpoints;
         readonly Dictionary<PlayerRef, long> pending = new Dictionary<PlayerRef, long>();
+        static readonly string[] peerIds = new string[256];
         readonly Dictionary<PlayerRef, (long Window, int Count)> rates = new Dictionary<PlayerRef, (long, int)>();
         readonly Dictionary<PlayerRef, OnlineSnapshotMark> sentMarks = new Dictionary<PlayerRef, OnlineSnapshotMark>();
         readonly Dictionary<PlayerRef, OnlineConnectionLease> leases = new Dictionary<PlayerRef, OnlineConnectionLease>();
@@ -493,7 +494,12 @@ namespace Wreckabulary.Online
             }
         }
         Dictionary<string, object> Roster() => new Dictionary<string, object> { ["roster"] = expected.RosterHash };
-        static string Peer(PlayerRef player) => player.RawEncoded.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        static string Peer(PlayerRef player)
+        {
+            int raw = player.RawEncoded;
+            if ((uint)raw >= (uint)peerIds.Length) return raw.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return peerIds[raw] ??= raw.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
         ReliableKey NextKey() => ReliableKey.FromInts(WireChannel, 1, 0, unchecked(++wireSequence));
         void Send(PlayerRef player, OnlineWireKind kind, object body) =>
             Runner.SendReliableDataToPlayer(player, NextKey(), OnlineFusionWire.Encode(kind, body));

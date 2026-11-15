@@ -81,7 +81,8 @@ namespace Wreckabulary.Online
             if (commands.Back)
             {
                 ResetMenuInput();
-                if (journalOpen || helpOpen)
+                if (leaveConfirm) CancelLeave();
+                else if (journalOpen || helpOpen)
                 {
                     string previous = helpOpen ? "help" : "journal";
                     journalOpen = false; helpOpen = false; recipeScroll = Vector2.zero; menuFocus.Reset(previous);
@@ -103,7 +104,7 @@ namespace Wreckabulary.Online
         void Resume()
         {
             view.SetMenuOpen(false);
-            crafting = false; helpOpen = false;
+            crafting = false; helpOpen = false; leaveConfirm = false;
             ResetMenuInput();
         }
 
@@ -113,12 +114,14 @@ namespace Wreckabulary.Online
             if (Event.current.type == EventType.Layout && GUI.enabled) menuFocus.Register(id);
             bool selected = view.UsesGamepad && menuFocus.Selected == id;
             bool chosenRecipe = id == "recipe:" + selectedRecipe;
-            bool tab = id == "equipment" && !helpOpen && !journalOpen || id == "help" && helpOpen || id == "journal" && journalOpen;
-            var style = id == "craft-selected" ? ui.Primary : selected || chosenRecipe || tab ? activeMenuButton : quietMenuButton;
+            bool tab = id == "equipment" && ItemsPageOpen || id == "help" && helpOpen || id == "journal" && journalOpen ||
+                id == "results" && resultsOpen && !helpOpen && !journalOpen && !leaveConfirm;
+            bool primary = id == "craft-selected" || id == "play-again";
+            var style = primary ? ui.Primary : selected || chosenRecipe || tab ? activeMenuButton : quietMenuButton;
             GUI.SetNextControlName("wordbound:" + id);
             var content = new GUIContent((selected && label.Length != 0 ? "› " : "") + label);
             var layout = options.Length == 0 ? new[] { GUILayout.MinHeight(ui.RowHeight) } : options;
-            bool clicked = id == "craft-selected" ? ui.Button(content, style, layout) : GUILayout.Button(content, style, layout);
+            bool clicked = primary ? ui.Button(content, style, layout) : GUILayout.Button(content, style, layout);
             if (Event.current.type == EventType.Repaint && (selected || chosenRecipe || tab))
             {
                 Rect row = GUILayoutUtility.GetLastRect();
@@ -172,13 +175,15 @@ namespace Wreckabulary.Online
                 menuConnectionStatus = controller.Fault != "" ? "Connection interrupted · " + returnLabel + " to continue." :
                     persistentNotice.Length != 0 ? persistentNotice : !controller.IsPresentationReady ? "Waiting for the host…" : "";
                 menuActionStatus = TransientNotice(Time.unscaledTimeAsDouble);
-                menuResultStatus = frame?.Progress.Result != null ? ResultText(frame.Progress.Result) : "";
+                bool resultsPage = ResultsPageOpen;
+                menuResultStatus = !resultsPage && frame?.Progress.Result != null ? ResultText(frame.Progress.Result) : "";
+                menuSummary = resultsPage ? CourseGuidance.Result(mode, course, frame, actorId) : null;
                 menuJournal = story ? story.Journal : Array.Empty<WordboundStoryNotice>();
                 menuEpilogue = story ? story.Epilogue(mode) : null;
             }
             Rect area = ui.MenuRect(width, height);
             float inside = Mathf.Max(1, area.width - ui.Padding * 2);
-            float line = Mathf.Max(ui.RowHeight, ui.Heading.CalcHeight(new GUIContent("Equipment"), inside - 120)) + 4;
+            float line = Mathf.Max(ui.RowHeight, ui.Heading.CalcHeight(new GUIContent("Leave match"), inside - 120)) + 4;
             Rect header = new Rect(ui.Padding, ui.Padding, inside, line);
             Rect tabs = new Rect(ui.Padding, header.yMax + ui.Gap, inside, ui.RowHeight + 4);
             float bodyTop = tabs.yMax + ui.Gap * 2;
@@ -188,7 +193,7 @@ namespace Wreckabulary.Online
             GUI.Box(new Rect(0, 0, area.width, area.height), GUIContent.none, ui.Panel);
             GUILayout.BeginArea(header);
             GUILayout.BeginHorizontal();
-            GUILayout.Label(helpOpen ? "Help" : journalOpen ? "Journal" : "Equipment", ui.Heading, GUILayout.MinHeight(ui.RowHeight));
+            GUILayout.Label(MenuTitle(), ui.Heading, GUILayout.MinHeight(ui.RowHeight));
             GUILayout.FlexibleSpace();
             GUI.enabled = controller.Fault == "";
             if (MenuButton("resume", "Resume", GUILayout.Width(Mathf.Max(100, ui.SingleLine.CalcSize(new GUIContent("› Resume")).x + 24)),
@@ -198,10 +203,11 @@ namespace Wreckabulary.Online
             GUILayout.EndArea();
             GUILayout.BeginArea(tabs);
             GUILayout.BeginHorizontal();
-            if (MenuButton("equipment", "Equipment")) QueueMenuAction(() => { journalOpen = false; helpOpen = false; recipeScroll = Vector2.zero; });
+            if (frame?.Progress.Result != null && MenuButton("results", "Results")) QueueMenuAction(() => OpenPage(results: true));
+            if (MenuButton("equipment", "Items")) QueueMenuAction(() => OpenPage());
             if ((menuJournal.Count > 0 || menuEpilogue != null) && MenuButton("journal", "Journal"))
-                QueueMenuAction(() => { journalOpen = true; helpOpen = false; recipeScroll = Vector2.zero; });
-            if (MenuButton("help", "Help")) QueueMenuAction(() => { helpOpen = true; journalOpen = false; recipeScroll = Vector2.zero; });
+                QueueMenuAction(() => OpenPage(journal: true));
+            if (MenuButton("help", "Help")) QueueMenuAction(() => OpenPage(help: true));
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
             if (status.Length != 0)
@@ -216,8 +222,9 @@ namespace Wreckabulary.Online
                 bodyTop += statusHeight + ui.Gap;
             }
             var body = new Rect(ui.Padding, bodyTop, inside, Mathf.Max(30, footer.y - bodyTop - ui.Gap * 2));
-            GUI.enabled = helpOpen || journalOpen || frame != null && !controller.IsSimulationPaused;
-            if (helpOpen)
+            GUI.enabled = helpOpen || journalOpen || leaveConfirm || ResultsPageOpen || frame != null && !controller.IsSimulationPaused;
+            if (leaveConfirm) LeavePage(body);
+            else if (helpOpen)
             {
                 GUILayout.BeginArea(body); HelpMenu(); GUILayout.EndArea();
             }
@@ -240,10 +247,13 @@ namespace Wreckabulary.Online
                 GUILayout.EndScrollView();
                 GUILayout.EndArea();
             }
+            else if (ResultsPageOpen) ResultsPage(body);
             else if (inventory != null) RecipeWorkspace(body);
             GUI.enabled = true;
             GUILayout.BeginArea(footer);
-            if (MenuButton("return", returnLabel, GUILayout.MinHeight(ui.RowHeight))) QueueMenuAction(() => ReturnRequested?.Invoke());
+            GUILayout.BeginHorizontal();
+            MenuFooter();
+            GUILayout.EndHorizontal();
             if (Event.current.type == EventType.Repaint) recipeReturnRect = footer;
             GUILayout.EndArea();
             GUI.EndGroup();
@@ -262,8 +272,8 @@ namespace Wreckabulary.Online
             }
             if (inventory.Craft != null)
             {
-                GUILayout.Label("Crafting " + inventory.Craft.ItemId);
-                if (MenuButton("cancel-craft", "Cancel craft")) QueueMenuAction(() => Send(WordboundAction.CancelCraft));
+                GUILayout.Label("Spelling " + inventory.Craft.ItemId);
+                if (MenuButton("cancel-craft", "Stop spelling")) QueueMenuAction(() => Send(WordboundAction.CancelCraft));
             }
             GUILayout.BeginHorizontal();
             if (MenuButton("fists", actor.EquippedSlot < 0 ? "• Fists" : "Fists")) QueueMenuAction(() => Send(WordboundAction.Equip, slot: -1));
@@ -272,7 +282,7 @@ namespace Wreckabulary.Online
             {
                 var item = HeldItem(i);
                 GUI.enabled = usable && item != null;
-                if (MenuButton("slot:" + i, (actor.EquippedSlot == i ? "• " : "") + (i + 1) + ": " + (item?.Word ?? "Empty")))
+                if (MenuButton("slot:" + i, (actor.EquippedSlot == i ? "• " : "") + "Hand " + (i + 1) + ": " + (item?.Word ?? "empty")))
                 {
                     int slot = i;
                     QueueMenuAction(() => Send(WordboundAction.Equip, slot: slot));

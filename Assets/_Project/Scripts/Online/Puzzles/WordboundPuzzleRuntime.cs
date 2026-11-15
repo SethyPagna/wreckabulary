@@ -26,6 +26,18 @@ namespace Wreckabulary.Online
         MatchBinding checkedBinding;
         GameRules checkedRules;
         MatchSnapshot collidersFor;
+        MatchSnapshot fieldsFor;
+        ItemInstance[] fieldItems;
+        int fieldScan;
+        readonly List<(ItemDefinition Definition, string BodyId)> fieldCandidates = new List<(ItemDefinition Definition, string BodyId)>();
+        MatchSnapshot itemsFor;
+        readonly Dictionary<int, ItemInstance> itemIds = new Dictionary<int, ItemInstance>();
+        readonly Dictionary<string, ItemInstance> itemBodies = new Dictionary<string, ItemInstance>(StringComparer.Ordinal);
+        bool repeatedItems;
+        MatchSnapshot mechanismsFor;
+        AuthoredMechanismLookup mechanismLookup;
+        readonly HashSet<string> poseIds = new HashSet<string>();
+        WordboundNetworkBody[] orderedBodies;
 
         public WordboundPuzzleRuntime(WordboundGameplayController controller, WordboundPuzzleProof proof)
             : this(controller, (IWordboundPuzzleContent)proof) { }
@@ -60,9 +72,10 @@ namespace Wreckabulary.Online
                 foreach (var player in bodies.Values.Where(b => b.Canonical.Kind == WorldBodyKind.Player))
                     ApplyJumpPad(player, pad, definition);
             }
+            WordboundNetworkBody[] targets = null;
             foreach (var field in Fields(frame))
                 if (field.Definition.Deploy.Effect == DeployEffect.WindField)
-                    foreach (var target in bodies.Values.OrderBy(b => b.Canonical.Id, StringComparer.Ordinal))
+                    foreach (var target in targets ??= bodies.Values.OrderBy(b => b.Canonical.Id, StringComparer.Ordinal).ToArray())
                     {
                         if (!Affected(field.Definition, field.Body, target)) continue;
                         windPushes.Add(field.Body.Canonical.Id + "/" + target.Canonical.Id);
@@ -89,17 +102,95 @@ namespace Wreckabulary.Online
 
         IEnumerable<(ItemDefinition Definition, WordboundNetworkBody Body)> Fields(MatchSnapshot frame)
         {
-            foreach (var item in frame.Economy.Items.OrderBy(i => i.Id))
+            if (!ReferenceEquals(fieldsFor, frame))
             {
-                if (item.Origin != ItemOrigin.Crafted || item.State != ItemState.Deployed) continue;
-                var definition = items.Get(item.Word);
-                if (definition.Deploy == null || definition.Deploy.Effect != DeployEffect.WindField &&
-                    definition.Deploy.Effect != DeployEffect.SlowField) continue;
-                if (!WordboundFieldPolicy.ActiveNextTick(definition, item.DeploymentTick, frame.Progress.Tick) ||
-                    !controller.Bodies.TryGetValue("item:" + item.Id, out var body) || !body.Canonical.Active ||
-                    !body.Rigidbody.isKinematic) continue;
-                yield return (definition, body);
+                fieldsFor = null;
+                fieldCandidates.Clear();
+                fieldItems = frame.Economy.Items.OrderBy(i => i.Id).ToArray();
+                fieldScan = 0;
+                fieldsFor = frame;
             }
+            for (int next = 0; ; next++)
+            {
+                while (next >= fieldCandidates.Count && fieldScan < fieldItems.Length) ScanField(frame);
+                if (next >= fieldCandidates.Count) yield break;
+                var candidate = fieldCandidates[next];
+                if (!controller.Bodies.TryGetValue(candidate.BodyId, out var body) || !body.Canonical.Active ||
+                    !body.Rigidbody.isKinematic) continue;
+                yield return (candidate.Definition, body);
+            }
+        }
+
+        void ScanField(MatchSnapshot frame)
+        {
+            var item = fieldItems[fieldScan];
+            if (item.Origin == ItemOrigin.Crafted && item.State == ItemState.Deployed)
+            {
+                var definition = items.Get(item.Word);
+                if (definition.Deploy != null && (definition.Deploy.Effect == DeployEffect.WindField ||
+                    definition.Deploy.Effect == DeployEffect.SlowField) &&
+                    WordboundFieldPolicy.ActiveNextTick(definition, item.DeploymentTick, frame.Progress.Tick))
+                    fieldCandidates.Add((definition, "item:" + item.Id));
+            }
+            fieldScan++;
+        }
+
+        void IndexItems(MatchSnapshot frame)
+        {
+            if (ReferenceEquals(itemsFor, frame)) return;
+            itemsFor = null;
+            itemIds.Clear(); itemBodies.Clear(); repeatedItems = false;
+            foreach (var item in frame.Economy.Items)
+                if (!itemIds.TryAdd(item.Id, item) | !itemBodies.TryAdd("item:" + item.Id, item)) repeatedItems = true;
+            itemsFor = frame;
+        }
+
+        IReadOnlyDictionary<int, ItemInstance> UniqueItems(MatchSnapshot frame)
+        {
+            IndexItems(frame);
+            return repeatedItems ? null : itemIds;
+        }
+
+        ItemInstance OnlyItemFor(MatchSnapshot frame, string bodyId)
+        {
+            IndexItems(frame);
+            return !repeatedItems && bodyId != null && itemBodies.TryGetValue(bodyId, out var item) ? item :
+                frame.Economy.Items.Single(i => "item:" + i.Id == bodyId);
+        }
+
+        ItemInstance ItemForOrDefault(MatchSnapshot frame, string bodyId)
+        {
+            IndexItems(frame);
+            if (repeatedItems || bodyId == null) return frame.Economy.Items.SingleOrDefault(i => "item:" + i.Id == bodyId);
+            return itemBodies.TryGetValue(bodyId, out var item) ? item : null;
+        }
+
+        bool DestroyedItemFor(MatchSnapshot frame, string bodyId)
+        {
+            IndexItems(frame);
+            if (repeatedItems || bodyId == null)
+                return frame.Economy.Items.Any(i => "item:" + i.Id == bodyId && i.State == ItemState.Destroyed);
+            return itemBodies.TryGetValue(bodyId, out var item) && item.State == ItemState.Destroyed;
+        }
+
+        ref AuthoredMechanismLookup MechanismsFor(MatchSnapshot frame)
+        {
+            if (!ReferenceEquals(mechanismsFor, frame))
+            {
+                mechanismLookup = new AuthoredMechanismLookup(frame);
+                mechanismsFor = frame;
+            }
+            return ref mechanismLookup;
+        }
+
+        WordboundNetworkBody[] OrderedBodies() =>
+            orderedBodies ??= controller.Bodies.Values.OrderBy(b => b.Canonical.Id, StringComparer.Ordinal).ToArray();
+
+        bool SamePoseIds(IReadOnlyList<WorldBodyState> poses)
+        {
+            poseIds.Clear();
+            foreach (var pose in poses) poseIds.Add(pose.Id);
+            return poseIds.SetEquals(controller.Bodies.Keys);
         }
 
         bool Affected(ItemDefinition definition, WordboundNetworkBody source, WordboundNetworkBody target)
@@ -129,11 +220,11 @@ namespace Wreckabulary.Online
         public WordboundHostObservations ObserveHost(MatchSnapshot frame, IReadOnlyList<WorldBodyState> poses)
         {
             RequireHost(frame);
-            if (poses == null || poses.Count != controller.Bodies.Count ||
-                !new HashSet<string>(poses.Select(p => p.Id)).SetEquals(controller.Bodies.Keys))
+            if (poses == null || poses.Count != controller.Bodies.Count || !SamePoseIds(poses))
                 throw new ArgumentException("Physical observations require the exact completed host pose set.");
             RefreshColliders();
-            var authoredStates = new AuthoredMechanismLookup(frame);
+            orderedBodies = null;
+            ref var authoredStates = ref MechanismsFor(frame);
             var mechanisms = new List<HostMechanismObservation>();
             var progress = new List<ProgressEvent>();
             foreach (var team in frame.Progress.Teams.Where(t => !t.Finished))
@@ -145,13 +236,14 @@ namespace Wreckabulary.Online
                     if (!WordboundPuzzlePolicy.ActiveObjective(proof.Course, team, socket.PuzzleId)) continue;
                     var previous = frame.Mechanisms.Single(m => m.PuzzleId == socket.PuzzleId && m.Team == team.Team && m.Lap == team.Lap);
                     if (previous.Solved) continue;
-                    var puzzle = proof.Course.Puzzles.Single(p => p.Id == socket.PuzzleId);
+                    var puzzle = WordboundPuzzlePolicy.Puzzle(proof.Course, socket.PuzzleId);
                     string item = controller.Bodies.OrderBy(p => p.Key, StringComparer.Ordinal)
                         .Where(p => Qualifies(frame, team.Team, socket, puzzle, p.Value)).Select(p => p.Key).FirstOrDefault() ?? "";
                     mechanisms.Add(WordboundPuzzlePolicy.Observe(previous, frame.Progress.Tick, item));
                 }
                 if (proof.Mode.IsRace) ObserveProgress(frame, team, progress);
             }
+            orderedBodies = null;
             return new WordboundHostObservations { Mechanisms = mechanisms, Progress = progress };
         }
 
@@ -222,9 +314,9 @@ namespace Wreckabulary.Online
         {
             if (proof.Course.PhysicalSites.Count == 0 && puzzle.PresetId != "PlaceObject" ||
                 !WordboundPuzzlePolicy.LiveRecipe(frame, body.Canonical, puzzle.RecipeId,
-                    WordboundPracticePolicy.Supports(proof.Mode) ? -1 : team) ||
+                    WordboundPracticePolicy.Supports(proof.Mode) ? -1 : team, UniqueItems(frame)) ||
                 !body.Rigidbody.isKinematic || !WordboundPuzzlePolicy.InSocket(socket, Pose(body))) return false;
-            var live = frame.Economy.Items.Single(i => "item:" + i.Id == body.Canonical.Id);
+            var live = OnlyItemFor(frame, body.Canonical.Id);
             var definition = items.Get(live.Word);
             if (definition.Deploy != null && definition.Deploy.LifetimeSeconds > 0 &&
                 !WordboundFieldPolicy.ActiveNextTick(definition, live.DeploymentTick, frame.Progress.Tick)) return false;

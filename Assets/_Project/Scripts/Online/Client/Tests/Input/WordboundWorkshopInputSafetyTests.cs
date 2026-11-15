@@ -107,6 +107,126 @@ namespace Wreckabulary.Online.Tests
             Assert.AreEqual("Mouse placement", Get<string>("placing"));
         }
 
+        [Test]
+        public void ViewOpensThePanelWhereShouldersChangeStepsInsteadOfUndoing()
+        {
+            string original = workshop.History.Current.Course().Title;
+            workshop.History.Execute("Rename", draft => draft.Course.Title = "Redo target");
+            workshop.History.Undo();
+            Sample(new GamepadState().WithButton(GamepadButton.Select), true);
+            Assert.IsTrue(Get<bool>("padPanel"), Context());
+            Sample(default, true); Sample(new GamepadState().WithButton(GamepadButton.RightShoulder), true);
+            Assert.AreEqual("Objects", Get<object>("step").ToString(), Context());
+            Assert.AreEqual(original, workshop.History.Current.Course().Title, "RB changes the step while the panel is open.");
+            Sample(default, true); Sample(new GamepadState().WithButton(GamepadButton.LeftShoulder), true);
+            Assert.AreEqual("Build", Get<object>("step").ToString());
+            Assert.IsTrue(workshop.History.CanRedo);
+            Sample(default, true); Sample(new GamepadState().WithButton(GamepadButton.East), true);
+            Assert.IsFalse(Get<bool>("padPanel"));
+            Sample(default, true); Sample(new GamepadState().WithButton(GamepadButton.RightShoulder), true);
+            Assert.AreEqual("Redo target", workshop.History.Current.Course().Title, "Back on the map RB redoes again.");
+        }
+
+        [Test]
+        public void ARoomChosenInThePanelIsPlacedAtTheViewCentreWithA()
+        {
+            string definition = workshop.Catalogue.Modules.Keys.OrderBy(id => id, StringComparer.Ordinal).First();
+            int rooms = workshop.History.Current.Course().Modules.Count;
+            Set("padPanel", true); Set("placing", definition);
+            Sample(default, true);
+            Assert.IsFalse(Get<bool>("padPanel"), Context());
+            Assert.IsTrue(Get<bool>("padAiming"));
+            StringAssert.StartsWith("A places", Get<string>("status"));
+            Sample(new GamepadState { leftStick = new Vector2(.9f, 0) }, true);
+            Assert.AreEqual(rooms, workshop.History.Current.Course().Modules.Count, "Moving the view does not place anything.");
+            Sample(default, true); Sample(new GamepadState().WithButton(GamepadButton.South), true);
+            var course = workshop.History.Current.Course();
+            Assert.AreEqual(rooms + 1, course.Modules.Count, Context());
+            var placed = course.Modules.Single(module => workshop.History.Current.Selection.Contains(module.Id));
+            Assert.AreEqual(definition, placed.DefinitionId);
+            var target = Get<WordboundWorkshopViewport>("view").Target;
+            int grid = workshop.History.Current.GridMm;
+            Assert.LessOrEqual(Math.Abs(placed.Position.X - target.x * 1000), grid);
+            Assert.LessOrEqual(Math.Abs(placed.Position.Z - target.z * 1000), grid);
+            Assert.IsNull(Get<string>("placing"));
+            Assert.IsFalse(Get<bool>("padAiming"));
+        }
+
+        [Test]
+        public void AnObjectChosenInThePanelIsPlacedInTheSelectedRoomWithA()
+        {
+            string room = workshop.History.Current.Course().Modules.First().Id;
+            workshop.History.Execute("Select", draft => draft.Selection.Add(room));
+            int zones = workshop.History.Current.Course().Zones.Count;
+            Set("zoneMode", 0); Set("pool", "STOOL"); Set("zoneId", "");
+            Set("padPanel", true); Set("drawingZone", true);
+            Sample(default, true);
+            Assert.IsTrue(Get<bool>("padAiming"), Context());
+            Sample(new GamepadState().WithButton(GamepadButton.South), true);
+            var course = workshop.History.Current.Course();
+            Assert.AreEqual(zones + 1, course.Zones.Count, Context());
+            var zone = course.Zones.Single(item => item.Id == Get<string>("zoneId"));
+            Assert.AreEqual("Fixed", zone.Placement);
+            Assert.AreEqual(room, zone.ModuleId);
+            Assert.IsFalse(Get<bool>("drawingZone"));
+        }
+
+        [Test]
+        public void ShareDialogClosesWithBOnlyAfterThePadIsNeutral()
+        {
+            Set("sharing", true);
+            Invoke("TrackPadScreen");
+            var back = new GamepadState().WithButton(GamepadButton.East);
+            SampleDialog(back);
+            Assert.IsTrue(Get<bool>("sharing"), "A held button from the editor cannot close the new dialog.");
+            Sample(default, true);
+            Assert.IsTrue(Get<bool>("sharing"), "The map controls stay ignored behind the dialog.");
+            SampleDialog(default); SampleDialog(default); SampleDialog(back);
+            Assert.IsFalse(Get<bool>("sharing"), Context());
+        }
+
+        [Test]
+        public void BOnTheStartScreenCancelsADeleteFirstThenLeavesWithoutSaving()
+        {
+            int closed = 0; workshop.CloseRequested += () => closed++;
+            workshop.ShowStart();
+            Assert.IsTrue(workshop.StartOpen);
+            Invoke("TrackPadScreen");
+            Set("deleteConfirm", "pending");
+            var back = new GamepadState().WithButton(GamepadButton.East);
+            SampleDialog(back);
+            Assert.IsTrue(workshop.StartOpen, "A held button from the editor cannot close the start screen.");
+            SampleDialog(default); SampleDialog(default); SampleDialog(back);
+            Assert.AreEqual("", Get<string>("deleteConfirm"), Context());
+            Assert.IsTrue(workshop.StartOpen);
+            SampleDialog(default); SampleDialog(back);
+            Assert.IsFalse(workshop.StartOpen, Context());
+            Assert.AreEqual(1, closed); Assert.IsFalse(workshop.Visible);
+            Assert.IsFalse(Directory.Exists(folder) && Directory.GetFiles(folder, "*" + WorkshopStorage.AutosaveExtension).Any(),
+                "Leaving an untouched map writes no autosave.");
+        }
+
+        [Test]
+        public void AOnTheStartScreenPressesTheFocusedChoiceOnlyAfterTheFirstMove()
+        {
+            workshop.ShowStart();
+            Invoke("TrackPadScreen");
+            Set("padTargets", 4); Set("padFocus", 0);
+            var press = new GamepadState().WithButton(GamepadButton.South);
+            SampleDialog(default); SampleDialog(default); SampleDialog(press);
+            Assert.AreEqual(-1, Get<int>("padPress"), "The first input only wakes the focus ring.");
+            Assert.IsTrue(Get<bool>("padDialog"), Context());
+            SampleDialog(default); SampleDialog(press);
+            Assert.AreEqual(0, Get<int>("padPress"), Context());
+            Assert.IsFalse(Get<bool>("controllerTools"));
+        }
+
+        void SampleDialog(GamepadState state)
+        {
+            WordboundNativeInputScope.Sample(pad, state);
+            Invoke("DialogControllerInput", true);
+        }
+
         void Sample(GamepadState state, bool focused)
         {
             WordboundNativeInputScope.Sample(pad, state);

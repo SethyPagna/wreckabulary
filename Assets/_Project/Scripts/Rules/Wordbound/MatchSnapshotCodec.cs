@@ -21,18 +21,29 @@ namespace Wreckabulary.Rules.Wordbound
         public const int MaximumBytes = 8388608;
         static readonly Regex Signed = new Regex(@"\A(?:0|[1-9][0-9]*|-1)\z");
         static readonly Regex Unsigned = new Regex(@"\A(?:0|[1-9][0-9]*)\z");
+        const string Format = "wreckabulary.match-snapshot";
+        static readonly string Head = HeadOf(CourseJson.Encode(Map("canonicalVersion", CanonicalVersion, "format", Format)));
 
         public static string Export(MatchSnapshot snapshot) => Export(snapshot, out _);
 
         public static string Export(MatchSnapshot snapshot, out string hash)
         {
             var envelope = Envelope(snapshot);
-            hash = CourseJson.Sha256(CourseJson.Encode(envelope));
-            envelope["hash"] = hash;
-            string json = CourseJson.Encode(envelope);
+            string canonical = CourseJson.Encode(envelope);
+            hash = CourseJson.Sha256(canonical);
+            string json;
+            if (canonical.StartsWith(Head, StringComparison.Ordinal) && WordboundIdentity.IsHash(hash))
+                json = string.Concat(Head, "\"hash\":\"", hash, "\",", canonical.Substring(Head.Length));
+            else
+            {
+                envelope["hash"] = hash;
+                json = CourseJson.Encode(envelope);
+            }
             CourseJson.Preflight(json, MaximumBytes);
             return json;
         }
+
+        static string HeadOf(string fields) => fields.Substring(0, fields.Length - 1) + ",";
 
         public static string ComputeHash(MatchSnapshot snapshot)
         {
@@ -50,7 +61,7 @@ namespace Wreckabulary.Rules.Wordbound
                 CourseJson.Preflight(json, MaximumBytes);
                 var root = Json.Parse(json, "match-snapshot.json");
                 Keys(root, "format", "schema", "canonicalVersion", "hash", "payload");
-                if (Text(root["format"]) != "wreckabulary.match-snapshot" || Int(root["schema"]) != MatchSnapshot.Schema ||
+                if (Text(root["format"]) != Format || Int(root["schema"]) != MatchSnapshot.Schema ||
                     Int(root["canonicalVersion"]) != CanonicalVersion || !WordboundIdentity.IsHash(Text(root["hash"])))
                     throw root.Error("unsupported snapshot format or version");
                 var snapshot = ReadSnapshot(root["payload"]);
@@ -69,7 +80,7 @@ namespace Wreckabulary.Rules.Wordbound
         static Dictionary<string, object> Envelope(MatchSnapshot s)
         {
             if (s == null) throw new ArgumentNullException(nameof(s));
-            return Map("format", "wreckabulary.match-snapshot", "schema", MatchSnapshot.Schema, "canonicalVersion", CanonicalVersion, "payload", WriteSnapshot(s));
+            return Map("format", Format, "schema", MatchSnapshot.Schema, "canonicalVersion", CanonicalVersion, "payload", WriteSnapshot(s));
         }
         static Dictionary<string, object> Map(params object[] fields)
         {

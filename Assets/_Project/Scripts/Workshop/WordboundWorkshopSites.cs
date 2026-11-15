@@ -17,9 +17,23 @@ namespace Wreckabulary.Workshop
         WorkshopSiteDrag siteDrag;
         CoursePoint siteDragStart;
         readonly Dictionary<string, string> siteFields = new Dictionary<string, string>();
-        CoursePhysicalSite SelectedSite => display?.PhysicalSites.FirstOrDefault(s =>
-            s.Lap == siteLap && s.PuzzleId == sitePuzzle &&
-            display.Puzzles.Any(p => p.Id == s.PuzzleId && History.Current.Selection.Contains(p.ModuleId)));
+        CourseDocument siteMemoDisplay;
+        WorkshopSnapshot siteMemoState;
+        int siteMemoLap;
+        string siteMemoPuzzle;
+        CoursePhysicalSite siteMemo;
+        CoursePhysicalSite SelectedSite
+        {
+            get
+            {
+                if (display == null) return null;
+                if (ReferenceEquals(siteMemoDisplay, display) && ReferenceEquals(siteMemoState, History.Current) &&
+                    siteMemoLap == siteLap && siteMemoPuzzle == sitePuzzle) return siteMemo;
+                siteMemoDisplay = display; siteMemoState = History.Current; siteMemoLap = siteLap; siteMemoPuzzle = sitePuzzle;
+                return siteMemo = display.PhysicalSites.FirstOrDefault(s => s.Lap == siteLap && s.PuzzleId == sitePuzzle &&
+                    display.Puzzles.Any(p => p.Id == s.PuzzleId && History.Current.Selection.Contains(p.ModuleId)));
+            }
+        }
 
         void PuzzleInspector(CourseModule module)
         {
@@ -69,7 +83,7 @@ namespace Wreckabulary.Workshop
             if (inspectorAdvancedIds && Advanced(ref fillAdvanced))
             {
                 puzzleId = Field("Puzzle ID", puzzleId); prerequisite = Field("Needs first ID", prerequisite);
-                gateId = Field("Connection ID", gateId);
+                gateId = Field("Door ID", gateId);
             }
         }
 
@@ -107,7 +121,7 @@ namespace Wreckabulary.Workshop
             if (selected == null)
             {
                 GUILayout.Label("Each lap needs the puzzle's parts in the room. Choose a puzzle, then add its parts for a lap.", ui.Wrapped, GUILayout.Width(RowWidth));
-                siteLap = GUILayout.Toolbar(siteLap - 1, new[] { "Lap 1", "Lap 2", "Lap 3" }, GUILayout.Width(RowWidth)) + 1;
+                siteLap = PadToolbar(siteLap - 1, new[] { "Lap 1", "Lap 2", "Lap 3" }, GUILayout.Width(RowWidth)) + 1;
                 GUI.enabled = display.Puzzles.Any(p => p.Id == puzzleId && p.ModuleId == module.Id);
                 if (WideButton("Add puzzle parts"))
                     Edit("Add puzzle parts", draft =>
@@ -130,10 +144,10 @@ namespace Wreckabulary.Workshop
                 display.Checkpoints.Where(c => c.ModuleId == module.Id && c.PuzzleIds.Contains(puzzle.Id)).Select(c => c.Id));
             siteEdit.RecoverySupplyId = SiteChoice("Recipe letters", siteEdit.RecoverySupplyId, puzzle.RecoverySupplyIds);
             SitePoint("Socket", siteEdit.Position);
-            siteEdit.Yaw = GUILayout.Toolbar(siteEdit.Yaw / 90, new[] { "0°", "90°", "180°", "270°" }, GUILayout.Width(RowWidth)) * 90;
-            SiteText("Socket radius", Metres(siteEdit.SocketRadiusMm), .05, .01, "Radius m", .05, 1);
-            SiteText("Yaw tolerance °", siteEdit.YawTolerance.ToString(CultureInfo.InvariantCulture), 1, 1, "Tolerance °", 0, 45);
-            SiteText("Hold seconds", Seconds(siteEdit.HoldTicks), .25, .05, "Hold s", 0, 10);
+            siteEdit.Yaw = PadToolbar(siteEdit.Yaw / 90, new[] { "0°", "90°", "180°", "270°" }, GUILayout.Width(RowWidth)) * 90;
+            SiteText("Socket radius", Metres(siteEdit.SocketRadiusMm), .05, .01, "Snap distance m", .05, 1);
+            SiteText("Yaw tolerance °", siteEdit.YawTolerance.ToString(CultureInfo.InvariantCulture), 1, 1, "Turn tolerance °", 0, 45);
+            SiteText("Hold seconds", Seconds(siteEdit.HoldTicks), .25, .05, "Hold time s", 0, 10);
             if (!WorkshopPhysicalSites.Empty(siteEdit.ArrivalBounds)) SiteBox("Arrival", siteEdit.ArrivalBounds);
             if (puzzle.PresetId == "CollectLetters")
             {
@@ -147,17 +161,17 @@ namespace Wreckabulary.Workshop
             }
             if (puzzle.PresetId == "RedirectWind")
             {
-                siteEdit.WindReceiverZoneId = SiteChoice("Wind receiver", siteEdit.WindReceiverZoneId,
+                siteEdit.WindReceiverZoneId = SiteChoice("Wind target", siteEdit.WindReceiverZoneId,
                     display.Zones.Where(z => z.ModuleId == module.Id && z.Purpose == "Props").Select(z => z.Id));
-                siteEdit.ReceiverRecoverySupplyId = SiteChoice("Receiver letters", siteEdit.ReceiverRecoverySupplyId, puzzle.RecoverySupplyIds);
-                siteEdit.WindReceiverRecipeId = SiteChoice("Receiver recipe", siteEdit.WindReceiverRecipeId, SiteRecipeChoices());
+                siteEdit.ReceiverRecoverySupplyId = SiteChoice("Wind target letters", siteEdit.ReceiverRecoverySupplyId, puzzle.RecoverySupplyIds);
+                siteEdit.WindReceiverRecipeId = SiteChoice("Wind target item", siteEdit.WindReceiverRecipeId, SiteRecipeChoices());
                 SiteBox("Receiver start", siteEdit.ReceiverStartBounds);
             }
             for (int i = 0; i < siteEdit.FloorPadBounds.Count; i++) SiteBox("Switch " + (i + 1), siteEdit.FloorPadBounds[i]);
             if (siteEdit.Fixtures.Count > 0)
             {
-                SiteText("Active seconds", Seconds(siteEdit.ActiveWindowTicks), .25, .05, "Active s", 0, 10);
-                if (siteEdit.Fixtures.Count > 1 && WideButton("Moving arm " + (siteFixtureIndex + 1)))
+                SiteText("Active seconds", Seconds(siteEdit.ActiveWindowTicks), .25, .05, "Open time s", 0, 10);
+                if (siteEdit.Fixtures.Count > 1 && WideButton("Swinging part " + (siteFixtureIndex + 1)))
                     siteFixtureIndex = (siteFixtureIndex + 1) % siteEdit.Fixtures.Count;
                 for (int i = 0; i < siteEdit.Fixtures.Count; i++)
                 {
@@ -165,8 +179,8 @@ namespace Wreckabulary.Workshop
                     var fixture = siteEdit.Fixtures[i]; string prefix = "Arm " + i;
                     SitePoint(prefix + " start", fixture.From); SitePoint(prefix + " end", fixture.To);
                     SitePoint(prefix + " size", fixture.SizeMm, .1);
-                    SiteText(prefix + " period", Seconds(fixture.PeriodTicks), .25, .05, "Period s", 1, 60);
-                    SiteText(prefix + " phase", Seconds(fixture.PhaseTicks), .25, .05, "Phase s", 0, 60);
+                    SiteText(prefix + " period", Seconds(fixture.PeriodTicks), .25, .05, "Swing time s", 1, 60);
+                    SiteText(prefix + " phase", Seconds(fixture.PhaseTicks), .25, .05, "Start delay s", 0, 60);
                 }
             }
             if (WideButton("Apply puzzle parts")) ApplySiteFields();
@@ -182,7 +196,7 @@ namespace Wreckabulary.Workshop
         {
             string[] keys = { label + " X", label + " Y", label + " Z" }, metres = { Metres(value.X), Metres(value.Y), Metres(value.Z) };
             for (int i = 0; i < 3; i++) if (!siteFields.ContainsKey(keys[i])) siteFields[keys[i]] = metres[i];
-            var values = Cells(label, label, new[] { "X", "Y", "Z" }, keys.Select(key => siteFields[key]).ToArray(), GridMetres, .1, min);
+            var values = Cells(SiteCaption(label), label, new[] { "X", "Y", "Z" }, keys.Select(key => siteFields[key]).ToArray(), GridMetres, .1, min);
             for (int i = 0; i < 3; i++) siteFields[keys[i]] = values[i];
         }
         void SiteBox(string label, CourseBox value)
@@ -190,6 +204,15 @@ namespace Wreckabulary.Workshop
             SitePoint(label + " centre", WorkshopPhysicalSites.Centre(value));
             SitePoint(label + " size", new CoursePoint(value.Max.X - value.Min.X, value.Max.Y - value.Min.Y, value.Max.Z - value.Min.Z), .1);
         }
+        static string SiteCaption(string key)
+        {
+            var words = key.Split(' ');
+            if (words.Length >= 3 && words[0] == "Arm")
+                return words[2] == "size" ? "Swinging part size" : "Swing " + string.Join(" ", words.Skip(2));
+            return key.Replace("Receiver start", "Wind target start").Replace("Socket", "Item spot").Replace("Arrival", "Arrival area");
+        }
+        string SitePartName(CoursePhysicalSite site, WorkshopSitePart part) =>
+            SiteHandles(site).Where(handle => handle.part == part).Select(handle => handle.label).FirstOrDefault() ?? "Item spot";
         IEnumerable<string> SiteRecipeChoices() => Catalogue.Assets.Keys.Where(CourseValidator.SiteRecipeAllowed)
             .OrderBy(id => ObjectLabel(id), StringComparer.OrdinalIgnoreCase);
 
@@ -264,15 +287,15 @@ namespace Wreckabulary.Workshop
 
         IEnumerable<(WorkshopSitePart part, CoursePoint point, string label)> SiteHandles(CoursePhysicalSite site)
         {
-            yield return (WorkshopSitePart.Socket, site.Position, "Socket");
-            if (!WorkshopPhysicalSites.Empty(site.ArrivalBounds)) yield return (WorkshopSitePart.Arrival, WorkshopPhysicalSites.Centre(site.ArrivalBounds), "Arrival");
-            if (!WorkshopPhysicalSites.Empty(site.ReceiverStartBounds)) yield return (WorkshopSitePart.ReceiverStart, WorkshopPhysicalSites.Centre(site.ReceiverStartBounds), "Receiver");
+            yield return (WorkshopSitePart.Socket, site.Position, "Item spot");
+            if (!WorkshopPhysicalSites.Empty(site.ArrivalBounds)) yield return (WorkshopSitePart.Arrival, WorkshopPhysicalSites.Centre(site.ArrivalBounds), "Arrival area");
+            if (!WorkshopPhysicalSites.Empty(site.ReceiverStartBounds)) yield return (WorkshopSitePart.ReceiverStart, WorkshopPhysicalSites.Centre(site.ReceiverStartBounds), "Wind target");
             for (int i = 0; i < site.FloorPadBounds.Count; i++)
                 yield return (i == 0 ? WorkshopSitePart.FirstPad : WorkshopSitePart.SecondPad, WorkshopPhysicalSites.Centre(site.FloorPadBounds[i]), "Switch " + (i + 1));
             if (siteFixtureIndex < site.Fixtures.Count)
             {
-                yield return (WorkshopSitePart.FixtureStart, site.Fixtures[siteFixtureIndex].From, "Arm start");
-                yield return (WorkshopSitePart.FixtureEnd, site.Fixtures[siteFixtureIndex].To, "Arm end");
+                yield return (WorkshopSitePart.FixtureStart, site.Fixtures[siteFixtureIndex].From, "Swing start");
+                yield return (WorkshopSitePart.FixtureEnd, site.Fixtures[siteFixtureIndex].To, "Swing end");
             }
         }
         void StepPhysicalSite()
@@ -289,7 +312,7 @@ namespace Wreckabulary.Workshop
             var handles = SiteHandles(SelectedSite).ToArray();
             int index = Array.FindIndex(handles, h => h.part == sitePart);
             CancelGesture(); sitePart = handles[(index + (direction < 0 ? -1 : 1) + handles.Length) % handles.Length].part;
-            status = "Selected puzzle part: " + sitePart; FrameSelection();
+            status = "Selected puzzle part: " + SitePartName(SelectedSite, sitePart); FrameSelection();
         }
         bool SiteVisible(CoursePhysicalSite site) => site != null && display.Puzzles.Any(p => p.Id == site.PuzzleId &&
             display.Modules.Any(m => m.Id == p.ModuleId && m.LayerId == History.Current.ActiveLayer)) &&
@@ -318,7 +341,7 @@ namespace Wreckabulary.Workshop
                 bool hover = Vector2.Distance(Event.current.mousePosition, at) <= 14;
                 ViewHandle(at, active ? "+" : "", handle.label, active ? 14 : 10, 14, active);
                 if (active || hover)
-                    AddViewLabel(handle.point, handle.label, handle.label + " · " + selected.PuzzleId, active ? 6 : 5);
+                    AddViewLabel(handle.point, handle.label, handle.label + " · " + PuzzleCaption(selected.PuzzleId), active ? 6 : 5);
             }
         }
         bool HandleSitePointer()

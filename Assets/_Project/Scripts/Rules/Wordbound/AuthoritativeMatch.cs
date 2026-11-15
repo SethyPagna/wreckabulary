@@ -81,6 +81,21 @@ namespace Wreckabulary.Rules.Wordbound
         readonly Dictionary<string, IReadOnlyList<string>> supplyGates = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
         readonly HashSet<string> narrative = new HashSet<string>(StringComparer.Ordinal);
         readonly List<ProgressEvent> pending = new List<ProgressEvent>();
+        readonly Dictionary<string, ResolvedCourseModule> modules;
+        readonly Dictionary<string, ResolvedCoursePuzzle> puzzles;
+        readonly Dictionary<(int Lap, string PuzzleId), ResolvedCoursePhysicalSite> sites;
+        readonly string[] playerBodies;
+        readonly int[] seatTeams;
+        readonly Dictionary<int, string> keepsakes = new Dictionary<int, string>();
+        readonly Dictionary<int, string[]> mechanismKeys = new Dictionary<int, string[]>();
+        readonly Dictionary<(int Team, int Lap), string> storyFlags = new Dictionary<(int Team, int Lap), string>();
+        readonly HashSet<string> poseIds = new HashSet<string>(StringComparer.Ordinal);
+        readonly List<WorldBodyState> bodyBuffer = new List<WorldBodyState>();
+        readonly List<MatchMechanismState> mechanismBuffer = new List<MatchMechanismState>();
+        Dictionary<string, Tuple<int, bool, string>> sources;
+        string[] mechanismOrder;
+        int? lowestModuleY;
+        MatchSnapshot rollback;
         readonly Economy economy;
         readonly MatchProgress progress;
         readonly CommandJournal journal;
@@ -112,6 +127,9 @@ namespace Wreckabulary.Rules.Wordbound
             if (rules.Mode != Mode.Id || rules.StarterLetters != "" || rules.MaxCarried > 8 || rules.Validate().Count != 0 ||
                 !CourseValidator.ValidateResolved(course, courseCatalogue, MatchStateValidation.Requirements(Mode)).Ok)
                 throw new ArgumentException("Authoritative content or gameplay rules are invalid.");
+            modules = Index(course.Geometry, m => m.Id, StringComparer.Ordinal);
+            puzzles = Index(course.Puzzles, p => p.Id, StringComparer.Ordinal);
+            sites = Index(course.PhysicalSites, s => (s.Lap, s.PuzzleId), null);
             resourceLifecycle = new WordboundResourceLifecycle(course, Mode);
             foreach (var supply in course.Supplies)
                 if (!supplyGates.ContainsKey(supply.Id)) supplyGates.Add(supply.Id, supply.AfterPuzzleIds);
@@ -132,6 +150,8 @@ namespace Wreckabulary.Rules.Wordbound
                     !recipe.Letters.Equals(LetterBag.FromWord(puzzle.RequiredLetters))))
                     throw new ArgumentException("A puzzle recipe is unavailable or has a different letter cost.");
             indices = Binding.Seats.Select((seat, index) => (seat, index)).ToDictionary(x => x.seat.PlayerId, x => x.index, StringComparer.Ordinal);
+            playerBodies = Enumerable.Range(0, Binding.Seats.Count).Select(i => "player:" + i).ToArray();
+            seatTeams = Binding.Seats.Select(s => s.Team).Distinct().ToArray();
             economy = new Economy(catalogue, rules);
             progress = new MatchProgress(Mode, Binding.Seats, MatchStateValidation.Route(course), wallClockMs);
             journal = new CommandJournal(Binding.Hash, indices.Keys);
@@ -141,9 +161,9 @@ namespace Wreckabulary.Rules.Wordbound
                 var seat = Binding.Seats[i];
                 economy.AddPlayer(i, seat.Team);
                 actors.Add(seat.PlayerId, new MatchActorState(seat.PlayerId, rules.MaxHealth, rules.MaxStamina));
-                AddBody(new WorldBodyState("player:" + i, WorldBodyKind.Player, Spawn(i), ownerTeam: seat.Team, sourceId: seat.PlayerId));
+                AddBody(new WorldBodyState(playerBodies[i], WorldBodyKind.Player, Spawn(i), ownerTeam: seat.Team, sourceId: seat.PlayerId));
             }
-            foreach (int team in Binding.Seats.Select(s => s.Team).Distinct())
+            foreach (int team in seatTeams)
                 if (Mode.IsRace)
                 {
                     AddBody(new WorldBodyState("keepsake:" + team, WorldBodyKind.Keepsake,
@@ -175,7 +195,7 @@ namespace Wreckabulary.Rules.Wordbound
                 AddBody(new WorldBodyState("platform:" + connection.Id, WorldBodyKind.Platform,
                     Position(connection.From), kinematic: true, sourceId: connection.Id));
             if (Mode.IsRace || IsPractice)
-                foreach (int team in Binding.Seats.Select(s => s.Team).Distinct())
+                foreach (int team in seatTeams)
                     foreach (var site in course.PhysicalSites)
                         foreach (var fixture in site.Fixtures)
                             AddBody(new WorldBodyState(CourseFixtureMotion.BodyId(fixture.Id, team), WorldBodyKind.Platform,
@@ -199,12 +219,11 @@ namespace Wreckabulary.Rules.Wordbound
             var observations = Bounded(hostObservations, 4096);
             var damages = Bounded(hostDamage, 256);
             var timings = Bounded(hostMechanisms, 1024);
-            if (timings.Select(t => Key(t.PuzzleId, t.Team, t.Lap)).Distinct(StringComparer.Ordinal).Count() != timings.Length)
+            if (timings.Length > 1 &&
+                timings.Select(t => Key(t.PuzzleId, t.Team, t.Lap)).Distinct(StringComparer.Ordinal).Count() != timings.Length)
                 throw new ArgumentException("A mechanism can be observed only once per completed host tick.");
             var contacts = Bounded(hostThrownContacts, 256);
-            if (poses.Select(p => p.Id).Distinct(StringComparer.Ordinal).Count() != poses.Length ||
-                timings.Select(m => Key(m.PuzzleId, m.Team, m.Lap)).Distinct(StringComparer.Ordinal).Count() != timings.Length ||
-                wallClockMs < progress.WallClockMs || wallClockMs > long.MaxValue - 120000)
+            if (!DistinctPoses(poses) || wallClockMs < progress.WallClockMs || wallClockMs > long.MaxValue - 120000)
                 throw new ArgumentException("Invalid host frame.");
             MatchSnapshot before;
 #if UNITY_EDITOR || GSK_QA
@@ -212,6 +231,7 @@ namespace Wreckabulary.Rules.Wordbound
 #endif
                 before = Capture(Math.Max(1, commits.PublishedSequence));
             inTick = true;
+            rollback = before;
             try
             {
                 pending.Clear();
@@ -223,19 +243,20 @@ namespace Wreckabulary.Rules.Wordbound
                 SettleThrows(Tick + 1, wallClockMs);
                 foreach (var timing in timings) ApplyMechanism(timing, before);
                 ValidateFixturePoses();
-                foreach (var seat in Binding.Seats)
+                for (int index = 0; index < Binding.Seats.Count; index++)
                 {
-                    int index = indices[seat.PlayerId];
                     var crafted = economy.CompleteCraft(index, (Tick + 1) / (double)ModeDefinition.TickRate);
-                    if (crafted.Ok) AddCraftedBody(crafted.Item, seat);
+                    if (crafted.Ok) AddCraftedBody(crafted.Item, Binding.Seats[index]);
                 }
                 var receipts = journal.ExecuteBatch(Tick + 1, requests, this);
                 AdvanceCombat(Tick + 1);
-                foreach (var damage in damages.OrderBy(d => d.ActorId, StringComparer.Ordinal).ThenBy(d => d.BodyId, StringComparer.Ordinal))
-                    ApplyDamage(damage);
+                if (damages.Length != 0)
+                    foreach (var damage in damages.OrderBy(d => d.ActorId, StringComparer.Ordinal).ThenBy(d => d.BodyId, StringComparer.Ordinal))
+                        ApplyDamage(damage);
                 foreach (var observation in observations) ObserveProgress(observation);
-                foreach (var body in bodies.Values.Where(b => b.Kind == WorldBodyKind.Player && b.Active && BelowCourse(b.Position)).ToArray())
-                    pending.Add(new ProgressEvent(ProgressEventKind.Fell, body.SourceId));
+                foreach (var body in bodies.Values)
+                    if (body.Kind == WorldBodyKind.Player && body.Active && BelowCourse(body.Position))
+                        pending.Add(new ProgressEvent(ProgressEventKind.Fell, body.SourceId));
                 progress.AdvanceWithThrownKnockouts(Tick + 1, wallClockMs, pending, thrownKnockouts);
                 Synchronize(before);
                 EnsureCapacity();
@@ -243,7 +264,18 @@ namespace Wreckabulary.Rules.Wordbound
                 return new MatchTickResult(true, receipts);
             }
             catch { RestoreState(before); pending.Clear(); throw; }
-            finally { thrownKnockouts.Clear(); inTick = false; }
+            finally { thrownKnockouts.Clear(); inTick = false; rollback = null; }
+        }
+
+        bool DistinctPoses(WorldBodyState[] poses)
+        {
+            if (poses.Length < 2) return true;
+            poseIds.Clear();
+            bool distinct = true;
+            foreach (var pose in poses)
+                if (!poseIds.Add(pose.Id)) { distinct = false; break; }
+            poseIds.Clear();
+            return distinct;
         }
 
         public MatchSnapshot Capture(long sequence)
@@ -262,7 +294,7 @@ namespace Wreckabulary.Rules.Wordbound
             for (int index = 0; index < Binding.Seats.Count; index++)
             {
                 var previous = snapshot.Progress.Players[index];
-                var current = progress.Player(Binding.Seats[index].PlayerId);
+                var current = progress.LivePlayer(Binding.Seats[index].PlayerId);
                 if (previous.Id != current.Id || previous.Connected != current.Connected ||
                     previous.Returned != current.Returned) return false;
             }
@@ -279,7 +311,16 @@ namespace Wreckabulary.Rules.Wordbound
 
         MatchSnapshot CaptureState(long sequence) => new MatchSnapshot(Binding, Epoch, sequence, nextWorldEntityId,
             progress.Capture(), economy.Capture(), journal.Capture(), actors.Values, bodies.Values,
-            resources.Values, mechanisms.Values, random.Values, narrative, thrownFlights.Values, practice);
+            resources.Values, OrderedMechanisms(), random.Values, narrative, thrownFlights.Values, practice);
+
+        MatchMechanismState[] OrderedMechanisms()
+        {
+            if (mechanismOrder == null || mechanismOrder.Length != mechanisms.Count)
+                mechanismOrder = mechanisms.Keys.OrderBy(key => key, StringComparer.Ordinal).ToArray();
+            var ordered = new MatchMechanismState[mechanismOrder.Length];
+            for (int i = 0; i < ordered.Length; i++) ordered[i] = mechanisms[mechanismOrder[i]];
+            return ordered;
+        }
 
         public SnapshotStamp PublishSnapshot(out string json)
         {
@@ -370,7 +411,7 @@ namespace Wreckabulary.Rules.Wordbound
         }
 
         object ITransactionalCommandTarget.CaptureTransactionState() =>
-            Tuple.Create(CaptureState(Math.Max(1, commits.PublishedSequence)), pending.ToArray());
+            Tuple.Create(rollback ?? CaptureState(Math.Max(1, commits.PublishedSequence)), pending.ToArray());
         void ITransactionalCommandTarget.RestoreTransactionState(object state)
         {
             var transaction = (Tuple<MatchSnapshot, ProgressEvent[]>)state;
@@ -385,7 +426,7 @@ namespace Wreckabulary.Rules.Wordbound
             var actor = actors[seat.PlayerId];
             actors[seat.PlayerId] = Actor(actor, lastInput: command.Sequence);
             if (!economy.Player(index).CanAct) return Effect("NotAlive");
-            var origin = bodies["player:" + index];
+            var origin = bodies[playerBodies[index]];
             Outcome outcome;
             switch (command.Action)
             {
@@ -456,7 +497,7 @@ namespace Wreckabulary.Rules.Wordbound
                 case WordboundAction.Transfer:
                     if (!indices.TryGetValue(command.Target, out int other) ||
                         Binding.Seats[other].Team != seat.Team || !economy.Player(other).CanAct ||
-                        !WithinReach(seat.PlayerId, origin.Position, bodies["player:" + other].Position)) return Effect("OutOfReach");
+                        !WithinReach(seat.PlayerId, origin.Position, bodies[playerBodies[other]].Position)) return Effect("OutOfReach");
                     if (command.Action == WordboundAction.GiveLetter)
                         return command.Value.Length == 1 && LetterBag.IsLetter(command.Value[0]) ?
                             Effect(economy.GiveLetter(index, other, command.Value[0])) : Effect("InvalidLetter");
@@ -485,7 +526,7 @@ namespace Wreckabulary.Rules.Wordbound
                 team.Finished || team.NextCheckpoint >= course.Laps[team.Lap].Checkpoints.Count ||
                 !course.Laps[team.Lap].Checkpoints[team.NextCheckpoint].PuzzleIds.Contains(command.Target))
                 return Effect("OutOfOrder");
-            var puzzle = course.Puzzles.Single(p => p.Id == command.Target);
+            var puzzle = Puzzle(command.Target);
             int lap = IsPractice ? selected.Lap - 1 : team.Lap;
             string key = Key(puzzle.Id, seat.Team, lap);
             if (mechanisms[key].Solved || pending.Any(e => e.Kind == ProgressEventKind.PuzzleSatisfied &&
@@ -507,7 +548,7 @@ namespace Wreckabulary.Rules.Wordbound
             }
             else if (!economy.Player(index).Letters.Contains(LetterBag.FromWord(puzzle.RequiredLetters)))
                 return Effect("MissingLetters");
-            var physicalSite = course.PhysicalSites.SingleOrDefault(s => s.PuzzleId == puzzle.Id && s.Lap == lap + 1);
+            var physicalSite = Site(lap + 1, puzzle.Id);
             if (physicalSite != null && (mechanisms[key].Physical.Stage != MatchPhysicalStage.Complete ||
                 mechanisms[key].Physical.SiteHash != physicalSite.Hash || mechanisms[key].ItemEntityId != itemBody?.Id))
                 return Effect("MechanismIncomplete");
@@ -547,8 +588,9 @@ namespace Wreckabulary.Rules.Wordbound
 
         void AdvanceCombat(long tick)
         {
-            foreach (var seat in Binding.Seats)
+            for (int index = 0; index < Binding.Seats.Count; index++)
             {
+                var seat = Binding.Seats[index];
                 NormalizeEquipment(seat.PlayerId, tick);
                 var actor = actors[seat.PlayerId];
                 var attack = actor.Attack;
@@ -561,7 +603,7 @@ namespace Wreckabulary.Rules.Wordbound
                     continue;
                 }
                 if (tick < starts) continue;
-                var origin = bodies["player:" + indices[seat.PlayerId]];
+                var origin = bodies[playerBodies[index]];
                 var hitIds = new HashSet<string>(attack.HitBodyIds, StringComparer.Ordinal);
                 foreach (var body in bodies.Values.OrderBy(b => b.Id, StringComparer.Ordinal).ToArray())
                 {
@@ -615,11 +657,10 @@ namespace Wreckabulary.Rules.Wordbound
             int slot = actor.EquippedSlot;
             var item = slot < 0 ? null : Held(index, slot);
             if (slot >= 0 && (item == null || inventory.CarriedFurniture >= 0)) slot = -1;
-            string weaponId = slot < 0 ? "" : "item:" + item.Id;
-            var player = progress.Player(playerId);
+            var player = progress.LivePlayer(playerId);
             bool cancel = !inventory.CanAct || inventory.Craft != null || inventory.CarriedFurniture >= 0 ||
                 actor.Health <= 0 || actor.StunnedUntilTick > tick || player.Returned ||
-                actor.Attack != null && actor.Attack.WeaponEntityId != weaponId;
+                actor.Attack != null && actor.Attack.WeaponEntityId != (slot < 0 ? "" : "item:" + item.Id);
             actors[playerId] = Actor(actor, equippedSlot: slot, clearAttack: cancel);
             NormalizeDefense(playerId, tick);
         }
@@ -635,8 +676,8 @@ namespace Wreckabulary.Rules.Wordbound
             int attacker = -1;
             if (hazard ? !Mode.HazardDamage :
                 !indices.TryGetValue(damage.ActorId, out attacker) || !thrownContact && !economy.Player(attacker).CanAct) return false;
-            if (!hazard && !thrownContact && (!world.HasLineOfSight(damage.ActorId, bodies["player:" + attacker].Position, body.Position) ||
-                bodies["player:" + attacker].Position.DistanceSquared(body.Position) > 1600)) return false;
+            if (!hazard && !thrownContact && (!world.HasLineOfSight(damage.ActorId, bodies[playerBodies[attacker]].Position, body.Position) ||
+                bodies[playerBodies[attacker]].Position.DistanceSquared(body.Position) > 1600)) return false;
             if (body.Kind == WorldBodyKind.Item)
             {
                 if (!hazard && !Mode.CanInteract(Binding.Seats[attacker].Team, body.OwnerTeam, body.Protected)) return false;
@@ -653,14 +694,14 @@ namespace Wreckabulary.Rules.Wordbound
             }
             else if (body.Kind == WorldBodyKind.Player)
             {
-                var victim = progress.Player(body.SourceId);
+                var victim = progress.LivePlayer(body.SourceId);
                 if (victim.Eliminated || !victim.Connected || victim.ProtectedUntil > Tick + 1 ||
                     !hazard && !Mode.CanDamage(Binding.Seats[attacker].Team, victim.Team)) return false;
                 var actor = actors[victim.Id];
                 if (actor.DodgeUntilTick > Tick + 1 || pending.Any(e =>
                     (e.Kind == ProgressEventKind.Fell && e.PlayerId == victim.Id) ||
                     (e.Kind == ProgressEventKind.Knockout && e.Target == victim.Id))) return false;
-                impact = ApplyDefense(victim.Id, body, hazard ? null : incomingFrom ?? bodies["player:" + attacker].Position,
+                impact = ApplyDefense(victim.Id, body, hazard ? null : incomingFrom ?? bodies[playerBodies[attacker]].Position,
                     damage.Amount, Tick + 1);
                 actor = actors[victim.Id];
                 float health = Math.Max(0, actor.Health - impact.Damage);
@@ -688,13 +729,13 @@ namespace Wreckabulary.Rules.Wordbound
             if (!indices.TryGetValue(observation.PlayerId ?? "", out int index)) return;
             if (observation.Kind == ProgressEventKind.Fell) { pending.Add(observation); return; }
             if (!Mode.IsRace) return;
-            var team = progress.Team(Binding.Seats[index].Team);
+            var team = progress.LiveTeam(Binding.Seats[index].Team);
             if (team.Finished || observation.Lap != team.Lap) return;
             var lap = course.Laps[team.Lap];
             string module = observation.Kind == ProgressEventKind.FinishReached && observation.Target == lap.FinishModuleId ?
                 lap.FinishModuleId : observation.Kind == ProgressEventKind.CheckpointReached ?
                     lap.Checkpoints.FirstOrDefault(c => c.Id == observation.Target)?.ModuleId : null;
-            if (module != null && InModule(bodies["player:" + index].Position, module)) pending.Add(observation);
+            if (module != null && InModule(bodies[playerBodies[index]].Position, module)) pending.Add(observation);
         }
 
         void ApplyMechanism(HostMechanismObservation observation, MatchSnapshot before)
@@ -703,14 +744,14 @@ namespace Wreckabulary.Rules.Wordbound
             if ((!Mode.IsRace && !IsPractice) || !mechanisms.TryGetValue(key, out var previous))
                 throw new ArgumentException("Mechanism observation is not bound to this course and team.");
             if (previous.Solved) return;
-            var team = progress.Team(observation.Team);
+            var team = progress.LiveTeam(observation.Team);
             if (observation.Active && (IsPractice ? !PracticeActive(observation.PuzzleId, observation.Lap) :
                 team.Finished || team.Lap != observation.Lap ||
                 team.NextCheckpoint >= course.Laps[team.Lap].Checkpoints.Count ||
                 !course.Laps[team.Lap].Checkpoints[team.NextCheckpoint].PuzzleIds.Contains(observation.PuzzleId)))
                 throw new ArgumentException("Mechanism observation is outside the active objective.");
             if (observation.Active && (DestroyedDuringTick(observation.ItemEntityId, before) ||
-                course.Puzzles.Single(p => p.Id == observation.PuzzleId).PresetId == "RedirectWind" &&
+                Puzzle(observation.PuzzleId).PresetId == "RedirectWind" &&
                 DestroyedDuringTick(observation.Physical.AuxiliaryBodyId, before)))
                 observation = new HostMechanismObservation(observation.PuzzleId, observation.Team, observation.Lap, false,
                     physical: observation.Physical.Reset());
@@ -732,8 +773,8 @@ namespace Wreckabulary.Rules.Wordbound
             if (newPhase ? observation.PhaseTick != nextTick || observation.ProgressTicks > 1 :
                 observation.ProgressTicks < previous.ProgressTicks)
                 throw new ArgumentException("Mechanism timing regressed or changed its item without a new phase.");
-            var puzzle = course.Puzzles.Single(p => p.Id == observation.PuzzleId);
-            if (!IsPractice && puzzle.PrerequisiteIds.Any(id => !team.CompletedPuzzles.Contains(id)))
+            var puzzle = Puzzle(observation.PuzzleId);
+            if (!IsPractice && !HasAll(team, puzzle.PrerequisiteIds))
                 throw new ArgumentException("Mechanism cannot start before its puzzle prerequisites.");
             if (observation.ItemEntityId != "")
             {
@@ -755,22 +796,27 @@ namespace Wreckabulary.Rules.Wordbound
 #if UNITY_EDITOR || GSK_QA
             using var phase = WordboundPhaseCapture.Measure(WordboundPhase.Synchronize);
 #endif
-            foreach (var item in economy.Items.Where(i => i.State != ItemState.Deployed)) item.DeploymentTick = -1;
-            foreach (var state in mechanisms.Values.Where(m => !m.Solved && m.ItemEntityId != "").ToArray())
+            foreach (var item in economy.Items)
+                if (item.State != ItemState.Deployed) item.DeploymentTick = -1;
+            mechanismBuffer.Clear();
+            foreach (var state in mechanisms.Values)
+                if (!state.Solved && state.ItemEntityId != "") mechanismBuffer.Add(state);
+            foreach (var state in mechanismBuffer)
             {
-                var puzzle = course.Puzzles.Single(p => p.Id == state.PuzzleId);
+                var puzzle = Puzzle(state.PuzzleId);
                 var item = economy.Item(Number(state.ItemEntityId));
                 if (!bodies.TryGetValue(state.ItemEntityId, out var itemBody) || !itemBody.Active ||
                     item == null || item.State != ItemState.Deployed || !InModule(itemBody.Position, puzzle.ModuleId))
                     mechanisms[Key(state.PuzzleId, state.Team, state.Lap)] = new MatchMechanismState(state.PuzzleId, state.Team, state.Lap,
                         physical: state.Physical.Reset());
             }
-            foreach (var seat in Binding.Seats)
+            mechanismBuffer.Clear();
+            for (int index = 0; index < Binding.Seats.Count; index++)
             {
-                int index = indices[seat.PlayerId];
-                var current = progress.Player(seat.PlayerId);
-                var previous = before?.Progress.Players.Single(p => p.Id == seat.PlayerId);
-                var body = bodies["player:" + index];
+                var seat = Binding.Seats[index];
+                var current = progress.LivePlayer(seat.PlayerId);
+                var previous = before == null ? null : PlayerIn(before.Progress.Players, seat.PlayerId);
+                var body = bodies[playerBodies[index]];
                 if (current.Eliminated && previous != null && !previous.Eliminated)
                 {
                     var dropped = new List<ItemInstance>();
@@ -785,19 +831,26 @@ namespace Wreckabulary.Rules.Wordbound
                     body = body.At(RecoveryPosition(seat), active: current.Connected);
                     actors[seat.PlayerId] = Actor(actors[seat.PlayerId], health: rules.MaxHealth, stamina: rules.MaxStamina, stun: 0, clearDefense: true);
                 }
-                bodies[body.Id] = body.At(body.Position, body.Velocity, current.Connected && !current.Eliminated);
+                bool active = current.Connected && !current.Eliminated;
+                bodies[body.Id] = body.Active == active ? body : body.At(body.Position, body.Velocity, active);
                 var actor = actors[seat.PlayerId];
                 actors[seat.PlayerId] = Actor(actor, stamina: Math.Min(rules.MaxStamina, actor.Stamina + rules.StaminaRegen / ModeDefinition.TickRate));
             }
             UpdateKeepsakes();
             if (Mode.IsRace)
-                foreach (var team in progress.Capture().Teams)
+            {
+                var teams = progress.LiveTeams;
+                for (int t = 0; t < teams.Count; t++)
                 {
-                    narrative.Add(MatchStateValidation.NarrativeFlag(team.Team, Math.Min(team.Lap, 2)));
-                    foreach (var puzzle in course.Puzzles)
+                    var team = teams[t];
+                    narrative.Add(StoryFlag(team.Team, Math.Min(team.Lap, 2)));
+                    var keys = MechanismKeys(team.Team);
+                    for (int p = 0; p < course.Puzzles.Count; p++)
+                    {
+                        var puzzle = course.Puzzles[p];
                         for (int lap = 0; lap < 3; lap++)
                         {
-                            string key = Key(puzzle.Id, team.Team, lap);
+                            string key = keys[p * 3 + lap];
                             var state = mechanisms[key];
                             bool solved = lap < team.Lap ? resourceLifecycle.Checkpoint(lap, puzzle.Id) :
                                 lap == team.Lap && team.HasPuzzle(puzzle.Id);
@@ -806,22 +859,17 @@ namespace Wreckabulary.Rules.Wordbound
                                     solved ? Tick : -1, solved ? Tick : 0, solved ? 1 : 0, state.ItemEntityId,
                                     solved ? state.Physical : state.Physical.Reset());
                         }
+                    }
                 }
-            RetireInactiveResources();
-            Dictionary<int, TeamProgress> resourceTeams = null;
-            TeamProgress ResourceTeam(int id)
-            {
-                resourceTeams ??= new Dictionary<int, TeamProgress>();
-                if (!resourceTeams.TryGetValue(id, out var team)) resourceTeams.Add(id, team = progress.Team(id));
-                return team;
             }
+            RetireInactiveResources();
             HashSet<(string, int, int)> generations = null;
             bool HasGeneration(MatchResourceState state) =>
                 (generations ??= new HashSet<(string, int, int)>(bodies.Values.Where(b => b.Active)
                     .Select(b => (b.SourceId, b.OwnerTeam, b.RecoveryGeneration)))).Contains((state.SourceId, state.Team, state.Generation));
             foreach (var state in resources.Values.OrderBy(r => r.Generation).ThenBy(r => r.SourceId, StringComparer.Ordinal).ToArray())
             {
-                int currentLap = Mode.IsRace && state.Team >= 0 ? Math.Min(ResourceTeam(state.Team).Lap, 2) : 0;
+                int currentLap = Mode.IsRace && state.Team >= 0 ? Math.Min(progress.LiveTeam(state.Team).Lap, 2) : 0;
                 if (state.Lap != currentLap)
                 {
                     if (state.RecoveryAtTick >= 0)
@@ -829,9 +877,9 @@ namespace Wreckabulary.Rules.Wordbound
                             new MatchResourceState(state.SourceId, state.Team, state.Lap, state.Generation);
                     continue;
                 }
-                if (!SourceAvailable(state, Mode.IsRace ? ResourceTeam(state.Team) : null)) continue;
+                if (!SourceAvailable(state, Mode.IsRace ? progress.LiveTeam(state.Team) : null)) continue;
                 bool newLap = before != null && Mode.IsRace &&
-                    Math.Min(before.Progress.Teams.Single(t => t.Team == state.Team).Lap, 2) < state.Lap;
+                    Math.Min(TeamIn(before.Progress.Teams, state.Team).Lap, 2) < state.Lap;
                 if (newLap) { MintSource(state); generations = null; }
                 else if (state.RecoveryAtTick >= 0 && state.RecoveryAtTick <= Tick)
                 {
@@ -842,10 +890,13 @@ namespace Wreckabulary.Rules.Wordbound
                 else if (!HasGeneration(state) && state.RecoveryAtTick == -1 &&
                     (IsPractice ? PracticeRecoverySource(state.SourceId) && (before == null ||
                         !resourceLifecycle.PracticeSource(state.SourceId, before.Practice, before.Mechanisms)) :
-                        SourceAfterPuzzles(state).Any() && !WasSourceAvailable(before, state))) { MintSource(state); generations = null; }
+                        SourceAfterPuzzles(state).Count != 0 && !WasSourceAvailable(before, state))) { MintSource(state); generations = null; }
             }
-            foreach (var body in bodies.Values.Where(b => b.Active && b.Kind != WorldBodyKind.Player &&
-                b.Kind != WorldBodyKind.Platform && BelowCourse(b.Position)).ToArray())
+            bodyBuffer.Clear();
+            foreach (var body in bodies.Values)
+                if (body.Active && body.Kind != WorldBodyKind.Player && body.Kind != WorldBodyKind.Platform && BelowCourse(body.Position))
+                    bodyBuffer.Add(body);
+            foreach (var body in bodyBuffer)
             {
                 WorldVector safe = body.SourceId != "" && SourcePosition(body.SourceId, out var sourcePosition) ?
                     sourcePosition : Position(course.RecoveryAnchors[0].Position);
@@ -853,6 +904,7 @@ namespace Wreckabulary.Rules.Wordbound
                 if (body.Kind == WorldBodyKind.Item && economy.Item(Number(body.Id)).State == ItemState.Thrown)
                     economy.Settle(Number(body.Id));
             }
+            bodyBuffer.Clear();
             SettleThrows(Tick);
             SetPermissions(Tick);
             EnforceBodyBudget();
@@ -862,12 +914,12 @@ namespace Wreckabulary.Rules.Wordbound
         {
             if (initialPracticePlacementUnresolved) return;
             if (!WordboundPracticePolicy.HasKeepsake(Mode)) return;
-            foreach (int teamId in Binding.Seats.Select(s => s.Team).Distinct())
+            foreach (int teamId in seatTeams)
             {
-                var team = progress.Team(teamId);
-                var body = bodies["keepsake:" + teamId];
+                var team = progress.LiveTeam(teamId);
+                var body = bodies[KeepsakeBody(teamId)];
                 bool carried = team.KeepsakeCarrier != null;
-                WorldVector at = carried ? bodies["player:" + indices[team.KeepsakeCarrier]].Position :
+                WorldVector at = carried ? bodies[playerBodies[indices[team.KeepsakeCarrier]]].Position :
                     team.RecoveryGeneration != body.RecoveryGeneration ? (IsPractice ? PracticeRecoveryPosition() : Landmark(teamId, team.SafeCheckpoint)) : body.Position;
                 bodies[body.Id] = new WorldBodyState(body.Id, body.Kind, at, active: !carried,
                     kinematic: carried, ownerTeam: teamId, protectedResource: true, recoveryGeneration: team.RecoveryGeneration);
@@ -882,17 +934,17 @@ namespace Wreckabulary.Rules.Wordbound
         void MintSource(MatchResourceState state)
         {
             if (HasSourceGeneration(state)) return;
-            var source = MatchStateValidation.Sources(course)[state.SourceId];
+            var source = Sources()[state.SourceId];
             if (!SourceCapacity(state, source.Item3.Length)) return;
             SourcePosition(state.SourceId, out var at);
             AddTiles(economy.MintTiles(source.Item3), at, state.Team, state.SourceId, source.Item2, state.Generation);
         }
         void RecoverSource(MatchResourceState previous, MatchResourceState next)
         {
-            var source = MatchStateValidation.Sources(course)[next.SourceId];
+            var source = Sources()[next.SourceId];
             var remaining = LetterBag.FromWord(source.Item3);
             SourcePosition(next.SourceId, out var at);
-            var tiles = economy.Capture().TileStates.ToDictionary(t => t.Key, t => t.Value);
+            var tiles = economy.Tiles;
             var existing = bodies.Values.Where(b => b.SourceId == previous.SourceId &&
                 b.OwnerTeam == previous.Team && b.RecoveryGeneration == previous.Generation).ToArray();
             foreach (var body in existing)
@@ -912,39 +964,59 @@ namespace Wreckabulary.Rules.Wordbound
         bool SourceCapacity(MatchResourceState state, int count)
         {
             if (count == 0 || PracticeRecoverySource(state.SourceId) ||
-                Mode.IsRace && state.Team >= 0 && entityBudget.CriticalSource(state.SourceId, progress.Team(state.Team)) ||
+                Mode.IsRace && state.Team >= 0 && entityBudget.CriticalSource(state.SourceId, progress.LiveTeam(state.Team)) ||
                 ReserveOptional(state.Team, count, false)) return true;
             resources[Key(state.SourceId, state.Team, state.Lap)] = new MatchResourceState(
                 state.SourceId, state.Team, state.Lap, state.Generation, checked(Tick + WordboundEntityBudget.RetryTicks));
             return false;
         }
-        bool HasSourceGeneration(MatchResourceState state) => bodies.Values.Any(b => b.Active && b.SourceId == state.SourceId &&
-            b.OwnerTeam == state.Team && b.RecoveryGeneration == state.Generation);
+        bool HasSourceGeneration(MatchResourceState state)
+        {
+            foreach (var b in bodies.Values)
+                if (b.Active && b.SourceId == state.SourceId && b.OwnerTeam == state.Team && b.RecoveryGeneration == state.Generation)
+                    return true;
+            return false;
+        }
         void ScheduleSource(WorldBodyState body)
         {
-            var supply = course.Supplies.FirstOrDefault(s => s.Id == body.SourceId);
+            var supply = Supply(body.SourceId);
             if (supply == null || !supply.Renewable) return;
-            var state = resources.Values.FirstOrDefault(s => s.SourceId == body.SourceId && s.Team == body.OwnerTeam &&
-                s.Generation == body.RecoveryGeneration);
+            MatchResourceState state = null;
+            foreach (var s in resources.Values)
+                if (s.SourceId == body.SourceId && s.Team == body.OwnerTeam && s.Generation == body.RecoveryGeneration) { state = s; break; }
             if (state != null && state.Lap == CurrentLap(state.Team) && state.RecoveryAtTick == -1)
                 resources[Key(state.SourceId, state.Team, state.Lap)] = new MatchResourceState(state.SourceId, state.Team, state.Lap,
                     state.Generation, Tick + 1 + RecoveryTicks);
         }
-        IEnumerable<string> SourceAfterPuzzles(MatchResourceState state) =>
+        IReadOnlyList<string> SourceAfterPuzzles(MatchResourceState state) =>
             supplyGates.TryGetValue(state.SourceId, out var ids) ? ids : Array.Empty<string>();
         bool SourceAvailable(MatchResourceState state) =>
             resourceLifecycle.Demanded(Mode.IsRace ? progress.Team(state.Team) : null, state, practice, mechanisms.Values) &&
             (PracticeRecoverySource(state.SourceId) || SourceAfterPuzzles(state).All(id => Mode.IsRace && progress.Team(state.Team).CompletedPuzzles.Contains(id)));
-        bool SourceAvailable(MatchResourceState state, TeamProgress team) =>
-            resourceLifecycle.Demanded(team, state, practice, mechanisms.Values) &&
-            (PracticeRecoverySource(state.SourceId) || SourceAfterPuzzles(state).All(id => Mode.IsRace && team.HasPuzzle(id)));
-        bool WasSourceAvailable(MatchSnapshot before, MatchResourceState state) => before != null && SourceAfterPuzzles(state).All(id =>
-            Mode.IsRace && before.Progress.Teams.Single(t => t.Team == state.Team).CompletedPuzzles.Contains(id));
-        int CurrentLap(int team) => Mode.IsRace && team >= 0 ? Math.Min(progress.Team(team).Lap, 2) : 0;
+        bool SourceAvailable(MatchResourceState state, TeamProgress team)
+        {
+            if (!resourceLifecycle.Demanded(team, state, practice, mechanisms.Values)) return false;
+            if (PracticeRecoverySource(state.SourceId)) return true;
+            var ids = SourceAfterPuzzles(state);
+            for (int i = 0; i < ids.Count; i++)
+                if (!Mode.IsRace || !team.HasPuzzle(ids[i])) return false;
+            return true;
+        }
+        bool WasSourceAvailable(MatchSnapshot before, MatchResourceState state)
+        {
+            if (before == null) return false;
+            var ids = SourceAfterPuzzles(state);
+            for (int i = 0; i < ids.Count; i++)
+                if (!Mode.IsRace || !TeamIn(before.Progress.Teams, state.Team).HasPuzzle(ids[i])) return false;
+            return true;
+        }
+        int CurrentLap(int team) => Mode.IsRace && team >= 0 ? Math.Min(progress.LiveTeam(team).Lap, 2) : 0;
         bool SourcePosition(string id, out WorldVector position)
         {
-            var supply = course.Supplies.FirstOrDefault(s => s.Id == id);
-            var placement = course.Placements.FirstOrDefault(p => p.Id == id);
+            var supply = Supply(id);
+            ResolvedCoursePlacement placement = null;
+            for (int i = 0; i < course.Placements.Count && placement == null; i++)
+                if (course.Placements[i].Id == id) placement = course.Placements[i];
             position = supply != null ? Position(supply.Position) : placement != null ? Position(placement.Position) : default;
             return supply != null || placement != null;
         }
@@ -956,7 +1028,7 @@ namespace Wreckabulary.Rules.Wordbound
                     protectedResource: protectedResource, sourceId: source, recoveryGeneration: generation));
         }
         void AddCraftedBody(ItemInstance item, WordboundSeat seat) =>
-            AddBody(new WorldBodyState("item:" + item.Id, WorldBodyKind.Item, bodies["player:" + indices[seat.PlayerId]].Position,
+            AddBody(new WorldBodyState("item:" + item.Id, WorldBodyKind.Item, bodies[playerBodies[indices[seat.PlayerId]]].Position,
                 active: false, kinematic: true, ownerTeam: Mode.IsRace ? seat.Team : -1));
         void AddBody(WorldBodyState body) { bodies.Add(body.Id, body); nextWorldEntityId = checked(nextWorldEntityId + 1); }
         void Release(Outcome outcome, WorldVector at, WorldVector velocity, bool kinematic, WorldBodyState orientation = null)
@@ -1008,12 +1080,12 @@ namespace Wreckabulary.Rules.Wordbound
             from.DistanceSquared(to) <= InteractionRange * InteractionRange && world.HasLineOfSight(actor, from, to);
         bool InModule(WorldVector position, string moduleId)
         {
-            var bounds = course.Geometry.Single(m => m.Id == moduleId).Bounds;
+            var bounds = Module(moduleId).Bounds;
             return position.X >= bounds.Min.X / 1000f && position.X <= bounds.Max.X / 1000f &&
                 position.Y >= bounds.Min.Y / 1000f - .5f && position.Y <= bounds.Max.Y / 1000f + .5f &&
                 position.Z >= bounds.Min.Z / 1000f && position.Z <= bounds.Max.Z / 1000f;
         }
-        bool BelowCourse(WorldVector position) => position.Y < course.Geometry.Min(m => m.Position.Y) / 1000f - 20;
+        bool BelowCourse(WorldVector position) => position.Y < (lowestModuleY ??= course.Geometry.Min(m => m.Position.Y)) / 1000f - 20;
         WorldVector Spawn(int index)
         {
             var spawns = course.Spawns.Where(s => s.Kind == "Start").ToArray();
@@ -1034,20 +1106,22 @@ namespace Wreckabulary.Rules.Wordbound
             if (!bodies.TryGetValue(pose.Id, out var previous) || pose.Kind != previous.Kind ||
                 !Bounded(pose.Position, 10000) || !Bounded(pose.Velocity, 1000) || !Bounded(pose.AngularVelocity, 10000))
                 throw new ArgumentException("Unbound or out-of-range host pose.");
-            if (!previous.Active) return;
+            if (!previous.Active || SamePose(pose, previous)) return;
             bodies[pose.Id] = new WorldBodyState(previous.Id, previous.Kind, pose.Position, pose.RotationXyz, pose.RotationW,
                 pose.Velocity, pose.AngularVelocity, pose.Sleeping, previous.Kinematic, previous.Active, previous.OwnerTeam,
                 previous.Protected, previous.SourceId, previous.RecoveryGeneration);
         }
         void SetPermissions(long tick)
         {
-            foreach (var seat in Binding.Seats)
+            for (int index = 0; index < Binding.Seats.Count; index++)
             {
-                var player = progress.Player(seat.PlayerId);
-                economy.Player(indices[seat.PlayerId]).CanAct = player.Connected && !player.Eliminated && !player.Returned &&
+                var seat = Binding.Seats[index];
+                var player = progress.LivePlayer(seat.PlayerId);
+                economy.Player(index).CanAct = player.Connected && !player.Eliminated && !player.Returned &&
                     !progress.Migrating && progress.Result == null && actors[seat.PlayerId].StunnedUntilTick <= tick;
-                var body = bodies["player:" + indices[seat.PlayerId]];
-                bodies[body.Id] = body.At(body.Position, body.Velocity, player.Connected && !player.Eliminated);
+                var body = bodies[playerBodies[index]];
+                bool active = player.Connected && !player.Eliminated;
+                if (body.Active != active) bodies[body.Id] = body.At(body.Position, body.Velocity, active);
                 NormalizeEquipment(seat.PlayerId, tick);
             }
         }
@@ -1057,6 +1131,7 @@ namespace Wreckabulary.Rules.Wordbound
             Replace(actors, snapshot.Actors, a => a.PlayerId);
             Replace(bodies, snapshot.Bodies, b => b.Id);
             Replace(resources, snapshot.Resources, r => Key(r.SourceId, r.Team, r.Lap));
+            mechanismOrder = null;
             Replace(mechanisms, snapshot.Mechanisms, m => Key(m.PuzzleId, m.Team, m.Lap));
             Replace(random, snapshot.RandomStreams, r => r.StreamId);
             Replace(thrownFlights, snapshot.ThrownFlights, f => f.ItemBodyId);
@@ -1090,20 +1165,101 @@ namespace Wreckabulary.Rules.Wordbound
         static T[] Bounded<T>(IEnumerable<T> values, int maximum) where T : class
         {
             var array = values?.Take(maximum + 1).ToArray() ?? Array.Empty<T>();
-            if (array.Length > maximum || array.Any(v => v == null)) throw new ArgumentException("Host frame exceeds bounds.");
+            if (array.Length > maximum || Array.IndexOf(array, null) >= 0) throw new ArgumentException("Host frame exceeds bounds.");
             return array;
         }
         static MatchActorState Actor(MatchActorState previous, float? health = null, float? stamina = null,
             long? stun = null, long? lastInput = null, int? equippedSlot = null, MatchAttackState attack = null,
             bool clearAttack = false, long? nextAttack = null, long? immune = null,
-            MatchDefenseState defense = null, bool clearDefense = false) =>
-            new MatchActorState(previous.PlayerId, health ?? previous.Health, stamina ?? previous.Stamina,
-                nextAttack ?? previous.NextAttackTick, stun ?? previous.StunnedUntilTick, previous.DodgeUntilTick,
-                lastInput ?? previous.LastInputSequence, previous.Appearance, equippedSlot ?? previous.EquippedSlot,
-                clearAttack ? null : attack ?? previous.Attack, immune ?? previous.StaggerImmuneUntilTick,
-                clearDefense ? null : defense ?? previous.Defense);
+            MatchDefenseState defense = null, bool clearDefense = false)
+        {
+            float nextHealth = health ?? previous.Health, nextStamina = stamina ?? previous.Stamina;
+            long nextAttackTick = nextAttack ?? previous.NextAttackTick, stunned = stun ?? previous.StunnedUntilTick;
+            long input = lastInput ?? previous.LastInputSequence, immuneUntil = immune ?? previous.StaggerImmuneUntilTick;
+            int slot = equippedSlot ?? previous.EquippedSlot;
+            var nextAttackState = clearAttack ? null : attack ?? previous.Attack;
+            var nextDefense = clearDefense ? null : defense ?? previous.Defense;
+            if (Same(nextHealth, previous.Health) && Same(nextStamina, previous.Stamina) &&
+                nextAttackTick == previous.NextAttackTick && stunned == previous.StunnedUntilTick &&
+                input == previous.LastInputSequence && slot == previous.EquippedSlot && immuneUntil == previous.StaggerImmuneUntilTick &&
+                ReferenceEquals(nextAttackState, previous.Attack) && ReferenceEquals(nextDefense, previous.Defense)) return previous;
+            return new MatchActorState(previous.PlayerId, nextHealth, nextStamina, nextAttackTick, stunned, previous.DodgeUntilTick,
+                input, previous.Appearance, slot, nextAttackState, immuneUntil, nextDefense);
+        }
+        static bool SamePose(WorldBodyState pose, WorldBodyState body) =>
+            Same(pose.Position, body.Position) && Same(pose.RotationXyz, body.RotationXyz) && Same(pose.RotationW, body.RotationW) &&
+            Same(pose.Velocity, body.Velocity) && Same(pose.AngularVelocity, body.AngularVelocity) && pose.Sleeping == body.Sleeping;
+        static bool Same(WorldVector a, WorldVector b) => Same(a.X, b.X) && Same(a.Y, b.Y) && Same(a.Z, b.Z);
+        static bool Same(float a, float b) => BitConverter.SingleToInt32Bits(a) == BitConverter.SingleToInt32Bits(b);
+        ResolvedCourseModule Module(string id) =>
+            id != null && modules.TryGetValue(id, out var module) ? module : course.Geometry.Single(m => m.Id == id);
+        ResolvedCoursePuzzle Puzzle(string id) =>
+            id != null && puzzles.TryGetValue(id, out var puzzle) ? puzzle : course.Puzzles.Single(p => p.Id == id);
+        ResolvedCoursePhysicalSite Site(int lap, string puzzle) => sites.TryGetValue((lap, puzzle), out var site) ? site :
+            course.PhysicalSites.SingleOrDefault(s => s.Lap == lap && s.PuzzleId == puzzle);
+        ResolvedCourseSupply Supply(string id)
+        {
+            for (int i = 0; i < course.Supplies.Count; i++)
+                if (course.Supplies[i].Id == id) return course.Supplies[i];
+            return null;
+        }
+        Dictionary<string, Tuple<int, bool, string>> Sources() => sources ??= MatchStateValidation.Sources(course);
+        string KeepsakeBody(int team)
+        {
+            if (!keepsakes.TryGetValue(team, out var id)) keepsakes.Add(team, id = "keepsake:" + team);
+            return id;
+        }
+        string StoryFlag(int team, int lap)
+        {
+            if (!storyFlags.TryGetValue((team, lap), out var flag)) storyFlags.Add((team, lap), flag = MatchStateValidation.NarrativeFlag(team, lap));
+            return flag;
+        }
+        string[] MechanismKeys(int team)
+        {
+            if (mechanismKeys.TryGetValue(team, out var keys)) return keys;
+            keys = new string[course.Puzzles.Count * 3];
+            for (int p = 0; p < course.Puzzles.Count; p++)
+                for (int lap = 0; lap < 3; lap++) keys[p * 3 + lap] = Key(course.Puzzles[p].Id, team, lap);
+            mechanismKeys.Add(team, keys);
+            return keys;
+        }
+        static PlayerProgress PlayerIn(IReadOnlyList<PlayerProgress> players, string id)
+        {
+            PlayerProgress found = null;
+            int count = 0;
+            for (int i = 0; i < players.Count; i++)
+                if (players[i].Id == id) { found = players[i]; count++; }
+            return count == 1 ? found : players.Single(p => p.Id == id);
+        }
+        static TeamProgress TeamIn(IReadOnlyList<TeamProgress> teams, int team)
+        {
+            TeamProgress found = null;
+            int count = 0;
+            for (int i = 0; i < teams.Count; i++)
+                if (teams[i].Team == team) { found = teams[i]; count++; }
+            return count == 1 ? found : teams.Single(t => t.Team == team);
+        }
+        static bool HasAll(TeamProgress team, IReadOnlyList<string> ids)
+        {
+            for (int i = 0; i < ids.Count; i++)
+                if (!team.HasPuzzle(ids[i])) return false;
+            return true;
+        }
+        static Dictionary<TKey, T> Index<TKey, T>(IEnumerable<T> values, Func<T, TKey> key, IEqualityComparer<TKey> comparer)
+        {
+            var index = new Dictionary<TKey, T>(comparer);
+            var duplicates = new HashSet<TKey>(comparer);
+            foreach (var value in values)
+            {
+                var k = key(value);
+                if (k == null) continue;
+                if (!index.TryAdd(k, value)) duplicates.Add(k);
+            }
+            foreach (var duplicate in duplicates) index.Remove(duplicate);
+            return index;
+        }
         static string Key(string id, int team, int lap) => MatchStateValidation.ResourceKey(id, team, lap);
-        static int Number(string id) => int.Parse(id.Substring(id.IndexOf(':') + 1), CultureInfo.InvariantCulture);
+        static int Number(string id) => int.Parse(id.AsSpan(id.IndexOf(':') + 1), NumberStyles.Integer, CultureInfo.InvariantCulture);
         static CommandEffect Effect(string code, string entity = "") => new CommandEffect(code, entity);
         static CommandEffect Effect(Outcome outcome) => Effect(outcome.Ok ? "Ok" : outcome.Refusal.ToString(), outcome.Item == null ? "" : "item:" + outcome.Item.Id);
         static WorldVector Position(CoursePoint point) => new WorldVector(point.X / 1000f, point.Y / 1000f, point.Z / 1000f);

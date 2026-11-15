@@ -20,8 +20,8 @@
         0.086
       ],
       "triangles": 5248,
-      "bytes": 192448,
-      "sha256": "f79c6a1465e6b1627953dc4baab9ef7a83b0cabd57b5c3ba8dbee11fc027ab15",
+      "bytes": 192452,
+      "sha256": "a1a406f669440281fe6a295fab986c32b89889af3782a88ec106b638987f7901",
       "grip": [
         0.0,
         0.17,
@@ -46,9 +46,9 @@
         0.866,
         0.046
       ],
-      "triangles": 4384,
-      "bytes": 166600,
-      "sha256": "8543779b13048c1525c548bc192e727e8e4ff8ca3227e59f4af78696e8a6bff0",
+      "triangles": 4440,
+      "bytes": 117700,
+      "sha256": "b9eae07619e58492a81b4ddd97784e980f7b64f494868206f422aabcf00458b5",
       "grip": [
         0.0,
         0.146,
@@ -75,7 +75,7 @@
       ],
       "triangles": 3664,
       "bytes": 137920,
-      "sha256": "025ab8376a8dd41bcdfd0abf32ee4285be1a231049203fa0e2da87754ed1851c",
+      "sha256": "d8058342391c5a67f24b57f556df781e7122311696988c6fbdc7daecd8dc1771",
       "grip": [
         0.0,
         0.35,
@@ -88,7 +88,7 @@
       "size": [
         0.367,
         0.367,
-        0.367
+        0.368354
       ],
       "boundsMin": [
         -0.1835,
@@ -98,11 +98,11 @@
       "boundsMax": [
         0.1835,
         0.367,
-        0.1835
+        0.184854
       ],
-      "triangles": 3156,
-      "bytes": 114804,
-      "sha256": "917fc69f333478228fa5521f99e8d5f5d4ff05d543a3ed51b5d235861cdca848",
+      "triangles": 3696,
+      "bytes": 138780,
+      "sha256": "743581623e45ae54d9164b56547ed055d5b78d702b4b671397e6bece55f702ce",
       "grip": [
         0.0,
         0.1835,
@@ -114,7 +114,7 @@
       "path": "art/items/PLATE.glb",
       "size": [
         0.54,
-        0.073,
+        0.073699,
         0.54
       ],
       "boundsMin": [
@@ -124,12 +124,12 @@
       ],
       "boundsMax": [
         0.27,
-        0.073,
+        0.073699,
         0.27
       ],
-      "triangles": 1952,
-      "bytes": 71724,
-      "sha256": "4f73b422fb711d28f13135c8bba50beb20e48bad06035cbcbf32f0a52bf75b86",
+      "triangles": 2080,
+      "bytes": 82432,
+      "sha256": "171bec0707342896aad674e4725ed8984d28d0eecf452ba5d3e86e114ded21a3",
       "grip": [
         0.0,
         0.0365,
@@ -141,7 +141,7 @@
       "path": "art/items/TABLE.glb",
       "size": [
         1.2,
-        0.72,
+        0.725,
         0.691
       ],
       "boundsMin": [
@@ -151,12 +151,12 @@
       ],
       "boundsMax": [
         0.6,
-        0.72,
+        0.725,
         0.3455
       ],
-      "triangles": 4320,
-      "bytes": 195984,
-      "sha256": "dd7ff38abc826e0f51386a2c34811c8d7e00d072a44f05e75703b59ea778ddd2",
+      "triangles": 3564,
+      "bytes": 147208,
+      "sha256": "ae66a299665f6cd49814f90576940b0a737ecefe3b928e2ceb950c9ebf4c54c4",
       "grip": [
         0.0,
         0.36,
@@ -182,8 +182,8 @@
         0.79
       ],
       "triangles": 5760,
-      "bytes": 254568,
-      "sha256": "89c5474c285a77d8dd62a0c883ae42970bb690666aee60b73028888dbb905ee2",
+      "bytes": 254572,
+      "sha256": "7d7e86fac74f55822da713521324639125e9531e568455cbc2307ab3515d6403",
       "grip": [
         0.0,
         0.409,
@@ -209,8 +209,8 @@
         0.325
       ],
       "triangles": 1260,
-      "bytes": 62708,
-      "sha256": "c9bf1034f30f523d7e7b846701d2951d451468f9dbae70788021e527ac375ee4",
+      "bytes": 58100,
+      "sha256": "9ae18a3cf7a704b1a3aedc942e11f7da2868c3237c556da9f99d195e52629dde",
       "grip": [
         0.0,
         0.0255,
@@ -237,7 +237,7 @@
       ],
       "triangles": 6248,
       "bytes": 276848,
-      "sha256": "dfaca31fdc676de5d2d7fac74a4b6b26cbadea62bbd523f0739cbf7411705def",
+      "sha256": "2c6b1a634acfb80d0ea4e5f8786169790ebed1546d8adc1ea94a2925d038fbe6",
       "grip": [
         0.0,
         0.465,
@@ -249,7 +249,7 @@
       "path": "art/items/SOAP.glb",
       "size": [
         0.32,
-        0.1485,
+        0.154,
         0.21
       ],
       "boundsMin": [
@@ -259,12 +259,12 @@
       ],
       "boundsMax": [
         0.16,
-        0.1485,
+        0.154,
         0.105
       ],
-      "triangles": 2352,
-      "bytes": 87672,
-      "sha256": "47c09186593ea837405388366f0491dec7ce15c05d7385152295177f20937e3b",
+      "triangles": 2510,
+      "bytes": 71480,
+      "sha256": "705e3b7e8b7582a48ac61142bf821d0ff691504eb4f70851b48d74d78463172e",
       "grip": [
         0.0,
         0.07425,
@@ -276,8 +276,8 @@
       "path": "art/items/FOAM.glb",
       "size": [
         0.1909,
-        0.3725,
-        0.19545
+        0.3895,
+        0.20495
       ],
       "boundsMin": [
         -0.09545,
@@ -286,12 +286,12 @@
       ],
       "boundsMax": [
         0.09545,
-        0.3725,
-        0.1
+        0.3895,
+        0.1095
       ],
-      "triangles": 4000,
-      "bytes": 157924,
-      "sha256": "d354e197c9238becae0c3cc6ad4153a903a2a2a9619f9ed42227216ccb6c3127",
+      "triangles": 6182,
+      "bytes": 174680,
+      "sha256": "d1aac126d4ce263980fc14e10240fb208cc7dead50fdb53cb6f0ebe85b00a885",
       "grip": [
         0.0,
         0.18625,
@@ -304,7 +304,7 @@
       "size": [
         0.344,
         0.471793,
-        0.344
+        0.345395
       ],
       "boundsMin": [
         -0.172,
@@ -314,11 +314,11 @@
       "boundsMax": [
         0.172,
         0.471793,
-        0.172
+        0.173395
       ],
-      "triangles": 2236,
-      "bytes": 90952,
-      "sha256": "61a95fa6de9f562ca37c3ba73a2f4e17a5c664d5459b47eaeb54cad352e5b035",
+      "triangles": 2776,
+      "bytes": 114936,
+      "sha256": "2e71713959e1674d8bc2ad6773d425aecc3253289de1ad3617a7689fe02efb5b",
       "grip": [
         0.0,
         0.235897,
@@ -343,9 +343,9 @@
         0.665,
         0.045301
       ],
-      "triangles": 144,
-      "bytes": 21060,
-      "sha256": "80c644500db92766f4a031717ec11e0eafeff9e4db133233b2cea5f77905816f",
+      "triangles": 1100,
+      "bytes": 60888,
+      "sha256": "81e5dfc750d60a660a33b9e56b5c224e3d69e755d773d2216d3505f664ac19bb",
       "grip": [
         0.0,
         0.305,
@@ -356,12 +356,12 @@
     "BOW": {
       "path": "art/items/BOW.glb",
       "size": [
-        0.24,
+        0.246857,
         0.749309,
         0.058
       ],
       "boundsMin": [
-        -0.021,
+        -0.027857,
         -0.0,
         -0.029
       ],
@@ -370,9 +370,9 @@
         0.749309,
         0.029
       ],
-      "triangles": 684,
-      "bytes": 33820,
-      "sha256": "8d6567b0b29309699642ef84cdf1365e171b7f991ea7975a385020db2ca09622",
+      "triangles": 788,
+      "bytes": 39632,
+      "sha256": "f9fc82a4aa92c764b22a3e81ed7ac092c03798a41c9651284cd57bf2989f374c",
       "grip": [
         0.19,
         0.374654,
@@ -398,8 +398,8 @@
         0.0475
       ],
       "triangles": 4416,
-      "bytes": 203440,
-      "sha256": "9c29e8cd960cc2e50464e56eadf2c8caa0e802d4f6f1ee28a6eab741856803bb",
+      "bytes": 203444,
+      "sha256": "809c5df67a4cf6e4e51165f7943c0a0f78c226035ead1c6d4d967ede289f2007",
       "grip": [
         0.0,
         0.621173,
@@ -425,8 +425,8 @@
         0.0875
       ],
       "triangles": 5872,
-      "bytes": 224532,
-      "sha256": "b397ce961e7d7369118ca573e4bd5853391a3a1ea4c59076c686f13f4312b67f",
+      "bytes": 224536,
+      "sha256": "fd459398399c56f7840daf33b6c3ce85464ed52ff35208ecc95d15dd1a88d210",
       "grip": [
         0.0,
         0.13,
@@ -451,9 +451,9 @@
         0.154443,
         0.23
       ],
-      "triangles": 1136,
-      "bytes": 47296,
-      "sha256": "f1d13cf94fe23e59e1e9168fbe49050feeb1dd341057cacb5d4191664190cbf2",
+      "triangles": 1618,
+      "bytes": 50224,
+      "sha256": "0f738ca512c48316fd7a8677a8e1bcbbde624130993121bf8afd2213c6eb869e",
       "grip": [
         0.43,
         0.1,
@@ -478,9 +478,9 @@
         0.57,
         0.063
       ],
-      "triangles": 172,
-      "bytes": 21876,
-      "sha256": "c52b3c7c23f5cdd664bba168e11b1c803bfed57aee9cdd6a4b049f0fb58f5552",
+      "triangles": 336,
+      "bytes": 21476,
+      "sha256": "956ae7a52ceec6cef4acd40733b8e1d7618cf776e50fd50bda81914e7899dad6",
       "grip": [
         0.0,
         0.29,
@@ -493,21 +493,21 @@
       "size": [
         0.17,
         1.235,
-        0.068
+        0.0832
       ],
       "boundsMin": [
         -0.085,
         -0.0,
-        -0.034
+        -0.0416
       ],
       "boundsMax": [
         0.085,
         1.235,
-        0.034
+        0.0416
       ],
-      "triangles": 2028,
-      "bytes": 80228,
-      "sha256": "fc4e3e3cefe7a917ab3add74e1550f6c494bbb03d3d94522cbd6030aba787799",
+      "triangles": 3028,
+      "bytes": 85408,
+      "sha256": "a22a82b1a685686380201c5e031b8e81f84731672d360d0cb45b47c69c90f075",
       "grip": [
         0.0,
         0.465,
@@ -532,9 +532,9 @@
         0.270877,
         0.115
       ],
-      "triangles": 1764,
-      "bytes": 67720,
-      "sha256": "f9f6136f22df18d15d25e6c40f474e32a488c63be9ec3c820067cf4973dfecf4",
+      "triangles": 1324,
+      "bytes": 52068,
+      "sha256": "e75428aea16bed3b6b6a46bd4e69afa2ab30e946e1eace88ca6fb76c26667288",
       "grip": [
         0.0,
         0.135439,
@@ -560,8 +560,8 @@
         0.25
       ],
       "triangles": 3088,
-      "bytes": 137452,
-      "sha256": "f92658998b3cbc9c074d7d986bf16001556b6fa56e2227069471e6f0dd71a04e",
+      "bytes": 137456,
+      "sha256": "0350cacb6b8937f142043ec4f29b0fe7ed12998214294ae86833d73f0a3a5184",
       "grip": [
         0.0,
         0.208243,
@@ -573,7 +573,7 @@
       "path": "art/items/PIE.glb",
       "size": [
         0.5,
-        0.182,
+        0.189,
         0.5
       ],
       "boundsMin": [
@@ -583,12 +583,12 @@
       ],
       "boundsMax": [
         0.25,
-        0.182,
+        0.189,
         0.25
       ],
-      "triangles": 4640,
-      "bytes": 194488,
-      "sha256": "ae589a313ccc87b9d25cfe49c199cfc6500fc135b8ef2b2fd24236d08a53363e",
+      "triangles": 4424,
+      "bytes": 136984,
+      "sha256": "8882d1cf93cd60eaf748ba9256698978fb33dd1751fbaa3be092a893ffadf47f",
       "grip": [
         0.0,
         0.091,
@@ -600,8 +600,8 @@
       "path": "art/items/SODA.glb",
       "size": [
         0.1818,
-        0.302,
-        0.1839
+        0.2957,
+        0.1827
       ],
       "boundsMin": [
         -0.0909,
@@ -610,12 +610,12 @@
       ],
       "boundsMax": [
         0.0909,
-        0.302,
-        0.093
+        0.2957,
+        0.0918
       ],
-      "triangles": 2372,
-      "bytes": 96748,
-      "sha256": "03649e0a617ea2785a903ac07d6f61aef8b1a0bfb5169adeac2f12dc5a98dcd7",
+      "triangles": 2912,
+      "bytes": 120732,
+      "sha256": "1d79dd6481fe0950d5d33368c40cae7107bc71219d8e5881f7ca6aacaf788c2d",
       "grip": [
         0.0,
         0.151,
@@ -626,23 +626,23 @@
     "WATER": {
       "path": "art/items/WATER.glb",
       "size": [
-        0.176,
+        0.175751,
         0.41,
-        0.1785
+        0.176676
       ],
       "boundsMin": [
-        -0.088,
+        -0.087876,
         -0.0,
-        -0.088
+        -0.087876
       ],
       "boundsMax": [
-        0.088,
+        0.087876,
         0.41,
-        0.0905
+        0.0888
       ],
-      "triangles": 2544,
-      "bytes": 105644,
-      "sha256": "d69b7a9dc9dce4f9219f7bbd39cc2331a93e5a6483b493dbad0e0478ecc78998",
+      "triangles": 3596,
+      "bytes": 107308,
+      "sha256": "2832c1a63a30078c54e4b122e7eac572671ca1e5e9eb80c52fbc7bacfcf19130",
       "grip": [
         0.0,
         0.205,
@@ -668,8 +668,8 @@
         0.279
       ],
       "triangles": 4240,
-      "bytes": 164668,
-      "sha256": "23e5a8a74d8fa7b2853d60302ec3535d9839f08d12badc860cedefc46195759f",
+      "bytes": 166256,
+      "sha256": "e0d845eccf6108e72675c8208db80f774c973114c0f276040eb4e8ec7721e7d4",
       "grip": [
         0.0,
         0.3,
@@ -681,22 +681,22 @@
       "path": "art/items/BOX.glb",
       "size": [
         0.62,
-        0.5175,
-        0.4975
+        0.5118,
+        0.4913
       ],
       "boundsMin": [
         -0.31,
         -0.0,
-        -0.248
+        -0.2418
       ],
       "boundsMax": [
         0.31,
-        0.5175,
+        0.5118,
         0.2495
       ],
-      "triangles": 1772,
-      "bytes": 90996,
-      "sha256": "4c5729e5225156b6596668cfb8e31d9c24bf3a520c4413edb219e3c9e6749bd7",
+      "triangles": 672,
+      "bytes": 48548,
+      "sha256": "137cd459ac00bd1b87807fa35c46da18bef109397464baab77afb81174156598",
       "grip": [
         0.0,
         0.25875,
@@ -707,23 +707,23 @@
     "CABINET": {
       "path": "art/items/CABINET.glb",
       "size": [
-        0.99,
-        1.135,
-        0.536
+        0.998,
+        1.143,
+        0.54
       ],
       "boundsMin": [
-        -0.495,
+        -0.499,
         -0.0,
-        -0.225
+        -0.229
       ],
       "boundsMax": [
-        0.495,
-        1.135,
+        0.499,
+        1.143,
         0.311
       ],
-      "triangles": 3600,
-      "bytes": 157108,
-      "sha256": "0edbb5a166aab7a59023acfb2c10bac094a1bed31542bfa77afa513af125eefa",
+      "triangles": 4200,
+      "bytes": 170656,
+      "sha256": "7b7738f665ae22e6cfd90fb31fc62a36cd302036a9e2c7bb54eeefa21e460be2",
       "grip": [
         0.0,
         0.5675,
@@ -749,8 +749,8 @@
         0.241341
       ],
       "triangles": 3408,
-      "bytes": 163392,
-      "sha256": "b087630f08012d13e435209b2c74528b244032f9dc1ce700d3902e9a1f7c0d75",
+      "bytes": 163400,
+      "sha256": "679aec25bfb82352c7b152cdd163eb589ffcc60d3abdef1a15baa23f9e8e951b",
       "grip": [
         0.0,
         0.448992,
@@ -776,8 +776,8 @@
         0.302
       ],
       "triangles": 3104,
-      "bytes": 140984,
-      "sha256": "aa7841b2fc2de8b3192e76e876f3d50c153db03b5a1b5c0fa73a07f1bc578754",
+      "bytes": 124860,
+      "sha256": "2af8a011ee970f46cc5482ebe18b63633a7a9e9a95151cf8c4bb3e4abe3efe7f",
       "grip": [
         0.0,
         0.28375,
@@ -803,8 +803,8 @@
         0.289
       ],
       "triangles": 7776,
-      "bytes": 347528,
-      "sha256": "7cbfa952ce80390733b9915ddd4c2f8ff7f4f6676d5b39f7e168497b4f8f2eda",
+      "bytes": 283176,
+      "sha256": "8626f1e0282280604cab30a8b4db72f9d5c6f0cea90b7ecda12ed7f30afc7de3",
       "grip": [
         0.0,
         0.241,
@@ -816,7 +816,7 @@
       "path": "art/items/DESK.glb",
       "size": [
         1.34,
-        0.78,
+        0.787,
         0.6775
       ],
       "boundsMin": [
@@ -826,12 +826,12 @@
       ],
       "boundsMax": [
         0.67,
-        0.78,
+        0.787,
         0.352
       ],
-      "triangles": 5344,
-      "bytes": 242360,
-      "sha256": "726a8cb960da38378fa2f6c5528b13af27d1cb708aaf21df743560de2677bd81",
+      "triangles": 4588,
+      "bytes": 189008,
+      "sha256": "add6dd8f5a31753c9233b063be649dc516db751fcb34394a09dcce231ce26919",
       "grip": [
         0.0,
         0.39,
@@ -844,21 +844,21 @@
       "size": [
         0.99,
         1.28,
-        0.32
+        0.317001
       ],
       "boundsMin": [
         -0.495,
         -0.0,
-        -0.16
+        -0.157
       ],
       "boundsMax": [
         0.495,
         1.28,
         0.16
       ],
-      "triangles": 3024,
-      "bytes": 140076,
-      "sha256": "f5b7c771893ef124700a09bd3943c7a34934cf39c74d6ea85af80f7d58f03955",
+      "triangles": 4320,
+      "bytes": 191800,
+      "sha256": "7c4cbf4c8209eb5b20ac87840d40cc04bced82574fb5487c2a564bffa0d02feb",
       "grip": [
         0.0,
         0.64,
@@ -884,8 +884,8 @@
         0.26
       ],
       "triangles": 704,
-      "bytes": 41520,
-      "sha256": "1cc68e80af44a5c9bca0e0e89c0d3296863f050aec309f05d83462730b11813d",
+      "bytes": 43492,
+      "sha256": "da1ffa349f194560cd174231a14d6626660c5ce9ddb8e63c60a4b862c320013d",
       "grip": [
         0.0,
         0.232992,
@@ -912,7 +912,7 @@
       ],
       "triangles": 3492,
       "bytes": 163896,
-      "sha256": "2fa0a3fdb661ed77297e8e7c63a2660d200d6dfb4d4ea257939e7e59a0d10474",
+      "sha256": "93f35e5cd6abe2517e1a6ee287d19c55a731313c0d2754e2ad41a7e8900ce747",
       "grip": [
         -0.00725,
         0.065,
@@ -925,21 +925,21 @@
       "size": [
         0.48,
         0.48,
-        0.122
+        0.1275
       ],
       "boundsMin": [
         -0.24,
         -0.0,
-        -0.03
+        -0.0355
       ],
       "boundsMax": [
         0.24,
         0.48,
         0.092
       ],
-      "triangles": 3536,
-      "bytes": 145408,
-      "sha256": "440d38a82593bc2daa9b03935b56d961e37c643d2dd27626b6200f00ba8d116b",
+      "triangles": 6000,
+      "bytes": 284656,
+      "sha256": "1166de01b6258a872bcf5eb697146382e72152acda5a0fe6569e53d5c42588dc",
       "grip": [
         0.0,
         0.24,
@@ -964,9 +964,9 @@
         0.821,
         0.125
       ],
-      "triangles": 4828,
-      "bytes": 185472,
-      "sha256": "67bd384322b83617ac801211fb487f6be4e57c9d712f1b294660c13957700cd7",
+      "triangles": 5260,
+      "bytes": 196560,
+      "sha256": "c093ee8d228bc76faeec90345a005be5510a852afd91c300a131d4688ea65840",
       "grip": [
         0.0,
         0.4105,
@@ -979,7 +979,7 @@
       "size": [
         0.352,
         0.275,
-        0.251
+        0.250637
       ],
       "boundsMin": [
         -0.125,
@@ -989,11 +989,11 @@
       "boundsMax": [
         0.227,
         0.275,
-        0.126
+        0.125637
       ],
-      "triangles": 1228,
-      "bytes": 51240,
-      "sha256": "f76dd6a2041887b0bdb42ce812921310d28ae26da133b80cd1523a468ca2774c",
+      "triangles": 1448,
+      "bytes": 46156,
+      "sha256": "3c20475fd3ab3e57351da27a684484cf1aac9be0d02a2f5218ad4ea58d0759c2",
       "grip": [
         0.051,
         0.1375,
@@ -1020,7 +1020,7 @@
       ],
       "triangles": 3764,
       "bytes": 146988,
-      "sha256": "c956a0fbd1b00b5dbe1ace2a83009215908b7ee6640400dad0053ad167045da8",
+      "sha256": "4b30f74007db67d4780d742e39f2b71cbad370b28e54f8079020b45cfe982b09",
       "grip": [
         0.000217,
         0.393825,
@@ -1045,9 +1045,9 @@
         0.257,
         0.23
       ],
-      "triangles": 2320,
-      "bytes": 84676,
-      "sha256": "240411f85cb311048f0da6306141ae62bc24fd8cd897d3708a807d4136f1ed87",
+      "triangles": 2152,
+      "bytes": 58632,
+      "sha256": "aa245efacdc7a5baf6b0af0cd4666c2e999a44858dc7e6ac044c49160637f2f8",
       "grip": [
         0.0,
         0.1285,
@@ -1058,23 +1058,23 @@
     "VASE": {
       "path": "art/items/VASE.glb",
       "size": [
-        0.33,
+        0.333021,
         0.492,
-        0.33
+        0.333021
       ],
       "boundsMin": [
-        -0.165,
+        -0.16651,
         -0.0,
-        -0.165
+        -0.16651
       ],
       "boundsMax": [
-        0.165,
+        0.166511,
         0.492,
-        0.165
+        0.166511
       ],
-      "triangles": 1760,
-      "bytes": 62744,
-      "sha256": "5344c69378cec39826a3a8f60816b78fc9f37e1003ba7c4379635d1807444a99",
+      "triangles": 4896,
+      "bytes": 180328,
+      "sha256": "27b4a275b4a43ea2c4f9945d375c02c986c9429c58bf7d8dfe9f8c867c463d6b",
       "grip": [
         0.0,
         0.246,
@@ -2361,7 +2361,10 @@
         "id": "Satchel",
         "slot": "Back",
         "mesh": "SK_Satchel",
-        "tint": "satchel_canvas"
+        "tint": [
+          "satchel_canvas",
+          "satchel_straps"
+        ]
       },
       {
         "id": "TBadge",
@@ -2691,6 +2694,15 @@
             0.725,
             0.278
           ]
+        },
+        {
+          "id": "ink",
+          "name": "Ink",
+          "rgb": [
+            0.15,
+            0.15,
+            0.17
+          ]
         }
       ],
       "Headwear": [
@@ -2803,6 +2815,15 @@
             0.757,
             0.353
           ]
+        },
+        {
+          "id": "ink",
+          "name": "Ink",
+          "rgb": [
+            0.15,
+            0.15,
+            0.17
+          ]
         }
       ],
       "Back": [
@@ -2859,6 +2880,15 @@
             0.282,
             0.227
           ]
+        },
+        {
+          "id": "ink",
+          "name": "Ink",
+          "rgb": [
+            0.15,
+            0.15,
+            0.17
+          ]
         }
       ]
     },
@@ -2876,10 +2906,10 @@
         "Top": "tomato",
         "Bottoms": "cocoa",
         "Gloves": "ink",
-        "Footwear": "classic",
+        "Footwear": "ink",
         "Headwear": "harbour",
-        "Face": "classic",
-        "Back": "saddle"
+        "Face": "ink",
+        "Back": "ink"
       }
     }
   },
@@ -3515,9 +3545,9 @@
       },
       "Classic": {
         "baseColor": [
-          1,
-          0.77,
-          0.66,
+          0.159,
+          0.672,
+          0.434,
           1
         ],
         "metallic": 0,
@@ -3690,9 +3720,9 @@
       },
       "Classic": {
         "baseColor": [
-          0.66,
-          0.34,
-          0.105,
+          0.456,
+          0.141,
+          0.038,
           1
         ],
         "metallic": 0,
@@ -3737,9 +3767,9 @@
       },
       "Classic": {
         "baseColor": [
-          0.29,
-          0.12,
-          0.055,
+          0.18,
+          0.07,
+          0.031,
           1
         ],
         "metallic": 0,
@@ -3784,13 +3814,77 @@
       },
       "Classic": {
         "baseColor": [
-          0.9,
-          0.6,
-          0.27,
+          0.79,
+          0.376,
+          0.102,
           1
         ],
         "metallic": 0,
         "roughness": 0.62,
+        "emissive": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "kraft": {
+      "Classic": {
+        "baseColor": [
+          0.392,
+          0.181,
+          0.065,
+          1
+        ],
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": [
+          0,
+          0,
+          0
+        ]
+      },
+      "Arcade": {
+        "baseColor": [
+          0.1,
+          0.45,
+          0.5,
+          1
+        ],
+        "metallic": 0,
+        "roughness": 0.7,
+        "emissive": [
+          0,
+          0,
+          0
+        ]
+      },
+      "Candy": {
+        "baseColor": [
+          0.98,
+          0.55,
+          0.36,
+          1
+        ],
+        "metallic": 0,
+        "roughness": 0.7,
+        "emissive": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "plush": {
+      "Classic": {
+        "baseColor": [
+          0.342,
+          0.127,
+          0.042,
+          1
+        ],
+        "metallic": 0,
+        "roughness": 0.92,
         "emissive": [
           0,
           0,

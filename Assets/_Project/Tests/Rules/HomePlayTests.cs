@@ -12,11 +12,12 @@ namespace Wreckabulary.Rules.Tests
         static HomeDesigner Designer() => new HomeDesigner(Map, TestData.Catalogue());
 
         [Test]
-        public void OnlyLastTeamStandingModesTakeACustomHome()
+        public void BattleAndWordGameModesTakeACustomHome()
         {
-            CollectionAssert.AreEqual(new[] { "Dibs", "Duos" }, HomeDesigner.PlayableModes);
-            foreach (string mode in new[] { "Dibs", "Duos" }) Assert.IsTrue(HomeDesigner.Playable(mode), mode);
-            foreach (string mode in new[] { "MovingOut", "MovingDay", "Escape", "Tutorial", "Workshop", "", null })
+            var playable = new[] { "Dibs", "Duos", "Deathmatch", "War", "ShoppingList", "RiddleRush" };
+            CollectionAssert.AreEqual(playable, HomeDesigner.PlayableModes);
+            foreach (string mode in playable) Assert.IsTrue(HomeDesigner.Playable(mode), mode);
+            foreach (string mode in new[] { "MovingOut", "MovingDay", "Escape", "Tutorial", "Workshop", "dibs", "", null })
                 Assert.IsFalse(HomeDesigner.Playable(mode), mode + " needs objective data a home save does not have");
         }
 

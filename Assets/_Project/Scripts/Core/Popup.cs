@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -32,8 +33,13 @@ namespace Wreckabulary
 
         public static void Damage(float amount, Vector3 at)
         {
-            if (amount > 0f && CombatFeedbackOptions.ShowDamage)
-                Create($"{Mathf.CeilToInt(amount)} <size=60%>DMG</size>", at, new Color(1f, .48f, .30f), 2.2f, true).SeparateFeedback();
+            if (amount > 0f && GameplayPrefs.DamageNumbers)
+                Create(HitText.Damage(amount), at, new Color(1f, .48f, .30f), 2.6f, true).SeparateFeedback();
+        }
+
+        public static void Effect(string word, Vector3 at, Color color, float size = 2.5f)
+        {
+            if (GameplayPrefs.EffectWords) Create(word, at, color, size);
         }
 
         static Material OutlineMaterial(Material source, Color ink)

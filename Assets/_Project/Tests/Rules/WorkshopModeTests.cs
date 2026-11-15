@@ -61,8 +61,9 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [TestCase("TimeRun", RaceFormat.Solo, "Carry the keepsake through 3 laps · 25 min", "1–4 players · all together")]
-        [TestCase("TeamRace", RaceFormat.Duo, "Carry the keepsake through 3 laps · 25 min", "2–4 players · 2 vs 2")]
-        [TestCase("BrawlRace", RaceFormat.Squad, "Carry the keepsake through 3 laps · 25 min", "2–8 players · 4 vs 4 · knockdowns on")]
+        [TestCase("TeamRace", RaceFormat.Solo, "Carry the keepsake through 3 laps · 25 min", "2 players · 2 teams of 1")]
+        [TestCase("TeamRace", RaceFormat.Duo, "Carry the keepsake through 3 laps · 25 min", "2–4 players · 2 teams of 2")]
+        [TestCase("BrawlRace", RaceFormat.Squad, "Carry the keepsake through 3 laps · 25 min", "2–8 players · 2 teams of 4 · knockdowns on")]
         [TestCase("FreeForAll", RaceFormat.Solo, "First to 10 knockouts · 8 min", "2–8 players · everyone for themselves · knockdowns on")]
         [TestCase("Freestyle", RaceFormat.Solo, "Explore and build freely · no time limit", "1–8 players · all together")]
         public void ModeCardsDescribeTheFixedModeRules(string mode, RaceFormat format, string win, string players)

@@ -57,7 +57,7 @@ namespace Wreckabulary
             var list = LobbyKit.Scroll(area, "Controls scroll", 4);
 
             var legends = LobbyKit.Segmented(list, "Control legends", new[] {
-                ("House controls", "House games"), ("Wordbound controls", "Wordbound")
+                ("House controls", "House games"), ("Wordbound controls", "Courses")
             }, "House controls", name => SelectLegend(name == "Wordbound controls"), 44, 18);
             houseLegend = legends.Find("House controls").GetComponent<Button>();
             wordboundLegend = legends.Find("Wordbound controls").GetComponent<Button>();
@@ -173,12 +173,13 @@ namespace Wreckabulary
 
         static string PadHint(string action, bool wordbound) => action switch
         {
-            "Move" => "Left stick / D-pad", "Attack" => "X / Square\nLT / L2 blocks",
-            "Aim" => wordbound ? "RB / R1" : "—", "Jump" => "A / Cross",
+            "Move" => "Left stick", "Attack" => "X / Square\nLT / L2 blocks",
+            "Aim" => wordbound ? "RB / R1" : "—", "Look around" => "Hold L3 + right stick", "Jump" => "A / Cross",
             "Dodge" => wordbound ? "—" : "B / Circle", "Interact" => "RT / R2",
             "Spell" => wordbound ? "Y / Triangle" : "Hold Y / Triangle", "Drop" => "Hold LB / L1",
-            "Hand 1" or "Hand 2" => wordbound ? "—" : "R3 swaps hands",
-            "Bag" => wordbound ? "R3 cycles gear" : "—", "Pause" => wordbound ? "Start / Options" : "View / Share", _ => "—"
+            "Hand 1" => wordbound ? "D-pad left" : "D-pad left\nR3 swaps hands",
+            "Hand 2" => wordbound ? "D-pad right" : "D-pad right\nR3 swaps hands",
+            "Bag" => wordbound ? "R3 cycles gear" : "Hold RB / R1", "Pause" => wordbound ? "Start / Options" : "View / Share", _ => "—"
         };
 
         void Begin(BindingRow row)
@@ -248,7 +249,7 @@ namespace Wreckabulary
         {
             if (!status) return;
             bool waiting = IsListening;
-            legendTitle.text = showWordbound ? "WORDBOUND CONTROLS" : "HOUSE CONTROLS";
+            legendTitle.text = showWordbound ? "COURSE CONTROLS" : "HOUSE CONTROLS";
             sensitivity.text = Mathf.RoundToInt(KeyBindings.Sensitivity * 100f) + "%";
             invert.text = KeyBindings.InvertY ? "On" : "Off";
             foreach (var row in rows)

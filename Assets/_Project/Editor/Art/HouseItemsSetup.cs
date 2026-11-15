@@ -29,10 +29,13 @@ namespace Wreckabulary.EditorTools
         [Serializable] sealed class FileRecord { public string packagePath, sha256; public long bytes; }
         [Serializable] sealed class License { public string name; public FileRecord evidence; }
         [Serializable] sealed class PackBounds { public float[] size; }
+        [Serializable] sealed class Rebuilt { public string script, sha256; public long bytes; }
         [Serializable] sealed class Entry
         {
             public string word, kenneyName, packagePath, sha256; public long bytes; public PackBounds packBounds;
-            public float targetLongest, heldLongest, heldScale, yaw; public float[] size, grip;
+            public float targetLongest, heldLongest, heldScale, yaw; public float[] size, grip; public Rebuilt rebuilt;
+            public bool IsRebuilt => !string.IsNullOrEmpty(rebuilt?.sha256);
+            public string ModelSha256 => IsRebuilt ? rebuilt.sha256 : sha256;
         }
         [Serializable] sealed class Manifest { public int schemaVersion; public string package; public License license; public Entry[] entries; }
 
@@ -50,7 +53,7 @@ namespace Wreckabulary.EditorTools
             CheckCopy(manifest.license.evidence.sha256, ArtRoot + "/License.txt");
             foreach (var entry in manifest.entries)
             {
-                CheckCopy(entry.sha256, ModelPath(entry.word));
+                CheckCopy(entry.ModelSha256, ModelPath(entry.word));
                 CheckExisting<GameObject>(PrefabPath(entry.word));
                 CheckExisting<Texture2D>(IconPath(entry.word));
             }
@@ -94,6 +97,9 @@ namespace Wreckabulary.EditorTools
                 if (entry == null || entry.word != words[i] || entry.kenneyName != KenneyNames[i])
                     throw new InvalidOperationException("Unexpected House item identity or order at entry " + i);
                 VerifyFile(entry.packagePath, entry.sha256, entry.bytes, "Source/Kenney/Models/" + KenneyNames[i] + ".fbx");
+                if (entry.IsRebuilt && (entry.rebuilt.sha256.Length != 64 || entry.rebuilt.sha256.Any(c => !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f')) ||
+                    entry.rebuilt.bytes <= 0 || string.IsNullOrEmpty(entry.rebuilt.script)))
+                    throw new InvalidOperationException("Unexpected rebuilt model record in the manifest: " + entry.word);
                 if (!Positive(entry.packBounds?.size) || !Positive(entry.size) || entry.grip?.Length != 3 || !entry.grip.All(float.IsFinite) ||
                     !(entry.targetLongest > 0f) || !(entry.heldScale > 0f && entry.heldScale <= 1f) || entry.yaw is not (0f or 90f or 180f or 270f) ||
                     Mathf.Abs(entry.heldScale - entry.heldLongest / entry.targetLongest) > .0001f ||
@@ -119,7 +125,8 @@ namespace Wreckabulary.EditorTools
         static GameObject Prefab(Entry entry, List<string> created)
         {
             string modelPath = ModelPath(entry.word), path = PrefabPath(entry.word);
-            if (CopyMissing(entry.packagePath, entry.sha256, modelPath)) ConfigureImporter(modelPath);
+            if (entry.IsRebuilt) CheckRebuilt(entry, modelPath);
+            else if (CopyMissing(entry.packagePath, entry.sha256, modelPath)) ConfigureImporter(modelPath);
             ValidateImporter(modelPath);
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
             if (!model || model.GetComponentsInChildren<MeshFilter>(true).Length == 0)
@@ -405,6 +412,12 @@ namespace Wreckabulary.EditorTools
             File.Copy(SourceRoot + "/" + packagePath, target, false);
             AssetDatabase.ImportAsset(target, ImportAssetOptions.ForceSynchronousImport);
             return true;
+        }
+
+        static void CheckRebuilt(Entry entry, string target)
+        {
+            if (!File.Exists(target)) throw new IOException($"Missing rebuilt model {target}; run {entry.rebuilt.script} --in-place.");
+            CheckCopy(entry.rebuilt.sha256, target);
         }
 
         static void CheckCopy(string sha256, string target)

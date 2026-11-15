@@ -372,25 +372,25 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator ClearingTheBathroomOnlyHurtsWhoeverIsUpThere()
+        public IEnumerator ClearingTheStudyOnlyHurtsWhoeverIsUpThere()
         {
             yield return LoadBattle("Dibs");
             yield return BeginWithBotsStopped();
             var clear = Object.FindAnyObjectByType<ClearOutController>();
             var players = Object.FindAnyObjectByType<PlayerJoinManager>().Players;
             PlayerController up = players[0], below = players[1];
-            up.Respawn(new Vector3(-2f, 3f, 12f));
-            below.Respawn(new Vector3(-2f, 0f, 12f));
+            up.Respawn(new Vector3(11f, 3f, 1f));
+            below.Respawn(new Vector3(11f, 0f, 1f));
             var began = typeof(ClearOutController).GetField("began", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             began.SetValue(clear, Time.time - (Match.Rules.ClearOutFirstAt - Match.Rules.ClearOutWarnSeconds + 1f));
             yield return null;
             var layout = Object.FindAnyObjectByType<RoomBuilder>().Layout;
-            Assert.AreEqual("Bathroom", layout.ClearOutOrders["Dibs"][0], "the bathroom upstairs is packed first");
-            StringAssert.Contains(layout.WithStorey("Bathroom"), clear.Message);
+            Assert.AreEqual("Study", layout.ClearOutOrders["Dibs"][0], "the study upstairs is packed first");
+            StringAssert.Contains(layout.WithStorey("Study"), clear.Message);
             began.SetValue(clear, Time.time - (Match.Rules.ClearOutFirstAt + 1f));
             yield return new WaitForSeconds(.6f);
-            Assert.Less(up.Health.Current, up.Health.Max, "the bathroom hurts whoever is in it");
-            Assert.AreEqual(below.Health.Max, below.Health.Current, "the hall underneath is fine");
+            Assert.Less(up.Health.Current, up.Health.Max, "the study hurts whoever is in it");
+            Assert.AreEqual(below.Health.Max, below.Health.Current, "the dining room underneath is fine");
         }
 
         [UnityTest]
@@ -403,7 +403,8 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Playing, 5f, "level start");
             Assert.AreEqual("Terrace House", director.CurrentLevel.name);
             Assert.AreEqual(12, director.Rooms.Count);
-            Assert.AreEqual("KidsRoom", director.CurrentLevel.items.First(i => i.word == "LAMP").room);
+            Assert.AreEqual("Study", director.CurrentLevel.items.First(i => i.word == "LAMP").room);
+            Assert.IsTrue(director.Rooms.First(r => r.name == "Study").Contains(new Vector3(11f, 3.2f, 1f)), "the lamp goes to the study upstairs");
             var kids = director.Rooms.First(r => r.name == "KidsRoom");
             var kitchen = director.Rooms.First(r => r.name == "Kitchen");
             var upstairs = new Vector3(10f, 3.2f, 9f);

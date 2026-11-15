@@ -87,7 +87,7 @@ namespace Wreckabulary.Online.Editor
                 Debug.Log("Parcel Depot preview framing is already selected. No settings were rewritten; this is still a visual candidate.");
                 return;
             }
-            Require(pose.Module == "Service",
+            Require(Stale(settings, WordboundSoloEntry.ParcelServiceMap),
                 "Parcel Depot framing was edited. The saved pose has been preserved; use the preview Inspector to compare manually.");
             Require(File.Exists(path) && File.Exists(path + ".meta"), "Saved settings and metadata are required.");
             RejectLinks(Path.GetFullPath(backup));
@@ -114,6 +114,20 @@ namespace Wreckabulary.Online.Editor
             }, Formatting.Indented)));
             Selection.activeObject = settings; EditorGUIUtility.PingObject(settings);
             Debug.Log("Parcel Depot preview framing candidate saved. Capture and compare before choosing it. Exact backup: " + backup);
+        }
+
+        public static bool Stale(WordboundSoloPreviewSettings settings, string map) =>
+            !InstalledModules(settings, map).Contains(settings.Pose(map).Module, StringComparer.Ordinal);
+
+        public static string[] InstalledModules(WordboundSoloPreviewSettings settings, string map)
+        {
+            Require(settings, "Solo preview settings are required.");
+            var data = Resources.Load<GameData>(GameData.ResourcePath);
+            var launch = Resources.Load<WordboundLaunchAssets>(WordboundLaunchAssets.ResourcePath);
+            Require(data && data.items && data.rules && launch, "Installed Solo inputs are missing.");
+            var content = WordboundLauncher.CreateSoloContent(data.items.text, data.rules.text, settings.Mode, settings.Seed, map,
+                launch.ParcelServiceCourse);
+            return content.Course.Geometry.Select(module => module.Id).ToArray();
         }
 
         [MenuItem("Tools/Wordbound/Presentation/Capture two Solo draft previews")]
@@ -146,6 +160,9 @@ namespace Wreckabulary.Online.Editor
                 EditorSettings.asyncShaderCompilation = false;
                 foreach (string map in maps)
                 {
+                    Require(!Stale(settings, map), "The saved " + map + " preview pose names a module the course no longer has. " +
+                        (map == WordboundSoloEntry.ParcelServiceMap ? "Run Tools/Wordbound/Presentation/Use Parcel Depot preview framing."
+                            : "Reframe it from the Solo preview settings."));
                     using var stage = new WordboundSoloPreviewStage(settings, map);
                     stage.RequireCameraOutsideSurface();
                     sets.Add(new { map, seed = settings.Seed, mode = settings.Mode, sourceHash = stage.Content.Course.SourceHash,

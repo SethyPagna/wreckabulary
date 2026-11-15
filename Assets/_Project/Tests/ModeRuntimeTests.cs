@@ -197,8 +197,8 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Playing, 5f, "level start");
             Assert.AreEqual("City Flat", director.CurrentLevel.name);
             Assert.AreEqual(10, director.Rooms.Count);
-            CollectionAssert.AreEquivalent(new[] { "BED", "SOFA", "TABLE", "LAMP" }, director.CurrentLevel.items.Select(i => i.word).ToArray());
-            Assert.AreEqual("Bedroom", director.CurrentLevel.items.First(i => i.word == "BED").room);
+            CollectionAssert.AreEquivalent(new[] { "SOFA", "FAN", "MAT", "TABLE" }, director.CurrentLevel.items.Select(i => i.word).ToArray());
+            Assert.AreEqual("Roof", director.CurrentLevel.items.First(i => i.word == "TABLE").room, "the table goes up on the roof");
         }
 
         [UnityTest]

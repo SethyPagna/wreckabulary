@@ -39,15 +39,26 @@ namespace Wreckabulary
         Vector3 lastFeet;
         readonly RaycastHit[] blockers = new RaycastHit[16];
         readonly Dictionary<Renderer, float> faded = new();
+        readonly List<Renderer> occluding = new();
         readonly List<Renderer> unfade = new();
         readonly Dictionary<Renderer, Renderer[]> cutawayParts = new();
         readonly List<Renderer> bodyRenderers = new();
+        int leases;
+        bool held, orbited;
+        float orbitYaw, orbitPitch;
 
         public PlayerController Target => target;
         public Camera ViewCamera => lens;
         public PlayerController FollowedPlayer => target;
         public bool IsFollowing(PlayerController player) => target && target == player;
-        public Vector3 PlanarForward => World.Flat(transform.forward).normalized;
+        public static bool TakesLook => Instance && Instance.isActiveAndEnabled;
+        public bool Looking => leases > 0 || held;
+        public bool Dragging => leases > 0;
+        public float OrbitYaw => orbitYaw;
+        public float OrbitPitch => orbitPitch;
+        bool Orbiting => orbitYaw != 0f || orbitPitch != 0f;
+        Vector3 SteadyForward => target ? ShoulderView.Forward(target.LookYaw, 0f) : baseRotation * Vector3.forward;
+        public Vector3 PlanarForward => World.Flat(Orbiting ? SteadyForward : transform.forward).normalized;
         public Vector2 ScreenDirectionToWorld(Vector2 input)
         {
             var forward = PlanarForward;
@@ -62,6 +73,32 @@ namespace Wreckabulary
             p && p.Binding != null && p.Binding is not BotBinding && p.Binding is not ScriptedBinding;
 
         public void Follow(PlayerController player) => followed = player;
+
+        public void BeginLook() => leases++;
+
+        public void EndLook() => leases = Mathf.Max(0, leases - 1);
+
+        public void Orbit(float yawDegrees, float pitchDegrees)
+        {
+            if (!float.IsFinite(yawDegrees) || !float.IsFinite(pitchDegrees)) return;
+            orbitYaw = FreeLook.Wrap(orbitYaw + yawDegrees);
+            orbitPitch = ClampPitch(orbitPitch + pitchDegrees);
+        }
+
+        public void OrbitDrag(Vector2 screenPixels) =>
+            Orbit(DragDegrees(screenPixels.x), DragDegrees(KeyBindings.InvertY ? screenPixels.y : -screenPixels.y));
+
+        public static float DragDegrees(float pixels) => FreeLook.DragDegrees(pixels, Screen.height);
+
+        float ClampPitch(float pitch) => target
+            ? FreeLook.ClampPitch(pitch, target.LookPitch * Mathf.Rad2Deg, ShoulderView.MinPitch * Mathf.Rad2Deg, ShoulderView.MaxPitch * Mathf.Rad2Deg)
+            : FreeLook.OverheadPitch(pitch);
+
+        void ResetOrbit()
+        {
+            orbitYaw = orbitPitch = 0f;
+            orbited = false;
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => Instance = null;
@@ -114,7 +151,7 @@ namespace Wreckabulary
                 }
             }
             if (!TryGetComponent(out visibility)) visibility = gameObject.AddComponent<CameraCutaway>();
-            visibility.SetOccluders(faded.Keys);
+            visibility.SetOccluders(occluding);
             house = StoreyCutaway.Instance;
             GraphicsOptions.ApplyTo(lens);
         }
@@ -123,6 +160,9 @@ namespace Wreckabulary
         {
             if (target) target.ShooterView = false;
             target = null;
+            leases = 0;
+            held = false;
+            ResetOrbit();
             RestoreFaded();
             if (visibility) visibility.ClearView(this);
             CursorPolicy.Apply(false);
@@ -130,7 +170,7 @@ namespace Wreckabulary
 
         public static void Shake(float amount)
         {
-            if (Instance) Instance.shake = Mathf.Max(Instance.shake, amount);
+            if (Instance) Instance.shake = Mathf.Max(Instance.shake, amount * ScreenShake.Scale);
         }
 
         PlayerController ChooseTarget()
@@ -151,6 +191,7 @@ namespace Wreckabulary
             bool wasThirdPerson = target;
             if (target) target.ShooterView = false;
             target = next;
+            ResetOrbit();
             if (target)
             {
                 target.ShooterView = true;
@@ -186,9 +227,10 @@ namespace Wreckabulary
             }
             var next = ChooseTarget();
             if (next != target) SetTarget(next);
+            GatherLook(Time.unscaledDeltaTime);
             if (!house) house = StoreyCutaway.Instance;
             visibility.SetView(this, house, target);
-            visibility.SetOccluders(faded.Keys);
+            visibility.SetOccluders(occluding);
             view.Environment = house;
             view.Cutaway = visibility;
             if (target) FollowTarget();
@@ -196,11 +238,32 @@ namespace Wreckabulary
             visibility.RefreshVisibility();
         }
 
+        void GatherLook(float dt)
+        {
+            held = false;
+            if (target) Gather(target);
+            else foreach (var player in World.Players) if (IsHuman(player)) Gather(player);
+            if (!Looking)
+            {
+                orbitYaw = FreeLook.Settle(orbitYaw, dt);
+                orbitPitch = FreeLook.Settle(orbitPitch, dt);
+            }
+            orbitPitch = ClampPitch(orbitPitch);
+        }
+
+        void Gather(PlayerController player)
+        {
+            if (!player.Commands.lookAround) return;
+            held = true;
+            Orbit(player.Commands.orbit.x * Mathf.Rad2Deg, player.Commands.orbit.y * Mathf.Rad2Deg);
+        }
+
         void FollowTarget()
         {
             if (!target.IsEliminated) lastFeet = target.transform.position;
             float dt = Time.unscaledDeltaTime;
-            if (lens) view.Place(lens, lastFeet, target.LookYaw, target.LookPitch, dt, !target.IsEliminated && target.Commands.aimHeld);
+            if (lens) view.Place(lens, lastFeet, target.LookYaw + orbitYaw * Mathf.Deg2Rad, target.LookPitch + orbitPitch * Mathf.Deg2Rad,
+                dt, !target.IsEliminated && target.Commands.aimHeld);
             if (shake > 0f)
             {
                 var t = transform;
@@ -222,6 +285,8 @@ namespace Wreckabulary
             unfade.Clear();
             foreach (var pair in faded) if (pair.Value < now) unfade.Add(pair.Key);
             foreach (var renderer in unfade) faded.Remove(renderer);
+            occluding.Clear();
+            foreach (var pair in faded) occluding.Add(pair.Key);
         }
 
         void FindOccluders(Vector3 feet, float now)
@@ -266,7 +331,11 @@ namespace Wreckabulary
             }
         }
 
-        void RestoreFaded() => faded.Clear();
+        void RestoreFaded()
+        {
+            faded.Clear();
+            occluding.Clear();
+        }
 
         void Overview()
         {
@@ -274,9 +343,37 @@ namespace Wreckabulary
             float dt = Time.unscaledDeltaTime;
             if (framesLayout) smooth = FramePlayers(dt);
             else smooth = Vector3.Lerp(smooth, Drift(), 1f - Mathf.Exp(-3f * dt));
-            transform.position = smooth + Random.insideUnitSphere * shake;
+            var at = smooth;
+            if (Orbiting && TryPivot(out var pivot)) at = OrbitAround(pivot);
+            else if (orbited)
+            {
+                transform.rotation = baseRotation;
+                orbited = false;
+            }
+            transform.position = at + Random.insideUnitSphere * shake;
             shake = Mathf.MoveTowards(shake, 0f, dt * 1.5f);
             FadeBlockers();
+        }
+
+        bool TryPivot(out Vector3 pivot)
+        {
+            pivot = new Vector3(party.X, party.Y, party.Z);
+            if (framesLayout) return true;
+            var forward = baseRotation * Vector3.forward;
+            if (forward.y > -.1f) return false;
+            pivot = smooth + forward * (-smooth.y / forward.y);
+            return true;
+        }
+
+        Vector3 OrbitAround(Vector3 pivot)
+        {
+            var offset = smooth - pivot;
+            var (x, y, z) = FreeLook.Orbit(offset.x, offset.y, offset.z, orbitYaw, orbitPitch);
+            var at = pivot + new Vector3(x, y, z);
+            transform.rotation = Quaternion.LookRotation(pivot - at);
+            orbited = true;
+            if (framesLayout && lens && lens.orthographic) lens.orthographicSize = FreeLook.WidenedSize(party.Size, lens.aspect, orbitYaw);
+            return at;
         }
 
         Vector3 FramePlayers(float dt)

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -11,7 +12,8 @@ namespace Wreckabulary
         public const float NearDistance = 4f, OverheadDistance = 6f, FadeBand = 1f, UpperStorey = 1.8f;
         public const float ShowingHeadStart = 1f, LetterWidth = .78f, Padding = .2f;
         const float ScreenEm = .028f, MinEm = .12f, MaxEm = 1f, Gap = .25f, FadeSpeed = 4f, Opacity = .9f;
-        static readonly Color Ink = new(1f, .97f, .91f);
+        const float PulseGrow = .18f, PulseRate = 5f;
+        static readonly Color Ink = new(1f, .97f, .91f), Gold = new(1f, .84f, .36f);
         static readonly List<SmashableLabel> live = new();
         static readonly List<SmashableLabel> wanted = new();
         static readonly List<Rect> kept = new();
@@ -22,22 +24,27 @@ namespace Wreckabulary
         static Material material, onTop;
         static Material materialSource;
 
+        public static System.Predicate<Smashable> Pulse;
+
         Smashable smashable;
         Rigidbody body;
         TextMeshPro text;
         Camera view;
         float rise = -1f, alpha, visibility, rank;
-        bool overhead, crowded;
+        bool overhead, crowded, pulsing;
         int order;
 
         public TextMeshPro Text => text;
         public float Alpha => alpha;
         public bool Crowded => crowded;
+        public bool Pulsing => pulsing;
+        public static bool Named => GameplayPrefs.FurnitureNames || Match.Mode == HouseModes.Tutorial;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             root = null;
+            Pulse = null;
             if (material) Destroy(material);
             if (onTop) Destroy(onTop);
             material = onTop = null; materialSource = null;
@@ -107,8 +114,10 @@ namespace Wreckabulary
             float span = camera.orthographic ? camera.orthographicSize
                 : Mathf.Max(.1f, Vector3.Dot(at - eye.position, eye.forward)) * Mathf.Tan(camera.fieldOfView * .5f * Mathf.Deg2Rad);
             text.transform.SetPositionAndRotation(at, eye.rotation);
-            text.transform.localScale = Vector3.one * Mathf.Clamp(ScreenEm * 2f * span, MinEm, MaxEm);
-            text.alpha = alpha * Opacity;
+            float grow = pulsing ? 1f + PulseGrow * Mathf.Abs(Mathf.Sin(Time.unscaledTime * PulseRate)) : 1f;
+            text.transform.localScale = Vector3.one * (Mathf.Clamp(ScreenEm * 2f * span, MinEm, MaxEm) * grow);
+            var tint = pulsing ? Gold : Ink;
+            text.color = new Color(tint.r, tint.g, tint.b, alpha * Opacity);
         }
 
         static void Resolve()
@@ -116,11 +125,16 @@ namespace Wreckabulary
             resolvedFrame = Time.frameCount;
             wanted.Clear();
             kept.Clear();
+            bool named = Named;
+            var pulse = Pulse;
             foreach (var label in live)
             {
                 label.crowded = false;
+                label.visibility = 0f;
+                label.pulsing = pulse != null && label.smashable && pulse(label.smashable);
+                if (!named && !label.pulsing) continue;
                 label.visibility = label.Target(out label.view, out float nearest);
-                label.rank = nearest - (label.alpha > .5f ? ShowingHeadStart : 0f);
+                label.rank = label.pulsing ? float.NegativeInfinity : nearest - (label.alpha > .5f ? ShowingHeadStart : 0f);
                 if (label.visibility > 0f) wanted.Add(label);
             }
             wanted.Sort(NearestFirst);
@@ -130,7 +144,7 @@ namespace Wreckabulary
                 var at = camera.WorldToScreenPoint(label.LabelPoint());
                 if (at.z <= 0f) { label.crowded = true; continue; }
                 var box = ScreenBox(at, ScreenEm * camera.pixelHeight, label.smashable.Word.Length);
-                if (Crowds(box, kept)) label.crowded = true;
+                if (!label.pulsing && Crowds(box, kept)) label.crowded = true;
                 else kept.Add(box);
             }
         }
@@ -164,7 +178,7 @@ namespace Wreckabulary
             }
             if (float.IsNegativeInfinity(highest)) return 0f;
             overhead = !rigged || !rig.IsThirdPerson;
-            return Visibility(overhead, nearest, at.y - highest);
+            return pulsing ? 1f : Visibility(overhead, nearest, at.y - highest);
         }
 
         bool Ensure()

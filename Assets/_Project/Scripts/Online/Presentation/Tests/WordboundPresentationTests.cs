@@ -184,6 +184,29 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(visual.Root.activeSelf);
         }
 
+        [TestCase("BAT", true), TestCase("HAMMER", true), TestCase("TABLE", false)]
+        public void HeldItemsKeepTheHousePartyProportionToTheFittedAvatar(string id, bool miniature)
+        {
+            var item = WordboundTestItems.Raw().Get(id);
+            var house = new GameObject("House party avatar").transform;
+            house.SetParent(anchor.transform, false);
+            float houseHeight = ModelVisual.BoundsIn(house, ModelVisual.Spawn(WordboundVisualResolver.AvatarKey, house)).size.y;
+            using var avatar = resolver.Create("player", new Vector3(.6f, 1.8f, .6f), anchor.transform);
+            Assert.AreEqual(1.8f / houseHeight, avatar.BodyScale, .005f, "the course avatar is the house avatar fitted to 1.8 m");
+            using var held = resolver.Create(id, new Vector3(item.Size[0], item.Size[1], item.Size[2]), anchor.transform);
+            held.PlaceAtHand(anchor.transform, avatar.RightHand, miniature, avatar.BodyScale);
+            Near(Vector3.one * (miniature ? item.HeldScale * avatar.BodyScale : 1f), held.Root.transform.lossyScale);
+            if (miniature)
+                Assert.AreEqual(item.Size[1] * item.HeldScale / houseHeight, item.Size[1] * held.Root.transform.lossyScale.y / 1.8f, .002f,
+                    id + " fills the same share of the avatar's height as in the house party");
+            var socket = ModelVisual.FindNamed(held.Model, "Grip_R");
+            if (socket) Near(avatar.RightHand.position, socket.position);
+            using var unscaled = resolver.Create(id, new Vector3(item.Size[0], item.Size[1], item.Size[2]), anchor.transform);
+            unscaled.PlaceAtHand(anchor.transform, avatar.RightHand, miniature);
+            Near(Vector3.one * (miniature ? item.HeldScale : 1f), unscaled.Root.transform.lossyScale);
+            Assert.Throws<ArgumentException>(() => held.PlaceAtHand(anchor.transform, avatar.RightHand, miniature, 0f));
+        }
+
         [TestCase("letter:A"), TestCase("letter:Z"), TestCase("platform"), TestCase("keepsake")]
         public void NonItemBodiesResolveExistingArtworkAndGroundTheirBounds(string key)
         {

@@ -9,7 +9,7 @@ namespace Wreckabulary.Rules.Tests
     public sealed class WordboundHouseIsolationTests
     {
         static readonly string[] Trees = { "Online", "Rules/Wordbound", "Workshop" };
-        static readonly string[] Forbidden = { "GameConfig", "HouseTuning", "items_house", ".Expand(", "BELT" };
+        static readonly string[] Forbidden = { "GameConfig", "HouseTuning", "items_house", ".Expand(", "BELT", "_house", "houseModes", "LayeredModes", ".Layer(" };
 
         static bool IsTest(string path) => path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
             .Any(part => part.Equals("Tests", StringComparison.Ordinal));

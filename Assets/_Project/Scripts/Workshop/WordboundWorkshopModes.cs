@@ -21,13 +21,14 @@ namespace Wreckabulary.Workshop
             if (content == null) throw new ArgumentNullException(nameof(content));
             RequireRecoveryChoice();
             if (OnlineStarting) throw new InvalidOperationException("Wait for online preparation to finish before changing courses.");
+            CloseStart();
             if (usesFlagship && flagshipDraftHash == content.Hash && (folder == null || folder == storageFolder)) return;
             SaveAndRememberDraft();
             ConfigureFlagship(content);
             if (flagshipDraft != null && flagshipDraftHash == content.Hash && (folder == null || folder == flagshipDraft.Folder))
             {
                 ActivateDraft(flagshipDraft, false, null, true);
-                ShowStatus("Flagship draft · your edits and Undo history are retained."); return;
+                ShowStatus("The Lost Address · your edits and Undo history are retained."); return;
             }
             var back = CurrentSource();
             string baseFolder = folder ?? storageFolder ?? DefaultFolder;
@@ -39,10 +40,10 @@ namespace Wreckabulary.Workshop
                 Play = MatchStateValidation.Requirements(WorkshopModes.Definition("TimeRun")), Storage = scoped, Folder = baseFolder };
             flagshipDraftHash = content.Hash;
             string last = LastMapId(scoped, id);
-            if (ReopenLastMap(session, scoped, last, null, true, "Flagship", out string problem)) return;
+            if (ReopenLastMap(session, scoped, last, null, true, "The Lost Address", out string problem)) return;
             var recovery = scoped.HasRecovery(id) ? scoped : !HasAssignedCourse && legacy.HasRecovery(id) ? legacy : null;
-            OpenRecovered(session, recovery, id, back, null, true, false, "Lost Address draft · Time Trial · Check map tests this exact layout",
-                "Recovered Flagship autosave", "Recovered previous Flagship save", "Start fresh from the Flagship course");
+            OpenRecovered(session, recovery, id, back, null, true, false, "The Lost Address · Time Trial · Check map tests this exact layout",
+                "Recovered The Lost Address autosave", "Recovered the previous save of The Lost Address", "Start fresh from The Lost Address");
             AskAboutDamagedLastMap(scoped, last, problem, back);
         }
         bool localPlaytest;
@@ -50,26 +51,25 @@ namespace Wreckabulary.Workshop
             WorkshopModes.AllowsOneHumanLocal(PlayRequirements);
         public bool LocalPlaytestOnly => localPlaytest;
         bool SelectedModeEnabled => History != null && PlayRequirements != null &&
-            (display != null && displayRevision == History.Revision ? display : History.Current.Course())
-                .SupportedModes.Contains(PlayRequirements.ModeId);
+            CurrentCourse.SupportedModes.Contains(PlayRequirements.ModeId);
         bool RaceSelected => PlayRequirements != null && WorkshopModes.Definition(PlayRequirements.ModeId).IsRace;
 
         public void ConfigureLocalPlaytest(bool enabled)
         {
             localPlaytest = enabled;
             if (enabled && History != null && !CanPlaytestLocally)
-                ShowStatus("Test alone works in Time Trial or Freeplay with one player.");
+                ShowStatus(LocalTestNeed + " with one player.");
         }
 
         public void SelectMode(string modeId, RaceFormat format = RaceFormat.Solo)
         {
             if (History == null) throw new InvalidOperationException("Open a map before selecting a mode.");
-            var choice = WorkshopModes.Select(History.Current.Course(), modeId, format);
+            var choice = WorkshopModes.Select(CurrentCourse, modeId, format);
             CancelGesture(); PlayRequirements = choice.Requirements;
             LastPreview = null; LastPlaytestDraft = null; displayRevision = -1; Refresh();
             RememberMode();
             ShowStatus(WorkshopModes.Name(choice.ModeId) + (localPlaytest && !choice.AllowsOneHumanLocal
-                ? " · Check map works; Test alone needs Time Trial or Freeplay."
+                ? " · Check map works · " + LocalTestNeed + "."
                 : " chosen · Check map and Test use this exact mode and layout."));
         }
 
@@ -93,14 +93,14 @@ namespace Wreckabulary.Workshop
         void RememberMode()
         {
             if (!RemembersMode || storage == null || History == null || PlayRequirements == null) return;
-            try { storage.SaveSettings(History.Current.Course().Id, PlayRequirements.ModeId, WorkshopModes.FormatOf(PlayRequirements)); }
+            try { storage.SaveSettings(CurrentCourse.Id, PlayRequirements.ModeId, WorkshopModes.FormatOf(PlayRequirements)); }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is ArgumentException) { }
         }
 
         void ApplyRememberedMode()
         {
             if (!RemembersMode || storage == null || History == null) return;
-            var course = History.Current.Course();
+            var course = CurrentCourse;
             if (!storage.TryLoadSettings(course.Id, out string mode, out RaceFormat format)) return;
             if (PlayRequirements != null && PlayRequirements.ModeId == mode && WorkshopModes.FormatOf(PlayRequirements) == format) return;
             try { PlayRequirements = WorkshopModes.Select(course, mode, format).Requirements; LastPreview = null; displayRevision = -1; Refresh(); }
@@ -157,9 +157,10 @@ namespace Wreckabulary.Workshop
                 bool last = supported && display.SupportedModes.Count == 1;
                 GUI.enabled = !last;
                 GUI.SetNextControlName("Workshop mode " + mode);
-                bool next = ui.Toggle(supported, new GUIContent(supported ? "✓ On this map" : "Add to this map",
+                string toggle = supported ? "✓ On this map" : "Add to this map";
+                bool next = PadFlip(supported, ui.Toggle(supported, new GUIContent(toggle,
                     last ? "A map needs at least one mode" : supported ? "Remove this mode from the map" : "Let this map be played in " + summary.Name),
-                    null, GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(each));
+                    null, GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(each)), toggle);
                 GUI.enabled = true;
                 if (next != supported) Attempt(() => SetModeSupported(mode, next));
                 if (play && Button("Play this mode", "Use " + summary.Name + " for Check map, Test and sharing", each))
@@ -178,11 +179,11 @@ namespace Wreckabulary.Workshop
             {
                 GUILayout.Label("Players per team", rowLabel, GUILayout.Width(RowWidth));
                 int current = Array.IndexOf(TeamFormats, format);
-                int next = GUILayout.Toolbar(current, new[] { "Solo · 1", "Duo · 2", "Squad · 4" }, GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(RowWidth));
+                int next = PadToolbar(current, new[] { "Solo · 1", "Duo · 2", "Squad · 4" }, GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(RowWidth));
                 if (next >= 0 && next != current) Attempt(() => SelectMode(PlayRequirements.ModeId, TeamFormats[next]));
             }
             if (!SelectedModeEnabled) Hint("This map doesn't support the chosen mode. Add it above or play another mode.");
-            else if (localPlaytest && !CanPlaytestLocally) Hint("Test alone works in Time Trial or Freeplay. Friends can play this mode online.");
+            else if (localPlaytest && !CanPlaytestLocally) Hint(LocalTestNeed + " · this mode needs more players.");
         }
     }
 }

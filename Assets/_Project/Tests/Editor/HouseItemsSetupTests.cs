@@ -30,10 +30,18 @@ namespace Wreckabulary.EditorTests
                 Assert.IsTrue(prefab.GetComponentsInChildren<Component>(true).All(c => c is Transform || c is MeshFilter || c is MeshRenderer), word + " is render-only");
                 var renderers = prefab.GetComponentsInChildren<MeshRenderer>(true);
                 Assert.IsNotEmpty(renderers, word);
+                bool rebuilt = entry.Has("rebuilt");
                 foreach (var material in renderers.SelectMany(r => r.sharedMaterials))
                 {
                     Assert.AreEqual("Universal Render Pipeline/Lit", material.shader.name, word);
-                    StringAssert.StartsWith(HouseItemsSetup.ArtRoot + "/Materials/" + word + "/", AssetDatabase.GetAssetPath(material));
+                    if (!rebuilt)
+                    {
+                        StringAssert.StartsWith(HouseItemsSetup.ArtRoot + "/Materials/" + word + "/", AssetDatabase.GetAssetPath(material));
+                        continue;
+                    }
+                    Assert.AreEqual(HouseItemsSetup.ArtRoot + "/Models/" + word + ".fbx", AssetDatabase.GetAssetPath(material), word + " keeps its rebuilt model's own materials");
+                    StringAssert.EndsWith("_Classic", material.name, word);
+                    Assert.IsNotNull(MaterialLibrary.Load().Find(material.name), $"{word} {material.name} resolves in the material library");
                 }
                 var bounds = ModelVisual.BoundsIn(prefab.transform, prefab);
                 var size = entry["size"].Floats(3);

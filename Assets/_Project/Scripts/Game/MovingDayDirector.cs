@@ -59,6 +59,8 @@ namespace Wreckabulary
         string checklist;
         int checklistLevel = -1, checklistLeft = -1;
         bool checklistHouse;
+        int clockSeconds = -1;
+        string clockText = "";
         const float DeliveryGap = 1.2f;
         RoomBuilder layoutBuilder;
 
@@ -182,7 +184,7 @@ namespace Wreckabulary
                     break;
             }
 
-            hud.SetTimer(Current == State.Playing || Current == State.Countdown ? FormatTime(TimeLeft) : "");
+            hud.SetTimer(Current == State.Playing || Current == State.Countdown ? Clock(TimeLeft) : "");
             hud.SetChecklist(Checklist());
             hud.SetInstruction(joins.Players.Count == 0 ? ControlHints.Join("join") : "", "");
             hud.SetScoreboard(joins.Players, _ => 0, 0, false);
@@ -298,7 +300,7 @@ namespace Wreckabulary
         {
             float fraction = TimeLeft / CurrentLevel.timeLimit;
             Stars = fraction >= starThresholds.x ? 3 : fraction >= starThresholds.y ? 2 : 1;
-            Session.RecordStars(LevelIndex, Stars);
+            Session.RecordStars(Session.MapId, Stars);
             SetState(State.Complete);
             foreach (var p in joins.Players) p.Frozen = true;
             World.FreezeTransient();
@@ -350,6 +352,13 @@ namespace Wreckabulary
             if (string.IsNullOrEmpty(room)) return "";
             string named = house != null ? house.WithStorey(room) : room;
             return WordBreak.Replace(named.Replace('_', ' '), " ");
+        }
+
+        string Clock(float seconds)
+        {
+            int shown = Mathf.Max(0, Mathf.CeilToInt(seconds));
+            if (shown != clockSeconds) { clockSeconds = shown; clockText = FormatTime(shown); }
+            return clockText;
         }
 
         static string FormatTime(float seconds)

@@ -23,14 +23,14 @@ namespace Wreckabulary.Rules.Wordbound
         ItemInstance DefenseItem(string playerId, long tick)
         {
             var actor = actors[playerId];
-            var player = progress.Player(playerId);
+            var player = progress.LivePlayer(playerId);
             int index = indices[playerId];
             var inventory = economy.Player(index);
             if (!player.Connected || player.Returned || player.Eliminated || progress.Migrating ||
                 progress.Result != null || !inventory.CanAct || inventory.Craft != null ||
                 inventory.CarriedFurniture >= 0 || actor.Health <= 0 || actor.StunnedUntilTick > tick ||
                 actor.DodgeUntilTick > tick || actor.Attack != null ||
-                Mode.IsRace && progress.Team(player.Team).Finished) return null;
+                Mode.IsRace && progress.LiveTeam(player.Team).Finished) return null;
             var item = actor.EquippedSlot < 0 ? null : Held(index, actor.EquippedSlot);
             return item == null || catalogue.Get(item.Word).Shield == null ? null : item;
         }

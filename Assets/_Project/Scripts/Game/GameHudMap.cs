@@ -183,14 +183,16 @@ namespace Wreckabulary
                 var room = new MapRoom { box = box, colour = MapRoomColour(box) };
                 room.fill = MapArea(box.Name, floors, map, box.MinX, box.MinZ, box.MaxX, box.MaxZ, room.colour);
                 var label = Text(box.Name, map.labelLayer, map.At((box.MinX + box.MaxX) * .5f, box.MaxZ),
-                    new Vector2(0f, map.full ? -13f : -8f), Vector2.zero, map.full ? 16f : 10f, Cream);
+                    new Vector2(0f, map.full ? -13f : -12f), Vector2.zero, map.full ? 16f : MiniLabel, Cream);
                 label.rectTransform.anchorMin = map.At(box.MinX, box.MaxZ);
                 label.rectTransform.anchorMax = map.At(box.MaxX, box.MaxZ);
-                label.rectTransform.sizeDelta = new Vector2(-6f, map.full ? 22f : 14f);
-                label.text = map.full ? Spaced(box.Name).ToUpperInvariant() : MapRoomName(box.Name);
-                label.fontStyle = FontStyles.Bold; label.enableAutoSizing = true;
-                label.fontSizeMin = map.full ? 10f : 8f; label.fontSizeMax = map.full ? 16f : 10f;
-                label.overflowMode = TextOverflowModes.Ellipsis;
+                label.rectTransform.sizeDelta = new Vector2(-6f, 22f);
+                label.text = MapRoomName(box.Name);
+                label.fontStyle = FontStyles.Bold;
+                label.enableAutoSizing = map.full;
+                label.fontSizeMin = 10f; label.fontSizeMax = 16f;
+                label.overflowMode = map.full ? TextOverflowModes.Ellipsis : TextOverflowModes.Overflow;
+                label.gameObject.SetActive(MapLabelShown(map, false));
                 room.label = label;
                 AddMapWall(map, room, walls, true, box.MinX, box.MinZ, box.MaxZ);
                 AddMapWall(map, room, walls, true, box.MaxX, box.MinZ, box.MaxZ);
@@ -328,7 +330,8 @@ namespace Wreckabulary
                 if (room.objective == pending) continue;
                 room.objective = pending;
                 room.label.color = pending ? Hex(0xffd878) : Cream;
-                room.label.text = (pending ? "+ " : "") + (map.full ? Spaced(room.box.Name).ToUpperInvariant() : MapRoomName(room.box.Name));
+                room.label.text = (pending ? "+ " : "") + MapRoomName(room.box.Name);
+                room.label.gameObject.SetActive(MapLabelShown(map, pending));
             }
             if (!map.extraction) return;
             var roomAt = map.layout.Room(map.layout.ExtractionRoom);
@@ -369,11 +372,11 @@ namespace Wreckabulary
             ownedTextures.Add(texture); ownedSprites.Add(sprite); return sprite;
         }
 
-        static string MapRoomName(string name) => name switch
-        {
-            "LivingRoom" => "LIVING", "Bedroom" => "BED", "Bathroom" => "BATH", "DiningRoom" => "DINING",
-            "Kitchen" => "KITCHEN", "Playroom" => "PLAY", _ => Spaced(name).ToUpperInvariant()
-        };
+        const float MiniLabel = 18f;
+
+        static string MapRoomName(string name) => Spaced(name).ToUpperInvariant();
+
+        static bool MapLabelShown(MapView map, bool objective) => map.full || objective || map.layout.Rooms.Count == 1;
 
         static Color MapRoomColour(RoomBox box)
         {

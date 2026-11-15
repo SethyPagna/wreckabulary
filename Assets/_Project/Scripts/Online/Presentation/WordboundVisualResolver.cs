@@ -135,7 +135,7 @@ namespace Wreckabulary.Online
                     entry?.heldScale ?? definition?.HeldScale ?? 1f, definition?.IsTwoHanded ?? true,
                     Profile?.HoldingPose ?? defaultHoldingPose, visualKey,
                     authoredGrip ? Quaternion.Inverse(root.transform.rotation) * authoredGrip.rotation : Quaternion.identity,
-                    authoredGrip);
+                    authoredGrip, player ? fit.localScale.y : 1f);
                 root.SetActive(true);
                 return instance;
             }
@@ -173,19 +173,20 @@ namespace Wreckabulary.Online
         public GameObject Model { get; }
         public Vector3 Grip { get; }
         public float HeldScale { get; }
+        public float BodyScale { get; }
         public bool TwoHanded { get; }
         public Outfit Outfit { get; private set; }
         public Transform RightHand { get; }
         public Transform LeftHand { get; }
         public WordboundVisualInstance(GameObject root, GameObject model, Vector3 grip, float heldScale, bool twoHanded)
-            : this(root, model, grip, heldScale, twoHanded, null, null, Quaternion.identity, false) { }
+            : this(root, model, grip, heldScale, twoHanded, null, null, Quaternion.identity, false, 1f) { }
 
         internal WordboundVisualInstance(GameObject root, GameObject model, Vector3 grip, float heldScale, bool twoHanded,
-            WordboundHoldingPose pose, string key, Quaternion gripRotation, bool hasAuthoredGrip)
+            WordboundHoldingPose pose, string key, Quaternion gripRotation, bool hasAuthoredGrip, float bodyScale)
         {
             holdingPose = pose; visualKey = key; GripRotation = gripRotation; HasAuthoredGrip = hasAuthoredGrip;
             Root = root; Model = model; Grip = grip;
-            HeldScale = heldScale; TwoHanded = twoHanded;
+            HeldScale = heldScale; BodyScale = bodyScale; TwoHanded = twoHanded;
             renderers = model.GetComponentsInChildren<Renderer>(true);
             RightHand = ModelVisual.FindNamed(model, "grip_R");
             LeftHand = ModelVisual.FindNamed(model, "grip_L");
@@ -204,12 +205,16 @@ namespace Wreckabulary.Online
             if (visible)
                 foreach (var renderer in renderers) if (renderer) renderer.enabled = true;
         }
-        public void PlaceAtHand(Transform visualParent, Transform hand, bool miniature)
+        public void PlaceAtHand(Transform visualParent, Transform hand, bool miniature) =>
+            PlaceAtHand(visualParent, hand, miniature, 1f);
+
+        public void PlaceAtHand(Transform visualParent, Transform hand, bool miniature, float carrierScale)
         {
             if (!Root || !hand || !visualParent) throw new ArgumentException("A held visual requires an authored hand.");
+            if (!(carrierScale > 0) || float.IsInfinity(carrierScale)) throw new ArgumentException("A carrier scale must be positive and finite.");
             var target = Root.transform;
             if (target.parent != visualParent) target.SetParent(visualParent, false);
-            target.localScale = Vector3.one * (miniature ? HeldScale : 1f);
+            target.localScale = Vector3.one * (miniature ? HeldScale * carrierScale : 1f);
             target.rotation = hand.rotation * (holdingPose?.RootRotationInHand(visualKey, HasAuthoredGrip, GripRotation) ?? Quaternion.identity);
             target.position = hand.position - target.TransformVector(Grip);
         }

@@ -5,12 +5,15 @@ namespace Wreckabulary
 {
     public static class World
     {
+        const int UnknownLayer = int.MinValue;
         static Transform transient;
+        static int playerLayer = UnknownLayer, tileLayer = UnknownLayer;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             transient = null;
+            playerLayer = tileLayer = UnknownLayer;
             Players.Clear();
         }
 
@@ -49,8 +52,8 @@ namespace Wreckabulary
 
         public static readonly List<PlayerController> Players = new();
 
-        public static int PlayerLayer => LayerMask.NameToLayer("Player");
-        public static int TileLayer => LayerMask.NameToLayer("Tile");
+        public static int PlayerLayer => playerLayer != UnknownLayer ? playerLayer : (playerLayer = LayerMask.NameToLayer("Player"));
+        public static int TileLayer => tileLayer != UnknownLayer ? tileLayer : (tileLayer = LayerMask.NameToLayer("Tile"));
 
         public static int TileMask => TileLayer >= 0 ? 1 << TileLayer : ~0;
 

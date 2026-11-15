@@ -34,7 +34,9 @@ namespace Wreckabulary
             var value = Vector2.ClampMagnitude(point / radius, 1f);
             if (knob) knob.anchoredPosition = value * radius;
             if (value.magnitude < 0.12f) value = Vector2.zero;
-            if (worldCamera)
+            var rig = CameraRig.Instance;
+            if (worldCamera && rig && rig.isActiveAndEnabled && rig.ViewCamera == worldCamera) value = rig.ScreenDirectionToWorld(value);
+            else if (worldCamera)
             {
                 var right = World.Flat(worldCamera.transform.right).normalized;
                 var forward = World.Flat(worldCamera.transform.forward).normalized;

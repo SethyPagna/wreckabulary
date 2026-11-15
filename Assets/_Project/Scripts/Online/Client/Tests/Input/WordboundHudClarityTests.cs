@@ -87,14 +87,18 @@ namespace Wreckabulary.Online.Tests
                         typeof(WordboundInputBinding).GetField("selected", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(binding, pad);
                     }
                     var rows = (string[])Invoke(hud, "HelpControls");
-                    Assert.AreEqual(8, rows.Length);
+                    Assert.AreEqual(9, rows.Length);
                     Assert.That(rows[0], Does.StartWith("[" + view.ControlHint(WordboundControl.Interact) + "]"));
                     Assert.That(rows[1], Does.StartWith("[" + view.ControlHint(WordboundControl.Attack) + "]"));
-                    Assert.That(rows[2], Does.StartWith("[" + view.ControlHint(WordboundControl.Spell) + "]"));
+                    Assert.That(rows[2], Does.StartWith("[" + view.ControlHint(WordboundControl.Spell) + "] Spell"));
                     Assert.That(rows[3], Does.Contain("[" + view.ControlHint(WordboundControl.Aim) + "]"));
                     Assert.That(rows[4], Does.Contain("[" + view.ControlHint(WordboundControl.Drop) + "]"));
-                    Assert.That(rows[6], Does.Contain("[" + view.ControlHint(WordboundControl.Block) + "]"));
-                    Assert.That(rows[7], Does.StartWith("[" + view.ControlHint(WordboundControl.Menu) + "]"));
+                    string first = (string)Invoke(hud, "HandKey", 0), second = (string)Invoke(hud, "HandKey", 1);
+                    Assert.AreEqual(usePad ? "D-PAD " + ControlHints.PadHand(0) : ControlHints.KeyOf(DesktopBinding.Shared.Hand1), first);
+                    Assert.AreEqual(first.Length == 0 ? "Hand 1 / Hand 2" : "[" + first + "] / [" + second + "] Hand 1 / Hand 2", rows[5]);
+                    Assert.That(rows[6], Does.StartWith("[" + view.ControlHint(WordboundControl.CycleGear) + "] Swap hands"));
+                    Assert.That(rows[7], Does.Contain("[" + view.ControlHint(WordboundControl.Block) + "]"));
+                    Assert.That(rows[8], Does.StartWith("[" + view.ControlHint(WordboundControl.Menu) + "]"));
                 }
             }
             finally
@@ -114,24 +118,24 @@ namespace Wreckabulary.Online.Tests
                 var view = root.AddComponent<WordboundPlayerView>(); view.enabled = false;
                 view.Initialize(root.AddComponent<WordboundGameplayController>(), root.AddComponent<Camera>(), new ScriptedBinding());
                 var hud = root.AddComponent<WordboundMatchHud>(); Field("view").SetValue(hud, view);
-                Assert.AreEqual("Craft", Invoke(hud, "Hint", WordboundControl.Spell, "Craft"));
+                Assert.AreEqual("Spell", Invoke(hud, "Hint", WordboundControl.Spell, "Spell"));
                 Assert.AreEqual("Menu", Invoke(hud, "Hint", WordboundControl.Menu, "Menu"));
                 Assert.AreEqual("Smash furniture", Invoke(hud, "Hint", WordboundControl.Attack, "Smash furniture"));
-                CollectionAssert.AreEqual(new[] { "Pick up / use", "Smash", "Craft from letters", "Throw", "Hold Drop",
-                    "Change equipment", "Hold Block with a shield", "Resume / menu" }, (string[])Invoke(hud, "HelpControls"));
+                CollectionAssert.AreEqual(new[] { "Collect a letter, pick up or use", "Smash", "Spell an item", "Throw", "Hold Drop",
+                    "Hand 1 / Hand 2", "Swap hands", "Hold Block with a shield", "Resume / menu" }, (string[])Invoke(hud, "HelpControls"));
+                Assert.AreEqual("Collect each letter by hand.", ((string[])Invoke(hud, "IntroLines"))[0]);
             }
             finally { Object.DestroyImmediate(root); }
         }
 
         [Test]
-        public void EmptyLetterBagIsHiddenAndLongBagIsSummarizedWithoutMutation()
+        public void LetterTilesShowEveryLetterUpToTheLimitThenCountTheRest()
         {
-            var bag = LetterBag.FromWord("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-            string before = bag.ToString();
-            Assert.AreEqual("", Static("CompactLetters", ""));
-            Assert.AreEqual("ABT", Static("CompactLetters", "ABT"));
-            Assert.AreEqual("ABCDEFGHIJKLMNOPQR… +8", Static("CompactLetters", before));
-            Assert.AreEqual(before, bag.ToString());
+            Assert.AreEqual((0, 0), ((int, int))Static("TileSplit", 0, 20));
+            Assert.AreEqual((3, 0), ((int, int))Static("TileSplit", 3, 20));
+            Assert.AreEqual((20, 0), ((int, int))Static("TileSplit", 20, 20));
+            Assert.AreEqual((19, 7), ((int, int))Static("TileSplit", 26, 20));
+            Assert.AreEqual((0, 5), ((int, int))Static("TileSplit", 5, 0));
         }
 
         [Test]
@@ -225,9 +229,9 @@ namespace Wreckabulary.Online.Tests
                 try
                 {
                     Rows("statusPanel", "Time Trial · 24:58", "Lap 1/3 · Checkpoint 1/32", "Smash the marked furniture, collect its letters, and spell TABLE.");
-                    Rows("inventoryPanel", "Letters ABCDEFGHIJKLMNOPQR… +8", "SHIELD");
+                    Rows("inventoryPanel", "Health 100", "[1] Hand 1: SHIELD (using)", "[2] Hand 2: empty");
                     Rows("actionPanel", "Move closer and keep the object in sight.");
-                    Rows("menuHintPanel", "[Q] Craft · [ESC] Menu");
+                    Rows("menuHintPanel", "[Q] Spell · [ESC] Menu");
                     var before = GUI.backgroundColor;
                     Invoke(Hud, "DrawOverlay", Size.x, Size.y);
                     Assert.AreEqual(before, GUI.backgroundColor);

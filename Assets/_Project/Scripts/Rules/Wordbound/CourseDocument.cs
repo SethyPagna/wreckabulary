@@ -35,6 +35,7 @@ namespace Wreckabulary.Rules.Wordbound
     public sealed class CourseDocument
     {
         public const string FormatId = "wreckabulary.course";
+        public const int LatestSchema = 3;
         public int Schema = 1;
         public string Id = "";
         public string Title = "";
@@ -53,6 +54,8 @@ namespace Wreckabulary.Rules.Wordbound
         public List<CourseZone> Zones = new List<CourseZone>();
         public List<CourseReservedVolume> ReservedVolumes = new List<CourseReservedVolume>();
         public List<CoursePhysicalSite> PhysicalSites = new List<CoursePhysicalSite>();
+        public List<CourseStoryAnchor> StoryAnchors = new List<CourseStoryAnchor>();
+        public List<CourseLayout> Layouts = new List<CourseLayout>();
         public CourseDocument Clone() => CourseJson.ImportDocument(CourseJson.ExportDocument(this)).Document;
     }
 
@@ -65,7 +68,9 @@ namespace Wreckabulary.Rules.Wordbound
     }
     public sealed class CourseConnection
     {
+        public const string SharedScope = "Shared", TeamScope = "Team";
         public string Id = "", FromModuleId = "", ToModuleId = "", Kind = "Walk", GatePuzzleId = "";
+        public string Scope = SharedScope;
         public CoursePoint From, To;
         public int WidthMm = 1500;
         public bool Bidirectional = true;
@@ -104,18 +109,42 @@ namespace Wreckabulary.Rules.Wordbound
     {
         public string Id = "", ModuleId = "", RecoveryAnchorId = "", EntryConnectionId = "";
         public List<string> PuzzleIds = new List<string>();
+        public List<CourseSolution> Solutions = new List<CourseSolution>();
+    }
+    public sealed class CourseSolution
+    {
+        public string Id = "", ShortcutConnectionId = "";
+        public List<string> PuzzleIds = new List<string>();
     }
     public sealed class CourseAlternative
     {
+        public static readonly IReadOnlyList<string> ChoiceOptions = Array.AsReadOnly(new[] { "A", "B", "C" });
         public string Id = "";
         public int Weight = 1;
+        public string OptionId = "";
         public List<string> ConnectionIds = new List<string>();
         public List<string> CheckpointIds = new List<string>();
     }
     public sealed class CourseRouteSection
     {
+        public const string SeededKind = "Seeded", ChoiceKind = "Choice";
         public string Id = "", EntryModuleId = "", ExitModuleId = "";
+        public string Kind = SeededKind;
         public List<CourseAlternative> Alternatives = new List<CourseAlternative>();
+    }
+    public sealed class CourseStoryAnchor
+    {
+        public static readonly IReadOnlyList<string> Kinds = Array.AsReadOnly(new[] { "Hide", "Post", "Home", "Storm", "Spill", "Job", "Exit" });
+        public string Id = "", ModuleId = "", Kind = "Hide";
+        public CoursePoint Position;
+        public int RadiusMm = 1000;
+    }
+    public sealed class CourseLayout
+    {
+        public string Id = "";
+        public int Weight = 1;
+        public List<string> ZoneIds = new List<string>();
+        public List<string> SpawnIds = new List<string>();
     }
     public sealed class CourseLap
     {
@@ -172,5 +201,6 @@ namespace Wreckabulary.Rules.Wordbound
         public const int Supplies = 1024, Zones = 256, Checkpoints = 256, Sections = 128;
         public const int Alternatives = 16, Entities = 8192, ListEntries = 4096, Attempts = 16;
         public const int PlacementSamples = 64, HorizontalMm = 2000000, VerticalMm = 256000;
+        public const int Solutions = 3, StoryAnchors = 1024, Layouts = 16;
     }
 }

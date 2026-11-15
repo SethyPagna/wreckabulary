@@ -196,7 +196,7 @@ namespace Wreckabulary.Qa
                 yield return PreviewShot(context, "parcel_workshop_room_routes");
                 Require(Read<object>(workshop, "step").ToString() == "Rules" && Read<bool>(workshop, "routesExpanded") &&
                     Read<int>(workshop, "routeTab") == 0, "The routes capture lost its intended inspector context.");
-                NoteInspector(context, "parcel_workshop_room_routes_view", "Rules", "Start & finish / Safe-return points", recovery);
+                NoteInspector(context, "parcel_workshop_room_routes_view", "Rules", "Start & finish / Respawn spots", recovery);
             }
             finally
             {

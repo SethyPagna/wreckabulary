@@ -23,7 +23,7 @@ namespace Wreckabulary.Workshop
             routeCheckpoints = new List<string>(), routeSections = new List<string>(), routeAfter = new List<string>();
 
         static readonly int[] RouteOrder = { 4, 1, 2, 3, 0 };
-        static readonly string[] RouteTabs = { "Start points", "Checkpoints", "Paths", "Laps", "Safe-return points" };
+        static readonly string[] RouteTabs = { "Start points", "Checkpoints", "Paths", "Laps", "Respawn spots" };
 
         void RouteInspector()
         {
@@ -53,8 +53,8 @@ namespace Wreckabulary.Workshop
         int RouteNavigation(int selected, string[] labels, int maximum)
         {
             int columns = InspectorColumns(labels, maximum);
-            return GUILayout.SelectionGrid(selected, labels, columns, GUILayout.Width(RowWidth),
-                GUILayout.MinHeight(ui.RowHeight * Mathf.CeilToInt((float)labels.Length / columns)));
+            return PadSegments(GUILayout.SelectionGrid(selected, labels, columns, GUILayout.Width(RowWidth),
+                GUILayout.MinHeight(ui.RowHeight * Mathf.CeilToInt((float)labels.Length / columns))), labels, columns);
         }
 
         bool ReloadRoute(string key)
@@ -68,27 +68,27 @@ namespace Wreckabulary.Workshop
 
         void RecoveryRoutePanel()
         {
-            GUILayout.Label("Players who fall or get stuck come back to a safe-return point.", ui.Wrapped, GUILayout.Width(RowWidth));
-            routeRecovery = RouteChoice("Safe-return point", routeRecovery,
+            GUILayout.Label("Players who fall or get stuck come back to a respawn spot.", ui.Wrapped, GUILayout.Width(RowWidth));
+            routeRecovery = RouteChoice("Respawn spot", routeRecovery,
                 display.RecoveryAnchors.Where(r => r.ModuleId == routeModule).Select(r => r.Id));
-            if (WideButton("Add safe-return point at room centre"))
-                Edit("Add safe-return point", draft =>
+            if (WideButton("Add respawn spot at room centre"))
+                Edit("Add respawn spot", draft =>
                 {
                     var module = draft.Course.Modules.SingleOrDefault(m => m.Id == routeModule)
                         ?? throw new ArgumentException("Choose a room first.");
                     routeRecovery = WorkshopRoutes.AddRecovery(draft, Catalogue, module.Id, module.Position);
                 });
             var value = display.RecoveryAnchors.FirstOrDefault(r => r.Id == routeRecovery && r.ModuleId == routeModule);
-            if (value == null) { GUILayout.Label("Choose a safe-return point to edit it.", ui.Wrapped, GUILayout.Width(RowWidth)); return; }
+            if (value == null) { GUILayout.Label("Choose a respawn spot to edit it.", ui.Wrapped, GUILayout.Width(RowWidth)); return; }
             LoadRecoveryRoute(value);
-            Triple("Position m", "Safe-return point", ref routeX, ref routeY, ref routeZ, GridMetres, .1);
-            routeRadius = Field("Radius m", routeRadius, .25, .05, "Safe radius m", .5, 5);
+            Triple("Position m", "Respawn spot", ref routeX, ref routeY, ref routeZ, GridMetres, .1);
+            routeRadius = Field("Size m", routeRadius, .25, .05, "Respawn spot size m", .5, 5);
             RouteReferences("Available after puzzles", routeAfter, display.Puzzles.Select(p => p.Id), false);
-            if (WideButton("Apply safe-return point"))
-                Edit("Edit safe-return point", draft => WorkshopRoutes.SetRecovery(draft, Catalogue, value.Id,
+            if (WideButton("Apply respawn spot"))
+                Edit("Edit respawn spot", draft => WorkshopRoutes.SetRecovery(draft, Catalogue, value.Id,
                     new CoursePoint(Millimetres(routeX), Millimetres(routeY), Millimetres(routeZ)), Millimetres(routeRadius), routeAfter));
-            if (WideButton("Delete unused safe-return point"))
-                Edit("Delete safe-return point", draft => WorkshopRoutes.DeleteRecovery(draft, value.Id));
+            if (WideButton("Delete unused respawn spot"))
+                Edit("Delete respawn spot", draft => WorkshopRoutes.DeleteRecovery(draft, value.Id));
         }
 
         void LoadRecoveryRoute(CourseRecovery value)
@@ -110,7 +110,7 @@ namespace Wreckabulary.Workshop
                 routeX = Metres(at.X); routeY = Metres(at.Y); routeZ = Metres(at.Z);
             }
             routeSpawnModule = RouteChoice("Room", routeSpawnModule, display.Modules.Select(m => m.Id));
-            routeSpawnKind = GUILayout.Toolbar(routeSpawnKind, new[] { "Start point", "Respawn point" }, GUILayout.Width(RowWidth));
+            routeSpawnKind = PadToolbar(routeSpawnKind, new[] { "Start point", "Knockout respawn" }, GUILayout.Width(RowWidth));
             if (WideButton("Use room centre"))
             {
                 var module = display.Modules.FirstOrDefault(m => m.Id == routeSpawnModule);
@@ -119,7 +119,7 @@ namespace Wreckabulary.Workshop
             }
             Triple("Position m", "Spawn", ref routeX, ref routeY, ref routeZ, GridMetres, .1);
             routeSpawnYaw = RouteNavigation(routeSpawnYaw, new[] { "0°", "90°", "180°", "270°" }, 4);
-            string kindLabel = routeSpawnKind == 0 ? "start point" : "respawn point";
+            string kindLabel = routeSpawnKind == 0 ? "start point" : "knockout respawn";
             if (WideButton(value == null ? "Add " + kindLabel : "Apply " + kindLabel))
                 Edit(value == null ? "Add " + kindLabel : "Edit " + kindLabel, draft =>
                 {
@@ -131,13 +131,13 @@ namespace Wreckabulary.Workshop
             if (value != null)
             {
                 if (WideButton("New point")) { routeSpawn = ""; routeLoadKey = ""; }
-                if (WideButton("Delete " + (value.Kind == "Respawn" ? "respawn point" : "start point")))
+                if (WideButton("Delete " + (value.Kind == "Respawn" ? "knockout respawn" : "start point")))
                     Edit("Delete point", draft => WorkshopRoutes.DeleteSpawn(draft, value.Id));
             }
             GUILayout.Label("Start points: " + display.Spawns.Count(s => s.Kind == "Start") + " of " +
                 PlayRequirements.MaxOccupants + " needed", ui.Wrapped, GUILayout.Width(RowWidth));
             if (PlayRequirements.Capability == CourseCapability.Arena)
-                GUILayout.Label("Respawn points: " + display.Spawns.Count(s => s.Kind == "Respawn") + " of " +
+                GUILayout.Label("Knockout respawns: " + display.Spawns.Count(s => s.Kind == "Respawn") + " of " +
                     PlayRequirements.MaxOccupants + " needed", ui.Wrapped, GUILayout.Width(RowWidth));
             GUILayout.Label("Keep points 1 m apart and 0.5 m from walls. Players are placed by the chosen mode.", ui.Wrapped, GUILayout.Width(RowWidth));
         }
@@ -152,7 +152,7 @@ namespace Wreckabulary.Workshop
                 routeAnchor = value?.RecoveryAnchorId ?? ""; routeArrival = value?.EntryConnectionId ?? "";
                 ReplaceRouteList(routePuzzles, value?.PuzzleIds ?? Enumerable.Empty<string>());
             }
-            routeAnchor = RouteChoice("Safe-return point", routeAnchor, display.RecoveryAnchors.Select(r => r.Id));
+            routeAnchor = RouteChoice("Respawn spot", routeAnchor, display.RecoveryAnchors.Select(r => r.Id));
             routeArrival = RouteChoice("Arrives through", routeArrival,
                 display.Connections.Where(c => c.ToModuleId == routeModule || c.Bidirectional && c.FromModuleId == routeModule).Select(c => c.Id), "Any arrival");
             RouteReferences("Required puzzles in order", routePuzzles, display.Puzzles.Select(p => p.Id), true);
@@ -206,9 +206,9 @@ namespace Wreckabulary.Workshop
                 Edit("Add alternative path", draft => routeBranch = WorkshopRoutes.AddAlternative(draft, section.Id));
             if (branch != null)
             {
-                GUILayout.Label("Each lap takes one alternative, picked by the layout. Bigger weights are picked more often.", ui.Wrapped, GUILayout.Width(RowWidth));
+                GUILayout.Label("Each lap takes one alternative, picked by the random layout. Bigger weights are picked more often.", ui.Wrapped, GUILayout.Width(RowWidth));
                 if (section.Alternatives.Count > 1) routeWeight = Field("Weight", routeWeight, 1, 1, "Relative weight", 1, 10000);
-                RouteReferences("Connections in travel order", routeConnections, display.Connections.Select(c => c.Id), true);
+                RouteReferences("Doors & stairs in travel order", routeConnections, display.Connections.Select(c => c.Id), true);
                 DrawRouteDirections(section.EntryModuleId);
                 RouteReferences("Checkpoints in travel order", routeCheckpoints, display.Checkpoints.Select(c => c.Id), true);
                 if (WideButton("Apply alternative path"))
@@ -233,7 +233,7 @@ namespace Wreckabulary.Workshop
             foreach (string id in routeConnections)
             {
                 var edge = display.Connections.FirstOrDefault(c => c.Id == id);
-                if (edge == null) { GUILayout.Label(id + " · missing connection", ui.Wrapped, GUILayout.Width(RowWidth)); break; }
+                if (edge == null) { GUILayout.Label(id + " · missing door or stairs", ui.Wrapped, GUILayout.Width(RowWidth)); break; }
                 bool forward = edge.FromModuleId == current;
                 bool reverse = edge.Bidirectional && edge.ToModuleId == current;
                 if (!forward && !reverse) { GUILayout.Label(ReferenceCaptionFor("connection", id) + " · cannot continue from " + RoomCaption(current), ui.Wrapped, GUILayout.Width(RowWidth)); break; }

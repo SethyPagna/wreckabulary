@@ -1722,32 +1722,48 @@
   }
  ],
  "neverClose": [
-  "Lobby",
-  "Landing1",
-  "Landing2"
+  "Garage"
  ],
  "clearOutOrders": {
   "Dibs": [
+   "RoofGarden",
    "GreenBedroom",
    "YellowBedroom",
-   "BlueBedroom",
-   "RedBedroom",
-   "RoofGarden",
    "GreenFlat",
    "YellowFlat",
+   "FireEscape2",
+   "Landing2",
+   "BlueBedroom",
+   "RedBedroom",
    "BlueFlat",
-   "RedFlat"
+   "RedFlat",
+   "FireEscape1",
+   "Landing1",
+   "Cafe",
+   "CafeKitchen",
+   "Yard",
+   "Storeroom",
+   "Lobby"
   ],
   "Duos": [
+   "RoofGarden",
    "GreenBedroom",
    "YellowBedroom",
-   "BlueBedroom",
-   "RedBedroom",
-   "RoofGarden",
    "GreenFlat",
    "YellowFlat",
+   "FireEscape2",
+   "Landing2",
+   "BlueBedroom",
+   "RedBedroom",
    "BlueFlat",
-   "RedFlat"
+   "RedFlat",
+   "FireEscape1",
+   "Landing1",
+   "Cafe",
+   "CafeKitchen",
+   "Yard",
+   "Storeroom",
+   "Lobby"
   ],
   "MovingOut": [
    "RoofGarden",
@@ -1758,8 +1774,7 @@
    "FireEscape2",
    "BlueBedroom",
    "RedBedroom",
-   "BlueFlat",
-   "Cafe"
+   "BlueFlat"
   ],
   "Escape": [
    "RoofGarden",
@@ -1767,12 +1782,12 @@
    "YellowBedroom",
    "GreenFlat",
    "YellowFlat",
-   "FireEscape2",
-   "BlueBedroom",
-   "RedBedroom",
-   "BlueFlat",
-   "Cafe"
+   "FireEscape2"
   ]
+ },
+ "clearOutIntervals": {
+  "Dibs": 9,
+  "Duos": 9
  },
  "movingDay": [
   {
@@ -1780,15 +1795,15 @@
    "room": "GreenBedroom"
   },
   {
-   "word": "SOFA",
-   "room": "BlueFlat"
-  },
-  {
    "word": "TABLE",
    "room": "RoofGarden"
   },
   {
-   "word": "LAMP",
+   "word": "CLOCK",
+   "room": "Cafe"
+  },
+  {
+   "word": "FAN",
    "room": "YellowFlat"
   }
  ],

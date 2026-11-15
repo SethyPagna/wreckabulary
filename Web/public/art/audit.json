@@ -1,2787 +1,8 @@
 {
   "generator": "Tools/AssetPipeline/export_web.py",
   "blender": "5.2.2 LTS",
-  "seconds": 4.4,
+  "seconds": 7.71,
   "files": [
-    {
-      "kind": "item",
-      "name": "BAT",
-      "source": "Assets/_Project/Art/Imported/Items/BAT.fbx",
-      "sha256": "e2292700d8b2969eab4755a3ed694f881cf2cb7eae972b88572bf239f576ad17",
-      "triangles": 5248,
-      "meshes": [
-        {
-          "name": "BAT",
-          "triangles": 5248,
-          "vertices": 2986,
-          "materials": [
-            "wood_light_Classic",
-            "cream_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.08600007742643356,
-        -1.01218198267361e-08,
-        -0.08599986881017685
-      ],
-      "bounds_max_unity": [
-        0.08599992841482162,
-        1.0180000066757202,
-        0.08600013703107834
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BAT.glb",
-        "size": [
-          0.172,
-          1.018,
-          0.172
-        ],
-        "boundsMin": [
-          -0.086,
-          -0.0,
-          -0.086
-        ],
-        "boundsMax": [
-          0.086,
-          1.018,
-          0.086
-        ],
-        "triangles": 5248,
-        "bytes": 192448,
-        "sha256": "f79c6a1465e6b1627953dc4baab9ef7a83b0cabd57b5c3ba8dbee11fc027ab15",
-        "grip": [
-          0.0,
-          0.17,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 2,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "BLADE",
-      "source": "Assets/_Project/Art/Imported/Items/BLADE.fbx",
-      "sha256": "655af52bd58ea8f4b81f876d95ffab3cdaed15204b5876c43421bf4f761d9492",
-      "triangles": 4384,
-      "meshes": [
-        {
-          "name": "BLADE",
-          "triangles": 4384,
-          "vertices": 2615,
-          "materials": [
-            "metal_Classic",
-            "ivory_Classic",
-            "gold_Classic",
-            "dark_Classic",
-            "wood_dark_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.16500002145767212,
-        0.0,
-        -0.04599999263882637
-      ],
-      "bounds_max_unity": [
-        0.16499999165534973,
-        0.8659999966621399,
-        0.046000007539987564
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BLADE.glb",
-        "size": [
-          0.33,
-          0.866,
-          0.092
-        ],
-        "boundsMin": [
-          -0.165,
-          0.0,
-          -0.046
-        ],
-        "boundsMax": [
-          0.165,
-          0.866,
-          0.046
-        ],
-        "triangles": 4384,
-        "bytes": 166600,
-        "sha256": "8543779b13048c1525c548bc192e727e8e4ff8ca3227e59f4af78696e8a6bff0",
-        "grip": [
-          0.0,
-          0.146,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 5,
-        "unchanged_images_checked": 0
-      }
-    },
-    {
-      "kind": "item",
-      "name": "LAMP",
-      "source": "Assets/_Project/Art/Imported/Items/LAMP.fbx",
-      "sha256": "99fa3ed5d55cd80f34ca7e0fe0e986f640b003ec2a52090893466ca38f5efab9",
-      "triangles": 3664,
-      "meshes": [
-        {
-          "name": "LAMP",
-          "triangles": 3664,
-          "vertices": 2158,
-          "materials": [
-            "ceramic_Classic",
-            "gold_Classic",
-            "cream_Classic",
-            "ivory_Classic",
-            "glow_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.268000066280365,
-        -2.957639999578987e-08,
-        -0.26799991726875305
-      ],
-      "bounds_max_unity": [
-        0.26799994707107544,
-        0.893000066280365,
-        0.2680000960826874
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/LAMP.glb",
-        "size": [
-          0.536,
-          0.893,
-          0.536
-        ],
-        "boundsMin": [
-          -0.268,
-          -0.0,
-          -0.268
-        ],
-        "boundsMax": [
-          0.268,
-          0.893,
-          0.268
-        ],
-        "triangles": 3664,
-        "bytes": 137920,
-        "sha256": "025ab8376a8dd41bcdfd0abf32ee4285be1a231049203fa0e2da87754ed1851c",
-        "grip": [
-          0.0,
-          0.35,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 5,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "BALL",
-      "source": "Assets/_Project/Art/Imported/Items/BALL.fbx",
-      "sha256": "7087c93d975a4c14228990dbe17383ffed19a6fbfe4bc87c5160a5492baeeefc",
-      "triangles": 3156,
-      "meshes": [
-        {
-          "name": "BALL",
-          "triangles": 3156,
-          "vertices": 1851,
-          "materials": [
-            "red_Classic",
-            "cream_Classic",
-            "ivory_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.1835000216960907,
-        0.0,
-        -0.18349997699260712
-      ],
-      "bounds_max_unity": [
-        0.1834999918937683,
-        0.367000013589859,
-        0.1835000365972519
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BALL.glb",
-        "size": [
-          0.367,
-          0.367,
-          0.367
-        ],
-        "boundsMin": [
-          -0.1835,
-          0.0,
-          -0.1835
-        ],
-        "boundsMax": [
-          0.1835,
-          0.367,
-          0.1835
-        ],
-        "triangles": 3156,
-        "bytes": 114804,
-        "sha256": "917fc69f333478228fa5521f99e8d5f5d4ff05d543a3ed51b5d235861cdca848",
-        "grip": [
-          0.0,
-          0.1835,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "PLATE",
-      "source": "Assets/_Project/Art/Imported/Items/PLATE.fbx",
-      "sha256": "a96ed0c485d1ad5316d5c0a71c2ff055d3b731a5c70e86cbfac0122dab8c6c69",
-      "triangles": 1952,
-      "meshes": [
-        {
-          "name": "PLATE",
-          "triangles": 1952,
-          "vertices": 1159,
-          "materials": [
-            "ceramic_Classic",
-            "gold_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.27000001072883606,
-        -2.957639999578987e-08,
-        -0.27000001072883606
-      ],
-      "bounds_max_unity": [
-        0.27000001072883606,
-        0.07300004363059998,
-        0.27000001072883606
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/PLATE.glb",
-        "size": [
-          0.54,
-          0.073,
-          0.54
-        ],
-        "boundsMin": [
-          -0.27,
-          -0.0,
-          -0.27
-        ],
-        "boundsMax": [
-          0.27,
-          0.073,
-          0.27
-        ],
-        "triangles": 1952,
-        "bytes": 71724,
-        "sha256": "4f73b422fb711d28f13135c8bba50beb20e48bad06035cbcbf32f0a52bf75b86",
-        "grip": [
-          0.0,
-          0.0365,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 2,
-        "unchanged_images_checked": 0
-      }
-    },
-    {
-      "kind": "item",
-      "name": "TABLE",
-      "source": "Assets/_Project/Art/Imported/Items/TABLE.fbx",
-      "sha256": "da9499b7ce2045c144bd3ed67c465296b7936b90ed158de191d7da6359d03380",
-      "triangles": 4320,
-      "meshes": [
-        {
-          "name": "TABLE",
-          "triangles": 4320,
-          "vertices": 2940,
-          "materials": [
-            "wood_light_Classic",
-            "wood_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.6000000834465027,
-        -9.458046434929201e-08,
-        -0.3454999327659607
-      ],
-      "bounds_max_unity": [
-        0.6000000238418579,
-        0.720000147819519,
-        0.3455001413822174
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/TABLE.glb",
-        "size": [
-          1.2,
-          0.72,
-          0.691
-        ],
-        "boundsMin": [
-          -0.6,
-          -0.0,
-          -0.3455
-        ],
-        "boundsMax": [
-          0.6,
-          0.72,
-          0.3455
-        ],
-        "triangles": 4320,
-        "bytes": 195984,
-        "sha256": "dd7ff38abc826e0f51386a2c34811c8d7e00d072a44f05e75703b59ea778ddd2",
-        "grip": [
-          0.0,
-          0.36,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 2,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "BED",
-      "source": "Assets/_Project/Art/Imported/Items/BED.fbx",
-      "sha256": "c55a5b78362e93e0d41c21d8c3286ff5f5d65efb4d88d7a477055f90523c1120",
-      "triangles": 5760,
-      "meshes": [
-        {
-          "name": "BED",
-          "triangles": 5760,
-          "vertices": 3890,
-          "materials": [
-            "wood_Classic",
-            "wood_light_Classic",
-            "gold_Classic",
-            "cream_Classic",
-            "blue_Classic",
-            "ivory_Classic",
-            "ceramic_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.517500102519989,
-        7.020396708412591e-08,
-        -0.7900000214576721
-      ],
-      "bounds_max_unity": [
-        0.5175000429153442,
-        0.8180001974105835,
-        0.7900001406669617
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BED.glb",
-        "size": [
-          1.035,
-          0.818,
-          1.58
-        ],
-        "boundsMin": [
-          -0.5175,
-          0.0,
-          -0.79
-        ],
-        "boundsMax": [
-          0.5175,
-          0.818,
-          0.79
-        ],
-        "triangles": 5760,
-        "bytes": 254568,
-        "sha256": "89c5474c285a77d8dd62a0c883ae42970bb690666aee60b73028888dbb905ee2",
-        "grip": [
-          0.0,
-          0.409,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 7,
-        "unchanged_images_checked": 4
-      }
-    },
-    {
-      "kind": "item",
-      "name": "MAT",
-      "source": "Assets/_Project/Art/Imported/Items/MAT.fbx",
-      "sha256": "039c6f8116f210c8e11792072000145629fc731b80a6322d2441459fcc41419b",
-      "triangles": 1260,
-      "meshes": [
-        {
-          "name": "MAT",
-          "triangles": 1260,
-          "vertices": 964,
-          "materials": [
-            "dark_Classic",
-            "green_Classic",
-            "cream_Classic",
-            "ivory_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.5799999833106995,
-        -1.0112096049397223e-07,
-        -0.3250000476837158
-      ],
-      "bounds_max_unity": [
-        0.5799999833106995,
-        0.051000047475099564,
-        0.3250000476837158
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/MAT.glb",
-        "size": [
-          1.16,
-          0.051,
-          0.65
-        ],
-        "boundsMin": [
-          -0.58,
-          -0.0,
-          -0.325
-        ],
-        "boundsMax": [
-          0.58,
-          0.051,
-          0.325
-        ],
-        "triangles": 1260,
-        "bytes": 62708,
-        "sha256": "c9bf1034f30f523d7e7b846701d2951d451468f9dbae70788021e527ac375ee4",
-        "grip": [
-          0.0,
-          0.0255,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "SOFA",
-      "source": "Assets/_Project/Art/Imported/Items/SOFA.fbx",
-      "sha256": "88ae113e8fce5a4c4ed647f95b55ff0b0098bc9e668db6c1402597ac1a632a3f",
-      "triangles": 6248,
-      "meshes": [
-        {
-          "name": "SOFA",
-          "triangles": 6248,
-          "vertices": 4186,
-          "materials": [
-            "wood_Classic",
-            "green_Classic",
-            "cream_Classic",
-            "wood_dark_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.7600000500679016,
-        -1.0057291888188047e-07,
-        -0.38999998569488525
-      ],
-      "bounds_max_unity": [
-        0.7599999904632568,
-        0.9300001263618469,
-        0.42300015687942505
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/SOFA.glb",
-        "size": [
-          1.52,
-          0.93,
-          0.813
-        ],
-        "boundsMin": [
-          -0.76,
-          -0.0,
-          -0.39
-        ],
-        "boundsMax": [
-          0.76,
-          0.93,
-          0.423
-        ],
-        "triangles": 6248,
-        "bytes": 276848,
-        "sha256": "dfaca31fdc676de5d2d7fac74a4b6b26cbadea62bbd523f0739cbf7411705def",
-        "grip": [
-          0.0,
-          0.465,
-          0.0165
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 3
-      }
-    },
-    {
-      "kind": "item",
-      "name": "SOAP",
-      "source": "Assets/_Project/Art/Imported/Items/SOAP.fbx",
-      "sha256": "157ca23358b1056fd70207a3c1e54f7f31fa2ed26bd3ec754d442416e39a5620",
-      "triangles": 2352,
-      "meshes": [
-        {
-          "name": "SOAP",
-          "triangles": 2352,
-          "vertices": 1374,
-          "materials": [
-            "soap_Classic",
-            "ivory_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.1600000113248825,
-        -1.5072334491605943e-08,
-        -0.10499999672174454
-      ],
-      "bounds_max_unity": [
-        0.1599999964237213,
-        0.148499995470047,
-        0.10500001907348633
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/SOAP.glb",
-        "size": [
-          0.32,
-          0.1485,
-          0.21
-        ],
-        "boundsMin": [
-          -0.16,
-          -0.0,
-          -0.105
-        ],
-        "boundsMax": [
-          0.16,
-          0.1485,
-          0.105
-        ],
-        "triangles": 2352,
-        "bytes": 87672,
-        "sha256": "47c09186593ea837405388366f0491dec7ce15c05d7385152295177f20937e3b",
-        "grip": [
-          0.0,
-          0.07425,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 2,
-        "unchanged_images_checked": 0
-      }
-    },
-    {
-      "kind": "item",
-      "name": "FOAM",
-      "source": "Assets/_Project/Art/Imported/Items/FOAM.fbx",
-      "sha256": "130454b0536806a9a6baab67d1748012dcc19e052314cea8c65e6284034753fe",
-      "triangles": 4000,
-      "meshes": [
-        {
-          "name": "FOAM",
-          "triangles": 4000,
-          "vertices": 2475,
-          "materials": [
-            "blue_Classic",
-            "metal_Classic",
-            "dark_Classic",
-            "white_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.0954500213265419,
-        -1.4575620710388648e-08,
-        -0.09544995427131653
-      ],
-      "bounds_max_unity": [
-        0.09544997662305832,
-        0.3725000023841858,
-        0.10000003129243851
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/FOAM.glb",
-        "size": [
-          0.1909,
-          0.3725,
-          0.19545
-        ],
-        "boundsMin": [
-          -0.09545,
-          -0.0,
-          -0.09545
-        ],
-        "boundsMax": [
-          0.09545,
-          0.3725,
-          0.1
-        ],
-        "triangles": 4000,
-        "bytes": 157924,
-        "sha256": "d354e197c9238becae0c3cc6ad4153a903a2a2a9619f9ed42227216ccb6c3127",
-        "grip": [
-          0.0,
-          0.18625,
-          0.002275
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "BOMB",
-      "source": "Assets/_Project/Art/Imported/Items/BOMB.fbx",
-      "sha256": "5c49a6af4843829ffd5a3c2dbeb4d9cdb09359177d963c064fd21d19dbb5de48",
-      "triangles": 2236,
-      "meshes": [
-        {
-          "name": "BOMB",
-          "triangles": 2236,
-          "vertices": 1372,
-          "materials": [
-            "dark_Classic",
-            "metal_Classic",
-            "gold_Classic",
-            "cream_Classic",
-            "ivory_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.17200002074241638,
-        -3.8313838206881025e-24,
-        -0.1719999760389328
-      ],
-      "bounds_max_unity": [
-        0.171999990940094,
-        0.47179344296455383,
-        0.17200003564357758
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BOMB.glb",
-        "size": [
-          0.344,
-          0.471793,
-          0.344
-        ],
-        "boundsMin": [
-          -0.172,
-          -0.0,
-          -0.172
-        ],
-        "boundsMax": [
-          0.172,
-          0.471793,
-          0.172
-        ],
-        "triangles": 2236,
-        "bytes": 90952,
-        "sha256": "61a95fa6de9f562ca37c3ba73a2f4e17a5c664d5459b47eaeb54cad352e5b035",
-        "grip": [
-          0.0,
-          0.235897,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 5,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "ARROW",
-      "source": "Assets/_Project/Art/Imported/Items/ARROW.fbx",
-      "sha256": "10a5f338c06494a14ef6444cdc5c1f5ed37606fa66777c75a146afc5e9e1b390",
-      "triangles": 144,
-      "meshes": [
-        {
-          "name": "ARROW",
-          "triangles": 144,
-          "vertices": 196,
-          "materials": [
-            "wood_light_Classic",
-            "metal_Classic",
-            "red_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.055000048130750656,
-        -5.497786226271728e-09,
-        -0.04530126601457596
-      ],
-      "bounds_max_unity": [
-        0.054999954998493195,
-        0.6650000214576721,
-        0.045301273465156555
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/ARROW.glb",
-        "size": [
-          0.11,
-          0.665,
-          0.090603
-        ],
-        "boundsMin": [
-          -0.055,
-          -0.0,
-          -0.045301
-        ],
-        "boundsMax": [
-          0.055,
-          0.665,
-          0.045301
-        ],
-        "triangles": 144,
-        "bytes": 21060,
-        "sha256": "80c644500db92766f4a031717ec11e0eafeff9e4db133233b2cea5f77905816f",
-        "grip": [
-          0.0,
-          0.305,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "BOW",
-      "source": "Assets/_Project/Art/Imported/Items/BOW.fbx",
-      "sha256": "5eeec1daf3781eecaf3b6b4b84ea01c8be308be95b70de138cf8e030da960d89",
-      "triangles": 684,
-      "meshes": [
-        {
-          "name": "BOW",
-          "triangles": 684,
-          "vertices": 378,
-          "materials": [
-            "wood_light_Classic",
-            "cream_Classic",
-            "wood_dark_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.21900004148483276,
-        -1.5497506611339418e-09,
-        -0.02899996191263199
-      ],
-      "bounds_max_unity": [
-        0.020999964326620102,
-        0.7493087649345398,
-        0.02900005877017975
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BOW.glb",
-        "size": [
-          0.24,
-          0.749309,
-          0.058
-        ],
-        "boundsMin": [
-          -0.021,
-          -0.0,
-          -0.029
-        ],
-        "boundsMax": [
-          0.219,
-          0.749309,
-          0.029
-        ],
-        "triangles": 684,
-        "bytes": 33820,
-        "sha256": "8d6567b0b29309699642ef84cdf1365e171b7f991ea7975a385020db2ca09622",
-        "grip": [
-          0.19,
-          0.374654,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "BROOM",
-      "source": "Assets/_Project/Art/Imported/Items/BROOM.fbx",
-      "sha256": "96034d4a04f1191e717d616880650511b99d2178a94a19fad8d4ac20b74331f0",
-      "triangles": 4416,
-      "meshes": [
-        {
-          "name": "BROOM",
-          "triangles": 4416,
-          "vertices": 2992,
-          "materials": [
-            "wood_light_Classic",
-            "red_Classic",
-            "cream_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.15000002086162567,
-        -1.6073693487328455e-08,
-        -0.04749998822808266
-      ],
-      "bounds_max_unity": [
-        0.14999999105930328,
-        1.0211728811264038,
-        0.04750003293156624
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BROOM.glb",
-        "size": [
-          0.3,
-          1.021173,
-          0.095
-        ],
-        "boundsMin": [
-          -0.15,
-          -0.0,
-          -0.0475
-        ],
-        "boundsMax": [
-          0.15,
-          1.021173,
-          0.0475
-        ],
-        "triangles": 4416,
-        "bytes": 203440,
-        "sha256": "9c29e8cd960cc2e50464e56eadf2c8caa0e802d4f6f1ee28a6eab741856803bb",
-        "grip": [
-          0.0,
-          0.621173,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 3
-      }
-    },
-    {
-      "kind": "item",
-      "name": "HAMMER",
-      "source": "Assets/_Project/Art/Imported/Items/HAMMER.fbx",
-      "sha256": "4537218f25d1169a693adb59b059a2b30ac2b37e9ed9ddfa06badb5cd2d02fe1",
-      "triangles": 5872,
-      "meshes": [
-        {
-          "name": "HAMMER",
-          "triangles": 5872,
-          "vertices": 3454,
-          "materials": [
-            "wood_light_Classic",
-            "wood_dark_Classic",
-            "metal_Classic",
-            "gold_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.17250005900859833,
-        -6.4681695555179886e-09,
-        -0.0874999389052391
-      ],
-      "bounds_max_unity": [
-        0.17249996960163116,
-        0.6349999904632568,
-        0.08750011771917343
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/HAMMER.glb",
-        "size": [
-          0.345,
-          0.635,
-          0.175
-        ],
-        "boundsMin": [
-          -0.1725,
-          -0.0,
-          -0.0875
-        ],
-        "boundsMax": [
-          0.1725,
-          0.635,
-          0.0875
-        ],
-        "triangles": 5872,
-        "bytes": 224532,
-        "sha256": "b397ce961e7d7369118ca573e4bd5853391a3a1ea4c59076c686f13f4312b67f",
-        "grip": [
-          0.0,
-          0.13,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "PAN",
-      "source": "Assets/_Project/Art/Imported/Items/PAN.fbx",
-      "sha256": "d7e3c1e88df9af1a8ed8cb9ad8685da2a00fc72a690b55871081fd62bd16945a",
-      "triangles": 1136,
-      "meshes": [
-        {
-          "name": "PAN",
-          "triangles": 1136,
-          "vertices": 697,
-          "materials": [
-            "dark_Classic",
-            "metal_Classic",
-            "wood_dark_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.5562188625335693,
-        -3.656382574490635e-08,
-        -0.23000000417232513
-      ],
-      "bounds_max_unity": [
-        0.23000000417232513,
-        0.15444302558898926,
-        0.23000001907348633
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/PAN.glb",
-        "size": [
-          0.786219,
-          0.154443,
-          0.46
-        ],
-        "boundsMin": [
-          -0.23,
-          -0.0,
-          -0.23
-        ],
-        "boundsMax": [
-          0.556219,
-          0.154443,
-          0.23
-        ],
-        "triangles": 1136,
-        "bytes": 47296,
-        "sha256": "f1d13cf94fe23e59e1e9168fbe49050feeb1dd341057cacb5d4191664190cbf2",
-        "grip": [
-          0.43,
-          0.1,
-          -0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 0
-      }
-    },
-    {
-      "kind": "item",
-      "name": "SHIELD",
-      "source": "Assets/_Project/Art/Imported/Items/SHIELD.fbx",
-      "sha256": "29dbadca21d2094a0fd3f3935529edf9009c273aa1b130896d9bceb8718562fa",
-      "triangles": 172,
-      "meshes": [
-        {
-          "name": "SHIELD",
-          "triangles": 172,
-          "vertices": 282,
-          "materials": [
-            "gold_Classic",
-            "blue_Classic",
-            "ivory_Classic",
-            "wood_dark_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.23000004887580872,
-        -5.865144370176267e-09,
-        -0.12464499473571777
-      ],
-      "bounds_max_unity": [
-        0.22999995946884155,
-        0.5700000524520874,
-        0.06300006806850433
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/SHIELD.glb",
-        "size": [
-          0.46,
-          0.57,
-          0.187645
-        ],
-        "boundsMin": [
-          -0.23,
-          -0.0,
-          -0.124645
-        ],
-        "boundsMax": [
-          0.23,
-          0.57,
-          0.063
-        ],
-        "triangles": 172,
-        "bytes": 21876,
-        "sha256": "c52b3c7c23f5cdd664bba168e11b1c803bfed57aee9cdd6a4b049f0fb58f5552",
-        "grip": [
-          0.0,
-          0.29,
-          -0.11
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "SPEAR",
-      "source": "Assets/_Project/Art/Imported/Items/SPEAR.fbx",
-      "sha256": "44fe3195dcc4245dbf46eb0363fbb69d65941d548c1f4f479994f1c36d47308b",
-      "triangles": 2028,
-      "meshes": [
-        {
-          "name": "SPEAR",
-          "triangles": 2028,
-          "vertices": 1168,
-          "materials": [
-            "wood_light_Classic",
-            "metal_Classic",
-            "gold_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.08500008285045624,
-        -4.620121174525593e-09,
-        -0.03399984911084175
-      ],
-      "bounds_max_unity": [
-        0.0849999189376831,
-        1.2350000143051147,
-        0.03400016576051712
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/SPEAR.glb",
-        "size": [
-          0.17,
-          1.235,
-          0.068
-        ],
-        "boundsMin": [
-          -0.085,
-          -0.0,
-          -0.034
-        ],
-        "boundsMax": [
-          0.085,
-          1.235,
-          0.034
-        ],
-        "triangles": 2028,
-        "bytes": 80228,
-        "sha256": "fc4e3e3cefe7a917ab3add74e1550f6c494bbb03d3d94522cbd6030aba787799",
-        "grip": [
-          0.0,
-          0.465,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "APPLE",
-      "source": "Assets/_Project/Art/Imported/Items/APPLE.fbx",
-      "sha256": "3301290526b9c2a80a834e2c6cb75c23de0f3bf668acced4fc308b3212c9b4b7",
-      "triangles": 1764,
-      "meshes": [
-        {
-          "name": "APPLE",
-          "triangles": 1764,
-          "vertices": 1055,
-          "materials": [
-            "red_Classic",
-            "wood_dark_Classic",
-            "leaf_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.12000000476837158,
-        0.0,
-        -0.11499997973442078
-      ],
-      "bounds_max_unity": [
-        0.11999998986721039,
-        0.2708774507045746,
-        0.11500002443790436
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/APPLE.glb",
-        "size": [
-          0.24,
-          0.270877,
-          0.23
-        ],
-        "boundsMin": [
-          -0.12,
-          0.0,
-          -0.115
-        ],
-        "boundsMax": [
-          0.12,
-          0.270877,
-          0.115
-        ],
-        "triangles": 1764,
-        "bytes": 67720,
-        "sha256": "f9f6136f22df18d15d25e6c40f474e32a488c63be9ec3c820067cf4973dfecf4",
-        "grip": [
-          0.0,
-          0.135439,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "CAKE",
-      "source": "Assets/_Project/Art/Imported/Items/CAKE.fbx",
-      "sha256": "ed285060172d1636b8c2b3833a6583daf8795f74ec0b1a221acf6aee1d54dee1",
-      "triangles": 3088,
-      "meshes": [
-        {
-          "name": "CAKE",
-          "triangles": 3088,
-          "vertices": 1979,
-          "materials": [
-            "ceramic_Classic",
-            "wood_light_Classic",
-            "cream_Classic",
-            "pink_Classic",
-            "white_Classic",
-            "red_Classic",
-            "leaf_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.25,
-        -4.6201208192542254e-08,
-        -0.25
-      ],
-      "bounds_max_unity": [
-        0.25,
-        0.4164855480194092,
-        0.25
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/CAKE.glb",
-        "size": [
-          0.5,
-          0.416486,
-          0.5
-        ],
-        "boundsMin": [
-          -0.25,
-          -0.0,
-          -0.25
-        ],
-        "boundsMax": [
-          0.25,
-          0.416486,
-          0.25
-        ],
-        "triangles": 3088,
-        "bytes": 137452,
-        "sha256": "f92658998b3cbc9c074d7d986bf16001556b6fa56e2227069471e6f0dd71a04e",
-        "grip": [
-          0.0,
-          0.208243,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 7,
-        "unchanged_images_checked": 3
-      }
-    },
-    {
-      "kind": "item",
-      "name": "PIE",
-      "source": "Assets/_Project/Art/Imported/Items/PIE.fbx",
-      "sha256": "2418a83e60d570f90c5261b293055935ccad0fe80fb77d2b2b594514f95ae136",
-      "triangles": 4640,
-      "meshes": [
-        {
-          "name": "PIE",
-          "triangles": 4640,
-          "vertices": 2993,
-          "materials": [
-            "metal_Classic",
-            "wood_light_Classic",
-            "cream_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.25,
-        -3.5121974661933564e-08,
-        -0.2499999850988388
-      ],
-      "bounds_max_unity": [
-        0.2499999850988388,
-        0.1820000261068344,
-        0.25
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/PIE.glb",
-        "size": [
-          0.5,
-          0.182,
-          0.5
-        ],
-        "boundsMin": [
-          -0.25,
-          -0.0,
-          -0.25
-        ],
-        "boundsMax": [
-          0.25,
-          0.182,
-          0.25
-        ],
-        "triangles": 4640,
-        "bytes": 194488,
-        "sha256": "ae589a313ccc87b9d25cfe49c199cfc6500fc135b8ef2b2fd24236d08a53363e",
-        "grip": [
-          0.0,
-          0.091,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "SODA",
-      "source": "Assets/_Project/Art/Imported/Items/SODA.fbx",
-      "sha256": "7942dfde0a9102314a4f3c96fc34e8ae6765115b0222e9a7e160a242d14a2629",
-      "triangles": 2372,
-      "meshes": [
-        {
-          "name": "SODA",
-          "triangles": 2372,
-          "vertices": 1484,
-          "materials": [
-            "red_Classic",
-            "metal_Classic",
-            "gold_Classic",
-            "ivory_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.09090001881122589,
-        -1.3808482357546836e-08,
-        -0.09089995175600052
-      ],
-      "bounds_max_unity": [
-        0.09089997410774231,
-        0.3019999861717224,
-        0.09300003200769424
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/SODA.glb",
-        "size": [
-          0.1818,
-          0.302,
-          0.1839
-        ],
-        "boundsMin": [
-          -0.0909,
-          -0.0,
-          -0.0909
-        ],
-        "boundsMax": [
-          0.0909,
-          0.302,
-          0.093
-        ],
-        "triangles": 2372,
-        "bytes": 96748,
-        "sha256": "03649e0a617ea2785a903ac07d6f61aef8b1a0bfb5169adeac2f12dc5a98dcd7",
-        "grip": [
-          0.0,
-          0.151,
-          0.00105
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "WATER",
-      "source": "Assets/_Project/Art/Imported/Items/WATER.fbx",
-      "sha256": "af8f907a423477e77b9ce8940a1f65525717f10db82d17081dc4293923990e06",
-      "triangles": 2544,
-      "meshes": [
-        {
-          "name": "WATER",
-          "triangles": 2544,
-          "vertices": 1590,
-          "materials": [
-            "water_Classic",
-            "blue_Classic",
-            "ivory_Classic",
-            "ceramic_Classic",
-            "white_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.08800002187490463,
-        -1.3802481824143342e-08,
-        -0.08799999207258224
-      ],
-      "bounds_max_unity": [
-        0.08799999952316284,
-        0.4099999964237213,
-        0.09050002694129944
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/WATER.glb",
-        "size": [
-          0.176,
-          0.41,
-          0.1785
-        ],
-        "boundsMin": [
-          -0.088,
-          -0.0,
-          -0.088
-        ],
-        "boundsMax": [
-          0.088,
-          0.41,
-          0.0905
-        ],
-        "triangles": 2544,
-        "bytes": 105644,
-        "sha256": "d69b7a9dc9dce4f9219f7bbd39cc2331a93e5a6483b493dbad0e0478ecc78998",
-        "grip": [
-          0.0,
-          0.205,
-          0.00125
-        ]
-      },
-      "material_validation": {
-        "materials": 5,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "BARREL",
-      "source": "Assets/_Project/Art/Imported/Items/BARREL.fbx",
-      "sha256": "3b6176198e913f30f15b58ea32488f3d8f3bee81f8d826c59b30fb88255af005",
-      "triangles": 4240,
-      "meshes": [
-        {
-          "name": "BARREL",
-          "triangles": 4240,
-          "vertices": 2473,
-          "materials": [
-            "wood_Classic",
-            "metal_Classic",
-            "wood_dark_Classic",
-            "wood_light_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.27900004386901855,
-        -3.864695230504367e-08,
-        -0.2789999842643738
-      ],
-      "bounds_max_unity": [
-        0.2789999842643738,
-        0.6000000834465027,
-        0.27900007367134094
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BARREL.glb",
-        "size": [
-          0.558,
-          0.6,
-          0.558
-        ],
-        "boundsMin": [
-          -0.279,
-          -0.0,
-          -0.279
-        ],
-        "boundsMax": [
-          0.279,
-          0.6,
-          0.279
-        ],
-        "triangles": 4240,
-        "bytes": 164668,
-        "sha256": "23e5a8a74d8fa7b2853d60302ec3535d9839f08d12badc860cedefc46195759f",
-        "grip": [
-          0.0,
-          0.3,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "BOX",
-      "source": "Assets/_Project/Art/Imported/Items/BOX.fbx",
-      "sha256": "edaef47d157adcda16e1ff0f07e23348c70b2de204729e944b669c2d0fe88264",
-      "triangles": 1772,
-      "meshes": [
-        {
-          "name": "BOX",
-          "triangles": 1772,
-          "vertices": 1308,
-          "materials": [
-            "wood_light_Classic",
-            "cream_Classic",
-            "wood_dark_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.31000006198883057,
-        -5.744000475260691e-08,
-        -0.24799995124340057
-      ],
-      "bounds_max_unity": [
-        0.3100000023841858,
-        0.5175000429153442,
-        0.2495000660419464
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BOX.glb",
-        "size": [
-          0.62,
-          0.5175,
-          0.4975
-        ],
-        "boundsMin": [
-          -0.31,
-          -0.0,
-          -0.248
-        ],
-        "boundsMax": [
-          0.31,
-          0.5175,
-          0.2495
-        ],
-        "triangles": 1772,
-        "bytes": 90996,
-        "sha256": "4c5729e5225156b6596668cfb8e31d9c24bf3a520c4413edb219e3c9e6749bd7",
-        "grip": [
-          0.0,
-          0.25875,
-          0.00075
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "CABINET",
-      "source": "Assets/_Project/Art/Imported/Items/CABINET.fbx",
-      "sha256": "9317d24a2a14cc032eccd35451ce4296b31f82086edd29f5e197854ed9bba19c",
-      "triangles": 3600,
-      "meshes": [
-        {
-          "name": "CABINET",
-          "triangles": 3600,
-          "vertices": 2428,
-          "materials": [
-            "wood_Classic",
-            "wood_light_Classic",
-            "gold_Classic",
-            "wood_dark_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.49500012397766113,
-        -6.0778177157772e-08,
-        -0.2250000238418579
-      ],
-      "bounds_max_unity": [
-        0.4950000047683716,
-        1.1350001096725464,
-        0.3110000789165497
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/CABINET.glb",
-        "size": [
-          0.99,
-          1.135,
-          0.536
-        ],
-        "boundsMin": [
-          -0.495,
-          -0.0,
-          -0.225
-        ],
-        "boundsMax": [
-          0.495,
-          1.135,
-          0.311
-        ],
-        "triangles": 3600,
-        "bytes": 157108,
-        "sha256": "0edbb5a166aab7a59023acfb2c10bac094a1bed31542bfa77afa513af125eefa",
-        "grip": [
-          0.0,
-          0.5675,
-          0.043
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "CHAIR",
-      "source": "Assets/_Project/Art/Imported/Items/CHAIR.fbx",
-      "sha256": "fd3ed504cb80688af389c2ea064a1e6909630b39a02acdc28d9d6edb802e75d9",
-      "triangles": 3408,
-      "meshes": [
-        {
-          "name": "CHAIR",
-          "triangles": 3408,
-          "vertices": 2266,
-          "materials": [
-            "wood_Classic",
-            "wood_light_Classic",
-            "green_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.2500000596046448,
-        -4.4210768379571164e-08,
-        -0.24134135246276855
-      ],
-      "bounds_max_unity": [
-        0.2499999850988388,
-        0.8979849219322205,
-        0.24134136736392975
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/CHAIR.glb",
-        "size": [
-          0.5,
-          0.897985,
-          0.482683
-        ],
-        "boundsMin": [
-          -0.25,
-          -0.0,
-          -0.241341
-        ],
-        "boundsMax": [
-          0.25,
-          0.897985,
-          0.241341
-        ],
-        "triangles": 3408,
-        "bytes": 163392,
-        "sha256": "b087630f08012d13e435209b2c74528b244032f9dc1ce700d3902e9a1f7c0d75",
-        "grip": [
-          0.0,
-          0.448992,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 3
-      }
-    },
-    {
-      "kind": "item",
-      "name": "CHEST",
-      "source": "Assets/_Project/Art/Imported/Items/CHEST.fbx",
-      "sha256": "6c47cd21d93b5f7a32aff60ff83f8fea87684efa3081778af6534d8a2213ec47",
-      "triangles": 3104,
-      "meshes": [
-        {
-          "name": "CHEST",
-          "triangles": 3104,
-          "vertices": 2105,
-          "materials": [
-            "wood_Classic",
-            "wood_light_Classic",
-            "gold_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.39000004529953003,
-        -6.24946494554024e-08,
-        -0.244999960064888
-      ],
-      "bounds_max_unity": [
-        0.38999995589256287,
-        0.5675000548362732,
-        0.3020000159740448
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/CHEST.glb",
-        "size": [
-          0.78,
-          0.5675,
-          0.547
-        ],
-        "boundsMin": [
-          -0.39,
-          -0.0,
-          -0.245
-        ],
-        "boundsMax": [
-          0.39,
-          0.5675,
-          0.302
-        ],
-        "triangles": 3104,
-        "bytes": 140984,
-        "sha256": "aa7841b2fc2de8b3192e76e876f3d50c153db03b5a1b5c0fa73a07f1bc578754",
-        "grip": [
-          0.0,
-          0.28375,
-          0.0285
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "CRATE",
-      "source": "Assets/_Project/Art/Imported/Items/CRATE.fbx",
-      "sha256": "05f267408ac40b7544a7ea9360ae173a9eb42167e1b0100859b8e499151e1a4e",
-      "triangles": 7776,
-      "meshes": [
-        {
-          "name": "CRATE",
-          "triangles": 7776,
-          "vertices": 5292,
-          "materials": [
-            "wood_light_Classic",
-            "wood_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.30500006675720215,
-        -5.970494498797052e-08,
-        -0.2889999747276306
-      ],
-      "bounds_max_unity": [
-        0.304999977350235,
-        0.48200005292892456,
-        0.2890000641345978
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/CRATE.glb",
-        "size": [
-          0.61,
-          0.482,
-          0.578
-        ],
-        "boundsMin": [
-          -0.305,
-          -0.0,
-          -0.289
-        ],
-        "boundsMax": [
-          0.305,
-          0.482,
-          0.289
-        ],
-        "triangles": 7776,
-        "bytes": 347528,
-        "sha256": "7cbfa952ce80390733b9915ddd4c2f8ff7f4f6676d5b39f7e168497b4f8f2eda",
-        "grip": [
-          0.0,
-          0.241,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 2,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "DESK",
-      "source": "Assets/_Project/Art/Imported/Items/DESK.fbx",
-      "sha256": "8850f1bd4342f3a79f9d7baa44a40e2cf1b4e07ad128236e8b236f61063af3f5",
-      "triangles": 5344,
-      "meshes": [
-        {
-          "name": "DESK",
-          "triangles": 5344,
-          "vertices": 3622,
-          "materials": [
-            "wood_light_Classic",
-            "wood_Classic",
-            "gold_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.6700001358985901,
-        -9.744164941594136e-08,
-        -0.325499951839447
-      ],
-      "bounds_max_unity": [
-        0.6699999570846558,
-        0.7800000905990601,
-        0.35200005769729614
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/DESK.glb",
-        "size": [
-          1.34,
-          0.78,
-          0.6775
-        ],
-        "boundsMin": [
-          -0.67,
-          -0.0,
-          -0.3255
-        ],
-        "boundsMax": [
-          0.67,
-          0.78,
-          0.352
-        ],
-        "triangles": 5344,
-        "bytes": 242360,
-        "sha256": "726a8cb960da38378fa2f6c5528b13af27d1cb708aaf21df743560de2677bd81",
-        "grip": [
-          0.0,
-          0.39,
-          0.01325
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "SHELF",
-      "source": "Assets/_Project/Art/Imported/Items/SHELF.fbx",
-      "sha256": "762e1c1cb5d365d7d97a86b8066118e37746cd34e118a76bb30523688ac0c867",
-      "triangles": 3024,
-      "meshes": [
-        {
-          "name": "SHELF",
-          "triangles": 3024,
-          "vertices": 2058,
-          "materials": [
-            "wood_Classic",
-            "wood_dark_Classic",
-            "wood_light_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.49500012397766113,
-        -6.370687799517327e-08,
-        -0.1600000262260437
-      ],
-      "bounds_max_unity": [
-        0.4950000047683716,
-        1.28000009059906,
-        0.16000023484230042
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/SHELF.glb",
-        "size": [
-          0.99,
-          1.28,
-          0.32
-        ],
-        "boundsMin": [
-          -0.495,
-          -0.0,
-          -0.16
-        ],
-        "boundsMax": [
-          0.495,
-          1.28,
-          0.16
-        ],
-        "triangles": 3024,
-        "bytes": 140076,
-        "sha256": "f5b7c771893ef124700a09bd3943c7a34934cf39c74d6ea85af80f7d58f03955",
-        "grip": [
-          0.0,
-          0.64,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "STOOL",
-      "source": "Assets/_Project/Art/Imported/Items/STOOL.fbx",
-      "sha256": "a3b5983a2d59dbd75fb43415ffdc913b959210915a861d08af46d61e6e9e944a",
-      "triangles": 704,
-      "meshes": [
-        {
-          "name": "STOOL",
-          "triangles": 704,
-          "vertices": 452,
-          "materials": [
-            "wood_Classic",
-            "wood_light_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.2600000202655792,
-        -4.4210768379571164e-08,
-        -0.25999993085861206
-      ],
-      "bounds_max_unity": [
-        0.25999996066093445,
-        0.46598488092422485,
-        0.2600000500679016
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/STOOL.glb",
-        "size": [
-          0.52,
-          0.465985,
-          0.52
-        ],
-        "boundsMin": [
-          -0.26,
-          -0.0,
-          -0.26
-        ],
-        "boundsMax": [
-          0.26,
-          0.465985,
-          0.26
-        ],
-        "triangles": 704,
-        "bytes": 41520,
-        "sha256": "1cc68e80af44a5c9bca0e0e89c0d3296863f050aec309f05d83462730b11813d",
-        "grip": [
-          0.0,
-          0.232992,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 2,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "BOOK",
-      "source": "Assets/_Project/Art/Imported/Items/BOOK.fbx",
-      "sha256": "fec2fea8fdcae6481b16c8d728873622b27979b2339174f3b1e915e1fdf157c2",
-      "triangles": 3492,
-      "meshes": [
-        {
-          "name": "BOOK",
-          "triangles": 3492,
-          "vertices": 2460,
-          "materials": [
-            "ivory_Classic",
-            "blue_Classic",
-            "cream_Classic",
-            "gold_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.16250000894069672,
-        -3.2475156785949366e-08,
-        -0.1275000125169754
-      ],
-      "bounds_max_unity": [
-        0.1770000159740448,
-        0.1300000101327896,
-        0.1275000274181366
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/BOOK.glb",
-        "size": [
-          0.3395,
-          0.13,
-          0.255
-        ],
-        "boundsMin": [
-          -0.177,
-          -0.0,
-          -0.1275
-        ],
-        "boundsMax": [
-          0.1625,
-          0.13,
-          0.1275
-        ],
-        "triangles": 3492,
-        "bytes": 163896,
-        "sha256": "2fa0a3fdb661ed77297e8e7c63a2660d200d6dfb4d4ea257939e7e59a0d10474",
-        "grip": [
-          -0.00725,
-          0.065,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 2
-      }
-    },
-    {
-      "kind": "item",
-      "name": "CLOCK",
-      "source": "Assets/_Project/Art/Imported/Items/CLOCK.fbx",
-      "sha256": "0ad84b39ef1503cbfb0c896da08bcbad7ca3b1bf7e08767fbccd456d883f4a99",
-      "triangles": 3536,
-      "meshes": [
-        {
-          "name": "CLOCK",
-          "triangles": 3536,
-          "vertices": 2257,
-          "materials": [
-            "wood_Classic",
-            "ivory_Classic",
-            "gold_Classic",
-            "wood_dark_Classic",
-            "dark_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.24000002443790436,
-        -6.51682707797363e-09,
-        -0.030000004917383194
-      ],
-      "bounds_max_unity": [
-        0.23999997973442078,
-        0.47999998927116394,
-        0.09200003743171692
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/CLOCK.glb",
-        "size": [
-          0.48,
-          0.48,
-          0.122
-        ],
-        "boundsMin": [
-          -0.24,
-          -0.0,
-          -0.03
-        ],
-        "boundsMax": [
-          0.24,
-          0.48,
-          0.092
-        ],
-        "triangles": 3536,
-        "bytes": 145408,
-        "sha256": "440d38a82593bc2daa9b03935b56d961e37c643d2dd27626b6200f00ba8d116b",
-        "grip": [
-          0.0,
-          0.24,
-          0.031
-        ]
-      },
-      "material_validation": {
-        "materials": 5,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "FAN",
-      "source": "Assets/_Project/Art/Imported/Items/FAN.fbx",
-      "sha256": "682457a8331f889f12ae366ba51c786768023f45f5c1d9ab0797dd7e67bb5caa",
-      "triangles": 4828,
-      "meshes": [
-        {
-          "name": "FAN",
-          "triangles": 4828,
-          "vertices": 2876,
-          "materials": [
-            "blue_Classic",
-            "metal_Classic",
-            "ivory_Classic",
-            "gold_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.2610000669956207,
-        -2.990617176124033e-08,
-        -0.1250000149011612
-      ],
-      "bounds_max_unity": [
-        0.2609999477863312,
-        0.8209999799728394,
-        0.1250000149011612
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/FAN.glb",
-        "size": [
-          0.522,
-          0.821,
-          0.25
-        ],
-        "boundsMin": [
-          -0.261,
-          -0.0,
-          -0.125
-        ],
-        "boundsMax": [
-          0.261,
-          0.821,
-          0.125
-        ],
-        "triangles": 4828,
-        "bytes": 185472,
-        "sha256": "67bd384322b83617ac801211fb487f6be4e57c9d712f1b294660c13957700cd7",
-        "grip": [
-          0.0,
-          0.4105,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 4,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "MUG",
-      "source": "Assets/_Project/Art/Imported/Items/MUG.fbx",
-      "sha256": "8837088ead3146b2bcc387c06d1907315d964dd870592b5e59180b04c643339e",
-      "triangles": 1228,
-      "meshes": [
-        {
-          "name": "MUG",
-          "triangles": 1228,
-          "vertices": 811,
-          "materials": [
-            "red_Classic",
-            "ivory_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.22700001299381256,
-        -1.903980795248117e-08,
-        -0.12499996274709702
-      ],
-      "bounds_max_unity": [
-        0.12499997764825821,
-        0.27500003576278687,
-        0.1260000318288803
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/MUG.glb",
-        "size": [
-          0.352,
-          0.275,
-          0.251
-        ],
-        "boundsMin": [
-          -0.125,
-          -0.0,
-          -0.125
-        ],
-        "boundsMax": [
-          0.227,
-          0.275,
-          0.126
-        ],
-        "triangles": 1228,
-        "bytes": 51240,
-        "sha256": "f76dd6a2041887b0bdb42ce812921310d28ae26da133b80cd1523a468ca2774c",
-        "grip": [
-          0.051,
-          0.1375,
-          0.0005
-        ]
-      },
-      "material_validation": {
-        "materials": 2,
-        "unchanged_images_checked": 1
-      }
-    },
-    {
-      "kind": "item",
-      "name": "PLANT",
-      "source": "Assets/_Project/Art/Imported/Items/PLANT.fbx",
-      "sha256": "107b7cf733d5b8811c44a27b83a53e3121007bbec399aad09494c1350b830379",
-      "triangles": 3764,
-      "meshes": [
-        {
-          "name": "PLANT",
-          "triangles": 3764,
-          "vertices": 2337,
-          "materials": [
-            "ceramic_Classic",
-            "wood_dark_Classic",
-            "leaf_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.1704341620206833,
-        -2.125803710839591e-08,
-        -0.16999995708465576
-      ],
-      "bounds_max_unity": [
-        0.16999997198581696,
-        0.7876498103141785,
-        0.175916388630867
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/PLANT.glb",
-        "size": [
-          0.340434,
-          0.78765,
-          0.345916
-        ],
-        "boundsMin": [
-          -0.17,
-          -0.0,
-          -0.17
-        ],
-        "boundsMax": [
-          0.170434,
-          0.78765,
-          0.175916
-        ],
-        "triangles": 3764,
-        "bytes": 146988,
-        "sha256": "c956a0fbd1b00b5dbe1ace2a83009215908b7ee6640400dad0053ad167045da8",
-        "grip": [
-          0.000217,
-          0.393825,
-          0.002958
-        ]
-      },
-      "material_validation": {
-        "materials": 3,
-        "unchanged_images_checked": 0
-      }
-    },
-    {
-      "kind": "item",
-      "name": "POT",
-      "source": "Assets/_Project/Art/Imported/Items/POT.fbx",
-      "sha256": "f0b8cb4147fb9e0a79c3c639f20d6b0bea2056001c71ee5f9f32bed0eab0f054",
-      "triangles": 2320,
-      "meshes": [
-        {
-          "name": "POT",
-          "triangles": 2320,
-          "vertices": 1365,
-          "materials": [
-            "dark_Classic",
-            "metal_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.3569999933242798,
-        -3.656382574490635e-08,
-        -0.23000000417232513
-      ],
-      "bounds_max_unity": [
-        0.3569999933242798,
-        0.25700002908706665,
-        0.23000004887580872
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/POT.glb",
-        "size": [
-          0.714,
-          0.257,
-          0.46
-        ],
-        "boundsMin": [
-          -0.357,
-          -0.0,
-          -0.23
-        ],
-        "boundsMax": [
-          0.357,
-          0.257,
-          0.23
-        ],
-        "triangles": 2320,
-        "bytes": 84676,
-        "sha256": "240411f85cb311048f0da6306141ae62bc24fd8cd897d3708a807d4136f1ed87",
-        "grip": [
-          0.0,
-          0.1285,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 2,
-        "unchanged_images_checked": 0
-      }
-    },
-    {
-      "kind": "item",
-      "name": "VASE",
-      "source": "Assets/_Project/Art/Imported/Items/VASE.fbx",
-      "sha256": "3ea8f94ca8058d92c58b12da00d5e4ce457dfc8d722f4faef90b983d45af1305",
-      "triangles": 1760,
-      "meshes": [
-        {
-          "name": "VASE",
-          "triangles": 1760,
-          "vertices": 1014,
-          "materials": [
-            "ceramic_Classic",
-            "gold_Classic"
-          ],
-          "degenerate_triangles": 0,
-          "opposed_corner_normals": 0,
-          "invalid_unit_normals": 0,
-          "uv_layers": 1,
-          "weighted_vertices": 0,
-          "weight_groups": []
-        }
-      ],
-      "bounds_min_unity": [
-        -0.16500002145767212,
-        -1.8485250663502484e-08,
-        -0.16499997675418854
-      ],
-      "bounds_max_unity": [
-        0.16499999165534973,
-        0.492000013589859,
-        0.1650000363588333
-      ],
-      "unknown_materials": [],
-      "animations": [],
-      "count_matches_source": true,
-      "bounds_match_source": true,
-      "export": {
-        "path": "art/items/VASE.glb",
-        "size": [
-          0.33,
-          0.492,
-          0.33
-        ],
-        "boundsMin": [
-          -0.165,
-          -0.0,
-          -0.165
-        ],
-        "boundsMax": [
-          0.165,
-          0.492,
-          0.165
-        ],
-        "triangles": 1760,
-        "bytes": 62744,
-        "sha256": "5344c69378cec39826a3a8f60816b78fc9f37e1003ba7c4379635d1807444a99",
-        "grip": [
-          0.0,
-          0.246,
-          0.0
-        ]
-      },
-      "material_validation": {
-        "materials": 2,
-        "unchanged_images_checked": 0
-      }
-    },
     {
       "kind": "letter",
       "name": "A",
@@ -6720,6 +3941,2793 @@
           "foot_R"
         ],
         "defaultTriangles": 52488
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BAT",
+      "source": "Assets/_Project/Art/Imported/Items/BAT.fbx",
+      "sha256": "e2292700d8b2969eab4755a3ed694f881cf2cb7eae972b88572bf239f576ad17",
+      "triangles": 5248,
+      "meshes": [
+        {
+          "name": "BAT",
+          "triangles": 5248,
+          "vertices": 2986,
+          "materials": [
+            "wood_light_Classic",
+            "cream_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.08600007742643356,
+        -1.01218198267361e-08,
+        -0.08599986881017685
+      ],
+      "bounds_max_unity": [
+        0.08599992841482162,
+        1.0180000066757202,
+        0.08600013703107834
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 2,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/BAT.glb",
+        "size": [
+          0.172,
+          1.018,
+          0.172
+        ],
+        "boundsMin": [
+          -0.086,
+          -0.0,
+          -0.086
+        ],
+        "boundsMax": [
+          0.086,
+          1.018,
+          0.086
+        ],
+        "triangles": 5248,
+        "bytes": 192452,
+        "sha256": "a1a406f669440281fe6a295fab986c32b89889af3782a88ec106b638987f7901",
+        "grip": [
+          0.0,
+          0.17,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BLADE",
+      "source": "Assets/_Project/Art/Imported/Items/BLADE.fbx",
+      "sha256": "ebf1930fda24d8e9f8a2fa3eb0ed3dad46e93d4d31500a5ec688f3d369a6c66a",
+      "triangles": 4440,
+      "meshes": [
+        {
+          "name": "BLADE",
+          "triangles": 4440,
+          "vertices": 2569,
+          "materials": [
+            "metal_Classic",
+            "ivory_Classic",
+            "gold_Classic",
+            "dark_Classic",
+            "wood_dark_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.1650000363588333,
+        0.0,
+        -0.04599998891353607
+      ],
+      "bounds_max_unity": [
+        0.16499999165534973,
+        0.8659999966621399,
+        0.04600001126527786
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 5,
+        "unchanged_images_checked": 0
+      },
+      "export": {
+        "path": "art/items/BLADE.glb",
+        "size": [
+          0.33,
+          0.866,
+          0.092
+        ],
+        "boundsMin": [
+          -0.165,
+          0.0,
+          -0.046
+        ],
+        "boundsMax": [
+          0.165,
+          0.866,
+          0.046
+        ],
+        "triangles": 4440,
+        "bytes": 117700,
+        "sha256": "b9eae07619e58492a81b4ddd97784e980f7b64f494868206f422aabcf00458b5",
+        "grip": [
+          0.0,
+          0.146,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "LAMP",
+      "source": "Assets/_Project/Art/Imported/Items/LAMP.fbx",
+      "sha256": "99fa3ed5d55cd80f34ca7e0fe0e986f640b003ec2a52090893466ca38f5efab9",
+      "triangles": 3664,
+      "meshes": [
+        {
+          "name": "LAMP",
+          "triangles": 3664,
+          "vertices": 2158,
+          "materials": [
+            "ceramic_Classic",
+            "gold_Classic",
+            "cream_Classic",
+            "ivory_Classic",
+            "glow_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.268000066280365,
+        -2.957639999578987e-08,
+        -0.26799991726875305
+      ],
+      "bounds_max_unity": [
+        0.26799994707107544,
+        0.893000066280365,
+        0.2680000960826874
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 5,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/LAMP.glb",
+        "size": [
+          0.536,
+          0.893,
+          0.536
+        ],
+        "boundsMin": [
+          -0.268,
+          -0.0,
+          -0.268
+        ],
+        "boundsMax": [
+          0.268,
+          0.893,
+          0.268
+        ],
+        "triangles": 3664,
+        "bytes": 137920,
+        "sha256": "d8058342391c5a67f24b57f556df781e7122311696988c6fbdc7daecd8dc1771",
+        "grip": [
+          0.0,
+          0.35,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BALL",
+      "source": "Assets/_Project/Art/Imported/Items/BALL.fbx",
+      "sha256": "dae5f0263186309afd26a98f2cd548e923d6864f1cbe11533721ee1ef1a326ff",
+      "triangles": 3696,
+      "meshes": [
+        {
+          "name": "BALL",
+          "triangles": 3696,
+          "vertices": 2033,
+          "materials": [
+            "red_Classic",
+            "cream_Classic",
+            "ivory_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.1835000216960907,
+        0.0,
+        -0.18349994719028473
+      ],
+      "bounds_max_unity": [
+        0.1834999918937683,
+        0.367000013589859,
+        0.18485425412654877
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/BALL.glb",
+        "size": [
+          0.367,
+          0.367,
+          0.368354
+        ],
+        "boundsMin": [
+          -0.1835,
+          0.0,
+          -0.1835
+        ],
+        "boundsMax": [
+          0.1835,
+          0.367,
+          0.184854
+        ],
+        "triangles": 3696,
+        "bytes": 138780,
+        "sha256": "743581623e45ae54d9164b56547ed055d5b78d702b4b671397e6bece55f702ce",
+        "grip": [
+          0.0,
+          0.1835,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "PLATE",
+      "source": "Assets/_Project/Art/Imported/Items/PLATE.fbx",
+      "sha256": "3eb6d59d90541142c0182a586f8589bbf136c8a22f8ff6eeb2caf1c74a459176",
+      "triangles": 2080,
+      "meshes": [
+        {
+          "name": "PLATE",
+          "triangles": 2080,
+          "vertices": 1384,
+          "materials": [
+            "ceramic_Classic",
+            "gold_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.27000001072883606,
+        -5.209079034784736e-08,
+        -0.26999998092651367
+      ],
+      "bounds_max_unity": [
+        0.27000001072883606,
+        0.07369909435510635,
+        0.27000004053115845
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 2,
+        "unchanged_images_checked": 0
+      },
+      "export": {
+        "path": "art/items/PLATE.glb",
+        "size": [
+          0.54,
+          0.073699,
+          0.54
+        ],
+        "boundsMin": [
+          -0.27,
+          -0.0,
+          -0.27
+        ],
+        "boundsMax": [
+          0.27,
+          0.073699,
+          0.27
+        ],
+        "triangles": 2080,
+        "bytes": 82432,
+        "sha256": "171bec0707342896aad674e4725ed8984d28d0eecf452ba5d3e86e114ded21a3",
+        "grip": [
+          0.0,
+          0.0365,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "TABLE",
+      "source": "Assets/_Project/Art/Imported/Items/TABLE.fbx",
+      "sha256": "ea5c2952f8e09b16da901850c29bff05af82c960bbc8d0ba22a95373a8b18ba0",
+      "triangles": 3564,
+      "meshes": [
+        {
+          "name": "TABLE",
+          "triangles": 3564,
+          "vertices": 2448,
+          "materials": [
+            "wood_light_Classic",
+            "wood_Classic",
+            "red_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.6000001430511475,
+        -1.384447472219108e-07,
+        -0.3454998731613159
+      ],
+      "bounds_max_unity": [
+        0.6000000238418579,
+        0.7250000834465027,
+        0.34550029039382935
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 3
+      },
+      "export": {
+        "path": "art/items/TABLE.glb",
+        "size": [
+          1.2,
+          0.725,
+          0.691
+        ],
+        "boundsMin": [
+          -0.6,
+          -0.0,
+          -0.3455
+        ],
+        "boundsMax": [
+          0.6,
+          0.725,
+          0.3455
+        ],
+        "triangles": 3564,
+        "bytes": 147208,
+        "sha256": "ae66a299665f6cd49814f90576940b0a737ecefe3b928e2ceb950c9ebf4c54c4",
+        "grip": [
+          0.0,
+          0.36,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BED",
+      "source": "Assets/_Project/Art/Imported/Items/BED.fbx",
+      "sha256": "c55a5b78362e93e0d41c21d8c3286ff5f5d65efb4d88d7a477055f90523c1120",
+      "triangles": 5760,
+      "meshes": [
+        {
+          "name": "BED",
+          "triangles": 5760,
+          "vertices": 3890,
+          "materials": [
+            "wood_Classic",
+            "wood_light_Classic",
+            "gold_Classic",
+            "cream_Classic",
+            "blue_Classic",
+            "ivory_Classic",
+            "ceramic_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.517500102519989,
+        7.020396708412591e-08,
+        -0.7900000214576721
+      ],
+      "bounds_max_unity": [
+        0.5175000429153442,
+        0.8180001974105835,
+        0.7900001406669617
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 7,
+        "unchanged_images_checked": 4
+      },
+      "export": {
+        "path": "art/items/BED.glb",
+        "size": [
+          1.035,
+          0.818,
+          1.58
+        ],
+        "boundsMin": [
+          -0.5175,
+          0.0,
+          -0.79
+        ],
+        "boundsMax": [
+          0.5175,
+          0.818,
+          0.79
+        ],
+        "triangles": 5760,
+        "bytes": 254572,
+        "sha256": "7d7e86fac74f55822da713521324639125e9531e568455cbc2307ab3515d6403",
+        "grip": [
+          0.0,
+          0.409,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "MAT",
+      "source": "Assets/_Project/Art/Imported/Items/MAT.fbx",
+      "sha256": "2eba05c5c8fdffb11d5692a8a4f5d490047ce4ac3bcca6d809c5306c2a530bba",
+      "triangles": 1260,
+      "meshes": [
+        {
+          "name": "MAT",
+          "triangles": 1260,
+          "vertices": 964,
+          "materials": [
+            "dark_Classic",
+            "green_Classic",
+            "cream_Classic",
+            "ivory_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.5800000429153442,
+        -1.486665155425726e-07,
+        -0.3250000774860382
+      ],
+      "bounds_max_unity": [
+        0.5800000429153442,
+        0.05100002884864807,
+        0.3250000774860382
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/MAT.glb",
+        "size": [
+          1.16,
+          0.051,
+          0.65
+        ],
+        "boundsMin": [
+          -0.58,
+          -0.0,
+          -0.325
+        ],
+        "boundsMax": [
+          0.58,
+          0.051,
+          0.325
+        ],
+        "triangles": 1260,
+        "bytes": 58100,
+        "sha256": "9ae18a3cf7a704b1a3aedc942e11f7da2868c3237c556da9f99d195e52629dde",
+        "grip": [
+          0.0,
+          0.0255,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "SOFA",
+      "source": "Assets/_Project/Art/Imported/Items/SOFA.fbx",
+      "sha256": "88ae113e8fce5a4c4ed647f95b55ff0b0098bc9e668db6c1402597ac1a632a3f",
+      "triangles": 6248,
+      "meshes": [
+        {
+          "name": "SOFA",
+          "triangles": 6248,
+          "vertices": 4186,
+          "materials": [
+            "wood_Classic",
+            "green_Classic",
+            "cream_Classic",
+            "wood_dark_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.7600000500679016,
+        -1.0057291888188047e-07,
+        -0.38999998569488525
+      ],
+      "bounds_max_unity": [
+        0.7599999904632568,
+        0.9300001263618469,
+        0.42300015687942505
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 3
+      },
+      "export": {
+        "path": "art/items/SOFA.glb",
+        "size": [
+          1.52,
+          0.93,
+          0.813
+        ],
+        "boundsMin": [
+          -0.76,
+          -0.0,
+          -0.39
+        ],
+        "boundsMax": [
+          0.76,
+          0.93,
+          0.423
+        ],
+        "triangles": 6248,
+        "bytes": 276848,
+        "sha256": "2c6b1a634acfb80d0ea4e5f8786169790ebed1546d8adc1ea94a2925d038fbe6",
+        "grip": [
+          0.0,
+          0.465,
+          0.0165
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "SOAP",
+      "source": "Assets/_Project/Art/Imported/Items/SOAP.fbx",
+      "sha256": "3526c5161f6a7e43e2604857fb41e4e23ad58be81fb9da818bc3e6c00acea7c7",
+      "triangles": 2510,
+      "meshes": [
+        {
+          "name": "SOAP",
+          "triangles": 2510,
+          "vertices": 1269,
+          "materials": [
+            "soap_Classic",
+            "ivory_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.1600000262260437,
+        -1.324190179730067e-08,
+        -0.10499999672174454
+      ],
+      "bounds_max_unity": [
+        0.1599999964237213,
+        0.15399999916553497,
+        0.10500004142522812
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 2,
+        "unchanged_images_checked": 0
+      },
+      "export": {
+        "path": "art/items/SOAP.glb",
+        "size": [
+          0.32,
+          0.154,
+          0.21
+        ],
+        "boundsMin": [
+          -0.16,
+          -0.0,
+          -0.105
+        ],
+        "boundsMax": [
+          0.16,
+          0.154,
+          0.105
+        ],
+        "triangles": 2510,
+        "bytes": 71480,
+        "sha256": "705e3b7e8b7582a48ac61142bf821d0ff691504eb4f70851b48d74d78463172e",
+        "grip": [
+          0.0,
+          0.07425,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "FOAM",
+      "source": "Assets/_Project/Art/Imported/Items/FOAM.fbx",
+      "sha256": "db879eb9a9ce66940fd40afd226c06b0ce118a3b80c188d837d5e7796588d417",
+      "triangles": 6182,
+      "meshes": [
+        {
+          "name": "FOAM",
+          "triangles": 6182,
+          "vertices": 3574,
+          "materials": [
+            "blue_Classic",
+            "metal_Classic",
+            "dark_Classic",
+            "white_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 9,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.0954500213265419,
+        -2.567099244288329e-08,
+        -0.09544990956783295
+      ],
+      "bounds_max_unity": [
+        0.09544997662305832,
+        0.3894999623298645,
+        0.10950011014938354
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/FOAM.glb",
+        "size": [
+          0.1909,
+          0.3895,
+          0.20495
+        ],
+        "boundsMin": [
+          -0.09545,
+          -0.0,
+          -0.09545
+        ],
+        "boundsMax": [
+          0.09545,
+          0.3895,
+          0.1095
+        ],
+        "triangles": 6182,
+        "bytes": 174680,
+        "sha256": "d1aac126d4ce263980fc14e10240fb208cc7dead50fdb53cb6f0ebe85b00a885",
+        "grip": [
+          0.0,
+          0.18625,
+          0.002275
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BOMB",
+      "source": "Assets/_Project/Art/Imported/Items/BOMB.fbx",
+      "sha256": "61b751d6ae3638d1ac02021ca1a688ac2be5a4b5eb699d15a33996afc273b6f0",
+      "triangles": 2776,
+      "meshes": [
+        {
+          "name": "BOMB",
+          "triangles": 2776,
+          "vertices": 1554,
+          "materials": [
+            "dark_Classic",
+            "metal_Classic",
+            "gold_Classic",
+            "cream_Classic",
+            "ivory_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.17200002074241638,
+        -6.7649240243771e-24,
+        -0.1719999462366104
+      ],
+      "bounds_max_unity": [
+        0.171999990940094,
+        0.47179344296455383,
+        0.17339521646499634
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 5,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/BOMB.glb",
+        "size": [
+          0.344,
+          0.471793,
+          0.345395
+        ],
+        "boundsMin": [
+          -0.172,
+          -0.0,
+          -0.172
+        ],
+        "boundsMax": [
+          0.172,
+          0.471793,
+          0.173395
+        ],
+        "triangles": 2776,
+        "bytes": 114936,
+        "sha256": "2e71713959e1674d8bc2ad6773d425aecc3253289de1ad3617a7689fe02efb5b",
+        "grip": [
+          0.0,
+          0.235897,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "ARROW",
+      "source": "Assets/_Project/Art/Imported/Items/ARROW.fbx",
+      "sha256": "71917b6e1e2e3661c17b23859c48edcdbcd891d778273dad8547af4025eb390b",
+      "triangles": 1100,
+      "meshes": [
+        {
+          "name": "ARROW",
+          "triangles": 1100,
+          "vertices": 648,
+          "materials": [
+            "wood_light_Classic",
+            "metal_Classic",
+            "red_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.055000025779008865,
+        -1.2338086996521724e-08,
+        -0.04530126228928566
+      ],
+      "bounds_max_unity": [
+        0.05499997362494469,
+        0.6650000214576721,
+        0.045301277190446854
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/ARROW.glb",
+        "size": [
+          0.11,
+          0.665,
+          0.090603
+        ],
+        "boundsMin": [
+          -0.055,
+          -0.0,
+          -0.045301
+        ],
+        "boundsMax": [
+          0.055,
+          0.665,
+          0.045301
+        ],
+        "triangles": 1100,
+        "bytes": 60888,
+        "sha256": "81e5dfc750d60a660a33b9e56b5c224e3d69e755d773d2216d3505f664ac19bb",
+        "grip": [
+          0.0,
+          0.305,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BOW",
+      "source": "Assets/_Project/Art/Imported/Items/BOW.fbx",
+      "sha256": "b32e72c00c2d8049f828a3c779feac2a38bffdd7b6dd853b4b93eb3c78248208",
+      "triangles": 788,
+      "meshes": [
+        {
+          "name": "BOW",
+          "triangles": 788,
+          "vertices": 432,
+          "materials": [
+            "wood_light_Classic",
+            "cream_Classic",
+            "wood_dark_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.21900004148483276,
+        -1.5497504390893369e-09,
+        -0.028999924659729004
+      ],
+      "bounds_max_unity": [
+        0.027857106178998947,
+        0.7493087649345398,
+        0.029000118374824524
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/BOW.glb",
+        "size": [
+          0.246857,
+          0.749309,
+          0.058
+        ],
+        "boundsMin": [
+          -0.027857,
+          -0.0,
+          -0.029
+        ],
+        "boundsMax": [
+          0.219,
+          0.749309,
+          0.029
+        ],
+        "triangles": 788,
+        "bytes": 39632,
+        "sha256": "f9fc82a4aa92c764b22a3e81ed7ac092c03798a41c9651284cd57bf2989f374c",
+        "grip": [
+          0.19,
+          0.374654,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BROOM",
+      "source": "Assets/_Project/Art/Imported/Items/BROOM.fbx",
+      "sha256": "96034d4a04f1191e717d616880650511b99d2178a94a19fad8d4ac20b74331f0",
+      "triangles": 4416,
+      "meshes": [
+        {
+          "name": "BROOM",
+          "triangles": 4416,
+          "vertices": 2992,
+          "materials": [
+            "wood_light_Classic",
+            "red_Classic",
+            "cream_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.15000002086162567,
+        -1.6073693487328455e-08,
+        -0.04749998822808266
+      ],
+      "bounds_max_unity": [
+        0.14999999105930328,
+        1.0211728811264038,
+        0.04750003293156624
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 3
+      },
+      "export": {
+        "path": "art/items/BROOM.glb",
+        "size": [
+          0.3,
+          1.021173,
+          0.095
+        ],
+        "boundsMin": [
+          -0.15,
+          -0.0,
+          -0.0475
+        ],
+        "boundsMax": [
+          0.15,
+          1.021173,
+          0.0475
+        ],
+        "triangles": 4416,
+        "bytes": 203444,
+        "sha256": "809c5df67a4cf6e4e51165f7943c0a0f78c226035ead1c6d4d967ede289f2007",
+        "grip": [
+          0.0,
+          0.621173,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "HAMMER",
+      "source": "Assets/_Project/Art/Imported/Items/HAMMER.fbx",
+      "sha256": "4537218f25d1169a693adb59b059a2b30ac2b37e9ed9ddfa06badb5cd2d02fe1",
+      "triangles": 5872,
+      "meshes": [
+        {
+          "name": "HAMMER",
+          "triangles": 5872,
+          "vertices": 3454,
+          "materials": [
+            "wood_light_Classic",
+            "wood_dark_Classic",
+            "metal_Classic",
+            "gold_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.17250005900859833,
+        -6.4681695555179886e-09,
+        -0.0874999389052391
+      ],
+      "bounds_max_unity": [
+        0.17249996960163116,
+        0.6349999904632568,
+        0.08750011771917343
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/HAMMER.glb",
+        "size": [
+          0.345,
+          0.635,
+          0.175
+        ],
+        "boundsMin": [
+          -0.1725,
+          -0.0,
+          -0.0875
+        ],
+        "boundsMax": [
+          0.1725,
+          0.635,
+          0.0875
+        ],
+        "triangles": 5872,
+        "bytes": 224536,
+        "sha256": "fd459398399c56f7840daf33b6c3ce85464ed52ff35208ecc95d15dd1a88d210",
+        "grip": [
+          0.0,
+          0.13,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "PAN",
+      "source": "Assets/_Project/Art/Imported/Items/PAN.fbx",
+      "sha256": "8320287efeb783356b13d19f01bf1c94c7b5dcc20a965b4160b3ecc66d98071e",
+      "triangles": 1618,
+      "meshes": [
+        {
+          "name": "PAN",
+          "triangles": 1618,
+          "vertices": 942,
+          "materials": [
+            "dark_Classic",
+            "metal_Classic",
+            "wood_dark_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.5562188625335693,
+        -6.439724131723779e-08,
+        -0.22999998927116394
+      ],
+      "bounds_max_unity": [
+        0.23000000417232513,
+        0.15444302558898926,
+        0.23000003397464752
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 0
+      },
+      "export": {
+        "path": "art/items/PAN.glb",
+        "size": [
+          0.786219,
+          0.154443,
+          0.46
+        ],
+        "boundsMin": [
+          -0.23,
+          -0.0,
+          -0.23
+        ],
+        "boundsMax": [
+          0.556219,
+          0.154443,
+          0.23
+        ],
+        "triangles": 1618,
+        "bytes": 50224,
+        "sha256": "0f738ca512c48316fd7a8677a8e1bcbbde624130993121bf8afd2213c6eb869e",
+        "grip": [
+          0.43,
+          0.1,
+          -0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "SHIELD",
+      "source": "Assets/_Project/Art/Imported/Items/SHIELD.fbx",
+      "sha256": "a72dc9ea870bfff72eb90bd6b5b696e1fcec6fe6bf68f0edd818836c90467993",
+      "triangles": 336,
+      "meshes": [
+        {
+          "name": "SHIELD",
+          "triangles": 336,
+          "vertices": 270,
+          "materials": [
+            "gold_Classic",
+            "blue_Classic",
+            "ivory_Classic",
+            "wood_dark_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.23000000417232513,
+        -4.436536027441207e-09,
+        -0.12464495003223419
+      ],
+      "bounds_max_unity": [
+        0.23000000417232513,
+        0.5699999928474426,
+        0.0630001351237297
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/SHIELD.glb",
+        "size": [
+          0.46,
+          0.57,
+          0.187645
+        ],
+        "boundsMin": [
+          -0.23,
+          -0.0,
+          -0.124645
+        ],
+        "boundsMax": [
+          0.23,
+          0.57,
+          0.063
+        ],
+        "triangles": 336,
+        "bytes": 21476,
+        "sha256": "956ae7a52ceec6cef4acd40733b8e1d7618cf776e50fd50bda81914e7899dad6",
+        "grip": [
+          0.0,
+          0.29,
+          -0.11
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "SPEAR",
+      "source": "Assets/_Project/Art/Imported/Items/SPEAR.fbx",
+      "sha256": "994ea83a42d45848351ad3a4c36924eaed5e3f5758ac100d26891ac3131a5896",
+      "triangles": 3028,
+      "meshes": [
+        {
+          "name": "SPEAR",
+          "triangles": 3028,
+          "vertices": 1644,
+          "materials": [
+            "wood_light_Classic",
+            "metal_Classic",
+            "gold_Classic",
+            "red_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.08500005304813385,
+        -1.0522234639154249e-08,
+        -0.04159984365105629
+      ],
+      "bounds_max_unity": [
+        0.0849999487400055,
+        1.2350000143051147,
+        0.04160017520189285
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/SPEAR.glb",
+        "size": [
+          0.17,
+          1.235,
+          0.0832
+        ],
+        "boundsMin": [
+          -0.085,
+          -0.0,
+          -0.0416
+        ],
+        "boundsMax": [
+          0.085,
+          1.235,
+          0.0416
+        ],
+        "triangles": 3028,
+        "bytes": 85408,
+        "sha256": "a22a82b1a685686380201c5e031b8e81f84731672d360d0cb45b47c69c90f075",
+        "grip": [
+          0.0,
+          0.465,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "APPLE",
+      "source": "Assets/_Project/Art/Imported/Items/APPLE.fbx",
+      "sha256": "553be2748e7b262036960b648c1d6fb9ee4a195e2ecda4d76c1d361711b3bde2",
+      "triangles": 1324,
+      "meshes": [
+        {
+          "name": "APPLE",
+          "triangles": 1324,
+          "vertices": 784,
+          "materials": [
+            "red_Classic",
+            "wood_dark_Classic",
+            "leaf_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.12000000476837158,
+        0.0,
+        -0.11499996483325958
+      ],
+      "bounds_max_unity": [
+        0.11999998986721039,
+        0.2708774507045746,
+        0.11500003933906555
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/APPLE.glb",
+        "size": [
+          0.24,
+          0.270877,
+          0.23
+        ],
+        "boundsMin": [
+          -0.12,
+          0.0,
+          -0.115
+        ],
+        "boundsMax": [
+          0.12,
+          0.270877,
+          0.115
+        ],
+        "triangles": 1324,
+        "bytes": 52068,
+        "sha256": "e75428aea16bed3b6b6a46bd4e69afa2ab30e946e1eace88ca6fb76c26667288",
+        "grip": [
+          0.0,
+          0.135439,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "CAKE",
+      "source": "Assets/_Project/Art/Imported/Items/CAKE.fbx",
+      "sha256": "ed285060172d1636b8c2b3833a6583daf8795f74ec0b1a221acf6aee1d54dee1",
+      "triangles": 3088,
+      "meshes": [
+        {
+          "name": "CAKE",
+          "triangles": 3088,
+          "vertices": 1979,
+          "materials": [
+            "ceramic_Classic",
+            "wood_light_Classic",
+            "cream_Classic",
+            "pink_Classic",
+            "white_Classic",
+            "red_Classic",
+            "leaf_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.25,
+        -4.6201208192542254e-08,
+        -0.25
+      ],
+      "bounds_max_unity": [
+        0.25,
+        0.4164855480194092,
+        0.25
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 7,
+        "unchanged_images_checked": 3
+      },
+      "export": {
+        "path": "art/items/CAKE.glb",
+        "size": [
+          0.5,
+          0.416486,
+          0.5
+        ],
+        "boundsMin": [
+          -0.25,
+          -0.0,
+          -0.25
+        ],
+        "boundsMax": [
+          0.25,
+          0.416486,
+          0.25
+        ],
+        "triangles": 3088,
+        "bytes": 137456,
+        "sha256": "0350cacb6b8937f142043ec4f29b0fe7ed12998214294ae86833d73f0a3a5184",
+        "grip": [
+          0.0,
+          0.208243,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "PIE",
+      "source": "Assets/_Project/Art/Imported/Items/PIE.fbx",
+      "sha256": "fa5af5304526f5ecc1d11eea568b0b76caac00424fd75ec3d289baf2a8737210",
+      "triangles": 4424,
+      "meshes": [
+        {
+          "name": "PIE",
+          "triangles": 4424,
+          "vertices": 2429,
+          "materials": [
+            "metal_Classic",
+            "wood_light_Classic",
+            "cream_Classic",
+            "red_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.25,
+        -6.185781131762269e-08,
+        -0.2499999701976776
+      ],
+      "bounds_max_unity": [
+        0.2499999850988388,
+        0.18900001049041748,
+        0.2500000298023224
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 3
+      },
+      "export": {
+        "path": "art/items/PIE.glb",
+        "size": [
+          0.5,
+          0.189,
+          0.5
+        ],
+        "boundsMin": [
+          -0.25,
+          -0.0,
+          -0.25
+        ],
+        "boundsMax": [
+          0.25,
+          0.189,
+          0.25
+        ],
+        "triangles": 4424,
+        "bytes": 136984,
+        "sha256": "8882d1cf93cd60eaf748ba9256698978fb33dd1751fbaa3be092a893ffadf47f",
+        "grip": [
+          0.0,
+          0.091,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "SODA",
+      "source": "Assets/_Project/Art/Imported/Items/SODA.fbx",
+      "sha256": "1c00f3bf0e302be95aa9dd50f5074a7ff1689e4574a3b83094bbb5bd908be776",
+      "triangles": 2912,
+      "meshes": [
+        {
+          "name": "SODA",
+          "triangles": 2912,
+          "vertices": 1666,
+          "materials": [
+            "red_Classic",
+            "metal_Classic",
+            "gold_Classic",
+            "ivory_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.09090001881122589,
+        -2.43198883254081e-08,
+        -0.09089990705251694
+      ],
+      "bounds_max_unity": [
+        0.09089997410774231,
+        0.29569998383522034,
+        0.09180007874965668
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/SODA.glb",
+        "size": [
+          0.1818,
+          0.2957,
+          0.1827
+        ],
+        "boundsMin": [
+          -0.0909,
+          -0.0,
+          -0.0909
+        ],
+        "boundsMax": [
+          0.0909,
+          0.2957,
+          0.0918
+        ],
+        "triangles": 2912,
+        "bytes": 120732,
+        "sha256": "1d79dd6481fe0950d5d33368c40cae7107bc71219d8e5881f7ca6aacaf788c2d",
+        "grip": [
+          0.0,
+          0.151,
+          0.00105
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "WATER",
+      "source": "Assets/_Project/Art/Imported/Items/WATER.fbx",
+      "sha256": "cb7003c303a612996dbdf76e46618570d396c28cab8b72071523a46020eea649",
+      "triangles": 3596,
+      "meshes": [
+        {
+          "name": "WATER",
+          "triangles": 3596,
+          "vertices": 1954,
+          "materials": [
+            "water_Classic",
+            "blue_Classic",
+            "ivory_Classic",
+            "ceramic_Classic",
+            "white_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.087875597178936,
+        -2.4370500284476293e-08,
+        -0.08787556737661362
+      ],
+      "bounds_max_unity": [
+        0.08787558227777481,
+        0.4099999964237213,
+        0.08880005776882172
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 5,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/WATER.glb",
+        "size": [
+          0.175751,
+          0.41,
+          0.176676
+        ],
+        "boundsMin": [
+          -0.087876,
+          -0.0,
+          -0.087876
+        ],
+        "boundsMax": [
+          0.087876,
+          0.41,
+          0.0888
+        ],
+        "triangles": 3596,
+        "bytes": 107308,
+        "sha256": "2832c1a63a30078c54e4b122e7eac572671ca1e5e9eb80c52fbc7bacfcf19130",
+        "grip": [
+          0.0,
+          0.205,
+          0.00125
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BARREL",
+      "source": "Assets/_Project/Art/Imported/Items/BARREL.fbx",
+      "sha256": "d9bdeb47240969e6dd2bea4c9febaefb139cb146c45ebea12a9f350892c94512",
+      "triangles": 4240,
+      "meshes": [
+        {
+          "name": "BARREL",
+          "triangles": 4240,
+          "vertices": 2473,
+          "materials": [
+            "wood_Classic",
+            "metal_Classic",
+            "wood_dark_Classic",
+            "wood_light_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.27900004386901855,
+        -6.823739795436268e-08,
+        -0.2789999544620514
+      ],
+      "bounds_max_unity": [
+        0.2789999842643738,
+        0.6000000834465027,
+        0.2790001630783081
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/BARREL.glb",
+        "size": [
+          0.558,
+          0.6,
+          0.558
+        ],
+        "boundsMin": [
+          -0.279,
+          -0.0,
+          -0.279
+        ],
+        "boundsMax": [
+          0.279,
+          0.6,
+          0.279
+        ],
+        "triangles": 4240,
+        "bytes": 166256,
+        "sha256": "e0d845eccf6108e72675c8208db80f774c973114c0f276040eb4e8ec7721e7d4",
+        "grip": [
+          0.0,
+          0.3,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BOX",
+      "source": "Assets/_Project/Art/Imported/Items/BOX.fbx",
+      "sha256": "fcce6da22ba04c3013a098fb358e0486ab3ec2959dfa40778720f2a1abf7615f",
+      "triangles": 672,
+      "meshes": [
+        {
+          "name": "BOX",
+          "triangles": 672,
+          "vertices": 818,
+          "materials": [
+            "kraft_Classic",
+            "cream_Classic",
+            "wood_dark_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.31000006198883057,
+        -8.839413823125142e-08,
+        -0.2417999655008316
+      ],
+      "bounds_max_unity": [
+        0.3100000321865082,
+        0.5118001103401184,
+        0.24950011074543
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/BOX.glb",
+        "size": [
+          0.62,
+          0.5118,
+          0.4913
+        ],
+        "boundsMin": [
+          -0.31,
+          -0.0,
+          -0.2418
+        ],
+        "boundsMax": [
+          0.31,
+          0.5118,
+          0.2495
+        ],
+        "triangles": 672,
+        "bytes": 48548,
+        "sha256": "137cd459ac00bd1b87807fa35c46da18bef109397464baab77afb81174156598",
+        "grip": [
+          0.0,
+          0.25875,
+          0.00075
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "CABINET",
+      "source": "Assets/_Project/Art/Imported/Items/CABINET.fbx",
+      "sha256": "61f7f428dd420ec510ce79231271dbb323d67ed924327505ef0c93351f05d1e7",
+      "triangles": 4200,
+      "meshes": [
+        {
+          "name": "CABINET",
+          "triangles": 4200,
+          "vertices": 2860,
+          "materials": [
+            "wood_Classic",
+            "wood_light_Classic",
+            "gold_Classic",
+            "wood_dark_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.4990001618862152,
+        -8.267256390581679e-08,
+        -0.229000061750412
+      ],
+      "bounds_max_unity": [
+        0.49900004267692566,
+        1.1430001258850098,
+        0.31100019812583923
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/CABINET.glb",
+        "size": [
+          0.998,
+          1.143,
+          0.54
+        ],
+        "boundsMin": [
+          -0.499,
+          -0.0,
+          -0.229
+        ],
+        "boundsMax": [
+          0.499,
+          1.143,
+          0.311
+        ],
+        "triangles": 4200,
+        "bytes": 170656,
+        "sha256": "7b7738f665ae22e6cfd90fb31fc62a36cd302036a9e2c7bb54eeefa21e460be2",
+        "grip": [
+          0.0,
+          0.5675,
+          0.043
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "CHAIR",
+      "source": "Assets/_Project/Art/Imported/Items/CHAIR.fbx",
+      "sha256": "fd3ed504cb80688af389c2ea064a1e6909630b39a02acdc28d9d6edb802e75d9",
+      "triangles": 3408,
+      "meshes": [
+        {
+          "name": "CHAIR",
+          "triangles": 3408,
+          "vertices": 2266,
+          "materials": [
+            "wood_Classic",
+            "wood_light_Classic",
+            "green_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.2500000596046448,
+        -4.4210768379571164e-08,
+        -0.24134135246276855
+      ],
+      "bounds_max_unity": [
+        0.2499999850988388,
+        0.8979849219322205,
+        0.24134136736392975
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 3
+      },
+      "export": {
+        "path": "art/items/CHAIR.glb",
+        "size": [
+          0.5,
+          0.897985,
+          0.482683
+        ],
+        "boundsMin": [
+          -0.25,
+          -0.0,
+          -0.241341
+        ],
+        "boundsMax": [
+          0.25,
+          0.897985,
+          0.241341
+        ],
+        "triangles": 3408,
+        "bytes": 163400,
+        "sha256": "679aec25bfb82352c7b152cdd163eb589ffcc60d3abdef1a15baa23f9e8e951b",
+        "grip": [
+          0.0,
+          0.448992,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "CHEST",
+      "source": "Assets/_Project/Art/Imported/Items/CHEST.fbx",
+      "sha256": "ad9c49874570712227845a05cd1c9fceabd083c744710408c31906d03291ede8",
+      "triangles": 3104,
+      "meshes": [
+        {
+          "name": "CHEST",
+          "triangles": 3104,
+          "vertices": 2105,
+          "materials": [
+            "wood_Classic",
+            "wood_light_Classic",
+            "gold_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.39000004529953003,
+        -9.254280541881599e-08,
+        -0.24499990046024323
+      ],
+      "bounds_max_unity": [
+        0.38999995589256287,
+        0.5675000548362732,
+        0.3020000755786896
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/CHEST.glb",
+        "size": [
+          0.78,
+          0.5675,
+          0.547
+        ],
+        "boundsMin": [
+          -0.39,
+          -0.0,
+          -0.245
+        ],
+        "boundsMax": [
+          0.39,
+          0.5675,
+          0.302
+        ],
+        "triangles": 3104,
+        "bytes": 124860,
+        "sha256": "2af8a011ee970f46cc5482ebe18b63633a7a9e9a95151cf8c4bb3e4abe3efe7f",
+        "grip": [
+          0.0,
+          0.28375,
+          0.0285
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "CRATE",
+      "source": "Assets/_Project/Art/Imported/Items/CRATE.fbx",
+      "sha256": "f4e5dc25ef22a6a57a7c909f95599e78c800a72c4ad9084d02078051bf8c17ee",
+      "triangles": 7776,
+      "meshes": [
+        {
+          "name": "CRATE",
+          "triangles": 7776,
+          "vertices": 5292,
+          "materials": [
+            "wood_light_Classic",
+            "wood_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.30500009655952454,
+        -9.518895183191489e-08,
+        -0.2889999747276306
+      ],
+      "bounds_max_unity": [
+        0.3050000071525574,
+        0.48200008273124695,
+        0.28900012373924255
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 2,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/CRATE.glb",
+        "size": [
+          0.61,
+          0.482,
+          0.578
+        ],
+        "boundsMin": [
+          -0.305,
+          -0.0,
+          -0.289
+        ],
+        "boundsMax": [
+          0.305,
+          0.482,
+          0.289
+        ],
+        "triangles": 7776,
+        "bytes": 283176,
+        "sha256": "8626f1e0282280604cab30a8b4db72f9d5c6f0cea90b7ecda12ed7f30afc7de3",
+        "grip": [
+          0.0,
+          0.241,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "DESK",
+      "source": "Assets/_Project/Art/Imported/Items/DESK.fbx",
+      "sha256": "dd472466723fbba7544a2ae888e79a285ad9f8eb1bf3edf8f6ce03c68b28be3b",
+      "triangles": 4588,
+      "meshes": [
+        {
+          "name": "DESK",
+          "triangles": 4588,
+          "vertices": 3130,
+          "materials": [
+            "wood_light_Classic",
+            "wood_Classic",
+            "gold_Classic",
+            "green_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.6700001358985901,
+        -1.38286011974742e-07,
+        -0.32549989223480225
+      ],
+      "bounds_max_unity": [
+        0.6700000166893005,
+        0.7870000600814819,
+        0.3520001173019409
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 3
+      },
+      "export": {
+        "path": "art/items/DESK.glb",
+        "size": [
+          1.34,
+          0.787,
+          0.6775
+        ],
+        "boundsMin": [
+          -0.67,
+          -0.0,
+          -0.3255
+        ],
+        "boundsMax": [
+          0.67,
+          0.787,
+          0.352
+        ],
+        "triangles": 4588,
+        "bytes": 189008,
+        "sha256": "add6dd8f5a31753c9233b063be649dc516db751fcb34394a09dcce231ce26919",
+        "grip": [
+          0.0,
+          0.39,
+          0.01325
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "SHELF",
+      "source": "Assets/_Project/Art/Imported/Items/SHELF.fbx",
+      "sha256": "01e1a2e00b1a9fd42995589149248eec0d1f18eda071c98f96813cc2f2ae1db0",
+      "triangles": 4320,
+      "meshes": [
+        {
+          "name": "SHELF",
+          "triangles": 4320,
+          "vertices": 3210,
+          "materials": [
+            "wood_Classic",
+            "wood_dark_Classic",
+            "wood_light_Classic",
+            "red_Classic",
+            "blue_Classic",
+            "green_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.49500012397766113,
+        -8.545028151729639e-08,
+        -0.15700006484985352
+      ],
+      "bounds_max_unity": [
+        0.49500003457069397,
+        1.28000009059906,
+        0.16000044345855713
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 6,
+        "unchanged_images_checked": 5
+      },
+      "export": {
+        "path": "art/items/SHELF.glb",
+        "size": [
+          0.99,
+          1.28,
+          0.317001
+        ],
+        "boundsMin": [
+          -0.495,
+          -0.0,
+          -0.157
+        ],
+        "boundsMax": [
+          0.495,
+          1.28,
+          0.16
+        ],
+        "triangles": 4320,
+        "bytes": 191800,
+        "sha256": "7c4cbf4c8209eb5b20ac87840d40cc04bced82574fb5487c2a564bffa0d02feb",
+        "grip": [
+          0.0,
+          0.64,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "STOOL",
+      "source": "Assets/_Project/Art/Imported/Items/STOOL.fbx",
+      "sha256": "8f56e6764338c223bfbb2e0bb533be55311715b5ef8df1998f16086d52245484",
+      "triangles": 704,
+      "meshes": [
+        {
+          "name": "STOOL",
+          "triangles": 704,
+          "vertices": 452,
+          "materials": [
+            "wood_Classic",
+            "wood_light_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.2600000202655792,
+        -7.087230358138186e-08,
+        -0.2599998414516449
+      ],
+      "bounds_max_unity": [
+        0.25999996066093445,
+        0.46598491072654724,
+        0.2600001394748688
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 2,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/STOOL.glb",
+        "size": [
+          0.52,
+          0.465985,
+          0.52
+        ],
+        "boundsMin": [
+          -0.26,
+          -0.0,
+          -0.26
+        ],
+        "boundsMax": [
+          0.26,
+          0.465985,
+          0.26
+        ],
+        "triangles": 704,
+        "bytes": 43492,
+        "sha256": "da1ffa349f194560cd174231a14d6626660c5ce9ddb8e63c60a4b862c320013d",
+        "grip": [
+          0.0,
+          0.232992,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "BOOK",
+      "source": "Assets/_Project/Art/Imported/Items/BOOK.fbx",
+      "sha256": "fec2fea8fdcae6481b16c8d728873622b27979b2339174f3b1e915e1fdf157c2",
+      "triangles": 3492,
+      "meshes": [
+        {
+          "name": "BOOK",
+          "triangles": 3492,
+          "vertices": 2460,
+          "materials": [
+            "ivory_Classic",
+            "blue_Classic",
+            "cream_Classic",
+            "gold_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.16250000894069672,
+        -3.2475156785949366e-08,
+        -0.1275000125169754
+      ],
+      "bounds_max_unity": [
+        0.1770000159740448,
+        0.1300000101327896,
+        0.1275000274181366
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 2
+      },
+      "export": {
+        "path": "art/items/BOOK.glb",
+        "size": [
+          0.3395,
+          0.13,
+          0.255
+        ],
+        "boundsMin": [
+          -0.177,
+          -0.0,
+          -0.1275
+        ],
+        "boundsMax": [
+          0.1625,
+          0.13,
+          0.1275
+        ],
+        "triangles": 3492,
+        "bytes": 163896,
+        "sha256": "93f35e5cd6abe2517e1a6ee287d19c55a731313c0d2754e2ad41a7e8900ce747",
+        "grip": [
+          -0.00725,
+          0.065,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "CLOCK",
+      "source": "Assets/_Project/Art/Imported/Items/CLOCK.fbx",
+      "sha256": "0aa22d4fa749e5e8caf2208458cc544a1f9d68d6ad504225c6341bea92b04b29",
+      "triangles": 6000,
+      "meshes": [
+        {
+          "name": "CLOCK",
+          "triangles": 6000,
+          "vertices": 4934,
+          "materials": [
+            "wood_Classic",
+            "ivory_Classic",
+            "gold_Classic",
+            "wood_dark_Classic",
+            "dark_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.24000003933906555,
+        -2.0035029635323554e-08,
+        -0.035499971359968185
+      ],
+      "bounds_max_unity": [
+        0.23999997973442078,
+        0.48000001907348633,
+        0.0920000746846199
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 5,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/CLOCK.glb",
+        "size": [
+          0.48,
+          0.48,
+          0.1275
+        ],
+        "boundsMin": [
+          -0.24,
+          -0.0,
+          -0.0355
+        ],
+        "boundsMax": [
+          0.24,
+          0.48,
+          0.092
+        ],
+        "triangles": 6000,
+        "bytes": 284656,
+        "sha256": "1166de01b6258a872bcf5eb697146382e72152acda5a0fe6569e53d5c42588dc",
+        "grip": [
+          0.0,
+          0.24,
+          0.031
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "FAN",
+      "source": "Assets/_Project/Art/Imported/Items/FAN.fbx",
+      "sha256": "52e11d0482db6803378189354a74c2872f16006887d92387a74efe7b9f618cda",
+      "triangles": 5260,
+      "meshes": [
+        {
+          "name": "FAN",
+          "triangles": 5260,
+          "vertices": 3239,
+          "materials": [
+            "blue_Classic",
+            "metal_Classic",
+            "ivory_Classic",
+            "gold_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.2610000669956207,
+        -4.5307739782174394e-08,
+        -0.1250000149011612
+      ],
+      "bounds_max_unity": [
+        0.2609999477863312,
+        0.8209999799728394,
+        0.1250000298023224
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 4,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/FAN.glb",
+        "size": [
+          0.522,
+          0.821,
+          0.25
+        ],
+        "boundsMin": [
+          -0.261,
+          -0.0,
+          -0.125
+        ],
+        "boundsMax": [
+          0.261,
+          0.821,
+          0.125
+        ],
+        "triangles": 5260,
+        "bytes": 196560,
+        "sha256": "c093ee8d228bc76faeec90345a005be5510a852afd91c300a131d4688ea65840",
+        "grip": [
+          0.0,
+          0.4105,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "MUG",
+      "source": "Assets/_Project/Art/Imported/Items/MUG.fbx",
+      "sha256": "b9e001412f6d4cf310b101a32428c7142d97c951f64bd0edfc08a5ed069552c1",
+      "triangles": 1448,
+      "meshes": [
+        {
+          "name": "MUG",
+          "triangles": 1448,
+          "vertices": 815,
+          "materials": [
+            "red_Classic",
+            "ivory_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.22700001299381256,
+        -3.353344268930414e-08,
+        -0.12499991804361343
+      ],
+      "bounds_max_unity": [
+        0.12499997764825821,
+        0.27500003576278687,
+        0.12563727796077728
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 2,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/MUG.glb",
+        "size": [
+          0.352,
+          0.275,
+          0.250637
+        ],
+        "boundsMin": [
+          -0.125,
+          -0.0,
+          -0.125
+        ],
+        "boundsMax": [
+          0.227,
+          0.275,
+          0.125637
+        ],
+        "triangles": 1448,
+        "bytes": 46156,
+        "sha256": "3c20475fd3ab3e57351da27a684484cf1aac9be0d02a2f5218ad4ea58d0759c2",
+        "grip": [
+          0.051,
+          0.1375,
+          0.0005
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "PLANT",
+      "source": "Assets/_Project/Art/Imported/Items/PLANT.fbx",
+      "sha256": "107b7cf733d5b8811c44a27b83a53e3121007bbec399aad09494c1350b830379",
+      "triangles": 3764,
+      "meshes": [
+        {
+          "name": "PLANT",
+          "triangles": 3764,
+          "vertices": 2337,
+          "materials": [
+            "ceramic_Classic",
+            "wood_dark_Classic",
+            "leaf_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.1704341620206833,
+        -2.125803710839591e-08,
+        -0.16999995708465576
+      ],
+      "bounds_max_unity": [
+        0.16999997198581696,
+        0.7876498103141785,
+        0.175916388630867
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 0
+      },
+      "export": {
+        "path": "art/items/PLANT.glb",
+        "size": [
+          0.340434,
+          0.78765,
+          0.345916
+        ],
+        "boundsMin": [
+          -0.17,
+          -0.0,
+          -0.17
+        ],
+        "boundsMax": [
+          0.170434,
+          0.78765,
+          0.175916
+        ],
+        "triangles": 3764,
+        "bytes": 146988,
+        "sha256": "4b30f74007db67d4780d742e39f2b71cbad370b28e54f8079020b45cfe982b09",
+        "grip": [
+          0.000217,
+          0.393825,
+          0.002958
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "POT",
+      "source": "Assets/_Project/Art/Imported/Items/POT.fbx",
+      "sha256": "c9163d75a496676c7e91a1137bf50320b146caf1858a571e1aab1b18f28f5987",
+      "triangles": 2152,
+      "meshes": [
+        {
+          "name": "POT",
+          "triangles": 2152,
+          "vertices": 1205,
+          "materials": [
+            "dark_Classic",
+            "metal_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.3569999933242798,
+        -6.439724131723779e-08,
+        -0.22999998927116394
+      ],
+      "bounds_max_unity": [
+        0.3569999933242798,
+        0.25700005888938904,
+        0.2300000786781311
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 2,
+        "unchanged_images_checked": 0
+      },
+      "export": {
+        "path": "art/items/POT.glb",
+        "size": [
+          0.714,
+          0.257,
+          0.46
+        ],
+        "boundsMin": [
+          -0.357,
+          -0.0,
+          -0.23
+        ],
+        "boundsMax": [
+          0.357,
+          0.257,
+          0.23
+        ],
+        "triangles": 2152,
+        "bytes": 58632,
+        "sha256": "aa245efacdc7a5baf6b0af0cd4666c2e999a44858dc7e6ac044c49160637f2f8",
+        "grip": [
+          0.0,
+          0.1285,
+          0.0
+        ]
+      }
+    },
+    {
+      "kind": "item",
+      "name": "VASE",
+      "source": "Assets/_Project/Art/Imported/Items/VASE.fbx",
+      "sha256": "b1b3c6643447f070292123d05746c465a46a5414dc3c8a6db12046b3c8ae6a8b",
+      "triangles": 4896,
+      "meshes": [
+        {
+          "name": "VASE",
+          "triangles": 4896,
+          "vertices": 3036,
+          "materials": [
+            "ceramic_Classic",
+            "gold_Classic",
+            "blue_Classic"
+          ],
+          "degenerate_triangles": 0,
+          "opposed_corner_normals": 0,
+          "invalid_unit_normals": 0,
+          "uv_layers": 1,
+          "weighted_vertices": 0,
+          "weight_groups": []
+        }
+      ],
+      "bounds_min_unity": [
+        -0.16651050746440887,
+        -1.5099583805522343e-08,
+        -0.1665104478597641
+      ],
+      "bounds_max_unity": [
+        0.1665104776620865,
+        0.4920000433921814,
+        0.16651053726673126
+      ],
+      "unknown_materials": [],
+      "animations": [],
+      "count_matches_source": true,
+      "bounds_match_source": true,
+      "material_validation": {
+        "materials": 3,
+        "unchanged_images_checked": 1
+      },
+      "export": {
+        "path": "art/items/VASE.glb",
+        "size": [
+          0.333021,
+          0.492,
+          0.333021
+        ],
+        "boundsMin": [
+          -0.16651,
+          -0.0,
+          -0.16651
+        ],
+        "boundsMax": [
+          0.166511,
+          0.492,
+          0.166511
+        ],
+        "triangles": 4896,
+        "bytes": 180328,
+        "sha256": "27b4a275b4a43ea2c4f9945d375c02c986c9429c58bf7d8dfe9f8c867c463d6b",
+        "grip": [
+          0.0,
+          0.246,
+          0.0
+        ]
       }
     }
   ]

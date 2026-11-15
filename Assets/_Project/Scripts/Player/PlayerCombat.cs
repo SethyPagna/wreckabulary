@@ -41,7 +41,8 @@ namespace Wreckabulary
             public RigidbodyInterpolation interpolation;
         }
         readonly Dictionary<Rigidbody, CarryState> carriedStates = new();
-        Vector3 carryLocal, carryCentre;
+        Vector3 carryLocal, carryCentre, holdGrip;
+        Quaternion holdTurn = Quaternion.identity, holdBase = Quaternion.identity, holdWritten = Quaternion.identity;
         float carryRadius;
         public float GrabDistance => grabReach + grabRadius;
 
@@ -472,9 +473,13 @@ namespace Wreckabulary
             {
                 rb.transform.SetParent(controller.handR, false);
                 weapon.OnHeld(this);
-                var grip = weapon.Definition?.Grip;
-                rb.transform.localPosition = grip == null ? Vector3.zero : -new Vector3(grip[0], grip[1], grip[2]) * weapon.Definition.HeldScale;
-                rb.transform.localRotation = weapon.HoldRotation;
+                HeldItemPose.SeatModel(weapon);
+                var item = weapon.Definition;
+                holdTurn = HeldItemPose.Turn(item);
+                holdGrip = HeldItemPose.Grip(item);
+                holdBase = weapon.HoldRotation;
+                rb.transform.localRotation = holdWritten = holdBase * holdTurn;
+                rb.transform.localPosition = item == null ? Vector3.zero : -(rb.transform.localRotation * holdGrip) * item.HeldScale;
                 CacheCarryShape();
                 return;
             }
@@ -509,8 +514,12 @@ namespace Wreckabulary
             var local = carryLocal;
             if (weapon && weapon.Definition != null)
             {
-                var grip = weapon.Definition.Grip;
-                local = -(held.transform.localRotation * new Vector3(grip[0], grip[1], grip[2])) * weapon.Definition.HeldScale;
+                if (holdTurn != Quaternion.identity)
+                {
+                    if (held.transform.localRotation != holdWritten) holdBase = held.transform.localRotation;
+                    held.transform.localRotation = holdWritten = holdBase * holdTurn;
+                }
+                local = -(held.transform.localRotation * holdGrip) * weapon.Definition.HeldScale;
             }
             held.transform.localPosition = local;
             var centre = held.transform.TransformPoint(carryCentre);
@@ -616,8 +625,11 @@ namespace Wreckabulary
             var item = gear.Definition;
             var body = held;
             Release(Vector3.zero);
-            body.position = transform.position + controller.Facing * 1.6f;
-            body.rotation = Quaternion.LookRotation(controller.Facing);
+            var placedAt = transform.position + controller.Facing * 1.6f;
+            var placedFacing = Quaternion.LookRotation(controller.Facing);
+            body.transform.SetPositionAndRotation(placedAt, placedFacing);
+            body.position = placedAt;
+            body.rotation = placedFacing;
             if (item.Thrown != null)
             {
                 DeployedGear.Register(gear.gameObject, controller);

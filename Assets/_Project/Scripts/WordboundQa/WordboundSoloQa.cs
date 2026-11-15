@@ -30,6 +30,8 @@ namespace Wreckabulary.Qa
         InputBinding[] originalBindings;
         string originalQueue, originalMode, originalMap, originalPage, originalSolo, originalSoloMap, originalTheme;
         bool originalFamily;
+        int? originalIntro;
+        bool introCaptured;
         WordboundLocalMatchClient client;
         readonly Dictionary<Object, string> sourceMemory = new();
         readonly Dictionary<TextAsset, string> sourceText = new();
@@ -75,6 +77,8 @@ namespace Wreckabulary.Qa
             originalSolo = WordboundSoloEntry.SelectedMode; originalFamily = menu.Page<PlayPage>().WordboundSolo;
             originalSoloMap = WordboundSoloEntry.SelectedMap;
             originalTheme = LobbyThemes.Current.Id;
+            originalIntro = PlayerPrefs.HasKey(WordboundMatchHud.IntroSeenKey) ? PlayerPrefs.GetInt(WordboundMatchHud.IntroSeenKey) : (int?)null;
+            introCaptured = true;
             var assets = Resources.Load<WordboundLaunchAssets>(WordboundLaunchAssets.ResourcePath);
             var data = Resources.Load<GameData>(GameData.ResourcePath);
             Require(assets && data && data.items && data.rules, "Installed local launch assets are required.");
@@ -110,6 +114,7 @@ namespace Wreckabulary.Qa
             string tag = (parcelService ? "parcelservice_" : soloMap == WordboundSoloEntry.ParcelHallMap ? "parcelhall_" : "") + mode.ToLowerInvariant();
             var menu = LobbyMenu.Instance;
             Require(menu && menu.PartySize == 1, "The single local human must remain available.");
+            if (introCaptured) PlayerPrefs.DeleteKey(WordboundMatchHud.IntroSeenKey);
             Submit(menu.transform.Find("Safe area/Top bar"), "PLAY");
             yield return Settle();
             Submit(menu.Page<PlayPage>().Root, "Queue " + LobbyMenu.Practice);
@@ -186,7 +191,7 @@ namespace Wreckabulary.Qa
             else
             Require(course.CopyDocument().PhysicalSites.Count == 72 && gameplay.Frame.Progress.Players.Count == 1 &&
                 gameplay.Frame.Progress.Result == null && Read<ModeDefinition>(hud, "mode").Id == mode, "Unexpected local content, seats or fabricated result.");
-            Require(Read<string>(hud, "returnLabel") == "Return to lobby", "The normal play HUD has a Workshop return label.");
+            Require(Read<string>(hud, "returnLabel") == "Leave match", "The normal play HUD has a Workshop return label.");
             var session = Read<object>(client, "session");
             var runner = session.GetType().GetProperty("Runner").GetValue(session);
             Require(runner != null && runner.GetType().GetProperty("GameMode").GetValue(runner).ToString() == "Single",
@@ -364,6 +369,12 @@ namespace Wreckabulary.Qa
 
         void RestoreSelection()
         {
+            if (introCaptured)
+            {
+                if (originalIntro.HasValue) PlayerPrefs.SetInt(WordboundMatchHud.IntroSeenKey, originalIntro.Value);
+                else PlayerPrefs.DeleteKey(WordboundMatchHud.IntroSeenKey);
+                PlayerPrefs.Save();
+            }
             Session.Bindings.Clear(); Session.Bindings.AddRange(originalBindings);
             WordboundSoloEntry.Select(originalSolo);
             WordboundSoloEntry.SelectMap(originalSoloMap);

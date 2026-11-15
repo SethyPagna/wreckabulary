@@ -15,8 +15,24 @@ namespace Wreckabulary.Tests
             public override bool StartPressed() => false;
         }
 
-        [UnitySetUp] public IEnumerator SetUp() => TestScenes.Reset();
-        [UnityTearDown] public IEnumerator TearDown() => TestScenes.Reset();
+        int? savedNames;
+
+        [UnitySetUp]
+        public IEnumerator SetUp()
+        {
+            savedNames = PlayerPrefs.HasKey(GameplayPrefs.NamesKey) ? PlayerPrefs.GetInt(GameplayPrefs.NamesKey) : null;
+            GameplayPrefs.FurnitureNames = true;
+            return TestScenes.Reset();
+        }
+
+        [UnityTearDown]
+        public IEnumerator TearDown()
+        {
+            Match.ModeOverride = null;
+            if (savedNames.HasValue) PlayerPrefs.SetInt(GameplayPrefs.NamesKey, savedNames.Value); else PlayerPrefs.DeleteKey(GameplayPrefs.NamesKey);
+            PlayerPrefs.Save();
+            return TestScenes.Reset();
+        }
 
         [Test]
         public void LabelsFadeInNearARoommateAndReachFurtherFromAbove()
@@ -110,6 +126,140 @@ namespace Wreckabulary.Tests
             yield return null;
             Assert.IsTrue(!text, "Breaking the furniture removes its word.");
             Object.Destroy(player.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator APulsedNameShowsInGoldOverItsNeighbourEvenWithNamesOff()
+        {
+            int? saved = PlayerPrefs.HasKey(GameplayPrefs.NamesKey) ? PlayerPrefs.GetInt(GameplayPrefs.NamesKey) : null;
+            try
+            {
+                GameplayPrefs.FurnitureNames = true;
+                var camera = new GameObject("Overhead camera").AddComponent<Camera>();
+                camera.tag = "MainCamera";
+                camera.transform.position = new Vector3(0f, 18f, -13f);
+                camera.transform.LookAt(Vector3.zero);
+                var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                ground.transform.position = Vector3.down * .5f;
+                ground.transform.localScale = new Vector3(40f, 1f, 40f);
+                var near = FurnitureCatalog.Spawn("TABLE", new Vector3(1.5f, .05f, 0f), 0f, World.Transient);
+                var far = FurnitureCatalog.Spawn("CHAIR", new Vector3(2.3f, .05f, 0f), 0f, World.Transient);
+                var distant = FurnitureCatalog.Spawn("SOFA", new Vector3(-9f, .05f, 0f), 0f, World.Transient);
+                var player = Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
+                player.Setup(0, new Roommate());
+                player.Respawn(Vector3.zero);
+                player.Inventory.Collects = false;
+                yield return new WaitForSeconds(.8f);
+                var nearLabel = near.GetComponent<SmashableLabel>();
+                var farLabel = far.GetComponent<SmashableLabel>();
+                var distantLabel = distant.GetComponent<SmashableLabel>();
+                Assert.IsTrue(farLabel.Crowded);
+                SmashableLabel.Pulse = s => s == far || s == distant;
+                yield return new WaitForSecondsRealtime(.6f);
+                Assert.IsTrue(farLabel.Pulsing);
+                Assert.IsFalse(farLabel.Crowded, "A pulsed name never yields");
+                Assert.Greater(farLabel.Alpha, .9f);
+                Assert.Greater(distantLabel.Alpha, .9f, "A pulsed name shows even far from every player");
+                Assert.IsTrue(nearLabel.Crowded, "its neighbour yields to it instead");
+                Assert.Less(farLabel.Text.color.b, .5f, "Pulsed names glow gold.");
+                GameplayPrefs.FurnitureNames = false;
+                yield return new WaitForSecondsRealtime(.4f);
+                Assert.Greater(farLabel.Alpha, .9f, "The pulse is a hint, so it shows with names off.");
+                Assert.AreEqual(0f, nearLabel.Alpha);
+                SmashableLabel.Pulse = null;
+                yield return new WaitForSecondsRealtime(.4f);
+                Assert.IsFalse(farLabel.Pulsing);
+                Assert.AreEqual(0f, farLabel.Alpha);
+                Object.Destroy(player.gameObject);
+            }
+            finally
+            {
+                SmashableLabel.Pulse = null;
+                if (saved.HasValue) PlayerPrefs.SetInt(GameplayPrefs.NamesKey, saved.Value); else PlayerPrefs.DeleteKey(GameplayPrefs.NamesKey);
+                PlayerPrefs.Save();
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator NamesStayOffInMatchesButTheTutorialShowsThem()
+        {
+            PlayerPrefs.DeleteKey(GameplayPrefs.NamesKey);
+            Assert.IsFalse(GameplayPrefs.FurnitureNames, "Names start off for a player who never chose.");
+            var camera = new GameObject("Overhead camera").AddComponent<Camera>();
+            camera.tag = "MainCamera";
+            camera.transform.position = new Vector3(0f, 18f, -13f);
+            camera.transform.LookAt(Vector3.zero);
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ground.transform.position = Vector3.down * .5f;
+            ground.transform.localScale = new Vector3(40f, 1f, 40f);
+            var table = FurnitureCatalog.Spawn("TABLE", new Vector3(2.5f, .05f, 0f), 0f, World.Transient);
+            var player = Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
+            player.Setup(0, new Roommate());
+            player.Respawn(Vector3.zero);
+            player.Inventory.Collects = false;
+            yield return null;
+            var label = table.GetComponent<SmashableLabel>();
+            Assert.IsNotNull(label, "Smashable adds its own label on its first frame.");
+            foreach (string mode in new[] { Wreckabulary.Rules.HouseModes.Dibs, Wreckabulary.Rules.HouseModes.ShoppingList, Wreckabulary.Rules.HouseModes.MovingOut })
+            {
+                Match.ModeOverride = mode;
+                yield return new WaitForSecondsRealtime(.4f);
+                Assert.IsFalse(SmashableLabel.Named, mode);
+                Assert.AreEqual(0f, label.Alpha, mode + " hides furniture names by default");
+            }
+            Match.ModeOverride = Wreckabulary.Rules.HouseModes.Tutorial;
+            yield return new WaitForSecondsRealtime(.6f);
+            Assert.IsTrue(SmashableLabel.Named);
+            Assert.Greater(label.Alpha, .9f, "The Tutorial always names furniture: it teaches the rule.");
+            Match.ModeOverride = Wreckabulary.Rules.HouseModes.Dibs;
+            yield return new WaitForSecondsRealtime(.4f);
+            Assert.AreEqual(0f, label.Alpha);
+            GameplayPrefs.FurnitureNames = true;
+            yield return new WaitForSecondsRealtime(.6f);
+            Assert.Greater(label.Alpha, .9f, "The Settings switch still turns them on in a match.");
+            Object.Destroy(player.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator TheFurnitureNamesSwitchHidesEveryLabel()
+        {
+            int? saved = PlayerPrefs.HasKey(GameplayPrefs.NamesKey) ? PlayerPrefs.GetInt(GameplayPrefs.NamesKey) : null;
+            try
+            {
+                GameplayPrefs.FurnitureNames = true;
+                var camera = new GameObject("Overhead camera").AddComponent<Camera>();
+                camera.tag = "MainCamera";
+                camera.transform.position = new Vector3(0f, 18f, -13f);
+                camera.transform.LookAt(Vector3.zero);
+                var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                ground.transform.position = Vector3.down * .5f;
+                ground.transform.localScale = new Vector3(40f, 1f, 40f);
+                var table = FurnitureCatalog.Spawn("TABLE", new Vector3(2.5f, .05f, 0f), 0f, World.Transient);
+                var chair = FurnitureCatalog.Spawn("CHAIR", new Vector3(-2.5f, .05f, 0f), 0f, World.Transient);
+                var player = Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
+                player.Setup(0, new Roommate());
+                player.Respawn(Vector3.zero);
+                player.Inventory.Collects = false;
+                yield return new WaitForSeconds(.6f);
+                var labels = new[] { table.GetComponent<SmashableLabel>(), chair.GetComponent<SmashableLabel>() };
+                foreach (var label in labels) Assert.Greater(label.Alpha, .9f, label.name + " reads with names on");
+                GameplayPrefs.FurnitureNames = false;
+                yield return new WaitForSecondsRealtime(.4f);
+                foreach (var label in labels)
+                {
+                    Assert.AreEqual(0f, label.Alpha, label.name + " hides with names off");
+                    Assert.IsTrue(!label.Text || !label.Text.gameObject.activeSelf);
+                }
+                GameplayPrefs.FurnitureNames = true;
+                yield return new WaitForSecondsRealtime(.6f);
+                foreach (var label in labels) Assert.Greater(label.Alpha, .9f, label.name + " comes back");
+                Object.Destroy(player.gameObject);
+            }
+            finally
+            {
+                if (saved.HasValue) PlayerPrefs.SetInt(GameplayPrefs.NamesKey, saved.Value); else PlayerPrefs.DeleteKey(GameplayPrefs.NamesKey);
+                PlayerPrefs.Save();
+            }
         }
     }
 }

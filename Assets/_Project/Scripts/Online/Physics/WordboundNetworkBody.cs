@@ -29,6 +29,8 @@ namespace Wreckabulary.Online
         Renderer[] renderers;
         WordboundPhysicsWorld world;
         WorldBodyState canonical;
+        string actor;
+        string bodyText;
         bool sampledSinceRestore;
         bool initialized;
         bool visuallyActive;
@@ -36,6 +38,15 @@ namespace Wreckabulary.Online
         public Rigidbody Rigidbody => body;
         public IReadOnlyList<Collider> OwnedColliders => colliders;
         public WorldBodyState Canonical => canonical;
+        internal string Actor => actor ?? ActorId.ToString();
+        public string BodyText
+        {
+            get
+            {
+                if (bodyText == null || !BodyId.Equals(bodyText)) bodyText = BodyId.ToString();
+                return bodyText;
+            }
+        }
 
         public override void Spawned()
         {
@@ -67,12 +78,12 @@ namespace Wreckabulary.Online
                 throw new InvalidOperationException("Only the running state authority binds a canonical body.");
             if (world != null || canonical != null) throw new InvalidOperationException("Physics body is already bound.");
             CacheComponents();
-            string actor = WordboundPhysicsPolicy.ValidateAdmission(state, owner.Binding,
+            string admitted = WordboundPhysicsPolicy.ValidateAdmission(state, owner.Binding,
                 inputAuthority != PlayerRef.None, owner.AdmittedActor(inputAuthority));
             if (Object.InputAuthority != inputAuthority)
                 throw new ArgumentException("Input authority does not match the admitted canonical seat.");
             world = owner;
-            BodyId = state.Id; BodyKind = (int)state.Kind; ActorId = actor;
+            BodyId = state.Id; BodyKind = (int)state.Kind; ActorId = admitted; actor = ActorId.ToString();
             ItemMode = -1;
             if (state.Kind == WorldBodyKind.Player) body.constraints |= RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
             ApplyCanonical(state);
@@ -84,7 +95,7 @@ namespace Wreckabulary.Online
                 throw new InvalidOperationException("Only a bound host body accepts canonical state.");
             if (canonical != null) WordboundPhysicsPolicy.ValidateUpdate(canonical, state);
             else WordboundPhysicsPolicy.ValidatePose(state);
-            if (WordboundPhysicsPolicy.Actor(state, world.Binding) != ActorId.ToString())
+            if (WordboundPhysicsPolicy.Actor(state, world.Binding) != Actor)
                 throw new ArgumentException("A body cannot change its authenticated actor.");
             canonical = state;
             SourceId = state.SourceId; OwnerTeam = state.OwnerTeam; Protected = state.Protected;
@@ -171,9 +182,9 @@ namespace Wreckabulary.Online
             if (world == null || canonical == null || !Object.HasStateAuthority) return;
             PrepareSimulation(world.ShouldFreeze);
             if (canonical.Kind != WorldBodyKind.Player || world.ShouldFreeze || !canonical.Active || canonical.Kinematic) return;
-            string actor = ActorId.ToString();
-            if (world.AdmittedActor(Object.InputAuthority) != actor || !world.CanMove(actor, out float moveScale)) return;
-            if (!world.TryMovementEnvironment(actor, out var environment)) return;
+            string mover = Actor;
+            if (world.AdmittedActor(Object.InputAuthority) != mover || !world.CanMove(mover, out float moveScale)) return;
+            if (!world.TryMovementEnvironment(mover, out var environment)) return;
             WorldVector direction = default;
             bool hasInput = GetInput(out WordboundMovementInput input) &&
                 WordboundPhysicsPolicy.TryMovement(input, world.Epoch, out direction);
@@ -203,7 +214,7 @@ namespace Wreckabulary.Online
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
             world?.Unregister(this);
-            world = null; canonical = null;
+            world = null; canonical = null; actor = null;
         }
 
         internal static Vector3 Vector(WorldVector value) => new Vector3(value.X, value.Y, value.Z);

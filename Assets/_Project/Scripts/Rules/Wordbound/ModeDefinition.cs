@@ -165,12 +165,22 @@ namespace Wreckabulary.Rules.Wordbound
 
     public static class WordboundIdentity
     {
-        public static bool IsId(string value) => !string.IsNullOrEmpty(value) && value.Length <= 64 &&
-            value.All(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == ':');
+        public static bool IsId(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length > 64) return false;
+            foreach (char c in value)
+                if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                    (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == ':')) return false;
+            return true;
+        }
 
-        public static bool IsHash(string value) => value != null && value.Length == 64 &&
-            value.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'));
+        public static bool IsHash(string value)
+        {
+            if (value == null || value.Length != 64) return false;
+            foreach (char c in value)
+                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+            return true;
+        }
 
         public static string Sha256(string value)
         {

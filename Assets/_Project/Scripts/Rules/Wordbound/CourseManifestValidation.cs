@@ -23,7 +23,7 @@ namespace Wreckabulary.Rules.Wordbound
             ValidateFields(data, "$", v, 0);
             if (!v.Ok) return;
             if (data.Format != "wreckabulary.resolved-course" || data.Schema != data.Document.Schema ||
-                (data.Schema != 1 && data.Schema != 2) || data.GeneratorVersion != 1 ||
+                data.Schema < 1 || data.Schema > CourseDocument.LatestSchema || data.GeneratorVersion != CourseResolver.GeneratorFor(data.Schema) ||
                 data.CanonicalVersion != data.Schema || data.RngVersion != CourseRandom.Version ||
                 data.Attempt < 0 || data.Attempt >= CourseLimits.Attempts || !CourseRandom.ValidSeed(data.Seed))
                 v.Add("manifest.version", "$", "", "Unsupported format, algorithm version, seed or attempt.");
@@ -41,6 +41,8 @@ namespace Wreckabulary.Rules.Wordbound
             if (!v.Ok) return;
             if (!Same(data.Supplies, CourseResolver.ResolveSupplies(data.Document, play)))
                 v.Add("manifest.supplies", "$.supplies", "", "Supply state must exactly match source and ownership policy.");
+            if (data.LayoutId != CourseResolver.PickLayout(data.Document, data.Seed))
+                v.Add("manifest.layout", "$.layoutId", data.LayoutId, "The layout must be the one the seed selects.");
             ValidateSelections(data, play, v);
             ValidatePlacements(data, catalogue, play, v);
             if (v.Ok) ValidateSelectedProgression(data, v);
@@ -50,29 +52,50 @@ namespace Wreckabulary.Rules.Wordbound
 
         static void ValidateSelections(CourseManifestData data, CoursePlayRequirements play, CourseValidation v)
         {
-            int count = play.Capability == CourseCapability.Circuit ? 3 : 0;
-            if (data.Laps.Count != count || data.Laps.Select(l => l.Number).Distinct().Count() != count)
+            bool circuit = play.Capability == CourseCapability.Circuit;
+            int count = circuit ? data.Document.Laps.Sum(l => LapOptions(data.Document, l).Count) : 0;
+            if (data.Laps.Count != count || data.Laps.Select(l => (l.Number, l.OptionId)).Distinct().Count() != count)
             { v.Add("manifest.laps", "$.laps", "", "Unexpected or duplicate lap plans."); return; }
             var prior = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (var selected in data.Laps.OrderBy(l => l.Number))
+            foreach (var variants in data.Laps.OrderBy(l => l.Number).ThenBy(l => l.OptionId, StringComparer.Ordinal).GroupBy(l => l.Number))
             {
-                var source = data.Document.Laps.SingleOrDefault(l => l.Number == selected.Number);
-                if (source == null || selected.AlternativeIds.Count != source.SectionIds.Count)
-                { v.Add("manifest.lap", "$.laps", "", "Lap selections must match authored sections."); continue; }
-                var alternatives = new List<CourseAlternative>();
-                for (int i = 0; i < source.SectionIds.Count; i++)
+                var picks = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var selected in variants)
                 {
-                    var section = data.Document.RouteSections.Single(s => s.Id == source.SectionIds[i]);
-                    var choice = section.Alternatives.SingleOrDefault(a => a.Id == selected.AlternativeIds[i]);
-                    if (choice == null) { v.Add("manifest.alternative", "$.laps", section.Id, "Alternative is outside this section."); break; }
-                    if (section.Alternatives.Count > 1 && prior.TryGetValue(section.Id, out string previous) && previous == choice.Id)
-                        v.Add("manifest.repeat", "$.laps", section.Id, "Adjacent laps must use different available branches.");
-                    prior[section.Id] = choice.Id;
-                    alternatives.Add(choice);
+                    var source = data.Document.Laps.SingleOrDefault(l => l.Number == selected.Number);
+                    if (source == null || selected.AlternativeIds.Count != source.SectionIds.Count ||
+                        !LapOptions(data.Document, source).Contains(selected.OptionId))
+                    { v.Add("manifest.lap", "$.laps", "", "Lap selections must match authored sections."); continue; }
+                    var alternatives = new List<CourseAlternative>();
+                    for (int i = 0; i < source.SectionIds.Count; i++)
+                    {
+                        var section = data.Document.RouteSections.Single(s => s.Id == source.SectionIds[i]);
+                        var choice = section.Alternatives.SingleOrDefault(a => a.Id == selected.AlternativeIds[i]);
+                        if (choice == null || section.Kind == CourseRouteSection.ChoiceKind && choice.OptionId != selected.OptionId)
+                        { v.Add("manifest.alternative", "$.laps", section.Id, "Alternative is outside this section."); break; }
+                        if (section.Kind != CourseRouteSection.ChoiceKind)
+                        {
+                            if (section.Alternatives.Count > 1 && prior.TryGetValue(section.Id, out string previous) && previous == choice.Id)
+                                v.Add("manifest.repeat", "$.laps", section.Id, "Adjacent laps must use different available branches.");
+                            if (picks.TryGetValue(section.Id, out string shared) && shared != choice.Id)
+                                v.Add("manifest.variant", "$.laps", section.Id, "Every option of a lap shares its seeded branches.");
+                            picks[section.Id] = choice.Id;
+                        }
+                        alternatives.Add(choice);
+                    }
+                    if (alternatives.Count == source.SectionIds.Count && !Same(selected, SelectLap(data.Document, source, alternatives, selected.OptionId)))
+                        v.Add("manifest.route", "$.laps", "", "Resolved route and checkpoints differ from the selected alternatives.");
                 }
-                if (alternatives.Count == source.SectionIds.Count && !Same(selected, SelectLap(data.Document, source, alternatives)))
-                    v.Add("manifest.route", "$.laps", "", "Resolved route and checkpoints differ from the selected alternatives.");
+                foreach (var pick in picks) prior[pick.Key] = pick.Value;
             }
+        }
+
+        internal static IReadOnlyList<string> LapOptions(CourseDocument d, CourseLap lap)
+        {
+            var choice = lap.SectionIds.Select(id => d.RouteSections.FirstOrDefault(s => s.Id == id))
+                .FirstOrDefault(s => s != null && s.Kind == CourseRouteSection.ChoiceKind);
+            return choice == null ? new[] { "" } :
+                choice.Alternatives.Select(a => a.OptionId).OrderBy(x => x, StringComparer.Ordinal).ToArray();
         }
 
         static void ValidatePlacements(CourseManifestData data, CourseCatalogue catalogue, CoursePlayRequirements play, CourseValidation v)
@@ -85,8 +108,12 @@ namespace Wreckabulary.Rules.Wordbound
                 if (!zones.ContainsKey(p.ZoneId) || !catalogue.Assets.ContainsKey(p.AssetId))
                     v.Add("manifest.reference", "$.placements", p.Id, "Unknown zone or asset.");
             if (!v.Ok) return;
+            var active = CourseResolver.LayoutZoneIds(d, data.LayoutId);
+            foreach (var zone in d.Zones.Where(z => !active.Contains(z.Id) && data.Placements.Any(p => p.ZoneId == z.Id)))
+                v.Add("manifest.count", "$.placements", zone.Id, "Zones outside the selected layout stay empty.");
             var occupied = new List<CoursePlacementData>();
-            foreach (var zone in d.Zones.OrderBy(z => z.Purpose == "Resources" ? 0 : z.Purpose == "Props" ? 1 : 2).ThenBy(z => z.Id, StringComparer.Ordinal))
+            foreach (var zone in d.Zones.Where(z => active.Contains(z.Id))
+                .OrderBy(z => z.Purpose == "Resources" ? 0 : z.Purpose == "Props" ? 1 : 2).ThenBy(z => z.Id, StringComparer.Ordinal))
             {
                 bool scoped = CourseResolver.TeamScoped(play, zone.Purpose);
                 var items = data.Placements.Where(p => p.ZoneId == zone.Id).ToList();

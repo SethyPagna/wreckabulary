@@ -77,6 +77,33 @@ namespace Wreckabulary.EditorTests
         }
 
         [Test]
+        public void LostAddressShowsItsRoomFurnitureBeforeCheckMapWithoutChangingTheCourse()
+        {
+            var items = ItemCatalogue.FromJson(File.ReadAllText(Path.Combine(Application.dataPath, "_Project/Data/Config/items.json")));
+            var content = WordboundFlagshipContent.Create(items);
+            string source = new WorkshopSnapshot(content.CopyDocument()).CourseJsonText;
+            workshop.OpenFlagship(content, folder);
+            Assert.AreEqual(source, workshop.History.Current.CourseJsonText);
+            var draft = (ResolvedCourse)typeof(WordboundWorkshop).GetMethod("DraftLayout", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(workshop, null);
+            Assert.IsNotNull(draft, "The draft layout resolves the room furniture for the 3D view.");
+            var furniture = draft.Placements.Where(placement => placement.ZoneId.StartsWith("Props_", StringComparison.Ordinal)).ToList();
+            Assert.Greater(furniture.Count, 0);
+            var view = typeof(WordboundWorkshop).GetField("view", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(workshop);
+            var rooms = (Dictionary<string, Transform>)typeof(WordboundWorkshopViewport)
+                .GetField("modules", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
+            int shown = furniture.Count(placement => rooms.TryGetValue(placement.ModuleId, out var room) &&
+                room.Cast<Transform>().Any(child => child.name == placement.Id));
+            Assert.Greater(shown, 0, "Furniture on the active floor is drawn before Check map.");
+            Assert.IsFalse(workshop.History.CanUndo);
+            Assert.AreEqual(source, workshop.History.Current.CourseJsonText);
+            var preview = workshop.Preview();
+            Assert.IsTrue(preview.Success, string.Join("\n", preview.Issues));
+            Assert.AreEqual(preview.Manifest.Hash, draft.Hash, "The draft view shows the same layout Check map resolves.");
+            Assert.AreEqual(source, workshop.History.Current.CourseJsonText);
+        }
+
+        [Test]
         public void RemovingOneLapControlStillBlocksStarterPlaytest()
         {
             workshop.OpenTemplate(WorkshopTemplate.RaceCircuit, folder);

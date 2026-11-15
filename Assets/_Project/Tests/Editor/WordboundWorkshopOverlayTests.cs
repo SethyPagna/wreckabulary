@@ -26,6 +26,38 @@ namespace Wreckabulary.EditorTests
                 Assert.IsTrue(bounds.Contains(corner), corner.ToString("F4"));
         }
 
+        [TestCase(100, 100, 160, 100)]
+        [TestCase(100, 100, 100, 40)]
+        [TestCase(100, 100, 60, 150)]
+        [TestCase(100, 100, 100, 100)]
+        public void MoveArrowsPointAwayFromTheCentreAndStayNearTheirTip(float x0, float y0, float x1, float y1)
+        {
+            var from = new Vector2(x0, y0); var tip = new Vector2(x1, y1);
+            var (left, right) = WordboundWorkshopOverlay.ArrowHead(from, tip, WordboundWorkshopOverlay.ArrowSize);
+            foreach (var point in new[] { left, right })
+            {
+                Assert.AreEqual(WordboundWorkshopOverlay.ArrowSize, Vector2.Distance(point, tip), .01f);
+                Assert.Less(Vector2.Distance(point, tip), 17, "The arrowhead stays inside the move handle's grab area.");
+                if (from != tip) Assert.Less(Vector2.Distance(point, from), Vector2.Distance(tip, from), "The head points away from the centre.");
+            }
+            Assert.AreNotEqual(left, right);
+        }
+
+        [Test]
+        public void TheTurnCurveFitsInsideTheTurnGrabArea()
+        {
+            var centre = new Vector2(200, 156);
+            var arc = WordboundWorkshopOverlay.TurnArc(centre, WordboundWorkshopOverlay.TurnRadius, 10);
+            Assert.AreEqual(11, arc.Length);
+            var grab = new Rect(centre.x - 14, centre.y - 14, 28, 28);
+            foreach (var point in arc)
+            {
+                Assert.AreEqual(WordboundWorkshopOverlay.TurnRadius, Vector2.Distance(point, centre), .01f);
+                Assert.IsTrue(grab.Contains(point), point.ToString("F2"));
+            }
+            Assert.Greater(Vector2.Distance(arc[0], arc[arc.Length - 1]), 1, "The curve is open so its arrow shows the turn.");
+        }
+
         [TestCase(-30, -20, -5, 200)]
         [TestCase(0, 0, 800, 0)]
         [TestCase(20, 20, 20, 20)]

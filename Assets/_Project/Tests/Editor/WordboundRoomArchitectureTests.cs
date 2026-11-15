@@ -240,6 +240,126 @@ namespace Wreckabulary.Tests
             Assert.AreNotEqual(Color.magenta, WordboundRoomStyleProfile.Defaults()[0].Wall);
         }
 
+        [Test]
+        public void RoomFinishesForAbsentRoomsLeaveACourseExactlyAsBefore()
+        {
+            var content = Content(); var course = Resolve(content);
+            var baseline = WordboundCourseWorld.Build(course, content.Geometry, parent.transform,
+                new WordboundCourseWorldOptions { RoomStyle = profile });
+            var other = ScriptableObject.CreateInstance<WordboundRoomStyleProfile>();
+            try
+            {
+                other.Rooms.Add(new WordboundRoomFinish { ModuleId = "AbsentYard", Ground = Art.Surfaces.Kind.Tile, GroundTile = 3, Outdoor = true });
+                other.Validate();
+                var styled = WordboundCourseWorld.Build(course, content.Geometry, parent.transform,
+                    new WordboundCourseWorldOptions { RoomStyle = other });
+                var a = baseline.GetComponent<WordboundRoomArchitecture>(); var b = styled.GetComponent<WordboundRoomArchitecture>();
+                Assert.AreEqual(a.RenderBatchCount, b.RenderBatchCount);
+                Assert.AreEqual(a.OpeningBandCount, b.OpeningBandCount);
+                Assert.AreEqual(a.InsetCount, b.InsetCount);
+                var before = ArchitectureMeshes(baseline); var after = ArchitectureMeshes(styled);
+                Assert.AreEqual(before.Length, after.Length);
+                for (int i = 0; i < before.Length; i++)
+                {
+                    CollectionAssert.AreEqual(before[i].vertices, after[i].vertices);
+                    CollectionAssert.AreEqual(before[i].uv, after[i].uv);
+                }
+                for (int i = 0; i < baseline.Surfaces.Count; i++)
+                {
+                    CollectionAssert.AreEqual(baseline.Surfaces[i].GetComponent<MeshFilter>().sharedMesh.uv,
+                        styled.Surfaces[i].GetComponent<MeshFilter>().sharedMesh.uv);
+                    CollectionAssert.AreEqual(baseline.Surfaces[i].GetComponent<Renderer>().sharedMaterials.Select(m => m.color),
+                        styled.Surfaces[i].GetComponent<Renderer>().sharedMaterials.Select(m => m.color));
+                }
+            }
+            finally { UnityEngine.Object.DestroyImmediate(other); }
+        }
+
+        [Test]
+        public void DepotRoomFinishesKeepCollisionAndOpenTheYardInsideItsWalls()
+        {
+            var yard = new WordboundRoomFinish { ModuleId = "Yard", Ground = Art.Surfaces.Kind.Tile, GroundTile = 3.2f, Outdoor = true,
+                Palette = new WordboundRoomPalette { Floor = new Color(.74f, .72f, .67f), Wall = new Color(.6f, .57f, .52f) } };
+            var dock = new WordboundRoomFinish { ModuleId = "Dock", Ground = Art.Surfaces.Kind.Tile, GroundTile = 9.6f,
+                Palette = new WordboundRoomPalette { Wall = new Color(.25f, .42f, .44f) } };
+            var hall = new WordboundRoomFinish { ModuleId = "Hall", Palette = new WordboundRoomPalette { Wall = new Color(.19f, .27f, .36f) } };
+            profile.Rooms.AddRange(new[] { yard, dock, hall });
+            profile.Validate();
+            var content = WordboundParcelServiceContent.Create(ItemCatalogue.FromJson(File.ReadAllText("Assets/_Project/Data/Config/items.json")));
+            var resolution = content.Resolve("0123456789abcdef", MatchStateValidation.Requirements(ModeDefinition.For("TimeRun", RaceFormat.Solo)));
+            Assert.IsTrue(resolution.Success, string.Join("; ", resolution.Issues.Select(i => i.Message)));
+            var course = resolution.Manifest;
+            var plain = WordboundCourseWorld.Build(course, content.Geometry, parent.transform,
+                new WordboundCourseWorldOptions { EnableRoomArchitecture = false });
+            var styled = WordboundCourseWorld.Build(course, content.Geometry, parent.transform,
+                new WordboundCourseWorldOptions { RoomStyle = profile });
+            Assert.AreEqual(plain.ManifestHash, styled.ManifestHash);
+            Assert.AreEqual(plain.Surfaces.Count, styled.Surfaces.Count);
+            for (int i = 0; i < plain.Surfaces.Count; i++)
+            {
+                var a = (BoxCollider)plain.Surfaces[i]; var b = (BoxCollider)styled.Surfaces[i];
+                Assert.AreEqual(a.transform.position, b.transform.position); Assert.AreEqual(a.transform.lossyScale, b.transform.lossyScale);
+                Assert.AreEqual(a.center, b.center); Assert.AreEqual(a.size, b.size);
+            }
+            var walls = styled.Surfaces.Where(c => c.GetComponent<WordboundCourseNode>().Kind == WordboundCourseNodeKind.Wall).Cast<BoxCollider>().ToArray();
+            foreach (var filter in styled.GetComponentsInChildren<MeshFilter>().Where(f => f.name.StartsWith("Room architecture ", StringComparison.Ordinal)))
+            {
+                var vertices = filter.sharedMesh.vertices; var normals = filter.sharedMesh.normals; var triangles = filter.sharedMesh.triangles;
+                foreach (var vertex in vertices)
+                    Assert.IsTrue(walls.Any(wall => Contains(wall, filter.transform.TransformPoint(vertex))), "Room finishes must stay inside existing walls.");
+                for (int i = 0; i < triangles.Length; i += 3)
+                    Assert.That(Vector3.Dot(Vector3.Cross(vertices[triangles[i + 1]] - vertices[triangles[i]],
+                        vertices[triangles[i + 2]] - vertices[triangles[i]]), normals[triangles[i]]), Is.GreaterThan(0));
+            }
+            var used = styled.GetComponentsInChildren<MeshRenderer>().Where(r => r.name.StartsWith("Room architecture ", StringComparison.Ordinal))
+                .Select(r => r.sharedMaterial).ToArray();
+            Assert.IsTrue(used.Any(m => m.name == "Room Railing"), "The open yard needs a railing on its free edges.");
+            Assert.IsTrue(used.Any(m => Vector4.Distance(m.color, dock.Palette.Wall) < .00001f));
+            Assert.IsTrue(used.Any(m => Vector4.Distance(m.color, hall.Palette.Wall) < .00001f));
+            var mezzanine = profile.ForLayer("Mezzanine");
+            foreach (var floor in styled.Surfaces.Where(c => c.GetComponent<WordboundCourseNode>().Kind == WordboundCourseNodeKind.Floor))
+            {
+                var node = floor.GetComponent<WordboundCourseNode>();
+                var material = floor.GetComponent<Renderer>().sharedMaterials[0];
+                if (node.ModuleId == "Mezzanine") Assert.That(Vector4.Distance(mezzanine.Floor, material.color), Is.LessThan(.00001f));
+                if (node.ModuleId != "Yard") continue;
+                Assert.That(Vector4.Distance(yard.Palette.Floor, material.color), Is.LessThan(.00001f));
+                var mesh = floor.GetComponent<MeshFilter>().sharedMesh; var uv = mesh.uv; var points = mesh.vertices; var up = mesh.normals;
+                for (int i = 0; i < points.Length; i++)
+                {
+                    if (up[i].y < .9f) continue;
+                    Vector3 local = styled.ToCourse(floor.transform.TransformPoint(points[i]));
+                    Assert.That(Vector2.Distance(uv[i] * 3.2f, new Vector2(local.x, local.z)), Is.LessThan(.002f));
+                }
+            }
+        }
+
+        [Test]
+        public void RoomFinishBoundsRejectInvalidEntries()
+        {
+            profile.Rooms.Add(new WordboundRoomFinish { ModuleId = "Yard", Outdoor = true });
+            profile.Validate();
+            profile.Rooms.Add(new WordboundRoomFinish { ModuleId = "Yard" });
+            Assert.Throws<ArgumentException>(() => profile.Validate());
+            profile.Rooms[1].ModuleId = "";
+            Assert.Throws<ArgumentException>(() => profile.Validate());
+            profile.Rooms[1].ModuleId = "Dock"; profile.Validate();
+            profile.Rooms[1].Ground = Art.Surfaces.Kind.Rug; Assert.Throws<ArgumentException>(() => profile.Validate());
+            profile.Rooms[1].Ground = Art.Surfaces.Kind.Tile; profile.Rooms[1].GroundTile = .2f;
+            Assert.Throws<ArgumentException>(() => profile.Validate());
+            profile.Rooms[1].GroundTile = 0; profile.Rooms[1].Railing = new Color(float.NaN, 0, 0, 1);
+            Assert.Throws<ArgumentException>(() => profile.Validate());
+            profile.Rooms[1].Railing = Color.black; profile.Rooms[1].BoundaryHeight = 3;
+            Assert.Throws<ArgumentException>(() => profile.Validate());
+            profile.Rooms[1].BoundaryHeight = .6f; profile.Rooms[1].Palette = null;
+            Assert.Throws<ArgumentException>(() => profile.Validate());
+            profile.Rooms.RemoveAt(1); profile.Validate();
+            Assert.AreSame(profile.Rooms[0], profile.ForModule("Yard")); Assert.IsNull(profile.ForModule("Dock"));
+        }
+
+        static Mesh[] ArchitectureMeshes(WordboundCourseWorld world) => world.GetComponentsInChildren<MeshFilter>()
+            .Where(f => f.name.StartsWith("Room architecture ", StringComparison.Ordinal)).Select(f => f.sharedMesh).ToArray();
+
         static bool Contains(BoxCollider box, Vector3 worldPoint)
         {
             Vector3 p = box.transform.InverseTransformPoint(worldPoint) - box.center, h = box.size * .5f;

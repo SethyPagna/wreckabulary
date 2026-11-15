@@ -1,6 +1,8 @@
 using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Wreckabulary.Rules;
+using Wreckabulary.Rules.Wordbound;
 
 namespace Wreckabulary.Online
 {
@@ -10,6 +12,7 @@ namespace Wreckabulary.Online
     {
         public WordboundCameraProfile Profile;
         readonly RaycastHit[] obstructions = new RaycastHit[64];
+        readonly CourseLook look = new CourseLook();
         WordboundGameplayController controller;
         WordboundNetworkBody player;
         InputBinding binding, effectiveBinding;
@@ -17,9 +20,11 @@ namespace Wreckabulary.Online
         Camera view;
         GameObject ownedCamera;
         CursorLockMode previousLock;
-        bool previousCursor, initialized, capturedCursor, jumpPending, placed;
+        bool previousCursor, initialized, capturedCursor, jumpPending, placed, orbitPlaced;
         Vector2 movement;
-        float yaw, pitch = ShoulderView.DefaultPitch, distance = ShoulderView.Distance;
+        Vector3 steadyPosition;
+        Quaternion steadyRotation = Quaternion.identity;
+        float yaw, pitch = ShoulderView.DefaultPitch, distance = ShoulderView.Distance, orbitDistance = ShoulderView.Distance;
         float followDistance = ShoulderView.Distance, minimumDistance = ShoulderView.MinDistance;
         float pivotHeight = ShoulderView.PivotHeight, lift = ShoulderView.Lift;
         float probeRadius = ShoulderView.ProbeRadius, skin = ShoulderView.Skin, outEase = ShoulderView.OutEase;
@@ -34,6 +39,19 @@ namespace Wreckabulary.Online
         public bool UsesGamepad => effectiveBinding is WordboundInputBinding automatic &&
             automatic.ActiveGamepad != null && automatic.ActiveGamepad.added && automatic.ActiveGamepad.enabled;
         public string ControlHint(WordboundControl control) => WordboundInputBinding.ControlHint(effectiveBinding, control);
+        public string LookAroundHint => effectiveBinding is WordboundInputBinding automatic ? automatic.LookAroundHint : "";
+        public bool Looking => look.Looking;
+        public bool Dragging => look.Dragging;
+        public float OrbitYaw => look.Yaw;
+        public float OrbitPitch => look.Pitch;
+        public void BeginLook() => look.BeginLook();
+        public void EndLook() => look.EndLook();
+        public void Orbit(float yawDegrees, float pitchDegrees) =>
+            look.Orbit(yawDegrees, pitchDegrees, pitch * Mathf.Rad2Deg, minimumPitch * Mathf.Rad2Deg, maximumPitch * Mathf.Rad2Deg);
+        public void OrbitDrag(Vector2 screenPixels) => Orbit(FreeLook.DragDegrees(screenPixels.x, Screen.height),
+            FreeLook.DragDegrees(KeyBindings.InvertY ? screenPixels.y : -screenPixels.y, Screen.height));
+        public Vector3 SteadyViewportPoint(Vector3 world) => view == null ? Vector3.zero :
+            look.Orbiting && placed ? ViewportPoint(view, steadyPosition, steadyRotation, world) : view.WorldToViewportPoint(world);
         public event Action<PlayerCommands> CommandsRead;
         public event Action<WordboundMenuCommands> MenuCommandsRead;
         public event Action MenuRequested;
@@ -109,6 +127,8 @@ namespace Wreckabulary.Online
         {
             player = body;
             placed = false;
+            orbitPlaced = false;
+            look.Recenter();
             movement = Vector2.zero;
             jumpPending = false;
             if (body != null) yaw = body.transform.eulerAngles.y * Mathf.Deg2Rad;
@@ -119,6 +139,7 @@ namespace Wreckabulary.Online
             MenuOpen = open;
             movement = Vector2.zero;
             jumpPending = false;
+            look.Hold(false);
             (effectiveBinding as WordboundInputBinding)?.SuspendGameplay();
             if (open) CommandsRead?.Invoke(default);
             ApplyCursor();
@@ -141,6 +162,7 @@ namespace Wreckabulary.Online
 
         void ProcessInput(bool focused)
         {
+            look.Hold(false);
             if (effectiveBinding is WordboundInputBinding automatic)
             {
                 bool lost = automatic.RefreshDevice(focused);
@@ -187,15 +209,23 @@ namespace Wreckabulary.Online
             ApplyCursor();
             var commands = default(PlayerCommands);
             effectiveBinding.Read(ref commands);
-            if (effectiveBinding.ReadsMouse)
+            Steer(commands, Time.unscaledDeltaTime);
+        }
+
+        void Steer(PlayerCommands commands, float seconds)
+        {
+            look.Hold(commands.lookAround);
+            if (commands.lookAround) Orbit(commands.orbit.x * Mathf.Rad2Deg, commands.orbit.y * Mathf.Rad2Deg);
+            else if (effectiveBinding.ReadsMouse)
             {
-                yaw += commands.lookDelta.x * sensitivity;
-                pitch -= commands.lookDelta.y * sensitivity;
+                float scale = sensitivity / ShoulderView.MouseSensitivity;
+                yaw += commands.lookDelta.x * scale;
+                pitch += commands.lookDelta.y * scale;
             }
             else
             {
-                yaw += commands.look.x * stickYaw * Time.unscaledDeltaTime;
-                pitch -= commands.look.y * stickPitch * Time.unscaledDeltaTime;
+                yaw += commands.look.x * stickYaw * seconds;
+                pitch -= commands.look.y * stickPitch * seconds;
             }
             pitch = Mathf.Clamp(pitch, minimumPitch, maximumPitch);
             yaw = Mathf.Repeat(yaw + Mathf.PI, 2 * Mathf.PI) - Mathf.PI;
@@ -212,6 +242,11 @@ namespace Wreckabulary.Online
                 jumpPending = false;
                 return default;
             }
+            return Pending();
+        }
+
+        WordboundMovementInput Pending()
+        {
             var input = new WordboundMovementInput {
                 MoveX = movement.x, MoveZ = movement.y, Jump = jumpPending,
                 HasFacing = true, FacingYaw = Mathf.Repeat(yaw * Mathf.Rad2Deg + 180f, 360f) - 180f
@@ -222,14 +257,37 @@ namespace Wreckabulary.Online
 
         void LateUpdate()
         {
-            if (!initialized || view == null || player == null || player.Object == null || !player.Object.IsValid) return;
+            if (!initialized) return;
+            look.Update(Time.unscaledDeltaTime, pitch * Mathf.Rad2Deg, minimumPitch * Mathf.Rad2Deg, maximumPitch * Mathf.Rad2Deg);
+            if (view == null || player == null || player.Object == null || !player.Object.IsValid) return;
             var visual = player.GetComponent<WordboundGameplayBody>()?.VisualRoot;
             Vector3 feet = visual != null ? visual.position : player.transform.position;
             Vector3 pivot = feet + Vector3.up * (pivotHeight + lift);
             Vector3 forward = ShoulderView.Forward(yaw, pitch);
-            float allowed = followDistance;
             var scene = player.gameObject.scene.GetPhysicsScene();
             if (!scene.IsValid() || scene == Physics.defaultPhysicsScene) return;
+            float allowed = Clearance(scene, pivot, forward);
+            distance = !placed || allowed < distance ? allowed : Ease(distance, allowed);
+            steadyPosition = pivot - forward * distance;
+            steadyRotation = Quaternion.LookRotation(forward, Vector3.up);
+            placed = true;
+            if (!look.Orbiting)
+            {
+                orbitPlaced = false;
+                view.transform.SetPositionAndRotation(steadyPosition, steadyRotation);
+                return;
+            }
+            Vector3 turned = ShoulderView.Forward(yaw + look.Yaw * Mathf.Deg2Rad, pitch + look.Pitch * Mathf.Deg2Rad);
+            float room = Clearance(scene, pivot, turned);
+            if (!orbitPlaced) orbitDistance = distance;
+            orbitDistance = room < orbitDistance ? room : Ease(orbitDistance, room);
+            orbitPlaced = true;
+            view.transform.SetPositionAndRotation(pivot - turned * orbitDistance, Quaternion.LookRotation(turned, Vector3.up));
+        }
+
+        float Clearance(PhysicsScene scene, Vector3 pivot, Vector3 forward)
+        {
+            float allowed = followDistance;
             int count = scene.SphereCast(pivot, probeRadius, -forward, obstructions,
                 followDistance, ~0, QueryTriggerInteraction.Ignore);
             if (count == obstructions.Length) allowed = minimumDistance;
@@ -240,11 +298,17 @@ namespace Wreckabulary.Online
                     if (collider == null || collider.attachedRigidbody == player.Rigidbody) continue;
                     allowed = Mathf.Min(allowed, obstructions[i].distance - skin);
                 }
-            allowed = Mathf.Clamp(allowed, minimumDistance, followDistance);
-            distance = !placed || allowed < distance ? allowed :
-                Mathf.Lerp(distance, allowed, 1 - Mathf.Exp(-outEase * Time.unscaledDeltaTime));
-            view.transform.SetPositionAndRotation(pivot - forward * distance, Quaternion.LookRotation(forward, Vector3.up));
-            placed = true;
+            return Mathf.Clamp(allowed, minimumDistance, followDistance);
+        }
+
+        float Ease(float from, float to) => Mathf.Lerp(from, to, 1 - Mathf.Exp(-outEase * Time.unscaledDeltaTime));
+
+        static Vector3 ViewportPoint(Camera camera, Vector3 position, Quaternion rotation, Vector3 world)
+        {
+            Vector3 local = Quaternion.Inverse(rotation) * (world - position);
+            Vector4 clip = camera.projectionMatrix * new Vector4(local.x, local.y, -local.z, 1f);
+            if (Mathf.Approximately(clip.w, 0f)) return new Vector3(.5f, .5f, local.z);
+            return new Vector3(clip.x / clip.w * .5f + .5f, clip.y / clip.w * .5f + .5f, local.z);
         }
 
         void OnApplicationFocus(bool focused)
@@ -256,6 +320,8 @@ namespace Wreckabulary.Online
         {
             movement = Vector2.zero;
             jumpPending = false;
+            look.Clear();
+            orbitPlaced = false;
             (effectiveBinding as WordboundInputBinding)?.SuspendGameplay();
             CommandsRead?.Invoke(default);
             if (capturedCursor)

@@ -128,11 +128,12 @@ namespace Wreckabulary.Workshop
         {
             RequireRecoveryChoice();
             if (OnlineStarting) throw new InvalidOperationException("Wait for online preparation to finish before changing courses.");
-            if (!HasAssignedCourse) throw new InvalidOperationException("No course is assigned to this workshop.");
+            if (!HasAssignedCourse) throw new InvalidOperationException("No course is assigned to this map editor.");
+            CloseStart();
             if (UsesAssignedCourse) return;
             SaveAndRememberDraft();
             ActivateDraft(assignedDraft, true, null);
-            ShowStatus("Assigned course · your edits and Undo history are retained.");
+            ShowStatus((QaBuild || assignedTitle.Length == 0 ? "Assigned course" : assignedTitle) + " · your edits and Undo history are retained.");
         }
 
         public void ConfigureParcelService(CourseDocument document, CourseCatalogue catalogue, CoursePlayRequirements play, string seed)
@@ -157,6 +158,7 @@ namespace Wreckabulary.Workshop
             if (OnlineStarting) throw new InvalidOperationException("Wait for online preparation to finish before changing courses.");
             if (!HasParcelService) throw new InvalidOperationException("No saved Parcel Depot course is assigned.");
             if (parcelServiceUnavailable != null) throw new InvalidOperationException(parcelServiceUnavailable);
+            CloseStart();
             if (UsesParcelService && (folder == null || folder == storageFolder)) return;
             SaveAndRememberDraft();
             if (parcelServiceDraft != null && (folder == null || folder == parcelServiceDraft.Folder))
@@ -173,7 +175,7 @@ namespace Wreckabulary.Workshop
                 Play = parcelServicePlay, Storage = scoped, Folder = baseFolder };
             string id = WordboundSoloEntry.ParcelServiceCourseId;
             OpenRecovered(session, scoped.HasRecovery(id) ? scoped : null, id, back, null, false, true,
-                "Parcel Depot · saved course copy · Workshop edits are stored separately.",
+                "Parcel Depot · saved course copy · your edits are stored separately.",
                 "Recovered Parcel Depot autosave", "Recovered previous Parcel Depot save", "Start fresh from the saved course");
         }
 
@@ -196,11 +198,13 @@ namespace Wreckabulary.Workshop
         void ProcessSourceChoice(bool focused)
         {
             int decision = sourceDecision; sourceDecision = 0;
+            var starter = starterDecision; starterDecision = null;
             bool controller = controllerSourceDecision; controllerSourceDecision = false;
-            if (decision == 0 || !focused || !Visible || DesktopBinding.Typing || KeyBindings.GameplayBlocked ||
+            if (decision == 0 && starter == null || !focused || !Visible || DesktopBinding.Typing || KeyBindings.GameplayBlocked ||
                 controller && workshopTyping) return;
             Attempt(() => {
-                if (decision == 1) OpenAssignedCourse();
+                if (starter != null) NewMap(starter.Value);
+                else if (decision == 1) OpenAssignedCourse();
                 else if (decision == 5) OpenFlagship(flagshipContent);
                 else if (decision == 6) OpenParcelService();
                 else OpenTemplate((WorkshopTemplate)(decision - 2));

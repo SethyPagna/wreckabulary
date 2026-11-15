@@ -18,11 +18,16 @@ namespace Wreckabulary.WordboundRuntime
         readonly Dictionary<Material, Batch> batches = new Dictionary<Material, Batch>();
         readonly List<KeyValuePair<Material, Batch>> completedBatches = new List<KeyValuePair<Material, Batch>>();
         readonly Dictionary<WordboundRoomPalette, PaletteMaterials> materials = new Dictionary<WordboundRoomPalette, PaletteMaterials>();
+        readonly Dictionary<WordboundRoomFinish, Material> railings = new Dictionary<WordboundRoomFinish, Material>();
+        readonly Dictionary<string, WordboundRoomFinish> finishes = new Dictionary<string, WordboundRoomFinish>(StringComparer.Ordinal);
+        readonly List<WallPiece> wallPieces = new List<WallPiece>();
+        Dictionary<string, ResolvedCourseModule> modules;
         WordboundRoomStyleProfile profile;
         WordboundCourseWorld world;
         Material artwork;
         Material woodwork;
         int decoratedWallPieces;
+        bool splitSharedWalls;
 
         public int InsetCount { get; private set; }
         public int RenderBatchCount { get; private set; }
@@ -41,7 +46,14 @@ namespace Wreckabulary.WordboundRuntime
 
         void Build(WordboundCourseWorldOptions options)
         {
-            var modules = world.Course.Geometry.ToDictionary(m => m.Id, StringComparer.Ordinal);
+            modules = world.Course.Geometry.ToDictionary(m => m.Id, StringComparer.Ordinal);
+            foreach (var module in modules.Values)
+            {
+                var finish = profile.ForModule(module.Id);
+                if (finish != null) finishes.Add(module.Id, finish);
+            }
+            splitSharedWalls = finishes.Count > 0 && !options.WallMaterial;
+            if (splitSharedWalls) CollectWallPieces();
             foreach (var collider in world.Surfaces)
             {
                 var node = collider.GetComponent<WordboundCourseNode>();
@@ -49,11 +61,12 @@ namespace Wreckabulary.WordboundRuntime
                 if (node.Kind == WordboundCourseNodeKind.Floor && options.FloorMaterial ||
                     node.Kind == WordboundCourseNodeKind.Wall && options.WallMaterial ||
                     node.Kind == WordboundCourseNodeKind.Connection && options.ConnectorMaterial) continue;
-                var palette = Materials(profile.ForLayer(module.LayerId));
+                finishes.TryGetValue(module.Id, out var finish);
+                var palette = RoomMaterials(module);
                 if (node.Kind == WordboundCourseNodeKind.Floor && !options.FloorMaterial)
-                    Floor(collider, palette);
+                    Floor(collider, palette, finish);
                 else if (node.Kind == WordboundCourseNodeKind.Wall && !options.WallMaterial)
-                    Wall(collider, module, palette);
+                    Wall(collider, module, palette, finish);
                 else if (node.Kind == WordboundCourseNodeKind.Connection && !options.ConnectorMaterial)
                     collider.GetComponent<Renderer>().sharedMaterial = Woodwork();
             }
@@ -75,11 +88,19 @@ namespace Wreckabulary.WordboundRuntime
             batches.Clear(); completedBatches.Clear();
         }
 
-        void Floor(Collider collider, PaletteMaterials palette)
+        void Floor(Collider collider, PaletteMaterials palette, WordboundRoomFinish finish)
         {
             var filter = collider.GetComponent<MeshFilter>();
             var mesh = Instantiate(filter.sharedMesh);
             mesh.name = "Room floor and ceiling " + collider.name;
+            if (finish != null && (finish.Ground != Surfaces.Kind.Planks || finish.GroundTile > 0))
+            {
+                Vector2 from = Surfaces.Tile(Surfaces.Kind.Planks);
+                Vector2 to = finish.GroundTile > 0 ? Vector2.one * finish.GroundTile : Surfaces.Tile(finish.Ground);
+                var uvs = mesh.uv;
+                for (int i = 0; i < uvs.Length; i++) uvs[i] = new Vector2(uvs[i].x * from.x / to.x, uvs[i].y * from.y / to.y);
+                mesh.uv = uvs; mesh.RecalculateTangents();
+            }
             var original = mesh.triangles; var normals = mesh.normals;
             var indices = new[] { new List<int>(), new List<int>(), new List<int>() };
             for (int i = 0; i < original.Length; i += 3)
@@ -94,30 +115,69 @@ namespace Wreckabulary.WordboundRuntime
             collider.GetComponent<Renderer>().sharedMaterials = new[] { palette.Floor, palette.Ceiling, palette.Frame };
         }
 
-        void Wall(Collider collider, ResolvedCourseModule module, PaletteMaterials palette)
+        void Wall(Collider collider, ResolvedCourseModule module, PaletteMaterials palette, WordboundRoomFinish finish)
         {
             Vector3 center = world.transform.InverseTransformPoint(collider.transform.position);
             Vector3 size = collider.transform.localScale;
-            bool fixedX = Mathf.Abs(center.x - module.Bounds.Min.X / 1000f) < .001f ||
-                Mathf.Abs(center.x - module.Bounds.Max.X / 1000f) < .001f;
+            bool fixedX = FixedX(center, module);
             Vector3 inward = fixedX ? Vector3.right * (center.x < module.Position.X / 1000f ? 1 : -1) :
                 Vector3.forward * (center.z < module.Position.Z / 1000f ? 1 : -1);
             float thickness = fixedX ? size.x : size.z;
             if (thickness <= Recess * 2 || size.y < .001f) return;
             collider.GetComponent<Renderer>().enabled = false;
-            var backing = size;
-            if (fixedX) backing.x -= Recess * 2; else backing.z -= Recess * 2;
-            Box(center, backing, palette.Wall);
             Vector3 right = Vector3.Cross(Vector3.up, inward);
             Vector3 face = center + inward * thickness * .5f;
             float width = fixedX ? size.z : size.x;
             float bottom = center.y - size.y * .5f;
             float roomFloor = module.Bounds.Min.Y / 1000f;
+            float fixedValue = fixedX ? center.x : center.z;
+            var piece = Piece(center, size, fixedX);
+            bool outdoor = finish != null && finish.Outdoor;
 
-            if (profile.FrameRouteOpenings)
-                RouteOpeningBands(center, size, module, fixedX, inward, right, face);
+            if (!splitSharedWalls)
+            {
+                var backing = size;
+                if (fixedX) backing.x -= Recess * 2; else backing.z -= Recess * 2;
+                Box(center, backing, palette.Wall);
+                if (profile.FrameRouteOpenings)
+                    RouteOpeningBands(piece, fixedValue, module, fixedX, inward, right, face);
+            }
+            else
+            {
+                float depth = thickness * .5f - Recess;
+                var free = new List<Rect> { piece };
+                var shared = new List<KeyValuePair<Rect, string>>();
+                foreach (var other in wallPieces)
+                {
+                    if (other.ModuleId == module.Id || other.FixedX != fixedX || Mathf.Abs(other.Fixed - fixedValue) > .003f) continue;
+                    foreach (var part in free)
+                    {
+                        var overlap = Rect.MinMaxRect(Mathf.Max(part.xMin, other.Rect.xMin), Mathf.Max(part.yMin, other.Rect.yMin),
+                            Mathf.Min(part.xMax, other.Rect.xMax), Mathf.Min(part.yMax, other.Rect.yMax));
+                        if (overlap.width > .001f && overlap.height > .001f) shared.Add(new KeyValuePair<Rect, string>(overlap, other.ModuleId));
+                    }
+                    free = Subtract(free, other.Rect);
+                }
+                foreach (var part in shared)
+                {
+                    bool openNeighbour = finishes.TryGetValue(part.Value, out var neighbour) && neighbour.Outdoor;
+                    if (!outdoor) Slab(part.Key, fixedX, fixedValue, inward, 0, depth, palette.Wall);
+                    else if (!openNeighbour)
+                    {
+                        Slab(part.Key, fixedX, fixedValue, inward, 0, depth, RoomMaterials(modules[part.Value]).Wall);
+                        if (profile.FrameRouteOpenings) RouteOpeningBands(part.Key, fixedValue, module, fixedX, inward, right, face);
+                    }
+                    else if (string.CompareOrdinal(module.Id, part.Value) < 0)
+                        Boundary(part.Key, fixedX, fixedValue, inward, depth, roomFloor, palette, finish);
+                }
+                foreach (var part in free)
+                    if (outdoor) Boundary(part, fixedX, fixedValue, inward, depth, roomFloor, palette, finish);
+                    else Slab(part, fixedX, fixedValue, inward, -depth, depth, palette.Wall);
+                if (!outdoor && profile.FrameRouteOpenings)
+                    RouteOpeningBands(piece, fixedValue, module, fixedX, inward, right, face);
+            }
 
-            if (size.y < 4.1f || width < 3.5f || bottom > roomFloor + .001f ||
+            if (outdoor || size.y < 4.1f || width < 3.5f || bottom > roomFloor + .001f ||
                 decoratedWallPieces >= profile.MaximumDecoratedWallPieces) return;
             int count = Mathf.Min(profile.MaximumInsetsPerWallPiece, Mathf.FloorToInt(width / 6f));
             if (count == 0 && width >= 4f && profile.MaximumInsetsPerWallPiece > 0) count = 1;
@@ -155,14 +215,9 @@ namespace Wreckabulary.WordboundRuntime
             return woodwork;
         }
 
-        void RouteOpeningBands(Vector3 center, Vector3 size, ResolvedCourseModule module,
+        void RouteOpeningBands(Rect solid, float fixedValue, ResolvedCourseModule module,
             bool fixedX, Vector3 inward, Vector3 right, Vector3 face)
         {
-            float fixedValue = fixedX ? center.x : center.z;
-            float acrossCenter = fixedX ? center.z : center.x;
-            float wallWidth = fixedX ? size.z : size.x;
-            var solid = Rect.MinMaxRect(acrossCenter - wallWidth * .5f, center.y - size.y * .5f,
-                acrossCenter + wallWidth * .5f, center.y + size.y * .5f);
             var emitted = new HashSet<Rect>();
             foreach (var connection in world.Course.Connections)
             {
@@ -286,11 +341,98 @@ namespace Wreckabulary.WordboundRuntime
             return batch;
         }
 
-        PaletteMaterials Materials(WordboundRoomPalette palette)
+        void CollectWallPieces()
+        {
+            foreach (var collider in world.Surfaces)
+            {
+                var node = collider.GetComponent<WordboundCourseNode>();
+                if (node.Kind != WordboundCourseNodeKind.Wall || !modules.TryGetValue(node.ModuleId, out var module)) continue;
+                Vector3 center = world.transform.InverseTransformPoint(collider.transform.position);
+                Vector3 size = collider.transform.localScale;
+                bool fixedX = FixedX(center, module);
+                wallPieces.Add(new WallPiece(module.Id, fixedX, fixedX ? center.x : center.z, Piece(center, size, fixedX)));
+            }
+        }
+
+        static bool FixedX(Vector3 center, ResolvedCourseModule module) =>
+            Mathf.Abs(center.x - module.Bounds.Min.X / 1000f) < .001f || Mathf.Abs(center.x - module.Bounds.Max.X / 1000f) < .001f;
+
+        static Rect Piece(Vector3 center, Vector3 size, bool fixedX)
+        {
+            float across = fixedX ? center.z : center.x, width = fixedX ? size.z : size.x;
+            return Rect.MinMaxRect(across - width * .5f, center.y - size.y * .5f, across + width * .5f, center.y + size.y * .5f);
+        }
+
+        void Slab(Rect rect, bool fixedX, float fixedValue, Vector3 inward, float near, float far, Material material)
+        {
+            Vector3 at = fixedX ? new Vector3(fixedValue, rect.center.y, rect.center.x) : new Vector3(rect.center.x, rect.center.y, fixedValue);
+            Vector3 size = fixedX ? new Vector3(far - near, rect.height, rect.width) : new Vector3(rect.width, rect.height, far - near);
+            Box(at + inward * ((near + far) * .5f), size, material);
+        }
+
+        void Boundary(Rect rect, bool fixedX, float fixedValue, Vector3 inward, float depth, float roomFloor,
+            PaletteMaterials palette, WordboundRoomFinish finish)
+        {
+            float top = Mathf.Min(rect.yMax, roomFloor + finish.BoundaryHeight);
+            if (top > rect.yMin + .001f)
+            {
+                float coping = Mathf.Max(rect.yMin, top - .06f);
+                if (coping > rect.yMin + .001f)
+                    Slab(Rect.MinMaxRect(rect.xMin, rect.yMin, rect.xMax, coping), fixedX, fixedValue, inward, -depth * .7f, depth * .7f, palette.Wall);
+                Slab(Rect.MinMaxRect(rect.xMin, coping, rect.xMax, top), fixedX, fixedValue, inward, -depth, depth, palette.Frame);
+            }
+            float bottom = Mathf.Max(rect.yMin, top);
+            if (rect.yMax - bottom < .6f || rect.width < .1f) return;
+            var railing = Railing(finish);
+            float post = Mathf.Min(.04f, depth), rail = Mathf.Min(.025f, depth), bar = Mathf.Min(.015f, depth);
+            int bays = Mathf.Max(1, Mathf.CeilToInt(rect.width / 2.4f));
+            var posts = new float[bays + 1];
+            for (int i = 0; i <= bays; i++)
+            {
+                posts[i] = Mathf.Lerp(rect.xMin + .04f, rect.xMax - .04f, i / (float)bays);
+                Slab(Rect.MinMaxRect(posts[i] - .04f, bottom, posts[i] + .04f, rect.yMax), fixedX, fixedValue, inward, -post, post, railing);
+            }
+            Slab(Rect.MinMaxRect(rect.xMin, rect.yMax - .28f, rect.xMax, rect.yMax - .23f), fixedX, fixedValue, inward, -rail, rail, railing);
+            Slab(Rect.MinMaxRect(rect.xMin, bottom + .12f, rect.xMax, bottom + .17f), fixedX, fixedValue, inward, -rail, rail, railing);
+            for (float x = rect.xMin + .12f; x < rect.xMax - .1f; x += .15f)
+                if (posts.All(p => Mathf.Abs(p - x) > .07f))
+                    Slab(Rect.MinMaxRect(x - .015f, bottom, x + .015f, rect.yMax - .03f), fixedX, fixedValue, inward, -bar, bar, railing);
+        }
+
+        static List<Rect> Subtract(List<Rect> input, Rect hole)
+        {
+            var result = new List<Rect>();
+            foreach (var r in input)
+            {
+                float left = Mathf.Max(r.xMin, hole.xMin), right = Mathf.Min(r.xMax, hole.xMax);
+                float bottom = Mathf.Max(r.yMin, hole.yMin), top = Mathf.Min(r.yMax, hole.yMax);
+                if (right <= left || top <= bottom) { result.Add(r); continue; }
+                Keep(result, r.xMin, r.yMin, left, r.yMax);
+                Keep(result, right, r.yMin, r.xMax, r.yMax);
+                Keep(result, left, r.yMin, right, bottom);
+                Keep(result, left, top, right, r.yMax);
+            }
+            return result;
+        }
+
+        static void Keep(List<Rect> list, float x1, float y1, float x2, float y2)
+        { if (x2 - x1 > .001f && y2 - y1 > .001f) list.Add(Rect.MinMaxRect(x1, y1, x2, y2)); }
+
+        PaletteMaterials RoomMaterials(ResolvedCourseModule module) =>
+            finishes.TryGetValue(module.Id, out var finish) ? Materials(finish.Palette, finish.Ground) :
+                Materials(profile.ForLayer(module.LayerId), Surfaces.Kind.Planks);
+
+        Material Railing(WordboundRoomFinish finish)
+        {
+            if (!railings.TryGetValue(finish, out var found)) railings.Add(finish, found = Make(null, finish.Railing, "Railing"));
+            return found;
+        }
+
+        PaletteMaterials Materials(WordboundRoomPalette palette, Surfaces.Kind ground)
         {
             if (materials.TryGetValue(palette, out var found)) return found;
             found = new PaletteMaterials {
-                Floor = Make(palette.FloorMaterial, palette.Floor, "Floor", Surfaces.Kind.Planks), Wall = Make(palette.WallMaterial, palette.Wall, "Wall"),
+                Floor = Make(palette.FloorMaterial, palette.Floor, "Floor", ground), Wall = Make(palette.WallMaterial, palette.Wall, "Wall"),
                 Ceiling = Make(palette.CeilingMaterial, palette.Ceiling, "Ceiling"), Frame = Make(palette.FrameMaterial, palette.Frame, "Frame"),
                 Inset = Make(palette.InsetMaterial, palette.Inset, "Inset"), Accent = Make(palette.AccentMaterial, palette.Accent, "Accent")
             };
@@ -317,6 +459,11 @@ namespace Wreckabulary.WordboundRuntime
         { if (!value) return; if (Application.isPlaying) Destroy(value); else DestroyImmediate(value); }
 
         sealed class PaletteMaterials { public Material Floor, Wall, Ceiling, Frame, Inset, Accent; }
+        sealed class WallPiece
+        {
+            public readonly string ModuleId; public readonly bool FixedX; public readonly float Fixed; public readonly Rect Rect;
+            public WallPiece(string module, bool fixedX, float value, Rect rect) { ModuleId = module; FixedX = fixedX; Fixed = value; Rect = rect; }
+        }
         sealed class Batch
         {
             public readonly List<Vector3> Vertices = new List<Vector3>();

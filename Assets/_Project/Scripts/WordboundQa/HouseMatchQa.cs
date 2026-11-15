@@ -31,6 +31,7 @@ namespace Wreckabulary.Qa
         Smashable target;
         string targetWord, weaponWord;
         bool launched;
+        int perfFrame, perfEvaluations;
         InputBinding[] originalBindings;
         string originalMap;
         System.Func<float> originalRoll;
@@ -71,7 +72,9 @@ namespace Wreckabulary.Qa
             originalRoll = PlayerHealth.TraitRoll;
             var rolls = new System.Random(context.Seed);
             PlayerHealth.TraitRoll = () => (float)rolls.NextDouble();
-            if (!CombatFeedbackOptions.ShowDamage) CombatFeedbackOptions.ShowDamage = true;
+            if (!GameplayPrefs.DamageNumbers) GameplayPrefs.DamageNumbers = true;
+            if (!GameplayPrefs.EffectWords) GameplayPrefs.EffectWords = true;
+            if (!GameplayPrefs.FurnitureNames) GameplayPrefs.FurnitureNames = true;
             Application.logMessageReceived += Log;
             attackerSeat = new LocalSeat("qa-house-match-1");
             defenderSeat = new LocalSeat("qa-house-match-2");
@@ -113,6 +116,7 @@ namespace Wreckabulary.Qa
                 "the round is closed by eliminating the remaining players after the hit. No network, remote peer or human-feel claim.");
             yield return Capture(context, "house_match_start");
             if (!rig || rig.IsThirdPerson) throw new QaFailException("Two local seats must share the overhead play camera, not a third-person follow.");
+            BeginPerf();
         }
 
         IEnumerator Approach(QaContext context)
@@ -233,8 +237,10 @@ namespace Wreckabulary.Qa
             var hint = HudText("Spell hint");
             var inventory = attacker.Inventory;
             var words = Words(attacker);
-            bool ready = WordSolver.Spellable(words, inventory.Letters).Count > 0;
-            string expected = GameHud.SpellHintText(words, inventory.Letters, inventory.Capacity, GameHud.SpellKeyLabel(attacker.Binding));
+            var summoner = attacker.Summoner;
+            bool ready = WordSolver.Spellable(words, inventory.Letters, summoner.Needs, summoner.ChecklistPlacementWords).Count > 0;
+            string expected = GameHud.SpellHintText(words, inventory.Letters, inventory.Capacity, GameHud.SpellKeyLabel(attacker.Binding),
+                summoner.Needs, summoner.ChecklistPlacementWords);
             float end = Time.realtimeSinceStartup + 3f;
             while (Time.realtimeSinceStartup < end && expected.Length > 0 && !(hint.gameObject.activeInHierarchy && hint.text.Length > 0)) yield return null;
             yield return context.WaitSeconds(.2f);
@@ -365,7 +371,7 @@ namespace Wreckabulary.Qa
                     yield return null;
                     var shown = Object.FindObjectsByType<Popup>().Select(p => p.GetComponent<TextMeshPro>()).Where(t => t).Select(t => t.text).ToArray();
                     var procs = shown.Where(t => ProcWords.Contains(t)).ToArray();
-                    bool number = shown.Any(t => t.Contains("DMG"));
+                    bool number = shown.Any(HitText.IsDamageNumber);
                     context.Note("house_match_hit", new Dictionary<string, object>
                     {
                         ["weapon"] = used, ["damage"] = dealt, ["effect"] = effect, ["damage_number"] = number,
@@ -383,8 +389,30 @@ namespace Wreckabulary.Qa
             }
         }
 
+        void BeginPerf()
+        {
+            PerfProbe.GetOrCreate().Begin(Name, 0);
+            perfFrame = Time.frameCount;
+            perfEvaluations = StoreyCutaway.Evaluations;
+        }
+
+        void FinishPerf(QaContext context)
+        {
+            var report = PerfProbe.GetOrCreate().Finish(false);
+            int frames = Mathf.Max(1, Time.frameCount - perfFrame);
+            var perf = new Dictionary<string, object>
+            {
+                ["frames"] = report.Frames, ["frame_ms_p50"] = report.FrameMsP50, ["frame_ms_p95"] = report.FrameMsP95,
+                ["frame_ms_p99"] = report.FrameMsP99, ["worst_frame_ms"] = report.WorstFrameMs,
+                ["cutaway_evaluations_per_frame"] = (StoreyCutaway.Evaluations - perfEvaluations) / (double)frames,
+            };
+            if (report.GcKbFrameP95.HasValue) perf["gc_kb_frame_p95"] = report.GcKbFrameP95.Value;
+            context.Note("house_match_perf", perf);
+        }
+
         IEnumerator RoundEnd(QaContext context)
         {
+            FinishPerf(context);
             var others = joins.Players.Where(p => p && p != attacker && !p.IsEliminated).ToArray();
             foreach (var p in others) p.Health.Eliminate();
             yield return context.WaitUntil(() => rounds && rounds.Phase is Phase.RoundOver or Phase.MatchOver, 15, "the round to end");
@@ -536,7 +564,7 @@ namespace Wreckabulary.Qa
                 .Select(i => i.Id).FirstOrDefault();
         }
 
-        static IReadOnlyList<WordEntry> Words(PlayerController player) => player.Summoner.WordsOverride ?? GameAssets.I.words.Words;
+        static IReadOnlyList<WordEntry> Words(PlayerController player) => player.Summoner.Words;
 
         static string Effect(string word) => GameConfig.Current.Tuning?.Describe(word) ?? "";
 
@@ -617,6 +645,7 @@ namespace Wreckabulary.Qa
         {
             string path = context.PathInRun(name + ".png"), error = null;
             if (File.Exists(path)) throw new QaFailException("Capture never overwrites existing evidence: " + name);
+            if (PerfProbe.Instance) PerfProbe.Instance.MarkFirstVisit(4);
             yield return StoryCamera.CaptureScreen(path, result => error = result);
             if (error != null) throw new QaFailException("Screen capture failed: " + error);
             var image = new Texture2D(2, 2);
@@ -656,7 +685,7 @@ namespace Wreckabulary.Qa
         sealed class Saved
         {
             static readonly string[] Strings = { MatchTally.CareerKey, MatchTally.CorruptKey, "wv.outfit.0", "wv.outfit.1", "wv.outfit.2", "wv.outfit.3" };
-            static readonly string[] Integers = { ControlTips.EnabledKey, ControlTips.LearnedKey, CombatFeedbackOptions.DamageKey, CombatFeedbackOptions.PointsKey, "wv.muted" };
+            static readonly string[] Integers = GameplayPrefs.Keys.Concat(new[] { ControlTips.LearnedKey, ControlTips.SeenKey, CombatFeedbackOptions.PointsKey, "wv.muted" }).ToArray();
 
             public string Key { get; private set; }
             bool integer, existed;

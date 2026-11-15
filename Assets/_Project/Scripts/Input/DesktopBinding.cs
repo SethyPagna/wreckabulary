@@ -21,7 +21,7 @@ namespace Wreckabulary
         }
 
         public readonly InputActionMap Map = new("Desktop");
-        public readonly InputAction Move, Attack, Aim, Jump, Dodge, Interact, Spell, Drop, Hand1, Hand2, Bag, Pause, Up, Down, Start, Point, Look;
+        public readonly InputAction Move, Attack, Aim, LookAround, Jump, Dodge, Interact, Spell, Drop, Hand1, Hand2, Bag, Pause, Up, Down, Start, Point, Look;
         HoldToFire dropHold;
         readonly List<RaycastResult> uiHits = new();
         PointerEventData uiPointer;
@@ -35,6 +35,7 @@ namespace Wreckabulary
                 .With("Left", "<Keyboard>/a").With("Right", "<Keyboard>/d");
             Attack = Button("Attack", "<Mouse>/leftButton");
             Aim = Button("Aim", "<Mouse>/rightButton");
+            LookAround = Button("Look around", "<Keyboard>/leftCtrl");
             Jump = Button("Jump", "<Keyboard>/space");
             Dodge = Button("Dodge", "<Keyboard>/leftShift");
             Interact = Button("Interact", "<Keyboard>/e");
@@ -93,18 +94,22 @@ namespace Wreckabulary
             c.down = Down.WasPressedThisFrame();
             c.start = Start.WasPressedThisFrame();
 
+            bool rig = CameraRig.TakesLook;
+            c.lookAround = rig && LookAround.IsPressed();
+            if (c.lookAround) c.orbit = KeyBindings.Look(Look.ReadValue<Vector2>());
+
             if (Cursor.lockState == CursorLockMode.Locked)
             {
-                var delta = Look.ReadValue<Vector2>();
-                c.lookDelta = KeyBindings.Look(delta);
+                if (!c.lookAround) c.lookDelta = KeyBindings.Look(Look.ReadValue<Vector2>());
                 return;
             }
 
+            bool dragged = rig && CameraRig.Instance.Dragging;
             bool overUi = EventSystem.current && EventSystem.current.IsPointerOverGameObject();
             if (!overUi && (c.attack || c.attackHeld || c.aimHeld)) overUi = HitsUiNow();
-            if (overUi) c.attack = c.attackHeld = c.aimHeld = false;
+            if (overUi || dragged) c.attack = c.attackHeld = c.aimHeld = false;
 
-            if (Mouse.current == null || !Application.isFocused || overUi ||
+            if (Mouse.current == null || !Application.isFocused || overUi || dragged || c.lookAround ||
                 (TouchBinding.Shared.IsOverlayFor(Id) && TouchBinding.Shared.IsAiming)) return;
             c.pointer = Point.ReadValue<Vector2>();
             c.aimAtPointer = c.pointer.x >= 0f && c.pointer.y >= 0f && c.pointer.x <= Screen.width && c.pointer.y <= Screen.height;

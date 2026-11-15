@@ -66,7 +66,35 @@ namespace Wreckabulary.Rules.Wordbound
             return result;
         }
 
-        internal static object Read(JsonNode node, Type type, bool documentRoot = false, bool allowEmptyBox = false)
+        static readonly HashSet<string> Schema3Fields = new HashSet<string>(new[]
+        {
+            "CourseDocument.StoryAnchors", "CourseDocument.Layouts", "CourseCheckpoint.Solutions", "CourseConnection.Scope",
+            "CourseRouteSection.Kind", "CourseAlternative.OptionId", "CourseManifestData.LayoutId", "CourseLapSelection.OptionId"
+        }, StringComparer.Ordinal);
+
+        internal static int EffectiveSchema(CourseDocument d)
+        {
+            int required = UsesSchema3(d) ? 3 : d.PhysicalSites != null && d.PhysicalSites.Count != 0 ? 2 : 0;
+            return Math.Max(d.Schema, required);
+        }
+
+        internal static bool UsesSchema3(CourseDocument d) =>
+            d.StoryAnchors != null && d.StoryAnchors.Count != 0 || d.Layouts != null && d.Layouts.Count != 0 ||
+            d.Checkpoints != null && d.Checkpoints.Any(c => c?.Solutions != null && c.Solutions.Count != 0) ||
+            d.Connections != null && d.Connections.Any(c => c != null && c.Scope != CourseConnection.SharedScope) ||
+            d.RouteSections != null && d.RouteSections.Any(s => s != null && (s.Kind != CourseRouteSection.SeededKind ||
+                s.Alternatives != null && s.Alternatives.Any(a => a != null && a.OptionId != "")));
+
+        static bool Present(Type type, string field, int schema)
+        {
+            if (type == typeof(CourseDocument) && field == nameof(CourseDocument.PhysicalSites)) return schema != 1;
+            return schema >= 3 || !Schema3Fields.Contains(type.Name + "." + field);
+        }
+
+        internal static object Read(JsonNode node, Type type, bool documentRoot = false, bool allowEmptyBox = false) =>
+            Read(node, type, documentRoot, allowEmptyBox, CourseDocument.LatestSchema);
+
+        static object Read(JsonNode node, Type type, bool documentRoot, bool allowEmptyBox, int schema)
         {
             if (type == typeof(string))
             {
@@ -105,28 +133,29 @@ namespace Wreckabulary.Rules.Wordbound
                 if (items.Count > CourseLimits.Entities) throw node.Error("array exceeds entity bound");
                 var list = (IList)Activator.CreateInstance(type);
                 Type itemType = type.GetGenericArguments()[0];
-                foreach (var item in items) list.Add(Read(item, itemType));
+                foreach (var item in items) list.Add(Read(item, itemType, false, false, schema));
                 return list;
             }
             if (!type.Name.StartsWith("Course", StringComparison.Ordinal) || type.Namespace != typeof(CourseJson).Namespace)
                 throw new ArgumentException("Unsupported course data type.");
-            var fields = Fields(type);
-            if (type == typeof(CourseDocument) && (int)Read(node["schema"], typeof(int)) == 1)
-                fields = fields.Where(f => f.Name != "PhysicalSites").ToArray();
+            if (type == typeof(CourseDocument) || type == typeof(CourseManifestData)) schema = (int)Read(node["schema"], typeof(int));
+            var fields = Fields(type).Where(f => Present(type, f.Name, schema)).ToArray();
             Keys(node, fields.Select(f => Key(f.Name)).Concat(documentRoot ? new[] { "format" } : Array.Empty<string>()));
             var instance = Activator.CreateInstance(type);
             foreach (var field in fields) field.SetValue(instance, Read(node[Key(field.Name)], field.FieldType, false,
-                type == typeof(CoursePhysicalSite) && field.FieldType == typeof(CourseBox)));
+                type == typeof(CoursePhysicalSite) && field.FieldType == typeof(CourseBox), schema));
             return instance;
         }
 
-        internal static object Value(object value)
+        internal static object Value(object value) => Value(value, CourseDocument.LatestSchema);
+
+        static object Value(object value, int schema)
         {
             if (value == null) throw new ArgumentException("Course data cannot contain null values.");
             if (value is string text) { ValidateText(text); return text; }
             if (value is int || value is bool) return value;
             if (value is CoursePoint p) return new object[] { p.X, p.Y, p.Z };
-            if (value is CourseBox b) return new Dictionary<string, object> { ["min"] = Value(b.Min), ["max"] = Value(b.Max) };
+            if (value is CourseBox b) return new Dictionary<string, object> { ["min"] = Value(b.Min, schema), ["max"] = Value(b.Max, schema) };
             if (value is IDictionary<string, object>) return value;
             if (value is IEnumerable sequence)
             {
@@ -138,23 +167,27 @@ namespace Wreckabulary.Rules.Wordbound
                     var id = type.GetField("Id") ?? type.GetField("AssetId");
                     if (id != null) list = list.OrderBy(x => (string)id.GetValue(x), StringComparer.Ordinal).ToList();
                     else if (type == typeof(CourseLap)) list = list.OrderBy(x => ((CourseLap)x).Number).ToList();
-                    else if (type == typeof(CourseLapSelection)) list = list.OrderBy(x => ((CourseLapSelection)x).Number).ToList();
+                    else if (type == typeof(CourseLapSelection)) list = list.OrderBy(x => ((CourseLapSelection)x).Number)
+                        .ThenBy(x => ((CourseLapSelection)x).OptionId, StringComparer.Ordinal).ToList();
                     else if (type == typeof(CoursePhysicalSite)) list = list.OrderBy(x => ((CoursePhysicalSite)x).Lap)
                         .ThenBy(x => ((CoursePhysicalSite)x).PuzzleId, StringComparer.Ordinal).ToList();
                 }
-                return list.Select(Value).ToList();
+                return list.Select(x => Value(x, schema)).ToList();
             }
+            if (value is CourseDocument document) schema = EffectiveSchema(document);
+            else if (value is CourseManifestData manifest) schema = manifest.Schema;
             var result = new Dictionary<string, object>(StringComparer.Ordinal);
-            foreach (var field in Fields(value.GetType()))
+            var owner = value.GetType();
+            foreach (var field in Fields(owner))
             {
-                if (value is CourseDocument legacy && legacy.Schema == 1 && legacy.PhysicalSites.Count == 0 && field.Name == "PhysicalSites") continue;
+                if (!Present(owner, field.Name, schema)) continue;
                 object fieldValue = field.GetValue(value);
-                if (value is CourseDocument document && field.Name == "Schema" && document.PhysicalSites.Count != 0) fieldValue = 2;
+                if (value is CourseDocument && field.Name == nameof(CourseDocument.Schema)) fieldValue = schema;
                 if (fieldValue is List<string> strings && field.Name != "ConnectionIds" && field.Name != "CheckpointIds" &&
                     field.Name != "SectionIds" && field.Name != "PuzzleIds" && field.Name != "AlternativeIds")
                     fieldValue = strings.OrderBy(x => x, StringComparer.Ordinal).ToList();
                 if (field.Name == "Yaws" && fieldValue is List<int> numbers) fieldValue = numbers.OrderBy(x => x).ToList();
-                result.Add(Key(field.Name), Value(fieldValue));
+                result.Add(Key(field.Name), Value(fieldValue, schema));
             }
             return result;
         }

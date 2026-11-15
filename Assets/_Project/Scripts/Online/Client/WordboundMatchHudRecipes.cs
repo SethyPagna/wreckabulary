@@ -117,7 +117,7 @@ namespace Wreckabulary.Online
         {
             if (card.Item == null) return "Choose a recipe";
             if (!card.Craftable) return card.Item.Id + " · Need " + MissingInWordOrder(card.Item.Id, card.Missing);
-            if (inventory?.Craft != null) return card.Item.Id + " · Crafting…";
+            if (inventory?.Craft != null) return card.Item.Id + " · Spelling…";
             return card.Item.Id;
         }
 
@@ -208,7 +208,7 @@ namespace Wreckabulary.Online
                 GUILayout.Label("Choose a recipe", ui.Heading);
                 return;
             }
-            string status = inventory?.Craft != null ? "Crafting…" : !card.Craftable ? "Need letters " + string.Join(" ", MissingInWordOrder(card.Item.Id, card.Missing).ToCharArray()) : "Letters ready";
+            string status = inventory?.Craft != null ? "Spelling…" : !card.Craftable ? "Need letters " + string.Join(" ", MissingInWordOrder(card.Item.Id, card.Missing).ToCharArray()) : "Letters ready";
             string blurb = LoadoutPage.Blurb(card.Item);
             float titleHeight = ui.Heading.CalcHeight(new GUIContent(card.Item.Id), width);
             float statusHeight = ui.Wrapped.CalcHeight(new GUIContent(status), width);
@@ -255,7 +255,7 @@ namespace Wreckabulary.Online
             var card = SelectedRecipe();
             bool before = GUI.enabled;
             GUI.enabled = before && CanCraftRecipe(card);
-            if (MenuButton("craft-selected", "Craft", GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
+            if (MenuButton("craft-selected", "Spell", GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
                 QueueMenuAction(CraftSelectedRecipe);
             GUI.enabled = before;
         }

@@ -11,6 +11,7 @@ namespace Wreckabulary
         readonly Dictionary<string, RoomPhase> phases = new();
         readonly Dictionary<string, ClearOutSwirl> swirls = new();
         float began, nextDamage;
+        int shownWarning = -1, shownFilling = -1, shownSeconds = -1;
         public HouseLayout Layout { get; private set; }
         public ClearOutSchedule Schedule { get; private set; }
         public bool Running { get; set; }
@@ -34,6 +35,7 @@ namespace Wreckabulary
         {
             Running = false;
             Message = "";
+            shownWarning = shownFilling = shownSeconds = -1;
             phases.Clear();
             swirls.Clear();
             foreach (var indicator in indicators.Values) if (indicator) Destroy(indicator.gameObject);
@@ -51,11 +53,14 @@ namespace Wreckabulary
         {
             if (!Running || Layout == null) return;
             float now = Elapsed;
-            Message = "";
-            foreach (var closure in Schedule.Closures)
+            int warning = -1, filling = -1;
+            for (int i = 0; i < Schedule.Closures.Count; i++)
             {
+                var closure = Schedule.Closures[i];
                 var phase = Schedule.PhaseOf(closure.Room, now);
                 if (phase == RoomPhase.Safe) continue;
+                if (phase == RoomPhase.Warning && warning < 0) warning = i;
+                else if (phase == RoomPhase.Filling && filling < 0) filling = i;
 
                 bool changed = !phases.TryGetValue(closure.Room, out var old) || old != phase;
                 phases[closure.Room] = phase;
@@ -101,12 +106,8 @@ namespace Wreckabulary
                 {
                     ClosureStarted?.Invoke();
                 }
-
-                if (phase == RoomPhase.Warning)
-                    Message = $"MOVERS: {Layout.WithStorey(closure.Room)} in {Mathf.CeilToInt((float)closure.FillAt - now)}s — follow a doorway out";
-                else if (phase == RoomPhase.Filling && Message.Length == 0)
-                    Message = $"LEAVE {Layout.WithStorey(closure.Room).ToUpperInvariant()} — movers are packing it";
             }
+            ShowMessage(warning, filling, now);
             if (!Harms) return;
             if (Time.time < nextDamage) return;
             nextDamage = Time.time + .5f;
@@ -119,6 +120,18 @@ namespace Wreckabulary
                 float damage = Schedule.DamagePerSecond(room, now) * .5f;
                 if (damage > 0f) p.Health.ApplyDamage(HitInfo.Hazard(damage));
             }
+        }
+
+        void ShowMessage(int warning, int filling, float now)
+        {
+            int seconds = warning < 0 ? 0 : Mathf.CeilToInt((float)Schedule.Closures[warning].FillAt - now);
+            if (warning == shownWarning && filling == shownFilling && seconds == shownSeconds) return;
+            shownWarning = warning; shownFilling = filling; shownSeconds = seconds;
+            string next = warning < 0 ? null : Layout.WithStorey(Schedule.Closures[warning].Room);
+            string packing = filling < 0 ? null : Layout.WithStorey(Schedule.Closures[filling].Room).ToUpperInvariant();
+            Message = packing == null
+                ? next == null ? "" : $"MOVERS: {next} in {seconds}s — follow a doorway out"
+                : next == null ? $"LEAVE {packing} — movers are packing it" : $"LEAVE {packing} · next: {next} in {seconds}s";
         }
     }
 

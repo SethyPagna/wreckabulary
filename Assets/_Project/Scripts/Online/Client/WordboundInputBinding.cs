@@ -206,12 +206,15 @@ namespace Wreckabulary.Online
             {
                 desktop.Read(ref commands);
                 commands.swap = desktop.Bag.WasPressedThisFrame();
+                if (!commands.lookAround && desktop.LookAround.IsPressed())
+                    LookAround(ref commands, KeyBindings.Look(desktop.Look.ReadValue<Vector2>()));
             }
             else
             {
                 gamepad.Read(ref commands);
                 commands.attackHeld = selected.buttonWest.isPressed;
                 commands.aimHeld = selected.rightShoulder.isPressed;
+                if (!commands.lookAround && selected.leftStickButton.isPressed) LookAround(ref commands, commands.lookDelta);
             }
             if (requireRelease)
             {
@@ -219,13 +222,24 @@ namespace Wreckabulary.Online
                 if (requireRelease)
                 {
                     commands = new PlayerCommands { move = commands.move, look = commands.look,
-                        lookDelta = commands.lookDelta, aimAtPointer = commands.aimAtPointer, pointer = commands.pointer };
+                        lookDelta = commands.lookDelta, aimAtPointer = commands.aimAtPointer, pointer = commands.pointer,
+                        lookAround = commands.lookAround, orbit = commands.orbit };
                     return;
                 }
             }
             commands.drop = dropHold.Update(selected == null ? desktop.Drop.IsPressed() : selected.leftShoulder.isPressed,
                 Time.unscaledTime);
         }
+
+        static void LookAround(ref PlayerCommands commands, Vector2 orbit)
+        {
+            commands.lookAround = true;
+            commands.orbit = orbit;
+            commands.look = commands.lookDelta = Vector2.zero;
+        }
+
+        public string LookAroundHint => disposed ? "" : selected == null ? ControlHints.LookAroundKey :
+            selected.added && selected.enabled ? ControlHints.PadLookAround : "";
 
         bool GameplayActionHeld() => selected == null
             ? desktop.Attack.IsPressed() || desktop.Aim.IsPressed() || desktop.Jump.IsPressed() ||

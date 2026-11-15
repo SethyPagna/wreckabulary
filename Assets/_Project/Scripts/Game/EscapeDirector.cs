@@ -67,7 +67,25 @@ namespace Wreckabulary
         LockedDoor guideDoor;
         bool exitOpen;
 
+        readonly IdleWatch idle = new();
+        int idleMask;
+        readonly List<Combatant> combatants = new();
+        readonly System.Text.StringBuilder noticeText = new();
+        float nextNotice, noticeTarget;
+        int clockSeconds = -1;
+        string clockText = "";
+        string guideText = "", guideTextRoom;
+        LockedDoor guideTextDoor;
+        int guideTextKeys = -1;
+        bool guideTextOpen;
+        string checklistText;
+        int checklistDoors = -1, checklistKeys = -1, checklistIdle = -1;
+        string checklistKeyRoom;
+        bool checklistOpen;
+        string shownMain, shownHint;
+
         public State Current { get; private set; }
+        public string Checklist => checklistText ?? "";
         public Vector3 ExtractionPoint => extraction;
         public int Seed => seed;
         public int DoorsOpen => doors.Count(d => d.Open);
@@ -251,6 +269,10 @@ namespace Wreckabulary
             foreach (var p in joins.Players) { joins.Place(p); p.Respawn(StartSpot(p.Index)); p.Frozen = true; }
             joins.AllowJoining = true;
             joins.RespawnKnockedOut = false;
+            idle.Clear();
+            idleMask = 0;
+            guideTextKeys = checklistDoors = clockSeconds = -1;
+            shownMain = shownHint = null;
             Current = State.Countdown;
             began = Time.time;
         }
@@ -754,6 +776,14 @@ namespace Wreckabulary
 
         string GuideText()
         {
+            if (guideTextKeys == keysFound && guideTextOpen == exitOpen && guideTextDoor == guideDoor
+                && string.Equals(guideTextRoom, guideRoom, System.StringComparison.Ordinal)) return guideText;
+            guideTextKeys = keysFound; guideTextOpen = exitOpen; guideTextDoor = guideDoor; guideTextRoom = guideRoom;
+            return guideText = ComposeGuide();
+        }
+
+        string ComposeGuide()
+        {
             if (!exitGated) return "";
             if (exitOpen) return "EXIT OPEN \u00b7 everybody out!";
             string near = RoomName(room.Layout, guideRoom);
@@ -1056,16 +1086,31 @@ namespace Wreckabulary
                 }
 
                 foreach (var pair in need.Where(p => p.Value > 0).ToList())
-                    for (int i = 0; i < pair.Value; i++) DropPropNear(pair.Key);
+                    for (int i = 0; i < pair.Value; i++) DropPropNear(pair.Key, door);
             }
         }
 
-        void DropPropNear(char letter)
+        void DropPropNear(char letter, LockedDoor door)
         {
-            var player = joins.Players.FirstOrDefault(p => p && !p.IsEliminated);
+            var centre = DoorCentre(door.Door);
+            var player = PlayerNearest(centre, idleMask);
+            if (!player) player = PlayerNearest(centre, 0);
             Vector3 at = player ? player.transform.position + player.transform.forward * 1.8f : extraction + Vector3.up;
             var prop = SpawnProp(new string(letter, 1), at, 0f);
             if (prop) spawned.Add(prop.gameObject);
+        }
+
+        PlayerController PlayerNearest(Vector3 spot, int skipped)
+        {
+            PlayerController best = null;
+            float bestDistance = float.MaxValue;
+            foreach (var p in joins.Players)
+            {
+                if (!p || p.IsEliminated || !CrewPresence.Waits(skipped, p)) continue;
+                float distance = (p.transform.position - spot).sqrMagnitude;
+                if (distance < bestDistance) { bestDistance = distance; best = p; }
+            }
+            return best;
         }
 
         void ShuffleFurniture(System.Random rng)
@@ -1152,18 +1197,19 @@ namespace Wreckabulary
             switch (Current)
             {
                 case State.Waiting:
-                    hud.SetInstruction(ControlHints.Join("join"), "");
+                    Instruct(ControlHints.Join("join"), "");
                     if (joins.HumanCount > 0) Restart();
                     break;
 
                 case State.Countdown:
-                    hud.SetInstruction("", "");
+                    Instruct("", "");
                     hud.ShowCountdown(Mathf.Max(1, Mathf.CeilToInt(3f - (Time.time - began))),
                         $"THE ESCAPE \u00b7 {room.Layout.Name.ToUpperInvariant()}");
                     if (Time.time - began >= 3f)
                     {
                         Current = State.Playing; began = Time.time;
                         foreach (var p in joins.Players) p.Frozen = false;
+                        idle.Clear();
                         clearOut.Begin();
                         hud.ShowGo();
 
@@ -1171,10 +1217,10 @@ namespace Wreckabulary
                     break;
 
                 case State.Playing:
-                    hud.SetTimer(RoundManager.FormatTime(TimeLeft));
+                    hud.SetTimer(Clock(TimeLeft));
                     if (Time.time >= nextGuideCheck) { nextGuideCheck = Time.time + .4f; UpdateGuide(); }
-                    hud.SetInstruction(GuideText(), clearOut.Message);
-                    UpdateNotice();
+                    idleMask = CrewPresence.IdleMask(idle, joins.Players);
+                    Instruct(GuideText(), clearOut.Message);
                     MakeRoomForLetters();
                     CheckDoors();
                     TickKey();
@@ -1194,30 +1240,23 @@ namespace Wreckabulary
             }
             TickDoors();
             TickExitDoor();
+            UpdateNotice();
             hud.SetChecklist(ChecklistText());
             hud.SetScoreboard(joins.Players, _ => 0, 0, false);
         }
 
-        const float HintRadius = 5f;
-
-        string DoorHint()
+        string Clock(float seconds)
         {
-            var player = joins.Players.FirstOrDefault(p => p && !p.IsEliminated);
-            if (player == null) return "";
-            LockedDoor near = null;
-            float best = float.MaxValue;
-            foreach (var door in doors)
-            {
-                if (door.Open) continue;
-                float distance = Vector3.Distance(player.transform.position, DoorCentre(door.Door));
-                if (distance < best) { best = distance; near = door; }
-            }
-            if (near == null) return "";
-            if (best > HintRadius) return "";
-            var missing = MissingLetters(player.Inventory.Letters, near.Word);
-            return missing.Count == 0
-                ? $"LOCKED DOOR \u00b7 spell {Spaced(near.Word)} here"
-                : $"LOCKED DOOR \u00b7 needs {Spaced(near.Word)} (missing {string.Join(" ", missing.Select(c => c.ToString()))})";
+            int shown = Mathf.Max(0, Mathf.CeilToInt(seconds));
+            if (shown != clockSeconds) { clockSeconds = shown; clockText = RoundManager.FormatTime(shown); }
+            return clockText;
+        }
+
+        void Instruct(string main, string hint)
+        {
+            if (ReferenceEquals(main, shownMain) && ReferenceEquals(hint, shownHint)) return;
+            shownMain = main; shownHint = hint;
+            hud.SetInstruction(main, hint);
         }
 
         static string Spaced(string word) => string.Join(" ", word.Select(c => c.ToString()));
@@ -1238,14 +1277,19 @@ namespace Wreckabulary
         {
             int left = 0;
             foreach (var door in doors) if (!door.Open) left++;
+            string keyRoom = NextKeyRoom;
+            if (checklistText != null && left == checklistDoors && keysFound == checklistKeys && exitOpen == checklistOpen
+                && idleMask == checklistIdle && string.Equals(keyRoom, checklistKeyRoom, System.StringComparison.Ordinal)) return checklistText;
+            checklistDoors = left; checklistKeys = keysFound; checklistOpen = exitOpen; checklistIdle = idleMask; checklistKeyRoom = keyRoom;
             string key = !exitGated ? ""
                 : exitOpen ? $"\nKeys: {keysFound}/{keysNeeded} \u2014 the way out is open"
                 : AllKeysFound ? $"\nKeys: {keysFound}/{keysNeeded} \u2014 head for the exit"
-                : $"\nKeys: {keysFound}/{keysNeeded} \u2014 look in {RoomName(room.Layout, NextKeyRoom)}";
-            return "<b>THE ESCAPE</b>\n"
+                : $"\nKeys: {keysFound}/{keysNeeded} \u2014 look in {RoomName(room.Layout, keyRoom)}";
+            string waiting = idleMask == 0 ? "" : "\n" + IdleWatch.Notice(idleMask);
+            return checklistText = "<b>THE ESCAPE</b>\n"
                  + "Goal: get the whole crew to the EXIT.\n"
                  + (left > 0 ? $"Barred doors still shut: {left}" : "No barred doors left \u2014 head for the exit.")
-                 + key;
+                 + key + waiting;
         }
 
 
@@ -1278,6 +1322,9 @@ namespace Wreckabulary
 
             noticeHead = NoticeText(panel.transform, "Head", new Vector2(0f, 64f), new Vector2(620f, 46f), 32f, new Color(1f, .84f, .42f));
             noticeBody = NoticeText(panel.transform, "Body", new Vector2(0f, -16f), new Vector2(620f, 120f), 27f, new Color(.98f, .95f, .9f));
+            noticeBody.enableAutoSizing = true;
+            noticeBody.fontSizeMin = 18f;
+            noticeBody.fontSizeMax = 27f;
         }
 
         static TextMeshProUGUI NoticeText(Transform parent, string name, Vector2 at, Vector2 size, float fontSize, Color colour)
@@ -1296,34 +1343,63 @@ namespace Wreckabulary
             return text;
         }
 
+        const float NoticeRange = 6.5f;
+
+        public string NoticeLines => noticeBody ? noticeBody.text : "";
+
         void UpdateNotice()
         {
             if (notice == null) return;
-            var player = joins.Players.FirstOrDefault(p => p && !p.IsEliminated);
-            LockedDoor near = null;
-            float best = 6.5f;
-            if (player != null)
-                foreach (var door in doors)
-                {
-                    if (door.Open) continue;
-                    float distance = Vector3.Distance(player.transform.position, DoorCentre(door.Door));
-                    if (distance < best) { best = distance; near = door; }
-                }
-
-            float target = 0f;
-            if (Current != State.Playing) near = null;
-            if (near != null && player != null)
-            {
-                target = Mathf.Clamp01(1f - (best - 1.6f) / 4.9f);
-                var missing = MissingLetters(player.Inventory.Letters, near.Word);
-                noticeHead.text = "BARRED DOOR";
-                noticeBody.text = $"SPELL   <b>{Spaced(near.Word)}</b>\n"
-                    + (missing.Count == 0
-                        ? "You have every letter \u2014 spell it right here."
-                        : $"Missing   <b>{string.Join(" ", missing.Select(c => c.ToString()))}</b>");
-            }
-            notice.alpha = Mathf.MoveTowards(notice.alpha, target, Time.deltaTime * 2.5f);
+            if (Current != State.Playing) noticeTarget = 0f;
+            else if (Time.time >= nextNotice) { nextNotice = Time.time + .25f; noticeTarget = RefreshNotice(); }
+            notice.alpha = Mathf.MoveTowards(notice.alpha, noticeTarget, Time.deltaTime * 2.5f);
         }
+
+        float RefreshNotice()
+        {
+            noticeText.Clear();
+            float closest = NoticeRange;
+            bool named = joins.Players.Count > 1;
+            foreach (var p in joins.Players)
+            {
+                if (!p || p.IsEliminated || !p.Inventory) continue;
+                var near = BarredDoorNear(p.transform.position, out float distance);
+                if (near == null) continue;
+                closest = Mathf.Min(closest, distance);
+                var missing = MissingLetters(p.Inventory.Letters, near.Word);
+                if (noticeText.Length > 0) noticeText.Append('\n');
+                if (named) NoticeLine(p, near.Word, missing);
+                else noticeText.Append("SPELL   <b>").Append(Spaced(near.Word)).Append("</b>\n").Append(missing.Count == 0
+                    ? "You have every letter \u2014 spell it right here."
+                    : "Missing   <b>" + Spaced(missing) + "</b>");
+            }
+            if (noticeText.Length == 0) return 0f;
+            noticeHead.text = "BARRED DOOR";
+            noticeBody.text = noticeText.ToString();
+            return Mathf.Clamp01(1f - (closest - 1.6f) / 4.9f);
+        }
+
+        void NoticeLine(PlayerController p, string word, List<char> missing)
+        {
+            noticeText.Append('P').Append(p.Index + 1).Append(" \u00b7 SPELL <b>").Append(Spaced(word)).Append("</b> \u00b7 ");
+            if (missing.Count == 0) noticeText.Append("you have every letter");
+            else noticeText.Append("missing <b>").Append(Spaced(missing)).Append("</b>");
+        }
+
+        LockedDoor BarredDoorNear(Vector3 at, out float distance)
+        {
+            LockedDoor near = null;
+            distance = NoticeRange;
+            foreach (var door in doors)
+            {
+                if (door.Open) continue;
+                float d = Vector3.Distance(at, DoorCentre(door.Door));
+                if (d < distance) { distance = d; near = door; }
+            }
+            return near;
+        }
+
+        static string Spaced(List<char> letters) => string.Join(" ", letters);
 
         static Material Solid(Color colour)
         {
@@ -1412,12 +1488,21 @@ namespace Wreckabulary
             if (Time.time < nextCheck) return;
             nextCheck = Time.time + .2f;
 
-            var combatants = joins.Players.Select(p => new Combatant(p.Index, p.Team, p.Health.State)).ToArray();
+            combatants.Clear();
+            foreach (var p in joins.Players) combatants.Add(new Combatant(p.Index, p.Team, p.Health.State));
             foreach (int id in WinCheck.Unrevivable(combatants)) World.PlayerById(id)?.Health.Eliminate();
 
-            var survivors = joins.Players.Where(p => !p.IsEliminated).ToArray();
-            if (survivors.Length == 0 || TimeLeft <= 0f) Finish(false);
-            else if ((!exitGated || exitOpen) && survivors.All(p => p.Health.IsAlive && AtExit(p.transform.position))) Finish(true);
+            int survivors = 0, waiting = 0, outside = 0;
+            foreach (var p in joins.Players)
+            {
+                if (p.IsEliminated) continue;
+                survivors++;
+                if (!CrewPresence.Waits(idleMask, p)) continue;
+                waiting++;
+                if (p.Health.IsAlive && AtExit(p.transform.position)) outside++;
+            }
+            if (survivors == 0 || TimeLeft <= 0f) Finish(false);
+            else if ((!exitGated || exitOpen) && waiting > 0 && outside == waiting) Finish(true);
         }
 
         public bool AtExit(Vector3 p) =>

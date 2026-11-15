@@ -167,7 +167,7 @@ namespace Wreckabulary.Rules.Tests
             Assert.IsTrue(walkup.Spawns.All(s => walkup.Room(s.Room).FloorY > 0f), "everyone starts in a flat upstairs");
             Assert.AreEqual(2, walkup.Spawns.Count(s => walkup.Room(s.Room).FloorY == 6f), "two start on the top floor");
             Assert.AreEqual(0f, walkup.Room(walkup.ExtractionRoom).FloorY, "the van parks on the ground floor");
-            CollectionAssert.AreEquivalent(new[] { "Lobby", "Landing1", "Landing2" }, walkup.NeverClose);
+            CollectionAssert.AreEqual(new[] { "Garage" }, walkup.NeverClose, "the Movers clear the block down to the van in the garage");
             Assert.AreEqual(6f, walkup.Room(walkup.MovingDay.Single(m => m.Word == "BED").Room).FloorY, "the bed goes up two flights");
             Assert.AreEqual("1ST FLOOR", walkup.StoreyLabel(1));
             Assert.AreEqual("GreenFlat (2nd floor)", walkup.WithStorey("GreenFlat"));
@@ -184,7 +184,7 @@ namespace Wreckabulary.Rules.Tests
             var square = courtyard.Room("FountainSquare");
             Assert.IsTrue(square.Outdoor);
             Assert.AreEqual(24f, square.MaxX - square.MinX);
-            CollectionAssert.AreEqual(new[] { "FountainSquare" }, courtyard.NeverClose);
+            CollectionAssert.AreEqual(new[] { "Garage" }, courtyard.NeverClose, "the last room standing is the garage with the van");
             Assert.IsTrue(courtyard.Room("Orchard").Outdoor);
             Assert.IsFalse(courtyard.Room("Walkway").Outdoor, "the walkway is covered");
             Assert.AreEqual("Garage", courtyard.ExtractionRoom, "the van parks in the garage");

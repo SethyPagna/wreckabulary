@@ -21,7 +21,14 @@ namespace Wreckabulary
         ClearOutController clearOut;
         float phaseElapsed, roundStarted;
         PlayerController lastWinner;
+        string joinLine, timerLine;
+        int joinVersion = -1, timerSeconds = -1;
+        HouseModeContext directed;
         public Phase Phase { get; private set; } = Phase.Lobby;
+        public bool Directed => directed != null;
+        public IHouseWordGoal WordGoal { get; set; }
+        public PlayerController LastWinner => lastWinner;
+        public RoundOutcome LastOutcome { get; private set; }
         public int Round { get; private set; }
         public float CountdownTime { get => countdownTime; set => countdownTime = value; }
         public int WinsOf(PlayerController p) => p ? score?.Wins(p.Team) ?? 0 : 0;
@@ -42,16 +49,10 @@ namespace Wreckabulary
             if (!room) room = GetComponent<RoomBuilder>();
             if (!deliveries) deliveries = GetComponent<DeliverySpawner>();
             if (!hud) hud = FindAnyObjectByType<GameHud>();
-            if (Match.Mode == "Escape")
+            var context = new HouseModeContext(this, joins, room, deliveries, hud);
+            if (HouseModeDirectors.TryAttach(context))
             {
-                gameObject.AddComponent<EscapeDirector>().Configure(joins, room, deliveries, hud);
-                enabled = false;
-                return;
-            }
-            if (Match.Mode == "MovingOut")
-            {
-                gameObject.AddComponent<MovingOutDirector>().Configure(joins, room, deliveries, hud);
-                enabled = false;
+                directed = context;
                 return;
             }
             clearOut = gameObject.AddComponent<ClearOutController>();
@@ -78,12 +79,12 @@ namespace Wreckabulary
 
         void Update()
         {
-            if (Time.timeScale <= 0f) return;
+            if (Time.timeScale <= 0f || Directed) return;
             phaseElapsed += Mathf.Min(Time.unscaledDeltaTime, Time.maximumDeltaTime);
             switch (Phase)
             {
                 case Phase.Lobby:
-                    hud.SetInstruction(joins.HumanCount == 0 ? ControlHints.Join("join") : "Press START — solo seats get AI opponents", "");
+                    hud.SetInstruction(joins.HumanCount == 0 ? JoinLine() : "Press START — solo seats get AI opponents", "");
                     hud.SetTimer("");
                     hud.ShowModeActions(joins.HumanCount > 0, "START WITH AI →", StartMatch);
                     if (AcceptsStartInput && joins.HumanCount > 0 && joins.AnyStartPressed()) StartMatch();
@@ -94,7 +95,7 @@ namespace Wreckabulary
                     if (PhaseTime >= countdownTime) BeginPlay();
                     break;
                 case Phase.Playing:
-                    hud.SetTimer(FormatTime(TimeLeft));
+                    hud.SetTimer(TimerLine());
                     hud.SetInstruction(clearOut.Message, "");
                     break;
                 case Phase.RoundOver:
@@ -105,9 +106,22 @@ namespace Wreckabulary
             hud.SetScoreboard(Players, WinsOf, Match.Rules.RoundsToWin, Phase != Phase.Lobby);
         }
 
+        string JoinLine()
+        {
+            if (joinLine == null || joinVersion != KeyBindings.Version) { joinLine = ControlHints.Join("join"); joinVersion = KeyBindings.Version; }
+            return joinLine;
+        }
+
+        string TimerLine()
+        {
+            int seconds = Mathf.Max(0, Mathf.CeilToInt(TimeLeft));
+            if (seconds != timerSeconds || timerLine == null) { timerSeconds = seconds; timerLine = FormatTime(seconds); }
+            return timerLine;
+        }
+
         void LateUpdate()
         {
-            if (Time.timeScale <= 0f || Phase != Phase.Playing) return;
+            if (Time.timeScale <= 0f || Phase != Phase.Playing || Directed) return;
             var combatants = Players.Select(p => new Combatant(p.Index, p.Team, p.Health.State)).ToArray();
             foreach (int id in WinCheck.Unrevivable(combatants)) World.PlayerById(id)?.Health.Eliminate();
             var outcome = WinCheck.Evaluate(Players.Select(p => new Combatant(p.Index, p.Team, p.Health.State)));
@@ -128,6 +142,7 @@ namespace Wreckabulary
 
         public void StartMatch()
         {
+            if (Directed) { directed.Restart?.Invoke(); return; }
             if (Time.timeScale <= 0f || joins.HumanCount == 0) return;
             StopAllCoroutines();
             joins.EnsureOpponents();
@@ -154,6 +169,7 @@ namespace Wreckabulary
             foreach (var p in Players) { joins.Place(p); p.Frozen = true; }
             SetPhase(Phase.Countdown);
             hud.SetInstruction("", "");
+            hud.ShowBanner(HouseGoals.BannerTitle(Round, GameHud.MatchHeading(Match.Mode).name), HouseGoals.Banner(Match.Mode, Match.Rules));
         }
 
         void BeginPlay()
@@ -162,7 +178,7 @@ namespace Wreckabulary
             roundStarted = Time.time;
             clearOut.Begin();
             hud.ShowGo();
-            if (Round == 1) hud.Toast("Break furniture → collect its letters → spell new gear.");
+            if (Round == 1) hud.Toast("Break furniture → collect its letters → spell items.");
             foreach (var p in Players) p.Frozen = false;
             deliveries.Running = true;
             deliveries.ResetDrops();
@@ -176,11 +192,13 @@ namespace Wreckabulary
             clearOut.Running = false;
             foreach (var p in Players) p.Frozen = true;
             World.FreezeTransient();
+            LastOutcome = outcome;
             lastWinner = outcome.State == RoundState.Won ? Players.First(p => p.Team == outcome.WinningTeam) : null;
             var you = hud.LocalPlayer;
             bool won = lastWinner && you && lastWinner.Team == you.Team;
             bool timeUp = !lastWinner && Match.Rules.RoundTimeLimitSeconds > 0f && TimeLeft <= 0f;
-            string heading = won ? "You called dibs!" : timeUp ? "Time’s up. A perfectly messy draw." : "One more word. One more chance.";
+            var summary = Summary(outcome, you, timeUp);
+            string heading = HouseResultText.Heading(summary);
             if (lastWinner)
             {
                 foreach (var player in Players)
@@ -193,10 +211,67 @@ namespace Wreckabulary
             {
                 SetPhase(Phase.MatchOver);
                 var record = MatchTally.FinishFor(lastWinner);
-                hud.ShowResultSoon(HudResult.Of(Round, true, won, heading, record), StartMatch);
+                hud.ShowResultSoon(Result(summary, won, heading, record), StartMatch);
                 MatchWon?.Invoke(lastWinner);
             }
-            else hud.ShowResultSoon(HudResult.Of(Round, false, won, heading, null), StartRound);
+            else hud.ShowResultSoon(Result(summary, won, heading, null), StartRound);
+        }
+
+        internal void EnterDirectedPhase(Phase phase)
+        {
+            if (phase == Phase.Countdown) { Round = directed?.Round ?? 1; StopAllCoroutines(); Time.timeScale = 1f; }
+            if (phase == Phase.Playing) roundStarted = Time.time;
+            SetPhase(phase);
+        }
+
+        internal void FinishDirected(HouseRoundResult r, Action again, bool final = true)
+        {
+            SetPhase(final ? Phase.MatchOver : Phase.RoundOver);
+            deliveries.Running = false;
+            foreach (var p in Players) p.Frozen = true;
+            World.FreezeTransient();
+            lastWinner = r.Winner ? r.Winner : r.WinningTeam != Teams.NoTeam ? Players.FirstOrDefault(p => p && p.Team == r.WinningTeam) : null;
+            if (r.Draw) lastWinner = null;
+            LastOutcome = lastWinner ? new RoundOutcome(RoundState.Won, lastWinner.Team) : new RoundOutcome(RoundState.Draw, Teams.NoTeam);
+            var you = hud.LocalPlayer;
+            bool won = lastWinner && you && lastWinner.Team == you.Team;
+            if (lastWinner)
+            {
+                foreach (var player in Players)
+                    if (player && player.Health && player.Health.IsAlive && player.Team == lastWinner.Team)
+                        player.GetComponent<PlayerAppearance>()?.Play("Celebrate", 1.5f);
+                StartCoroutine(SlowMo());
+                RoundWon?.Invoke(lastWinner);
+            }
+            var record = final ? MatchTally.FinishFor(lastWinner) : null;
+            var result = HudResult.Of(Round, final, won, r.Heading, record);
+            result.Eyebrow = r.Eyebrow ?? "";
+            result.Flavour = r.Flavour ?? "";
+            result.Lines = r.Lines;
+            result.Winner = lastWinner ? r.WinnerName ?? "" : "";
+            result.Draw = !lastWinner;
+            result.Stats = r.Stats;
+            hud.ShowResultSoon(result, again);
+            if (final) MatchWon?.Invoke(lastWinner);
+        }
+
+        RoundSummary Summary(RoundOutcome outcome, PlayerController you, bool timeUp)
+        {
+            var seats = Players.Where(p => p).Select(p => new SeatResult(p.Name, WinsOf(p), Mathf.CeilToInt(p.Health.Current),
+                outcome.State == RoundState.Won && p.Team == outcome.WinningTeam, p.IsEliminated, p.IsDowned, p == you,
+                p.Binding != null && p.Binding is not BotBinding)).ToArray();
+            return new RoundSummary(Round, Match.Rules.RoundsToWin, score.IsOver, timeUp, seats);
+        }
+
+        static HudResult Result(RoundSummary summary, bool won, string heading, MatchRecord record)
+        {
+            var result = HudResult.Of(summary.Round, summary.Final, won, heading, record);
+            result.Eyebrow = HouseResultText.Eyebrow(summary);
+            result.Flavour = HouseResultText.Flavour(summary);
+            result.Lines = HouseResultText.Lines(summary);
+            result.Winner = HouseResultText.Winner(summary);
+            result.Draw = summary.Draw;
+            return result;
         }
 
         IEnumerator SlowMo()

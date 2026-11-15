@@ -39,23 +39,30 @@ namespace Wreckabulary.Rules.Wordbound
                 return PracticeSource(resource.SourceId, practice, mechanisms ?? Array.Empty<MatchMechanismState>());
             if (!race) return true;
             if (team.Finished || resource.Lap != team.Lap) return false;
-            return !consumers.TryGetValue(resource.SourceId, out var puzzles) || puzzles.Length == 0 ||
-                puzzles.Any(id => selected[team.Lap].Contains(id) && !team.HasPuzzle(id));
+            if (!consumers.TryGetValue(resource.SourceId, out var puzzles) || puzzles.Length == 0) return true;
+            foreach (string id in puzzles)
+                if (selected[team.Lap].Contains(id) && !team.HasPuzzle(id)) return true;
+            return false;
         }
     }
 
     public sealed partial class AuthoritativeMatch
     {
+        readonly List<MatchResourceState> resourceBuffer = new List<MatchResourceState>();
+        Func<WorldBodyState, int> budgetOwner;
+        Func<int, ItemInstance> itemLookup;
+
         void RetireInactiveResources()
         {
 #if UNITY_EDITOR || GSK_QA
             using var phase = WordboundPhaseCapture.Measure(WordboundPhase.RetireResources);
 #endif
-            var teams = progress.Capture().Teams.ToDictionary(t => t.Team);
             Dictionary<(string Source, int Team, int Generation), List<WorldBodyState>> tiles = null;
-            foreach (var resource in resources.Values.ToArray())
+            resourceBuffer.Clear();
+            resourceBuffer.AddRange(resources.Values);
+            foreach (var resource in resourceBuffer)
             {
-                if (resourceLifecycle.Demanded(Mode.IsRace ? teams[resource.Team] : null, resource, practice, mechanisms.Values)) continue;
+                if (resourceLifecycle.Demanded(Mode.IsRace ? progress.RequiredTeam(resource.Team) : null, resource, practice, mechanisms.Values)) continue;
                 if (tiles == null)
                 {
                     tiles = new Dictionary<(string Source, int Team, int Generation), List<WorldBodyState>>();
@@ -82,6 +89,7 @@ namespace Wreckabulary.Rules.Wordbound
                     resources[Key(resource.SourceId, resource.Team, resource.Lap)] =
                         new MatchResourceState(resource.SourceId, resource.Team, resource.Lap, resource.Generation);
             }
+            resourceBuffer.Clear();
         }
 
         void CompactDestroyedEntities()
@@ -121,7 +129,7 @@ namespace Wreckabulary.Rules.Wordbound
 
         bool CriticalBody(WorldBodyState body) => body.Kind == WorldBodyKind.Tile &&
             (PracticeRecoverySource(body.SourceId) || Mode.IsRace &&
-                body.OwnerTeam >= 0 && entityBudget.CriticalSource(body.SourceId, progress.Team(body.OwnerTeam)));
+                body.OwnerTeam >= 0 && entityBudget.CriticalSource(body.SourceId, progress.LiveTeam(body.OwnerTeam)));
 
         int BudgetOwner(WorldBodyState body)
         {
@@ -133,7 +141,7 @@ namespace Wreckabulary.Rules.Wordbound
         }
 
         HashSet<string> AuxiliaryBodies() => WordboundEntityBudget.AuxiliaryBodies(course, Mode,
-            bodies.Values, economy.Item, mechanisms.Values, progress.Capture().Teams, practice);
+            bodies.Values, itemLookup ??= economy.Item, mechanisms.Values, progress.LiveTeams, practice);
 
         bool ReceiverCandidate(ResolvedCoursePhysicalSite site, WorldBodyState body, ItemInstance item) =>
             WordboundEntityBudget.ReceiverCandidate(site, body, item);
@@ -147,12 +155,9 @@ namespace Wreckabulary.Rules.Wordbound
                 item.State != ItemState.Deployed && item.State != ItemState.Armed;
         }
 
-        int ReservedPoolUsage(int team)
-        {
-            var auxiliaries = AuxiliaryBodies();
-            return WordboundEntityBudget.Usage(bodies.Values.Where(b => !FixedBody(b) && !CriticalBody(b) &&
-                !auxiliaries.Contains(b.Id)), team, entityBudget.PoolCount, BudgetOwner);
-        }
+        int ReservedPoolUsage(int team, HashSet<string> auxiliaries) =>
+            WordboundEntityBudget.Usage(bodies.Values.Where(b => !FixedBody(b) && !CriticalBody(b) &&
+                !auxiliaries.Contains(b.Id)), team, entityBudget.PoolCount, budgetOwner ??= BudgetOwner);
 
         bool AdmitCraftedBody(int player)
         {
@@ -256,16 +261,18 @@ namespace Wreckabulary.Rules.Wordbound
         void EnforceBodyBudget()
         {
             CompactDestroyedEntities();
+            HashSet<string> auxiliaries = null;
             for (int team = 0; team < entityBudget.PoolCount; team++)
             {
                 int capacity = entityBudget.PoolBodies - entityBudget.CriticalRecoveryBodies - entityBudget.PhysicalAuxiliaryBodies;
-                if (ReservedPoolUsage(team) <= capacity) continue;
+                if (ReservedPoolUsage(team, auxiliaries ??= AuxiliaryBodies()) <= capacity) continue;
                 foreach (var body in RecyclableBodies(Mode.IsRace ? team : -1).ToArray())
                 {
                     RetireOptional(body);
-                    if (ReservedPoolUsage(team) <= capacity) break;
+                    auxiliaries = AuxiliaryBodies();
+                    if (ReservedPoolUsage(team, auxiliaries) <= capacity) break;
                 }
-                if (ReservedPoolUsage(team) > capacity)
+                if (ReservedPoolUsage(team, auxiliaries) > capacity)
                     throw new InvalidOperationException("Pinned entities exceed their reserved team body budget.");
             }
         }

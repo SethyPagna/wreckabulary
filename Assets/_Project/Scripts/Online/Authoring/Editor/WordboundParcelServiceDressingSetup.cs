@@ -187,8 +187,9 @@ namespace Wreckabulary.Online.Editor
                 Require(saved.Count == rows.Count && palette != null && rows.All(row => saved.Any(e => e.ModuleId == row.ModuleId && e.Prefab == row.Prefab)),
                     "Parcel Depot area fixtures or the mezzanine palette were edited or are partial. They were preserved for review.");
                 ValidateDepotRows(depot, profile.ModuleDressing);
-                Selection.activeObject = profile; EditorGUIUtility.PingObject(profile);
-                Debug.Log("[Parcel Depot dressing] Existing area fixtures and mezzanine palette verified. Nothing was rewritten.");
+                string finished = FinishDepotAreas(legacy, depot, rooms);
+                Selection.activeObject = rooms; EditorGUIUtility.PingObject(rooms);
+                Debug.Log("[Parcel Depot dressing] Existing area fixtures and mezzanine palette verified. " + finished);
                 return;
             }
             ValidateDepotRows(depot, profile.ModuleDressing.Concat(rows).ToList());
@@ -218,9 +219,77 @@ namespace Wreckabulary.Online.Editor
                 status = "CREATED_REQUIRES_WORLD_VISUAL_REVIEW", backup = before,
                 outputs = before.Keys.ToDictionary(p => p, Hash, StringComparer.Ordinal)
             }, Formatting.Indented));
+            string finishes = FinishDepotAreas(legacy, depot, rooms);
             Selection.activeObject = profile; EditorGUIUtility.PingObject(profile);
             Debug.Log("[Parcel Depot dressing] Six depot areas reuse the reviewed wall fixtures and the mezzanine office has its own palette. " +
-                "Parcel Service V1 rows and gameplay bytes are unchanged. Review gameplay, Workshop and thumbnails. Exact prior profiles: " + backup);
+                "Parcel Service V1 rows and gameplay bytes are unchanged. Review gameplay, Workshop and thumbnails. Exact prior profiles: " + backup + ". " + finishes);
+        }
+
+        public static List<WordboundRoomFinish> DepotFinishes() => new List<WordboundRoomFinish>
+        {
+            Finish("Yard", Surfaces.Kind.Tile, 3.2f, 0xbdb7ab, 0x9a9285, 0xd8d0c0, 0xe1b55e, outdoor: true),
+            Finish("Dock", Surfaces.Kind.Tile, 9.6f, 0x8c8a84, 0x3f6b70, 0x5d5a55, 0xe1b55e),
+            Finish("Hall", Surfaces.Kind.Planks, 0, 0xa8784a, 0x30465d, 0xb47a43, 0xa94735),
+            Finish("Counter", Surfaces.Kind.Checker, 1.2f, 0xf5f0e6, 0xe4d3b1, 0xa94735, 0xa94735),
+            Finish("Lockers", Surfaces.Kind.Tile, 1.2f, 0xdfe5e3, 0xa9bcc4, 0x7d8b91, 0x30465d),
+            Finish("Garage", Surfaces.Kind.Tile, 12f, 0x7b7975, 0x8e4d3a, 0x55524d, 0xe1b55e),
+            Finish("VanNorth", Surfaces.Kind.Plaster, 0, 0x45484c, 0xe9eae6, 0xb9bcbf, 0xa94735),
+            Finish("VanMiddle", Surfaces.Kind.Plaster, 0, 0x45484c, 0xe9eae6, 0xb9bcbf, 0xa94735),
+            Finish("VanSouth", Surfaces.Kind.Plaster, 0, 0x45484c, 0xe9eae6, 0xb9bcbf, 0xa94735)
+        };
+
+        static WordboundRoomFinish Finish(string module, Surfaces.Kind ground, float tile, uint floor, uint wall, uint frame, uint accent,
+            bool outdoor = false) => new WordboundRoomFinish {
+                ModuleId = module, Ground = ground, GroundTile = tile, Outdoor = outdoor, BoundaryHeight = .6f, Railing = Hex(0x34473f),
+                Palette = new WordboundRoomPalette { LayerId = module, Floor = Hex(floor), Wall = Hex(wall), Ceiling = Hex(0xe9ddc6),
+                    Frame = Hex(frame), Inset = Hex(wall), Accent = Hex(accent) } };
+
+        static string FinishDepotAreas(WordboundCourseAsset legacy, WordboundCourseAsset depot, WordboundRoomStyleProfile rooms)
+        {
+            var expected = DepotFinishes();
+            var depotModules = depot.ReadDocument().Modules.Select(m => m.Id).ToArray();
+            Require(expected.All(f => depotModules.Contains(f.ModuleId)), "Parcel Depot rooms were renamed or removed. Area finishes were not added.");
+            Require(legacy.ReadDocument().Modules.All(m => expected.All(f => f.ModuleId != m.Id)),
+                "A Parcel Service V1 room shares a depot area ID; its reviewed look would change. Nothing was added.");
+            var present = (rooms.Rooms ?? new List<WordboundRoomFinish>()).Where(r => r != null && expected.Any(f => f.ModuleId == r.ModuleId)).ToList();
+            if (present.Count != 0)
+            {
+                Require(present.Count == expected.Count, "Parcel Depot area finishes are partial. They were preserved for review.");
+                Require(legacy.ReadDocument().Modules.All(m => rooms.ForModule(m.Id) == null), "A Parcel Service V1 room has a room finish. It was preserved for review.");
+                rooms.Validate();
+                return "Existing area finishes verified and preserved; edit colours on " + WordboundParcelServiceMaterialsSetup.RoomPath + ".";
+            }
+            string backup = DepotEvidence + "/" + DateTime.UtcNow.ToString("yyyyMMddTHHmmssZ") + "-finishes-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            RequireVacant(backup); RejectLinks(backup); Directory.CreateDirectory(backup);
+            string path = WordboundParcelServiceMaterialsSetup.RoomPath;
+            var before = new[] { path, path + ".meta" }.ToDictionary(p => p, Hash, StringComparer.Ordinal);
+            foreach (var file in before)
+            {
+                string copy = backup + "/" + Path.GetFileName(file.Key);
+                WriteNew(copy, File.ReadAllBytes(file.Key));
+                Require(Hash(copy) == file.Value, "Exact room profile backup failed.");
+            }
+            WriteNew(backup + "/BACKUP.json", JsonConvert.SerializeObject(before, Formatting.Indented));
+            string unrelated = OtherRoomFields(rooms);
+            Undo.RecordObject(rooms, "Add Parcel Depot area finishes");
+            rooms.Rooms ??= new List<WordboundRoomFinish>();
+            rooms.Rooms.AddRange(expected); rooms.Validate();
+            EditorUtility.SetDirty(rooms); AssetDatabase.SaveAssetIfDirty(rooms);
+            Require(Hash(path + ".meta") == before[path + ".meta"] && unrelated == OtherRoomFields(rooms),
+                "The room profile identity or its layer palettes changed. Exact backup retained at " + backup);
+            VerifyRows(legacy); ValidateDepotRows(depot, legacy.VisualProfile.ModuleDressing);
+            WriteNew(backup + "/COMPLETE.json", JsonConvert.SerializeObject(new Completion {
+                status = "CREATED_REQUIRES_WORLD_VISUAL_REVIEW", backup = before,
+                outputs = new Dictionary<string, string>(StringComparer.Ordinal) { [path] = Hash(path) }
+            }, Formatting.Indented));
+            return "Nine depot rooms now have their own floor and wall finishes; the yard is open-air. Exact prior room profile: " + backup;
+        }
+
+        static string OtherRoomFields(WordboundRoomStyleProfile rooms)
+        {
+            var copy = Object.Instantiate(rooms);
+            try { copy.Rooms = null; return EditorJsonUtility.ToJson(copy); }
+            finally { Object.DestroyImmediate(copy); }
         }
 
         static void ValidateDepotRows(WordboundCourseAsset depot, List<WordboundModuleDressingEntry> entries)

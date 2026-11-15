@@ -22,7 +22,7 @@ namespace Wreckabulary.Online
         string failure, itemJson, ruleJson;
         int localGeneration;
         bool destroying, localWorkshopEntry;
-        const string WorkshopStartupFailure = "Workshop could not open. Return to the lobby and try again.";
+        const string WorkshopStartupFailure = "The Map editor could not open. Return to the lobby and try again.";
 
 #if UNITY_EDITOR || GSK_QA
         string qaWorkshopFolder;
@@ -209,14 +209,11 @@ namespace Wreckabulary.Online
                     workshop.ConfigureLocalPlaytest(true);
                     var flagship = ConfigureWorkshopSources(authored);
                     if (authored)
-                    {
                         workshop.OpenAuthored(authored.ReadDocument(), authored.Catalogue(),
                             MatchStateValidation.Requirements(ModeDefinition.For(authored.ModeId, authored.Format)), authored.Seed, folder);
-                        workshop.ResumeEditing();
-                    }
                     else workshop.OpenFlagship(flagship, folder);
                 }
-                else workshop.ResumeEditing();
+                workshop.ShowStart();
                 if (menu) menu.Visible = false;
             }
             catch (Exception error)
@@ -233,7 +230,7 @@ namespace Wreckabulary.Online
                     assignedWorkshopInputs = null;
                 }
                 if (localWorkshopEntry) failure = WorkshopStartupFailure;
-                else menu.ShowFailure("Workshop could not open: " + error.Message);
+                else menu.ShowFailure("The Map editor could not open: " + error.Message);
             }
         }
 
@@ -321,7 +318,7 @@ namespace Wreckabulary.Online
             if (string.IsNullOrEmpty(failure)) return;
             float width = Mathf.Min(580, Screen.width - 32);
             GUILayout.BeginArea(new Rect((Screen.width - width) * .5f, 40, width, 170), GUI.skin.box);
-            GUILayout.Label("Wordbound could not open");
+            GUILayout.Label("The course could not open");
             GUILayout.Label(failure, new GUIStyle(GUI.skin.label) { wordWrap = true });
             bool enabled = GUI.enabled;
             try

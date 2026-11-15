@@ -5,7 +5,7 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    public enum WordCategory { Weapon, Defence, Movement, Chaos, Furniture }
+    public enum WordCategory { Weapon, Defence, Movement, Chaos, Furniture, Deployable }
 
     [Serializable]
     public class WordEntry
@@ -50,7 +50,9 @@ namespace Wreckabulary
                 var category = item.Category == ItemCategory.Furniture ? WordCategory.Furniture
                     : item.Shield != null || item.Use != null ? WordCategory.Defence
                     : item.Deploy != null && (item.Deploy.Effect == DeployEffect.JumpPad || item.Deploy.Effect == DeployEffect.SpeedStrip) ? WordCategory.Movement
-                    : item.Consumable ? WordCategory.Chaos : WordCategory.Weapon;
+                    : item.Consumable ? WordCategory.Chaos
+                    : item.Deploy != null && item.Thrown == null ? WordCategory.Deployable
+                    : WordCategory.Weapon;
                 result.Add(new WordEntry { word = item.Id, category = category, notes = item.Notes });
             }
             return result;

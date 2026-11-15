@@ -5,41 +5,6 @@ using System.Linq;
 
 namespace Wreckabulary.Rules.Wordbound
 {
-    public sealed class RaceCheckpoint
-    {
-        public string Id { get; }
-        public IReadOnlyList<string> Puzzles { get; }
-        public RaceCheckpoint(string id, params string[] puzzles)
-        {
-            if (!WordboundIdentity.IsId(id)) throw new ArgumentException("Invalid checkpoint ID.", nameof(id));
-            if (puzzles == null || puzzles.Length > 64 || puzzles.Any(p => !WordboundIdentity.IsId(p)) ||
-                puzzles.Distinct(StringComparer.Ordinal).Count() != puzzles.Length)
-                throw new ArgumentException("Puzzle IDs must be bounded and unique.", nameof(puzzles));
-            Id = id; Puzzles = Array.AsReadOnly((string[])puzzles.Clone());
-        }
-    }
-
-    public sealed class RaceLap
-    {
-        public string Start { get; }
-        public string Finish { get; }
-        public string Story { get; }
-        public IReadOnlyList<RaceCheckpoint> Checkpoints { get; }
-        public RaceLap(string start, string finish, string story, params RaceCheckpoint[] checkpoints)
-        {
-            if (!WordboundIdentity.IsId(start) || !WordboundIdentity.IsId(finish))
-                throw new ArgumentException("A lap needs valid start and finish IDs.");
-            if (story == null || story.Length > 160) throw new ArgumentException("Story label is too long.");
-            if (checkpoints == null || checkpoints.Length < 1 || checkpoints.Length > 256 ||
-                checkpoints.Any(c => c == null) ||
-                checkpoints.Select(c => c.Id).Distinct(StringComparer.Ordinal).Count() != checkpoints.Length ||
-                checkpoints.SelectMany(c => c.Puzzles).Distinct(StringComparer.Ordinal).Count() != checkpoints.Sum(c => c.Puzzles.Count))
-                throw new ArgumentException("Each lap needs unique, ordered checkpoints and puzzle IDs.");
-            Start = start; Finish = finish; Story = story;
-            Checkpoints = Array.AsReadOnly((RaceCheckpoint[])checkpoints.Clone());
-        }
-    }
-
     public enum ProgressEventKind { PuzzleSatisfied, CheckpointReached, FinishReached, Knockout, Fell }
 
     public sealed class ProgressEvent
@@ -54,7 +19,9 @@ namespace Wreckabulary.Rules.Wordbound
 
     public sealed class TeamProgress
     {
+        public const int OptionCount = 3;
         readonly HashSet<string> puzzles = new HashSet<string>(StringComparer.Ordinal);
+        readonly string[] options = BlankOptions();
         public int Team { get; internal set; }
         public int Lap { get; internal set; }
         public int NextCheckpoint { get; internal set; }
@@ -67,9 +34,12 @@ namespace Wreckabulary.Rules.Wordbound
         public int RecoveryGeneration { get; internal set; }
         public bool Finished { get; internal set; }
         public IReadOnlyList<string> CompletedPuzzles => Array.AsReadOnly(puzzles.OrderBy(p => p, StringComparer.Ordinal).ToArray());
-        internal bool HasPuzzle(string id) => puzzles.Contains(id);
+        public IReadOnlyList<string> Options => Array.AsReadOnly((string[])options.Clone());
+        public bool HasPuzzle(string id) => puzzles.Contains(id);
         internal bool AddPuzzle(string id) => puzzles.Add(id);
         internal void ClearPuzzles() => puzzles.Clear();
+        internal string Option(int lap) => options[lap];
+        internal void SetOption(int lap, string optionId) => options[lap] = optionId ?? throw new ArgumentNullException(nameof(optionId));
         internal TeamProgress Copy()
         {
             var result = new TeamProgress
@@ -80,7 +50,15 @@ namespace Wreckabulary.Rules.Wordbound
                 RecoveryGeneration = RecoveryGeneration, Finished = Finished
             };
             foreach (string puzzle in puzzles) result.puzzles.Add(puzzle);
+            Array.Copy(options, result.options, OptionCount);
             return result;
+        }
+
+        static string[] BlankOptions()
+        {
+            var blank = new string[OptionCount];
+            Array.Fill(blank, "");
+            return blank;
         }
     }
 
@@ -134,10 +112,12 @@ namespace Wreckabulary.Rules.Wordbound
 
     public sealed class MatchProgress
     {
+        const string RouteVariantsField = "wordbound.route-variants";
         readonly Dictionary<string, PlayerProgress> players;
         readonly Dictionary<int, TeamProgress> teams;
         readonly ReadOnlyCollection<RaceLap> laps;
         readonly string definitionHash;
+        TeamProgress[] orderedTeams;
         public ModeDefinition Mode { get; }
         public long Tick { get; private set; }
         public long ElapsedTicks { get; private set; }
@@ -147,6 +127,10 @@ namespace Wreckabulary.Rules.Wordbound
         public IReadOnlyList<RaceLap> Laps => laps;
         public TeamProgress Team(int team) => teams.TryGetValue(team, out var value) ? value.Copy() : null;
         public PlayerProgress Player(string player) => player != null && players.TryGetValue(player, out var value) ? value.Copy() : null;
+        internal TeamProgress LiveTeam(int team) => teams.TryGetValue(team, out var value) ? value : null;
+        internal TeamProgress RequiredTeam(int team) => teams[team];
+        internal PlayerProgress LivePlayer(string player) => player != null && players.TryGetValue(player, out var value) ? value : null;
+        internal IReadOnlyList<TeamProgress> LiveTeams => orderedTeams ??= teams.Values.OrderBy(t => t.Team).ToArray();
 
         public MatchProgress(ModeDefinition mode, IEnumerable<WordboundSeat> roster,
             IEnumerable<RaceLap> route = null, long wallClockMs = 0)
@@ -160,6 +144,8 @@ namespace Wreckabulary.Rules.Wordbound
                 throw new ArgumentException("A race requires exactly three resolved lap plans.", nameof(route));
             if (!mode.IsRace && lapArray.Length != 0)
                 throw new ArgumentException("A non-race mode cannot use a race route.", nameof(route));
+            if (lapArray.Length != 0 && lapArray[0].HasChoice)
+                throw new ArgumentException("The first lap cannot offer a choice.", nameof(route));
             if (wallClockMs < 0 || wallClockMs > long.MaxValue - 120000)
                 throw new ArgumentOutOfRangeException(nameof(wallClockMs));
             laps = Array.AsReadOnly(lapArray);
@@ -186,11 +172,10 @@ namespace Wreckabulary.Rules.Wordbound
         {
             if (nextTick != Tick + 1 || nextTick < 1) throw new ArgumentOutOfRangeException(nameof(nextTick), "Resolve consecutive ticks.");
             var observations = hostObservations?.Take(4097).ToArray() ?? Array.Empty<ProgressEvent>();
-            if (observations.Length > 4096 || observations.Any(o => o == null ||
-                !Enum.IsDefined(typeof(ProgressEventKind), o.Kind)))
+            if (observations.Length > 4096 || !ValidObservations(observations))
                 throw new ArgumentException("Observation batch is invalid.", nameof(hostObservations));
             if (resolvedThrownKnockouts == null || resolvedThrownKnockouts.Count > 256 ||
-                resolvedThrownKnockouts.Any(o => o == null || o.Kind != ProgressEventKind.Knockout || !observations.Contains(o)))
+                !ResolvedKnockouts(resolvedThrownKnockouts, observations))
                 throw new ArgumentException("Thrown knockout credit must identify an exact resolved observation.");
             UpdateWallClock(wallClockMs);
             if (Migrating || Result != null) return;
@@ -206,28 +191,65 @@ namespace Wreckabulary.Rules.Wordbound
                 if (team.KeepsakeRecoveryAt >= 0 && Tick >= team.KeepsakeRecoveryAt)
                     RecoverKeepsake(team);
 
-            var ordered = observations.OrderBy(o => o.PlayerId, StringComparer.Ordinal)
+            var ordered = observations.Length == 0 ? observations : observations.OrderBy(o => o.PlayerId, StringComparer.Ordinal)
                 .ThenBy(o => o.Kind).ThenBy(o => o.Target, StringComparer.Ordinal).ToArray();
-            var eligibleAttackers = new HashSet<string>(players.Values
-                .Where(p => p.Connected && !p.Eliminated).Select(p => p.Id), StringComparer.Ordinal);
-            foreach (var observation in ordered.Where(o => o.Kind == ProgressEventKind.PuzzleSatisfied))
-                ApplyPuzzle(observation);
-            foreach (var observation in ordered.Where(o => o.Kind == ProgressEventKind.CheckpointReached))
-                ApplyCheckpoint(observation);
-            foreach (var observation in ordered.Where(o => o.Kind == ProgressEventKind.Fell))
-                RecoverPlayer(observation.PlayerId);
+            bool knockouts = Contains(ordered, ProgressEventKind.Knockout);
+            var eligibleAttackers = knockouts ? new HashSet<string>(players.Values
+                .Where(p => p.Connected && !p.Eliminated).Select(p => p.Id), StringComparer.Ordinal) : null;
+            foreach (var observation in ordered)
+                if (observation.Kind == ProgressEventKind.PuzzleSatisfied) ApplyPuzzle(observation);
+            foreach (var observation in ordered)
+                if (observation.Kind == ProgressEventKind.CheckpointReached) ApplyCheckpoint(observation);
+            foreach (var observation in ordered)
+                if (observation.Kind == ProgressEventKind.Fell) RecoverPlayer(observation.PlayerId);
             var candidates = new HashSet<int>();
-            foreach (var observation in ordered.Where(o => o.Kind == ProgressEventKind.FinishReached))
-                if (ApplyFinish(observation)) candidates.Add(players[observation.PlayerId].Team);
-            var knockedOut = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var observation in ordered.Where(o => o.Kind == ProgressEventKind.Knockout))
-                ApplyKnockout(observation, knockedOut, eligibleAttackers, resolvedThrownKnockouts.Contains(observation));
+            foreach (var observation in ordered)
+                if (observation.Kind == ProgressEventKind.FinishReached && ApplyFinish(observation))
+                    candidates.Add(players[observation.PlayerId].Team);
+            if (knockouts)
+            {
+                var knockedOut = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var observation in ordered)
+                    if (observation.Kind == ProgressEventKind.Knockout)
+                        ApplyKnockout(observation, knockedOut, eligibleAttackers, resolvedThrownKnockouts.Contains(observation));
+            }
             if (Mode.Objective == WordboundObjective.Knockouts)
-                foreach (var p in players.Values.Where(p => p.Knockouts >= Mode.KnockoutTarget)) candidates.Add(p.Team);
+                foreach (var p in players.Values)
+                    if (p.Knockouts >= Mode.KnockoutTarget) candidates.Add(p.Team);
             if (candidates.Count != 0)
                 Result = new MatchResult(candidates.Count == 1 ? "Win" : "Draw", candidates, Tick);
             else if (Mode.TimeLimitSeconds > 0 && ElapsedTicks >= (long)Mode.TimeLimitSeconds * ModeDefinition.TickRate)
                 Timeout();
+        }
+
+        static bool ValidObservations(ProgressEvent[] observations)
+        {
+            foreach (var o in observations)
+                if (o == null || o.Kind < ProgressEventKind.PuzzleSatisfied || o.Kind > ProgressEventKind.Fell) return false;
+            return true;
+        }
+
+        static bool ResolvedKnockouts(IReadOnlyCollection<ProgressEvent> knockouts, ProgressEvent[] observations)
+        {
+            foreach (var o in knockouts)
+                if (o == null || o.Kind != ProgressEventKind.Knockout || Array.IndexOf(observations, o) < 0) return false;
+            return true;
+        }
+
+        static bool Contains(ProgressEvent[] events, ProgressEventKind kind)
+        {
+            foreach (var e in events) if (e.Kind == kind) return true;
+            return false;
+        }
+
+        public bool ChooseOption(string playerId, int lap, string optionId)
+        {
+            if (!Mode.IsRace || !CanAct(playerId, out var p) || lap < 1 || lap >= laps.Count || !laps[lap].HasChoice ||
+                string.IsNullOrEmpty(optionId) || laps[lap].For(optionId) == null) return false;
+            var team = teams[p.Team];
+            if (team.Option(lap) != "" || ChoiceLocked(team, lap)) return false;
+            team.SetOption(lap, optionId);
+            return true;
         }
 
         public bool TakeKeepsake(string playerId)
@@ -335,6 +357,13 @@ namespace Wreckabulary.Rules.Wordbound
                         t.KeepsakeRecoveryAt > snapshot.Tick + ModeDefinition.KeepsakeRecoverySeconds * ModeDefinition.TickRate)) ||
                     (t.KeepsakeCarrier != null && snapshot.Players.Any(p => p.Id == t.KeepsakeCarrier && (!p.Connected || p.Eliminated))))
                     throw new ArgumentException("Snapshot keepsake state is invalid.", nameof(snapshot));
+                for (int lap = 0; lap < TeamProgress.OptionCount; lap++)
+                {
+                    string option = t.Option(lap);
+                    bool valid = option == "" ? lap >= laps.Count || !laps[lap].HasChoice || !ChoiceLocked(t, lap) :
+                        lap < laps.Count && laps[lap].HasChoice && laps[lap].For(option) != null;
+                    if (!valid) throw new ArgumentException("Snapshot route options are invalid.", nameof(snapshot));
+                }
                 if (!Mode.IsRace)
                 {
                     if (t.Lap != 0 || t.NextCheckpoint != 0 || t.OrderedObjectives != 0 || t.ProgressTick != 0 ||
@@ -346,16 +375,16 @@ namespace Wreckabulary.Rules.Wordbound
                     continue;
                 }
                 int expectedObjectives = laps.Take(t.Lap).Sum(l => l.Checkpoints.Count + 1) + t.NextCheckpoint;
+                var current = t.Finished ? null : Variant(t, t.Lap).Checkpoints;
                 string expectedSafe = t.Finished ? laps[laps.Count - 1].Finish :
-                    t.NextCheckpoint == 0 ? laps[t.Lap].Start : laps[t.Lap].Checkpoints[t.NextCheckpoint - 1].Id;
-                var requiredPuzzles = t.Finished ? Array.Empty<string>() :
-                    laps[t.Lap].Checkpoints.Take(t.NextCheckpoint).SelectMany(c => c.Puzzles).ToArray();
+                    t.NextCheckpoint == 0 ? laps[t.Lap].Start : current[t.NextCheckpoint - 1].Id;
+                bool solvedPrefix = t.Finished || current.Take(t.NextCheckpoint).All(c => c.Satisfied(t));
                 var allowedPuzzles = t.Finished ? Array.Empty<string>() :
-                    laps[t.Lap].Checkpoints.Take(Math.Min(t.NextCheckpoint + 1, laps[t.Lap].Checkpoints.Count)).SelectMany(c => c.Puzzles).ToArray();
-                var keepsakeLocations = laps.Take(t.Lap).SelectMany(l => new[] { l.Start, l.Finish }.Concat(l.Checkpoints.Select(c => c.Id)))
-                    .Concat(t.Finished ? Array.Empty<string>() : new[] { laps[t.Lap].Start }.Concat(laps[t.Lap].Checkpoints.Take(t.NextCheckpoint).Select(c => c.Id)));
+                    current.Take(Math.Min(t.NextCheckpoint + 1, current.Count)).SelectMany(c => c.Puzzles).ToArray();
+                var keepsakeLocations = laps.Take(t.Lap).SelectMany((l, i) => new[] { l.Start, l.Finish }.Concat(Variant(t, i).Checkpoints.Select(c => c.Id)))
+                    .Concat(t.Finished ? Array.Empty<string>() : new[] { laps[t.Lap].Start }.Concat(current.Take(t.NextCheckpoint).Select(c => c.Id)));
                 if (t.Finished && t.NextCheckpoint != 0 || t.OrderedObjectives != expectedObjectives || t.SafeCheckpoint != expectedSafe ||
-                    requiredPuzzles.Any(id => !t.HasPuzzle(id)) || t.CompletedPuzzles.Any(id => !allowedPuzzles.Contains(id)) ||
+                    !solvedPrefix || t.CompletedPuzzles.Any(id => !allowedPuzzles.Contains(id)) ||
                     (t.OrderedObjectives == 0 ? t.ProgressTick != 0 : t.ProgressTick == 0) ||
                     (t.KeepsakeCarrier == null && t.KeepsakeRecoveryAt == -1 && !keepsakeLocations.Contains(t.KeepsakeLocation)))
                     throw new ArgumentException("Snapshot ordered objectives or puzzle prefix is invalid.", nameof(snapshot));
@@ -398,6 +427,7 @@ namespace Wreckabulary.Rules.Wordbound
             players.Clear(); teams.Clear();
             foreach (var p in snapshot.Players) players.Add(p.Id, p.Copy());
             foreach (var t in snapshot.Teams) teams.Add(t.Team, t.Copy());
+            orderedTeams = null;
             Tick = snapshot.Tick; ElapsedTicks = snapshot.ElapsedTicks; WallClockMs = snapshot.WallClockMs;
             Migrating = snapshot.Migrating; Result = snapshot.Result?.Copy();
         }
@@ -422,10 +452,22 @@ namespace Wreckabulary.Rules.Wordbound
             return !team.Finished && e.Lap == team.Lap && team.Lap < laps.Count;
         }
 
+        RaceLapVariant Variant(TeamProgress team, int lap) => laps[lap].For(team.Option(lap));
+
+        bool ChoiceLocked(TeamProgress team, int lap) =>
+            team.Finished || team.Lap > lap || team.Lap == lap && team.NextCheckpoint >= laps[lap].Divergence;
+
+        void LockChoices(TeamProgress team)
+        {
+            for (int lap = 1; lap < laps.Count; lap++)
+                if (laps[lap].HasChoice && team.Option(lap) == "" && ChoiceLocked(team, lap))
+                    team.SetOption(lap, laps[lap].Variants[0].OptionId);
+        }
+
         void ApplyPuzzle(ProgressEvent e)
         {
             if (!ValidRaceEvent(e, out var team)) return;
-            var lap = laps[team.Lap];
+            var lap = Variant(team, team.Lap);
             if (team.NextCheckpoint >= lap.Checkpoints.Count) return;
             if (lap.Checkpoints[team.NextCheckpoint].Puzzles.Contains(e.Target)) team.AddPuzzle(e.Target);
         }
@@ -433,12 +475,13 @@ namespace Wreckabulary.Rules.Wordbound
         void ApplyCheckpoint(ProgressEvent e)
         {
             if (!ValidRaceEvent(e, out var team)) return;
-            var lap = laps[team.Lap];
+            var lap = Variant(team, team.Lap);
             if (team.NextCheckpoint >= lap.Checkpoints.Count) return;
             var checkpoint = lap.Checkpoints[team.NextCheckpoint];
-            if (checkpoint.Id != e.Target || checkpoint.Puzzles.Any(p => !team.HasPuzzle(p))) return;
+            if (checkpoint.Id != e.Target || !checkpoint.Satisfied(team)) return;
             team.NextCheckpoint++; team.OrderedObjectives++; team.ProgressTick = Tick;
             team.SafeCheckpoint = checkpoint.Id;
+            LockChoices(team);
         }
 
         bool ApplyFinish(ProgressEvent e)
@@ -450,6 +493,7 @@ namespace Wreckabulary.Rules.Wordbound
             team.OrderedObjectives++; team.ProgressTick = Tick;
             team.Finished = team.Lap == Mode.Laps;
             team.SafeCheckpoint = team.Finished ? lap.Finish : laps[team.Lap].Start;
+            LockChoices(team);
             return team.Finished;
         }
 
@@ -516,6 +560,20 @@ namespace Wreckabulary.Rules.Wordbound
                     fields.Add(checkpoint.Id);
                     fields.Add(checkpoint.Puzzles.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     fields.AddRange(checkpoint.Puzzles);
+                }
+            }
+            if (route.Any(l => l.HasChoice || l.Variants.Any(v => v.Checkpoints.Any(c => c.ExplicitSolutions))))
+            {
+                fields.Add(RouteVariantsField);
+                foreach (var lap in route)
+                {
+                    fields.Add(lap.Variants.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    foreach (var variant in lap.Variants)
+                    {
+                        fields.Add(variant.OptionId);
+                        fields.Add(variant.Checkpoints.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        foreach (var checkpoint in variant.Checkpoints) fields.AddRange(checkpoint.Identity());
+                    }
                 }
             }
             return WordboundIdentity.Sha256(string.Concat(fields.Select(field =>

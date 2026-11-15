@@ -137,7 +137,7 @@ namespace Wreckabulary
             if (r.Blocked)
             {
                 if (controller) controller.Knock(dir * speed, 0f);
-                if (CombatFeedbackOptions.ShowDamage) Popup.Show("BLOCKED", at, Color.white, 2.5f);
+                Popup.Effect("BLOCKED", at, Color.white);
                 Damaged?.Invoke(this, hit, r);
                 return false;
             }
@@ -150,7 +150,7 @@ namespace Wreckabulary
             }
             else if (r.Absorbed > 0f)
             {
-                if (CombatFeedbackOptions.ShowDamage) Popup.Show("SOAKED", at, new Color(0.62f, 0.86f, 1f), 2.5f);
+                Popup.Effect("SOAKED", at, new Color(0.62f, 0.86f, 1f));
             }
 
             int drop = rules.LettersDroppedPerHit;
@@ -172,7 +172,7 @@ namespace Wreckabulary
 
         static void Proc(string word, Vector3 at, Color colour)
         {
-            if (CombatFeedbackOptions.ShowDamage) Popup.Show(word, at + Vector3.up * .45f, colour, 2.5f);
+            Popup.Effect(word, at + Vector3.up * .45f, colour);
         }
 
         void Afflict(HouseTuning tuning, in HitInfo hit, int blow, Vector3 at)

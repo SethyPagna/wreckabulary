@@ -1558,26 +1558,26 @@
  ],
  "clearOutOrders": {
   "Dibs": [
-   "Bathroom",
+   "Study",
    "Workshop",
    "Attic",
-   "Study",
    "KidsRoom",
    "Garden",
    "Dining",
    "Kitchen",
-   "Bedroom"
+   "Bedroom",
+   "LivingRoom"
   ],
   "Duos": [
-   "Bathroom",
+   "Study",
    "Workshop",
    "Attic",
-   "Study",
    "KidsRoom",
    "Garden",
    "Dining",
    "Kitchen",
-   "Bedroom"
+   "Bedroom",
+   "LivingRoom"
   ],
   "MovingOut": [
    "Bathroom",
@@ -1594,26 +1594,25 @@
    "KidsRoom",
    "Workshop",
    "Study",
-   "Bedroom",
-   "Kitchen"
+   "Bedroom"
   ]
  },
  "movingDay": [
+  {
+   "word": "STOOL",
+   "room": "Workshop"
+  },
   {
    "word": "BED",
    "room": "Bedroom"
   },
   {
-   "word": "SOFA",
-   "room": "LivingRoom"
-  },
-  {
-   "word": "TABLE",
-   "room": "Kitchen"
-  },
-  {
    "word": "LAMP",
-   "room": "KidsRoom"
+   "room": "Study"
+  },
+  {
+   "word": "FAN",
+   "room": "Attic"
   }
  ],
  "keepsakes": [

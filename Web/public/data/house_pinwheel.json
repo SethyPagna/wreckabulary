@@ -1315,8 +1315,7 @@
    "Kitchen",
    "Garden",
    "Bedroom",
-   "PoolLawn",
-   "Study"
+   "PoolLawn"
   ]
  },
  "movingDay": [
@@ -1330,11 +1329,11 @@
   },
   {
    "word": "SOFA",
-   "room": "LivingRoom"
+   "room": "Kitchen"
   },
   {
    "word": "TABLE",
-   "room": "LivingRoom"
+   "room": "Study"
   }
  ],
  "keepsakes": [

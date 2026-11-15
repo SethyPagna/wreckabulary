@@ -12,10 +12,13 @@ namespace Wreckabulary.Tests
     {
         MovingDayDirector director;
         PlayerJoinManager joins;
+        string savedStars;
 
         [UnitySetUp]
         public IEnumerator SetUp()
         {
+            savedStars = PlayerPrefs.HasKey(Session.StarsKey) ? PlayerPrefs.GetString(Session.StarsKey) : null;
+            PlayerPrefs.DeleteKey(Session.StarsKey);
             yield return TestScenes.Reset();
             yield return TestScenes.Load(Session.MovingDayScene);
             director = Object.FindAnyObjectByType<MovingDayDirector>();
@@ -24,7 +27,12 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTearDown]
-        public IEnumerator TearDown() => TestScenes.Reset();
+        public IEnumerator TearDown()
+        {
+            if (savedStars == null) PlayerPrefs.DeleteKey(Session.StarsKey); else PlayerPrefs.SetString(Session.StarsKey, savedStars);
+            PlayerPrefs.Save();
+            yield return TestScenes.Reset();
+        }
 
         IEnumerator UntilPlaying() =>
             TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Playing, 5f, "level start");
@@ -177,13 +185,27 @@ namespace Wreckabulary.Tests
             }
             yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Complete, 5f, "level complete");
             Assert.AreEqual(3, director.Stars);
-            Assert.AreEqual(3, Session.MovingDayStars[0]);
+            Assert.AreEqual(3, Session.MovingDayStars["pinwheel"], "the stars are kept for this house");
 
             director.Retry();
             yield return null;
             Assert.AreEqual(0, director.LevelIndex);
             Assert.AreEqual(MovingDayDirector.State.Countdown, director.Current);
             Assert.AreEqual(director.CurrentLevel.items.Length, director.Remaining.Count);
+        }
+
+        [UnityTest]
+        public IEnumerator StarsAreKeptPerHouseAndSurviveARestart()
+        {
+            yield return null;
+            Session.RecordStars("flat", 2);
+            Session.RecordStars("pinwheel", 3);
+            Session.RecordStars("flat", 1);
+            Assert.AreEqual(2, Session.MovingDayStars["flat"], "a worse run never lowers the best");
+            Session.Clear();
+            Assert.AreEqual(2, Session.MovingDayStars["flat"], "stars outlast the session");
+            Assert.AreEqual(3, Session.MovingDayStars["pinwheel"]);
+            Assert.IsFalse(Session.MovingDayStars.ContainsKey("walkup"), "each house keeps its own record");
         }
 
         [UnityTest]

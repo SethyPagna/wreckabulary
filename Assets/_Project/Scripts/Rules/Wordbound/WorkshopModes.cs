@@ -40,7 +40,7 @@ namespace Wreckabulary.Rules.Wordbound
                 "Explore and build freely · " + minutes;
             string players = mode.MinimumPlayers == mode.MaximumPlayers ? mode.MinimumPlayers + " players" :
                 mode.MinimumPlayers + "–" + mode.MaximumPlayers + " players";
-            string teams = mode.TeamCount == 1 ? "all together" : mode.TeamCount == 2 ? mode.TeamCapacity + " vs " + mode.TeamCapacity :
+            string teams = mode.TeamCount == 1 ? "all together" : mode.TeamCount == 2 ? "2 teams of " + mode.TeamCapacity :
                 mode.TeamCapacity == 1 ? "everyone for themselves" : mode.TeamCount + " teams of " + mode.TeamCapacity;
             Players = players + " · " + teams + (mode.EnemyDamage ? " · knockdowns on" : "");
         }

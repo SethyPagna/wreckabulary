@@ -27,6 +27,7 @@ namespace Wreckabulary
         readonly List<PlayerController> players = new();
         readonly KeyboardBinding keyboardLeft = new(KeyboardBinding.Side.Left);
         readonly KeyboardBinding keyboardRight = new(KeyboardBinding.Side.Right);
+        readonly Dictionary<Gamepad, GamepadBinding> waitingPads = new();
 
         public IReadOnlyList<PlayerController> Players => players;
         public bool AllowJoining { get; set; } = true;
@@ -38,6 +39,13 @@ namespace Wreckabulary
         Rules.HouseLayout spawnLayout;
 
         public int HumanCount => players.Count(p => p.Binding is not BotBinding);
+        public int MaxPlayers { get => maxPlayers; set => maxPlayers = Mathf.Clamp(value, 1, 8); }
+        public int SpawnCount => layoutSpawns?.Length ?? (spawnPoints != null && spawnPoints.Length > 0 ? spawnPoints.Length : 4);
+        public Rules.Spot SpawnSpot(int spawn)
+        {
+            var at = layoutSpawns != null && layoutSpawns.Length > 0 ? layoutSpawns[spawn % layoutSpawns.Length] : SpawnPoint(spawn);
+            return new Rules.Spot(at.x, at.y, at.z);
+        }
 
         public void ConfigureLayout(Rules.HouseLayout layout)
         {
@@ -49,16 +57,16 @@ namespace Wreckabulary
 
         public void AssignTeams()
         {
-            var teams = Rules.Teams.Assign(players.Count, Match.Rules.TeamSize);
+            var teams = Rules.Teams.For(players.Count, Match.Rules.TeamSize, Rules.HouseModes.Find(Match.Mode)?.Sides ?? 0);
             for (int i = 0; i < players.Count; i++) players[i].Team = teams[i];
         }
 
         public void EnsureOpponents()
         {
             if (HumanCount == 0) return;
-            if (Match.Mode == "Escape") { AssignTeams(); return; }
-
-            int target = 4;
+            int target = Rules.HouseModes.BotSeats(Match.Mode);
+            if (target == 0) { AssignTeams(); return; }
+            if (target > maxPlayers) MaxPlayers = target;
             while (players.Count < target && players.Count < maxPlayers)
             {
                 var binding = new BotBinding();
@@ -74,7 +82,7 @@ namespace Wreckabulary
             foreach (var b in Session.Bindings.ToArray())
             {
                 if (b is GamepadBinding g && !g.Pad.added) continue;
-                if (b is BotBinding && Match.Mode == "Escape") continue;
+                if (b is BotBinding && Rules.HouseModes.BotSeats(Match.Mode) == 0) continue;
                 Join(b, arriving: false);
                 RestoredFromSession = true;
             }
@@ -88,11 +96,13 @@ namespace Wreckabulary
             if (!HasJoined(DesktopBinding.Shared.Id)) TryJoin(keyboardLeft);
             TryJoin(keyboardRight);
             foreach (var pad in Gamepad.all)
-                if (players.All(p => p.Binding is not GamepadBinding g || g.Pad != pad))
-                {
-                    var binding = new GamepadBinding(pad);
-                    if (binding.JoinPressed()) Join(binding);
-                }
+            {
+                if (PadJoined(pad)) continue;
+                if (!waitingPads.TryGetValue(pad, out var binding)) waitingPads[pad] = binding = new GamepadBinding(pad);
+                if (!binding.JoinPressed()) continue;
+                waitingPads.Remove(pad);
+                Join(binding);
+            }
         }
 
         void TryJoin(InputBinding binding)
@@ -101,7 +111,19 @@ namespace Wreckabulary
             if (binding.JoinPressed()) Join(binding);
         }
 
-        bool HasJoined(string bindingId) => players.Any(p => p.Binding.Id == bindingId);
+        bool HasJoined(string bindingId)
+        {
+            foreach (var p in players)
+                if (p.Binding.Id == bindingId) return true;
+            return false;
+        }
+
+        bool PadJoined(Gamepad pad)
+        {
+            foreach (var p in players)
+                if (p.Binding is GamepadBinding g && g.Pad == pad) return true;
+            return false;
+        }
 
         public PlayerController Join(InputBinding binding) => Join(binding, arriving: true);
 
@@ -121,13 +143,15 @@ namespace Wreckabulary
             return p;
         }
 
-        public void Place(PlayerController p)
+        public void Place(PlayerController p) => Place(p, p.Index);
+
+        public void Place(PlayerController p, int spawn)
         {
             p.Combat.ResetForRound();
             p.Summoner.CancelCraft();
             p.Summoner.Close();
             p.Health.ResetForRound();
-            p.Respawn(SpawnPoint(p.Index));
+            p.Respawn(SpawnPoint(spawn));
             GiveStarterLetters(p);
             if (walkIn.sqrMagnitude > 0.01f)
             {

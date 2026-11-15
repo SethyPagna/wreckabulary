@@ -84,7 +84,7 @@ namespace Wreckabulary.Rules.Wordbound
             string sourceId = "", int recoveryGeneration = 0)
         {
             float norm = rotationXyz.DistanceSquared(default) + rotationW * rotationW;
-            if (!WordboundIdentity.IsId(id) || !Enum.IsDefined(typeof(WorldBodyKind), kind) ||
+            if (!WordboundIdentity.IsId(id) || kind < WorldBodyKind.Player || kind > WorldBodyKind.Platform ||
                 !WorldVector.Finite(rotationW) || norm < .99f || norm > 1.01f ||
                 ownerTeam < -1 || ownerTeam > 7 || sourceId == null ||
                 (sourceId != "" && !WordboundIdentity.IsId(sourceId)) || recoveryGeneration < 0)
@@ -252,9 +252,17 @@ namespace Wreckabulary.Rules.Wordbound
 
         static IReadOnlyList<T> Freeze<T>(IEnumerable<T> values, Func<T, string> key) where T : class
         {
-            var array = values?.Take(8193).ToArray() ?? throw new ArgumentNullException(nameof(values));
-            if (array.Length > 8192 || array.Any(value => value == null)) throw new ArgumentException("Snapshot section exceeds bounds.");
-            return Array.AsReadOnly(array.OrderBy(key, StringComparer.Ordinal).ToArray());
+            var array = Section(values) ?? throw new ArgumentNullException(nameof(values));
+            if (array.Length > 8192 || Array.IndexOf(array, null) >= 0) throw new ArgumentException("Snapshot section exceeds bounds.");
+            return Array.AsReadOnly(SnapshotOrder.Ordinal(array, key));
+        }
+
+        static T[] Section<T>(IEnumerable<T> values)
+        {
+            if (!(values is ICollection<T> collection) || collection.Count > 8192) return values?.Take(8193).ToArray();
+            var array = new T[collection.Count];
+            collection.CopyTo(array, 0);
+            return array;
         }
     }
 }

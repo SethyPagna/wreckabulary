@@ -1,11 +1,17 @@
+using System;
 using UnityEngine.InputSystem;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
     public static class ControlHints
     {
         static DesktopBinding Desktop => DesktopBinding.Shared;
+
+        public const string PadSpell = "Y", PadBag = "RB", PadHands = "D-PAD ‹ ›", PadLookAround = "L3";
+
+        public static string PadHand(int slot) => slot == 0 ? "‹" : "›";
 
         static string Key(InputAction action) => KeyBindings.Display(action);
 
@@ -24,20 +30,58 @@ namespace Wreckabulary
             }
         }
 
-        public static string Join(string verb) => Application.isMobilePlatform ? $"Tap PLAY to {verb}" : $"Press {Key(Desktop.Jump)}, J, . or A to {verb}";
+        public static ControlDevice Device(InputBinding binding)
+        {
+            if (binding is TouchBinding || TouchOverlays(binding)) return ControlDevice.Touch;
+            return binding switch
+            {
+                GamepadBinding => ControlDevice.Gamepad,
+                KeyboardBinding keys => keys.Id.EndsWith("Left", StringComparison.Ordinal) ? ControlDevice.KeysLeft : ControlDevice.KeysRight,
+                _ => Application.isMobilePlatform ? ControlDevice.Touch : ControlDevice.MouseKeyboard,
+            };
+        }
 
-        public static string Players => Application.isMobilePlatform ? "Use the left stick to move and the right stick to aim" : $"Up to 4 roommates: {Key(Desktop.Jump)} plays with the mouse, J and . share one keyboard, plus gamepads";
+        static bool TouchOverlays(InputBinding binding) =>
+            binding != null && TouchBinding.Shared.Enabled && TouchBinding.Shared.IsOverlayFor(binding.Id);
 
-        public static string Attack => Application.isMobilePlatform ? "SMASH button" : $"{Key(Desktop.Attack)}, J, / or X";
-        public static string Grab => Application.isMobilePlatform ? "GRAB button" : $"{Key(Desktop.Interact)}, Space, . or RT";
-        public static string Spell => Application.isMobilePlatform ? "CRAFT, choose a word, then BUILD" : $"{Key(Desktop.Spell)}, K, Right Shift or Y";
-        public static string Jump => Application.isMobilePlatform ? "JUMP button" : $"{Key(Desktop.Jump)}, U, comma or A";
-        public static string Dodge => Application.isMobilePlatform ? "DASH button" : $"{Key(Desktop.Dodge)}, Right Ctrl or B";
-        public static string Block => Application.isMobilePlatform ? "Hold BLOCK with a shield" : $"Hold {Key(Desktop.Attack)} with a shield, L, ; or LT";
-        public static string Aim => Application.isMobilePlatform ? "Drag to look" : $"Hold {Key(Desktop.Aim)}";
-        public static string Drop => Application.isMobilePlatform ? "Hold DROP button" :
-            Key(Desktop.Drop) == "R" ? "Hold R, ' or Numpad6, or LB" : $"Hold {Key(Desktop.Drop)}, R (left keys), ' or Numpad6, or LB";
-        public static string Swap => Application.isMobilePlatform ? "Tap a hand slot" : $"{Key(Desktop.Hand1)} / {Key(Desktop.Hand2)}, Tab (left keys), Numpad8 or right-stick press";
-        public static string Move => Application.isMobilePlatform ? "Left stick to move, right stick to aim" : $"{MoveKeys}, arrow keys or the left stick";
+        public static string For(InputBinding binding, PlayerControl control) => For(Device(binding), control);
+
+        public static string For(ControlDevice device, PlayerControl control) =>
+            device == ControlDevice.MouseKeyboard ? DesktopKey(control) : ControlWords.Key(device, control);
+
+        public static bool HasBook(InputBinding binding) => binding != null && For(binding, PlayerControl.Book).Length > 0;
+
+        public static string LookAroundKey => Key(Desktop.LookAround).Replace("LEFT ", "L-").Replace("RIGHT ", "R-").Replace("CONTROL", "CTRL");
+
+        public static string LookAround(InputBinding binding) => Device(binding) switch
+        {
+            ControlDevice.MouseKeyboard => LookAroundKey,
+            ControlDevice.Gamepad => PadLookAround,
+            _ => "",
+        };
+
+        static string DesktopKey(PlayerControl control) => control switch
+        {
+            PlayerControl.Move => MoveKeys,
+            PlayerControl.Look => "MOUSE",
+            PlayerControl.Aim => Key(Desktop.Aim),
+            PlayerControl.Jump => Key(Desktop.Jump),
+            PlayerControl.Dodge => Key(Desktop.Dodge),
+            PlayerControl.Attack or PlayerControl.Block => Key(Desktop.Attack),
+            PlayerControl.Grab => Key(Desktop.Interact),
+            PlayerControl.Spell => Key(Desktop.Spell),
+            PlayerControl.Book => Key(Desktop.Bag),
+            PlayerControl.Hands => $"{Key(Desktop.Hand1)} / {Key(Desktop.Hand2)}",
+            PlayerControl.Drop => Key(Desktop.Drop),
+            PlayerControl.Pause => Key(Desktop.Pause),
+            PlayerControl.Start => Key(Desktop.Start),
+            _ => "",
+        };
+
+        public static string Join(string verb) => Application.isMobilePlatform ? $"Tap PLAY to {verb}" : ControlWords.JoinFirst(Key(Desktop.Jump), verb);
+
+        public static string JoinMore => ControlWords.JoinMore;
+
+        public static string Players => Application.isMobilePlatform ? "Use the left stick to move and the right stick to aim" : JoinMore;
     }
 }

@@ -26,7 +26,7 @@ namespace Wreckabulary.Rules.Wordbound
     {
         public CourseLapSelection() { }
         public int Number;
-        public string StartModuleId = "", FinishModuleId = "", NarrativeId = "";
+        public string StartModuleId = "", FinishModuleId = "", NarrativeId = "", OptionId = "";
         public List<string> AlternativeIds = new List<string>();
         public List<string> ConnectionIds = new List<string>();
         public List<string> CheckpointIds = new List<string>();
@@ -53,7 +53,7 @@ namespace Wreckabulary.Rules.Wordbound
         public CourseManifestData() { }
         public int Schema = 1, GeneratorVersion = 1, CanonicalVersion = 1, Attempt;
         public string Format = "wreckabulary.resolved-course", RngVersion = CourseRandom.Version;
-        public string Seed = "", SourceHash = "", CatalogueHash = "", Hash = "";
+        public string Seed = "", SourceHash = "", CatalogueHash = "", Hash = "", LayoutId = "";
         public CoursePlayData Play = new CoursePlayData();
         public CourseDocument Document = new CourseDocument();
         public List<CourseLapSelection> Laps = new List<CourseLapSelection>();
@@ -97,8 +97,10 @@ namespace Wreckabulary.Rules.Wordbound
         public CoursePoint To { get; }
         public int WidthMm { get; }
         public bool Bidirectional { get; }
+        public string Scope { get; }
+        public bool TeamScoped => Scope == CourseConnection.TeamScope;
         internal ResolvedCourseConnection(CourseConnection c)
-        { Id = c.Id; FromModuleId = c.FromModuleId; ToModuleId = c.ToModuleId; Kind = c.Kind; GatePuzzleId = c.GatePuzzleId; From = c.From; To = c.To; WidthMm = c.WidthMm; Bidirectional = c.Bidirectional; }
+        { Id = c.Id; FromModuleId = c.FromModuleId; ToModuleId = c.ToModuleId; Kind = c.Kind; GatePuzzleId = c.GatePuzzleId; From = c.From; To = c.To; WidthMm = c.WidthMm; Bidirectional = c.Bidirectional; Scope = c.Scope; }
     }
     public sealed class ResolvedCoursePuzzle
     {
@@ -137,6 +139,14 @@ namespace Wreckabulary.Rules.Wordbound
         public int Yaw { get; }
         internal ResolvedCourseSpawn(CourseSpawn s) { Id = s.Id; ModuleId = s.ModuleId; Kind = s.Kind; Position = s.Position; Yaw = s.Yaw; }
     }
+    public sealed class ResolvedCourseSolution
+    {
+        public string Id { get; }
+        public IReadOnlyList<string> PuzzleIds { get; }
+        public string ShortcutConnectionId { get; }
+        internal ResolvedCourseSolution(CourseSolution s)
+        { Id = s.Id; PuzzleIds = Array.AsReadOnly(s.PuzzleIds.ToArray()); ShortcutConnectionId = s.ShortcutConnectionId; }
+    }
     public sealed class ResolvedCourseCheckpoint
     {
         public string Id { get; }
@@ -145,15 +155,19 @@ namespace Wreckabulary.Rules.Wordbound
         public string EntryConnectionId { get; }
         public int RouteStep { get; }
         public IReadOnlyList<string> PuzzleIds { get; }
+        public IReadOnlyList<ResolvedCourseSolution> Solutions { get; }
         internal ResolvedCourseCheckpoint(CourseCheckpoint c, int step)
         {
             Id = c.Id; ModuleId = c.ModuleId; RecoveryAnchorId = c.RecoveryAnchorId;
-            EntryConnectionId = c.EntryConnectionId; RouteStep = step; PuzzleIds = Array.AsReadOnly(c.PuzzleIds.ToArray());
+            EntryConnectionId = c.EntryConnectionId; RouteStep = step;
+            Solutions = Array.AsReadOnly(c.Solutions.OrderBy(s => s.Id, StringComparer.Ordinal).Select(s => new ResolvedCourseSolution(s)).ToArray());
+            PuzzleIds = Array.AsReadOnly(CourseValidator.CandidatePuzzles(c).ToArray());
         }
     }
     public sealed class ResolvedCourseLap
     {
         public int Number { get; }
+        public string OptionId { get; }
         public string StartModuleId { get; }
         public string FinishModuleId { get; }
         public string NarrativeId { get; }
@@ -162,10 +176,19 @@ namespace Wreckabulary.Rules.Wordbound
         public IReadOnlyList<ResolvedCourseCheckpoint> Checkpoints { get; }
         internal ResolvedCourseLap(CourseLapSelection lap, CourseDocument d)
         {
-            Number = lap.Number; StartModuleId = lap.StartModuleId; FinishModuleId = lap.FinishModuleId; NarrativeId = lap.NarrativeId;
+            Number = lap.Number; OptionId = lap.OptionId; StartModuleId = lap.StartModuleId; FinishModuleId = lap.FinishModuleId; NarrativeId = lap.NarrativeId;
             AlternativeIds = Array.AsReadOnly(lap.AlternativeIds.ToArray()); ConnectionIds = Array.AsReadOnly(lap.ConnectionIds.ToArray());
             Checkpoints = Array.AsReadOnly(lap.CheckpointIds.Select((id, i) => new ResolvedCourseCheckpoint(d.Checkpoints.Single(c => c.Id == id), lap.CheckpointSteps[i])).ToArray());
         }
+    }
+    public sealed class ResolvedCourseStoryAnchor
+    {
+        public string Id { get; }
+        public string ModuleId { get; }
+        public string Kind { get; }
+        public CoursePoint Position { get; }
+        public int RadiusMm { get; }
+        internal ResolvedCourseStoryAnchor(CourseStoryAnchor a) { Id = a.Id; ModuleId = a.ModuleId; Kind = a.Kind; Position = a.Position; RadiusMm = a.RadiusMm; }
     }
     public sealed class ResolvedCoursePlacement
     {
@@ -207,30 +230,42 @@ namespace Wreckabulary.Rules.Wordbound
         public int CanonicalVersion => Data.CanonicalVersion;
         public int Schema => Data.Schema;
         public string RngVersion => Data.RngVersion;
+        public string LayoutId => Data.LayoutId;
         public CoursePlayRequirements Play { get; }
         public IReadOnlyList<ResolvedCourseModule> Geometry { get; }
         public IReadOnlyList<ResolvedCourseConnection> Connections { get; }
         public IReadOnlyList<ResolvedCoursePuzzle> Puzzles { get; }
         public IReadOnlyList<ResolvedCourseLap> Laps { get; }
+        public IReadOnlyList<ResolvedCourseLap> LapVariants { get; }
         public IReadOnlyList<ResolvedCoursePlacement> Placements { get; }
         public IReadOnlyList<ResolvedCourseSupply> Supplies { get; }
         public IReadOnlyList<ResolvedCourseRecovery> RecoveryAnchors { get; }
         public IReadOnlyList<ResolvedCourseSpawn> Spawns { get; }
         public IReadOnlyList<ResolvedCoursePhysicalSite> PhysicalSites { get; }
+        public IReadOnlyList<ResolvedCourseStoryAnchor> StoryAnchors { get; }
         public CourseDocument CopyDocument() => Data.Document.Clone();
+        public ResolvedCourseLap Variant(int number, string optionId) => optionId == "" ?
+            Laps.FirstOrDefault(x => x.Number == number) :
+            LapVariants.FirstOrDefault(x => x.Number == number && x.OptionId == optionId);
         internal ResolvedCourse(CourseManifestData data, CourseCatalogue catalogue)
         {
             Data = data; Play = data.Play.ToRequirements();
             Geometry = Array.AsReadOnly(data.Document.Modules.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x => new ResolvedCourseModule(x, catalogue)).ToArray());
             Connections = Array.AsReadOnly(data.Document.Connections.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x => new ResolvedCourseConnection(x)).ToArray());
             Puzzles = Array.AsReadOnly(data.Document.Puzzles.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x => new ResolvedCoursePuzzle(x)).ToArray());
-            Laps = Array.AsReadOnly(data.Laps.OrderBy(x => x.Number).Select(x => new ResolvedCourseLap(x, data.Document)).ToArray());
+            LapVariants = Array.AsReadOnly(data.Laps.OrderBy(x => x.Number).ThenBy(x => x.OptionId, StringComparer.Ordinal)
+                .Select(x => new ResolvedCourseLap(x, data.Document)).ToArray());
+            Laps = Array.AsReadOnly(LapVariants.GroupBy(x => x.Number).Select(g => g.First()).ToArray());
             Placements = Array.AsReadOnly(data.Placements.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x => new ResolvedCoursePlacement(x)).ToArray());
             Supplies = Array.AsReadOnly(data.Supplies.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x => new ResolvedCourseSupply(x)).ToArray());
             RecoveryAnchors = Array.AsReadOnly(data.Document.RecoveryAnchors.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x => new ResolvedCourseRecovery(x)).ToArray());
-            Spawns = Array.AsReadOnly(data.Document.Spawns.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x => new ResolvedCourseSpawn(x)).ToArray());
+            var spawns = new HashSet<string>(CourseResolver.LayoutSpawnIds(data.Document, data.LayoutId), StringComparer.Ordinal);
+            Spawns = Array.AsReadOnly(data.Document.Spawns.Where(x => spawns.Contains(x.Id)).OrderBy(x => x.Id, StringComparer.Ordinal)
+                .Select(x => new ResolvedCourseSpawn(x)).ToArray());
             PhysicalSites = Array.AsReadOnly(data.Document.PhysicalSites.OrderBy(x => x.Lap).ThenBy(x => x.PuzzleId, StringComparer.Ordinal)
                 .Select(x => new ResolvedCoursePhysicalSite(x)).ToArray());
+            StoryAnchors = Array.AsReadOnly(data.Document.StoryAnchors.OrderBy(x => x.Id, StringComparer.Ordinal)
+                .Select(x => new ResolvedCourseStoryAnchor(x)).ToArray());
         }
     }
 }

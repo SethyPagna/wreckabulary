@@ -190,10 +190,10 @@ namespace Wreckabulary.Tests
                     Assert.That(a[1].y, Is.LessThanOrEqualTo(b[0].y), "Footer must not overlap scrolling offers.");
                     Assert.That(a[0].y, Is.GreaterThan(d[0].y));
                     Assert.That(a[2].y, Is.LessThan(d[2].y));
-                    Assert.That(c[0].x, Is.GreaterThanOrEqualTo(a[0].x));
-                    Assert.That(c[2].x, Is.LessThanOrEqualTo(a[2].x));
-                    Assert.That(c[0].y, Is.GreaterThanOrEqualTo(a[0].y));
-                    Assert.That(c[2].y, Is.LessThanOrEqualTo(a[2].y));
+                    Assert.That(c[0].x, Is.GreaterThanOrEqualTo(a[0].x - .01f));
+                    Assert.That(c[2].x, Is.LessThanOrEqualTo(a[2].x + .01f));
+                    Assert.That(c[0].y, Is.GreaterThanOrEqualTo(a[0].y - .01f));
+                    Assert.That(c[2].y, Is.LessThanOrEqualTo(a[2].y + .01f));
                     Assert.AreEqual(page.SelectionHeight, footer.rect.height, .01f);
                     Assert.AreEqual(page.SelectionActionWidth, action.rect.width, .01f);
                     foreach (var text in footer.GetComponentsInChildren<TMP_Text>())

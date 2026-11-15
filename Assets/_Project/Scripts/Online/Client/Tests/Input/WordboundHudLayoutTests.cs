@@ -53,7 +53,7 @@ namespace Wreckabulary.Online.Tests
                         "24:59 remaining", "Health100 · Stamina100", "Hold [LEFT BUTTON] to raise SHIELD",
                         "Waiting for the host…", "Confirming result…");
                     var top = Draw(status, 18, Mathf.Min(380, Size.x - 36), false);
-                    Rows(footer, "Letters: ABCDEFGHIJKLMNOPQRSTUVWXYZ", "[E] Pick up · [Q] Craft · [LEFT BUTTON] Smash · [ESC] Menu",
+                    Rows(footer, "Letters: ABCDEFGHIJKLMNOPQRSTUVWXYZ", "[E] Pick up · [Q] Spell · [LEFT BUTTON] Smash · [ESC] Menu",
                         "That spot is blocked. Move to a clear space, keep the nearby object in sight, and try again.",
                         "[E] Select practice station · [ESC] Station details");
                     var bottom = Draw(footer, Size.y - 18, Size.x - 36, true);
@@ -61,7 +61,7 @@ namespace Wreckabulary.Online.Tests
                     Assert.GreaterOrEqual(top.yMin, 0); Assert.Less(top.yMax, bottom.yMin);
                     Assert.AreEqual(Size.y - 18, bottom.yMax, .001f);
                     CheckRows(status, top); CheckRows(footer, bottom);
-                    Rows(footer, "Letters: —", "[E] Pick up · [Q] Craft · [ESC] Menu");
+                    Rows(footer, "Letters: —", "[E] Pick up · [Q] Spell · [ESC] Menu");
                     CompactHeight = Draw(footer, Size.y - 18, Size.x - 36, true).height;
                 }
                 catch (Exception error) { Failure = error; }

@@ -17,6 +17,10 @@ namespace Wreckabulary
         public TextAsset items;
         [Tooltip("items_house.json: House-mode recipes added on top of items.json. Wordbound and online content read items.json only.")]
         public TextAsset houseItems;
+        [Tooltip("modes_house.json: House-only modes layered over the rules.json modes. Online play reads rules.json only.")]
+        public TextAsset houseModes;
+        [Tooltip("riddles_house.json: House-only Riddle Rush riddles. Online play never reads it.")]
+        public TextAsset houseRiddles;
         [Tooltip("house_*.json: the map's rooms, doors, spawns, furniture and clear-out orders.")]
         public TextAsset house;
         [Tooltip("Additional house maps. The filename house_<id>.json supplies the map id.")]
@@ -41,8 +45,24 @@ namespace Wreckabulary
                 if (additional.ContainsKey(id)) throw new InvalidOperationException($"Duplicate map id '{id}'.");
                 additional.Add(id, map.text);
             }
+            var modes = HouseModesFile();
             return GameConfig.FromJson(rules.text, items.text, house.text, wardrobe.text, rules.name, items.name, house.name, wardrobe.name, additional,
-                houseItems ? houseItems.text : null, houseItems ? houseItems.name : null);
+                houseItems ? houseItems.text : null, houseItems ? houseItems.name : null, modes ? modes.text : null);
+        }
+
+        public const string HouseModesPath = "Assets/_Project/Data/Config/modes_house.json";
+        public const string HouseRiddlesPath = "Assets/_Project/Data/Config/riddles_house.json";
+
+        TextAsset HouseModesFile() => Fallback(houseModes, HouseModesPath);
+
+        public TextAsset HouseRiddlesFile() => Fallback(houseRiddles, HouseRiddlesPath);
+
+        static TextAsset Fallback(TextAsset asset, string path)
+        {
+#if UNITY_EDITOR
+            if (!asset) return UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>(path);
+#endif
+            return asset;
         }
     }
 
@@ -94,10 +114,11 @@ namespace Wreckabulary
 
         public static GameConfig FromJson(string rules, string items, string house, string wardrobe,
             string rulesName = "rules.json", string itemsName = "items.json", string houseName = "house.json", string wardrobeName = "wardrobe.json",
-            IDictionary<string, string> maps = null, string houseItems = null, string houseItemsName = "items_house.json")
+            IDictionary<string, string> maps = null, string houseItems = null, string houseItemsName = "items_house.json", string houseModes = null)
         {
             var catalogue = ItemCatalogue.FromJson(items, itemsName);
             var book = RuleBook.FromJson(rules, rulesName);
+            if (!string.IsNullOrEmpty(houseModes)) book.Layer(houseModes, "modes_house.json");
             HouseTuning tuning = null;
             if (!string.IsNullOrEmpty(houseItems))
             {

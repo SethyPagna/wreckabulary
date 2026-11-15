@@ -4,6 +4,7 @@ using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using Wreckabulary.Art;
 using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
@@ -47,6 +48,7 @@ namespace Wreckabulary.Tests
         static IEnumerable<string> ThrownItems => Ids(HandlingFamily.Thrown);
         static IEnumerable<string> ShieldItems => Ids(HandlingFamily.Shield);
         static IEnumerable<string> DeployItems => Ids(HandlingFamily.DeployCover, HandlingFamily.DeployPad, HandlingFamily.DeploySpeed, HandlingFamily.DeployZone);
+        static IEnumerable<string> PosedItems => ItemHolds.All.Select(h => h.Id).ToArray();
 
         static PlayerController Spawn(int seat, Vector3 at, out ScriptedBinding input)
         {
@@ -72,7 +74,7 @@ namespace Wreckabulary.Tests
         static HeldWeapon Craft(PlayerController player, string id)
         {
             var item = Live(id);
-            var authored = House().Get(id);
+            var authored = House().TryGet(id, out var house) ? house : item;
             player.Inventory.Set(id);
             Assert.IsTrue(player.Summoner.Summon(id), id + " is spelled from its letters");
             var held = player.Combat.Weapon;
@@ -126,6 +128,43 @@ namespace Wreckabulary.Tests
             }
             p.Combat.ResetForRound();
             LogAssert.NoUnexpectedReceived();
+        }
+
+        [UnityTest]
+        public IEnumerator PosedItemsKeepTheirHoldTurnAndGripThroughACancelledUse([ValueSource(nameof(PosedItems))] string id)
+        {
+            var p = Spawn(0, Vector3.zero, out _);
+            yield return Frames(3);
+            var held = Craft(p, id);
+            var item = held.Definition;
+            var turn = HeldItemPose.Turn(item);
+            yield return null;
+            yield return null;
+            Assert.Less(Quaternion.Angle(held.HoldRotation * turn, held.transform.localRotation), .5f, id + " rests in its hold turn");
+            Assert.Less(Vector3.Distance(held.transform.TransformPoint(HeldItemPose.Grip(item)), p.handR.position), .002f, id + " grip sits in the hand");
+            held.CancelUse();
+            yield return null;
+            Assert.Less(Quaternion.Angle(held.HoldRotation * turn, held.transform.localRotation), .5f, id + " returns to its hold turn after a cancelled use");
+            Assert.Less(Vector3.Distance(held.transform.TransformPoint(HeldItemPose.Grip(item)), p.handR.position), .002f);
+        }
+
+        [UnityTest]
+        public IEnumerator PlacedCabinetShowsItsDoorsToThePlacer()
+        {
+            var p = Spawn(0, Vector3.zero, out var input);
+            yield return Frames(3);
+            p.FaceTowards(Vector3.forward);
+            var gear = Craft(p, "CABINET");
+            input.Next.attack = true;
+            yield return TestScenes.WaitUntil(() => DeployedGear.CountFor(p) == 1, Live("CABINET").Deploy.PlaceSeconds + 2f, "CABINET placed");
+            Assert.Greater(Vector3.Dot(gear.transform.forward, Vector3.forward), .95f, "the cover root still faces the way it was placed");
+            var source = ModelLibrary.Load().Find(gear.Definition.Model).transform;
+            var model = HeldItemPose.Model(gear);
+            Assert.IsNotNull(model);
+            Assert.Less(Quaternion.Angle(Quaternion.Euler(0f, 180f, 0f) * source.localRotation, model.localRotation), .5f, "the doors face back toward the placer");
+            var box = gear.GetComponent<BoxCollider>();
+            var bounds = ModelVisual.BoundsIn(gear.transform, model.gameObject);
+            Assert.AreEqual(box.center.z, bounds.center.z, .005f, "the visible cabinet sits inside its cover footprint");
         }
 
         [UnityTest]

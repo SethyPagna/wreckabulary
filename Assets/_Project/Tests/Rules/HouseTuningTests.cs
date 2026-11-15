@@ -57,6 +57,42 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
+        public void RarerWordsNeverMakeWeakerItems()
+        {
+            var (items, rules, tuning) = House();
+            var inversions = tuning.Validate(items, rules.Defaults).Where(p => p.Contains("harder word")).ToList();
+            CollectionAssert.IsEmpty(inversions, string.Join("\n", inversions));
+            float Dps(string id) => tuning.MeleeDps(items.Get(id));
+            float Lasts(string id) => tuning.MeleeLifetime(items.Get(id));
+            Assert.Greater(Dps("PILLOW"), Dps("BLADE"), "Rare PILLOW out-hits every Uncommon swing");
+            Assert.Greater(Dps("RACK"), Dps("SPEAR"), "Rare RACK out-hits Uncommon SPEAR");
+            Assert.Greater(Lasts("RACK"), Lasts("SPEAR"), "and outlasts it");
+            Assert.Greater(Dps("BROOM"), Dps("BAT"), "Uncommon BROOM out-hits Common BAT");
+            Assert.Greater(Lasts("LAMP"), Lasts("PAN"), "no Common swing outlasts an Uncommon one");
+            Assert.Greater(Dps("HAMMER"), Dps("RACK"), "Epic HAMMER out-hits every Rare swing");
+            Assert.Greater(items.Get("ARROW").Thrown.Damage, items.Get("POT").Thrown.Damage, "Uncommon ARROW hits harder than any Common throw");
+            Assert.IsNotNull(tuning.Trait("LAMP", TraitKind.Heavy), "LAMP stays Heavy");
+            CollectionAssert.IsEmpty(tuning.TraitsOf("BAT"), "BAT stays plain");
+        }
+
+        [Test]
+        public void ValidationRefusesAHarderWordThatMakesAWeakerItem()
+        {
+            var items = TestData.Catalogue();
+            items.Expand(ItemCatalogue.FromJson(HouseJson, "items_house.json"));
+            var rules = TestData.LoadRuleBook();
+            var soft = HouseTuning.FromJson(@"{ ""items"": [], ""tuning"": { ""items"": {
+                ""HAMMER"": { ""melee"": { ""damage"": 5 } },
+                ""ARROW"": { ""thrown"": { ""damage"": 4 } } } } }");
+            soft.Apply(items, rules);
+            var problems = soft.Validate(items, rules.Defaults);
+            string all = string.Join("\n", problems);
+            Assert.IsTrue(problems.Any(p => p.StartsWith("HAMMER is Epic but its melee damage a second")), all);
+            Assert.IsTrue(problems.Any(p => p.StartsWith("HAMMER is Epic but its damage before it breaks")), all);
+            Assert.IsTrue(problems.Any(p => p.StartsWith("ARROW is Uncommon but its thrown damage")), all);
+        }
+
+        [Test]
         public void FistsBarelyHurtPlayersButStillSmashFurniture()
         {
             var (_, rules, _) = House();

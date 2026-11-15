@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Wreckabulary.Rules.Wordbound
 {
     public sealed partial class AuthoritativeMatch
     {
+        (string Body, string Mechanism, ResolvedCourseMovingFixture Fixture)[] fixturePoses;
+
         MatchPhysicalEvidence InitialPhysical(string puzzle, int lap)
         {
             var site = course.PhysicalSites.SingleOrDefault(s => s.Lap == lap + 1 && s.PuzzleId == puzzle);
@@ -15,12 +18,15 @@ namespace Wreckabulary.Rules.Wordbound
         {
             if (id == "" || !bodies.TryGetValue(id, out var body) || body.Kind != WorldBodyKind.Item) return false;
             var now = economy.Item(Number(id));
-            return now != null && now.IsGone && before.Economy.Items.Any(item => item.Id == now.Id && !item.IsGone);
+            if (now == null || !now.IsGone) return false;
+            foreach (var item in before.Economy.ItemStates)
+                if (item.Id == now.Id && !item.IsGone) return true;
+            return false;
         }
 
         void ValidatePhysicalObservation(MatchMechanismState previous, HostMechanismObservation observation)
         {
-            var site = course.PhysicalSites.SingleOrDefault(s => s.Lap == observation.Lap + 1 && s.PuzzleId == observation.PuzzleId);
+            var site = Site(observation.Lap + 1, observation.PuzzleId);
             var next = observation.Physical;
             var prior = previous.Physical;
             if (site == null)
@@ -35,8 +41,8 @@ namespace Wreckabulary.Rules.Wordbound
                 throw new ArgumentException("Physical profile or motion phase is not causal.");
             if (next.Stage == MatchPhysicalStage.Waiting) return;
             if (!observation.Active || !indices.TryGetValue(next.ActorId, out int index) ||
-                Binding.Seats[index].Team != observation.Team || !progress.Player(next.ActorId).Connected ||
-                progress.Player(next.ActorId).Eliminated || progress.Player(next.ActorId).Returned ||
+                Binding.Seats[index].Team != observation.Team || !progress.LivePlayer(next.ActorId).Connected ||
+                progress.LivePlayer(next.ActorId).Eliminated || progress.LivePlayer(next.ActorId).Returned ||
                 next.StageTick > Tick + 1)
                 throw new ArgumentException("Physical evidence requires a live actor from this team.");
             bool restarted = prior.Stage == MatchPhysicalStage.Waiting || previous.ItemEntityId != observation.ItemEntityId;
@@ -50,11 +56,11 @@ namespace Wreckabulary.Rules.Wordbound
 
         void ValidatePhysicalAuxiliary(ResolvedCoursePhysicalSite site, MatchPhysicalEvidence evidence, int team)
         {
-            var puzzle = course.Puzzles.Single(p => p.Id == site.PuzzleId);
+            var puzzle = Puzzle(site.PuzzleId);
             if (puzzle.PresetId == "TimedMechanism")
             {
-                if (evidence.AuxiliaryBodyId != "keepsake:" + team ||
-                    progress.Team(team).KeepsakeCarrier != evidence.ActorId)
+                if (evidence.AuxiliaryBodyId != KeepsakeBody(team) ||
+                    progress.LiveTeam(team).KeepsakeCarrier != evidence.ActorId)
                     throw new ArgumentException("Timed traversal requires this actor carrying the team's keepsake.");
             }
             else if (puzzle.PresetId == "CollectLetters" || puzzle.PresetId == "RedirectWind")
@@ -80,16 +86,24 @@ namespace Wreckabulary.Rules.Wordbound
         void ValidateFixturePoses()
         {
             if (!Mode.IsRace && !IsPractice) return;
-            foreach (int team in Binding.Seats.Select(s => s.Team).Distinct())
+            foreach (var (bodyId, mechanism, fixture) in fixturePoses ??= FixturePoses())
+            {
+                var body = bodies[bodyId];
+                var state = mechanisms[mechanism];
+                if (body.Position.DistanceSquared(CourseFixtureMotion.Position(fixture, state.Physical.MotionUnits)) >= .000001f ||
+                    body.RotationW != 1 || body.RotationXyz.X != 0 || body.RotationXyz.Y != 0 || body.RotationXyz.Z != 0)
+                    throw new ArgumentException("Host machinery pose and canonical motion phase must advance atomically.");
+            }
+        }
+
+        (string Body, string Mechanism, ResolvedCourseMovingFixture Fixture)[] FixturePoses()
+        {
+            var poses = new List<(string Body, string Mechanism, ResolvedCourseMovingFixture Fixture)>();
+            foreach (int team in seatTeams)
                 foreach (var site in course.PhysicalSites)
                     foreach (var fixture in site.Fixtures)
-                    {
-                        var body = bodies[CourseFixtureMotion.BodyId(fixture.Id, team)];
-                        var state = mechanisms[Key(site.PuzzleId, team, site.Lap - 1)];
-                        if (body.Position.DistanceSquared(CourseFixtureMotion.Position(fixture, state.Physical.MotionUnits)) >= .000001f ||
-                            body.RotationW != 1 || body.RotationXyz.X != 0 || body.RotationXyz.Y != 0 || body.RotationXyz.Z != 0)
-                            throw new ArgumentException("Host machinery pose and canonical motion phase must advance atomically.");
-                    }
+                        poses.Add((CourseFixtureMotion.BodyId(fixture.Id, team), Key(site.PuzzleId, team, site.Lap - 1), fixture));
+            return poses.ToArray();
         }
     }
 }

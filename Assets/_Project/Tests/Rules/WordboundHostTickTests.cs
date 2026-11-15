@@ -91,10 +91,11 @@ namespace Wreckabulary.Tests
                 .ToDictionary(b => b.Id, b => b.Position, StringComparer.Ordinal);
             string chain = "";
             var advance = new Stopwatch(); var capture = new Stopwatch(); var validate = new Stopwatch();
+            long advanceBytes = 0, captureBytes = 0;
             int accepted = 0;
             for (int t = 0; t < Ticks; t++)
             {
-                if (t == WarmUp) { advance.Reset(); capture.Reset(); validate.Reset(); }
+                if (t == WarmUp) { advance.Reset(); capture.Reset(); validate.Reset(); advanceBytes = captureBytes = 0; }
                 if (match.Tick % 60 == 0)
                 {
                     var stamp = match.PublishSnapshot(out _);
@@ -124,13 +125,18 @@ namespace Wreckabulary.Tests
                     return b.At(new WorldVector(origin.X + offset, origin.Y, origin.Z - offset));
                 }).ToArray();
                 MatchTickResult result;
+                var commands = command == null ? null : new[] { command };
+                long allocated = Allocated();
                 advance.Start();
-                result = match.Advance(state.Progress.WallClockMs + 17, command == null ? null : new[] { command }, poses);
+                result = match.Advance(state.Progress.WallClockMs + 17, commands, poses);
                 advance.Stop();
+                advanceBytes += Allocated() - allocated;
                 Assert.IsTrue(result.Advanced);
+                allocated = Allocated();
                 capture.Start();
                 var frame = match.Capture(1);
                 capture.Stop();
+                captureBytes += Allocated() - allocated;
                 validate.Start();
                 Assert.IsTrue(MatchStateValidation.ReconcileAndApply(frame, host.Binding, host.Mode, host.Course, host.Items,
                     host.Rules, host.Rules, () => true, () => { }));
@@ -143,8 +149,14 @@ namespace Wreckabulary.Tests
             }
             int timed = Ticks - WarmUp;
             TestContext.Progress.WriteLine(FormattableString.Invariant(
-                $"HOST_TICK_COST {name} bodies={match.Capture(1).Bodies.Count} ok={accepted} recovered={match.Capture(1).Resources.Count(r => r.Generation >= 3)} advance={advance.Elapsed.TotalMilliseconds / timed:F3}ms capture={capture.Elapsed.TotalMilliseconds / timed:F3}ms validate={validate.Elapsed.TotalMilliseconds / timed:F3}ms chain={chain}"));
+                $"HOST_TICK_COST {name} bodies={match.Capture(1).Bodies.Count} ok={accepted} recovered={match.Capture(1).Resources.Count(r => r.Generation >= 3)} advance={advance.Elapsed.TotalMilliseconds / timed:F3}ms capture={capture.Elapsed.TotalMilliseconds / timed:F3}ms validate={validate.Elapsed.TotalMilliseconds / timed:F3}ms advanceBytes={advanceBytes / timed} captureBytes={captureBytes / timed} chain={chain}"));
             Assert.AreEqual(golden, chain);
+        }
+
+        static long Allocated()
+        {
+            try { return GC.GetAllocatedBytesForCurrentThread(); }
+            catch (NotSupportedException) { return 0; }
         }
 
         static float Distance(WorldVector a, WorldVector b)

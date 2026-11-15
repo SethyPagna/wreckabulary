@@ -122,9 +122,14 @@ namespace Wreckabulary.Rules.Wordbound
 
         internal bool CriticalSource(string sourceId, TeamProgress team)
         {
-            return race && team != null && !team.Finished && supplies.TryGetValue(sourceId, out var source) &&
-                source.TeamIndex == team.Team && source.AfterPuzzleIds.All(team.HasPuzzle) &&
-                consumers[sourceId].Any(id => lapPuzzles[team.Lap].Contains(id) && !team.HasPuzzle(id));
+            if (!race || team == null || team.Finished || !supplies.TryGetValue(sourceId, out var source) ||
+                source.TeamIndex != team.Team) return false;
+            var after = source.AfterPuzzleIds;
+            for (int i = 0; i < after.Count; i++)
+                if (!team.HasPuzzle(after[i])) return false;
+            foreach (string id in consumers[sourceId])
+                if (lapPuzzles[team.Lap].Contains(id) && !team.HasPuzzle(id)) return true;
+            return false;
         }
 
         internal int Pool(int ownerTeam) => race ? ownerTeam : 0;
@@ -135,8 +140,9 @@ namespace Wreckabulary.Rules.Wordbound
         {
             var mechanisms = sourceMechanisms.ToArray();
             var bodies = sourceBodies.ToArray();
-            var result = new HashSet<string>(mechanisms.Where(m => m.Physical.AuxiliaryBodyId != "")
-                .Select(m => m.Physical.AuxiliaryBodyId), StringComparer.Ordinal);
+            var result = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var mechanism in mechanisms)
+                if (mechanism.Physical.AuxiliaryBodyId != "") result.Add(mechanism.Physical.AuxiliaryBodyId);
             if (WordboundPracticePolicy.Supports(mode))
             {
                 var site = WordboundPracticePolicy.Selected(course, practice);
@@ -154,19 +160,35 @@ namespace Wreckabulary.Rules.Wordbound
             foreach (var team in teams)
             {
                 if (team.Finished || team.NextCheckpoint >= course.Laps[team.Lap].Checkpoints.Count) continue;
-                foreach (var site in course.PhysicalSites.Where(s => s.Lap == team.Lap + 1 &&
-                    s.CheckpointId == course.Laps[team.Lap].Checkpoints[team.NextCheckpoint].Id &&
-                    s.WindReceiverRecipeId != "" && !team.HasPuzzle(s.PuzzleId)))
+                string checkpoint = course.Laps[team.Lap].Checkpoints[team.NextCheckpoint].Id;
+                foreach (var site in course.PhysicalSites)
                 {
-                    var state = mechanisms.Single(m => m.PuzzleId == site.PuzzleId && m.Team == team.Team && m.Lap == team.Lap);
+                    if (site.Lap != team.Lap + 1 || site.CheckpointId != checkpoint ||
+                        site.WindReceiverRecipeId == "" || team.HasPuzzle(site.PuzzleId)) continue;
+                    var state = Mechanism(mechanisms, site.PuzzleId, team.Team, team.Lap);
                     if (state.Physical.AuxiliaryBodyId != "") continue;
-                    var candidate = bodies.Where(b => b.Kind == WorldBodyKind.Item && b.OwnerTeam == team.Team &&
-                        !result.Contains(b.Id) && ReceiverCandidate(site, b, item(int.Parse(b.Id.Substring(5)))))
-                        .OrderBy(b => int.Parse(b.Id.Substring(5))).FirstOrDefault();
+                    WorldBodyState candidate = null;
+                    int lowest = 0;
+                    foreach (var b in bodies)
+                    {
+                        if (b.Kind != WorldBodyKind.Item || b.OwnerTeam != team.Team || result.Contains(b.Id)) continue;
+                        int number = int.Parse(b.Id.AsSpan(5));
+                        if (!ReceiverCandidate(site, b, item(number)) || candidate != null && number >= lowest) continue;
+                        candidate = b; lowest = number;
+                    }
                     if (candidate != null) result.Add(candidate.Id);
                 }
             }
             return result;
+        }
+
+        static MatchMechanismState Mechanism(MatchMechanismState[] mechanisms, string puzzle, int team, int lap)
+        {
+            MatchMechanismState found = null;
+            int count = 0;
+            foreach (var m in mechanisms)
+                if (m.PuzzleId == puzzle && m.Team == team && m.Lap == lap) { found = m; count++; }
+            return count == 1 ? found : mechanisms.Single(m => m.PuzzleId == puzzle && m.Team == team && m.Lap == lap);
         }
 
         internal static bool ReceiverCandidate(ResolvedCoursePhysicalSite site, WorldBodyState body, ItemInstance item) =>

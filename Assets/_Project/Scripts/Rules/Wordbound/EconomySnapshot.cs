@@ -21,9 +21,11 @@ namespace Wreckabulary.Rules
             IEnumerable<PlayerInventory> players, IEnumerable<ItemInstance> items, IEnumerable<KeyValuePair<int, char>> tiles)
         {
             NextItemId = nextItemId; NextTileId = nextTileId; Minted = minted; Spent = spent;
-            PlayerStates = players.OrderBy(p => p.PlayerId).Select(Copy).ToArray();
-            ItemStates = items.OrderBy(i => i.Id).Select(Copy).ToArray();
-            TileStates = tiles.OrderBy(t => t.Key).ToArray();
+            PlayerStates = SnapshotOrder.Numeric(players.ToArray(), p => p.PlayerId);
+            for (int i = 0; i < PlayerStates.Length; i++) PlayerStates[i] = Copy(PlayerStates[i]);
+            ItemStates = SnapshotOrder.Numeric(items.ToArray(), i => i.Id);
+            for (int i = 0; i < ItemStates.Length; i++) ItemStates[i] = Copy(ItemStates[i]);
+            TileStates = SnapshotOrder.Numeric(tiles.ToArray(), t => t.Key);
         }
 
         internal static PlayerInventory Copy(PlayerInventory source)

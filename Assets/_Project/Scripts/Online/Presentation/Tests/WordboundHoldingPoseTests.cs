@@ -84,12 +84,13 @@ namespace Wreckabulary.Tests
                     attack: age < attackEnd ? new MatchAttackState(100, "item:1") : null);
                 observe.Invoke(motion, new object[] { 0L, 100L + age, actor, "item:1", item, true });
                 motion.Step(0, true, true, false);
-                held.PlaceAtHand(anchor.transform, avatar.RightHand, true);
+                held.PlaceAtHand(anchor.transform, avatar.RightHand, true, avatar.BodyScale);
                 var socket = ModelVisual.FindNamed(held.Model, "Grip_R");
                 Assert.That(Vector3.Distance(avatar.RightHand.position, socket.position), Is.LessThan(.0001f), "age=" + age);
                 Assert.That(Quaternion.Angle(avatar.RightHand.rotation, socket.rotation), Is.LessThan(.02f), "age=" + age);
-                Assert.That(Vector3.Distance(Vector3.one * item.HeldScale, held.Root.transform.localScale), Is.LessThan(.0001f));
+                Assert.That(Vector3.Distance(Vector3.one * item.HeldScale * avatar.BodyScale, held.Root.transform.localScale), Is.LessThan(.0001f));
             }
+            Assert.That(avatar.BodyScale, Is.InRange(1.5f, 2.1f), "the course avatar is the house avatar fitted to the 1.8 m body");
             CollectionAssert.AreEqual(originals, held.Model.GetComponentsInChildren<MeshFilter>(true).Select(f => f.sharedMesh).ToArray());
             Assert.AreEqual(sourcePosition, sourceSocket.localPosition);
             Assert.AreEqual(sourceRotation, sourceSocket.localRotation);

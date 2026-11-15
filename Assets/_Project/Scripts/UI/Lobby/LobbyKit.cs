@@ -337,26 +337,34 @@ namespace Wreckabulary
 
         public static Color ModeColour(string mode) => mode switch
         {
-            "Dibs" => Hex(0xef5b2b),
-            "Duos" => Hex(0x3fa9dd),
-            "MovingOut" => Hex(0x6fa957),
-            "MovingDay" => Hex(0x9471dc),
-            "Escape" => Hex(0xd7263d),
-            "Tutorial" => Hex(0xf2b230),
-            "Workshop" => Hex(0x22b8a5),
-            "Room" => Hex(0xff3d9e),
+            Rules.HouseModes.Dibs => Hex(0xef5b2b),
+            Rules.HouseModes.Duos => Hex(0x3fa9dd),
+            Rules.HouseModes.FreeForAll => Hex(0xc94fd0),
+            Rules.HouseModes.War => Hex(0x4d6bd8),
+            Rules.HouseModes.MovingOut => Hex(0x6fa957),
+            Rules.HouseModes.MovingDay => Hex(0x9471dc),
+            Rules.HouseModes.Escape => Hex(0xd7263d),
+            Rules.HouseModes.ShoppingList => Hex(0xa6c43a),
+            Rules.HouseModes.RiddleRush => Hex(0x38c27a),
+            Rules.HouseModes.Tutorial => Hex(0xf2b230),
+            LobbyMenu.WorkshopMode => Hex(0x22b8a5),
+            LobbyMenu.RoomMode => Hex(0xff3d9e),
             _ => Sun,
         };
 
         public static string ModeArt(string mode) => mode switch
         {
-            "Dibs" => "BAT",
-            "Duos" => "BALL",
-            "MovingDay" => "SOFA",
-            "Escape" => "CLOCK",
-            "Tutorial" => "BOOK",
-            "Workshop" => "HAMMER",
-            "Room" => "CAKE",
+            Rules.HouseModes.Dibs => "BAT",
+            Rules.HouseModes.Duos => "BALL",
+            Rules.HouseModes.FreeForAll => "BOMB",
+            Rules.HouseModes.War => "SHIELD",
+            Rules.HouseModes.MovingDay => "SOFA",
+            Rules.HouseModes.Escape => "CLOCK",
+            Rules.HouseModes.ShoppingList => "APPLE",
+            Rules.HouseModes.RiddleRush => "LAMP",
+            Rules.HouseModes.Tutorial => "BOOK",
+            LobbyMenu.WorkshopMode => "HAMMER",
+            LobbyMenu.RoomMode => "CAKE",
             _ => "BOX",
         };
 
