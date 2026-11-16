@@ -557,7 +557,7 @@ namespace Wreckabulary
             var cell = LobbyKit.Rect(parent, "Swatch " + colour.Id);
             var label = LobbyKit.Text(cell, colour.Name, 13, on ? LobbyKit.Cream : LobbyKit.Muted, TextAlignmentOptions.Center);
             label.name = CardName;
-            label.enableAutoSizing = true; label.fontSizeMin = 9; label.fontSizeMax = 13;
+            label.enableAutoSizing = true; label.fontSizeMin = 11; label.fontSizeMax = 14;
             label.rectTransform.Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 20));
             var button = LobbyKit.Button(cell, "Colour " + colour.Id, LobbyKit.Navy, () => PickColour(slot, colour), 20, null, 0, 3);
             ((RectTransform)button.transform).Pin(new Vector2(.5f, 1), Vector2.zero, new Vector2(40, 40));
@@ -670,7 +670,7 @@ namespace Wreckabulary
             state.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             if (worn || owned || offer == null)
             {
-                var label = LobbyKit.Text(state, worn ? "WEARING" : "OWNED", 12, worn ? LobbyKit.Owned : LobbyKit.CardSub,
+                var label = LobbyKit.Text(state, worn ? "WEARING" : "OWNED", 13, worn ? LobbyKit.Owned : LobbyKit.CardSub,
                     TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
                 label.characterSpacing = 1;
                 label.Size(-1, 20);

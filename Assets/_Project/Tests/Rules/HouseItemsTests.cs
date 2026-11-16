@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
-using System.Text.Json;
 using NUnit.Framework;
 
 namespace Wreckabulary.Rules.Tests
@@ -97,15 +96,15 @@ namespace Wreckabulary.Rules.Tests
         [Test]
         public void KenneyItemsMatchTheirImportedModels()
         {
-            using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(TestData.Root, "ArtSource/Collections/HouseItemsV1/manifest.json")));
+            var manifest = Json.Parse(File.ReadAllText(Path.Combine(TestData.Root, "ArtSource/Collections/HouseItemsV1/manifest.json")), "manifest.json");
             var house = House();
-            foreach (var entry in manifest.RootElement.GetProperty("entries").EnumerateArray())
+            foreach (var entry in manifest["entries"].Items)
             {
-                var item = house.Get(entry.GetProperty("word").GetString());
+                var item = house.Get(entry["word"].String());
                 Assert.AreEqual("Items/" + item.Id, item.Model);
-                Assert.AreEqual(entry.GetProperty("heldScale").GetSingle(), item.HeldScale, 1e-4f, item.Id);
-                var size = entry.GetProperty("size").EnumerateArray().Select(v => v.GetSingle()).ToArray();
-                var grip = entry.GetProperty("grip").EnumerateArray().Select(v => v.GetSingle()).ToArray();
+                Assert.AreEqual(entry["heldScale"].Float(), item.HeldScale, 1e-4f, item.Id);
+                var size = entry["size"].Items.Select(v => v.Float()).ToArray();
+                var grip = entry["grip"].Items.Select(v => v.Float()).ToArray();
                 for (int axis = 0; axis < 3; axis++)
                 {
                     Assert.AreEqual(size[axis], item.Size[axis], 1e-4f, item.Id + " size");

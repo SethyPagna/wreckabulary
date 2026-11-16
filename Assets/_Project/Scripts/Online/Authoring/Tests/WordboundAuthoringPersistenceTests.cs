@@ -389,7 +389,7 @@ namespace Wreckabulary.Tests
                     File.WriteAllBytes(path, original); File.WriteAllBytes(temporary, replacement);
                     using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
                         observations.Add(ObserveReplacement(label + "_locked", temporary, path, backup, original, replacement, true));
-                    observations.Add(ObserveReplacement(label + "_released", temporary, path, backup, original, replacement, false));
+                    observations.Add(ObserveAfterRelease(label + "_released", temporary, path, backup, original, replacement));
                 }
             }
             finally
@@ -423,6 +423,22 @@ namespace Wreckabulary.Tests
             public Type ErrorType;
             public int HResult;
         }
+
+        static ReplacementObservation ObserveAfterRelease(string label, string temporary, string path, string backup,
+            byte[] original, byte[] replacement)
+        {
+            var result = ObserveReplacement(label, temporary, path, backup, original, replacement, false);
+            for (int attempt = 1; attempt < 20 && TransientSharing(result); attempt++)
+            {
+                System.Threading.Thread.Sleep(50);
+                result = ObserveReplacement(label, temporary, path, backup, original, replacement, false);
+            }
+            return result;
+        }
+
+        static bool TransientSharing(ReplacementObservation result) =>
+            result.ErrorType == typeof(IOException) && result.TargetOriginal && result.SourceReplacement &&
+            (result.HResult == unchecked((int)0x80070497) || result.HResult == unchecked((int)0x80070020));
 
         static ReplacementObservation ObserveReplacement(string label, string temporary, string path, string backup,
             byte[] original, byte[] replacement, bool locked)

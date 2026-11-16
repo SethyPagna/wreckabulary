@@ -271,6 +271,15 @@ namespace Wreckabulary.Rules
             return result;
         }
 
+        public static int ResetLockedFinishes(HomeLayout layout, Func<string, bool> owned)
+        {
+            if (layout?.Props == null || owned == null) return 0;
+            int reset = 0;
+            foreach (var prop in layout.Props)
+                if (prop != null && prop.Skin != Skin.Standard && !owned(prop.Skin)) { prop.Skin = Skin.Standard; reset++; }
+            return reset;
+        }
+
         public HomeValidation Import(string json)
         {
             var parsed = Parse(json);
@@ -420,6 +429,11 @@ namespace Wreckabulary.Rules
             { MinX = x - width / 2; MaxX = x + width / 2; MinZ = z - depth / 2; MaxZ = z + depth / 2; }
         }
 
+        static readonly string FinishChoices = ChoiceList(Finishes.All.Where(finish => finish.InCustomize).Select(finish => finish.Name).ToList());
+
+        static string ChoiceList(IReadOnlyList<string> names) =>
+            names.Count < 2 ? string.Concat(names) : string.Join(", ", names.Take(names.Count - 1)) + " or " + names[names.Count - 1];
+
         Rect? Shape(HomeProp prop, List<string> errors)
         {
             if (prop == null) { errors.Add("prop: expected an object."); return null; }
@@ -430,8 +444,8 @@ namespace Wreckabulary.Rules
             if (!grid) errors.Add("grid: use finite half-metre coordinates.");
             bool yaw = prop.Yaw == 0 || prop.Yaw == 90 || prop.Yaw == 180 || prop.Yaw == 270;
             if (!yaw) errors.Add("yaw: use 0, 90, 180 or 270 degrees.");
-            if (prop.Skin != "Classic" && prop.Skin != "Candy" && prop.Skin != "Arcade")
-                errors.Add("skin: choose Classic, Candy or Arcade.");
+            if (!(Finishes.Find(prop.Skin)?.InCustomize ?? false))
+                errors.Add("skin: choose " + FinishChoices + ".");
             if (!supplied || !grid || !yaw) return null;
             double width = Math.Max(.4, item.Size[0]), depth = Math.Max(.4, item.Size[2]);
             return prop.Yaw % 180 == 0 ? new Rect(prop.X, prop.Z, width, depth) : new Rect(prop.X, prop.Z, depth, width);

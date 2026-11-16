@@ -90,7 +90,7 @@ namespace Wreckabulary.Rules.Tests
                 {
                     var matches = pattern.Matches(File.ReadAllText(file));
                     if (matches.Count > 0) files++;
-                    foreach (Match match in matches)
+                    foreach (System.Text.RegularExpressions.Match match in matches)
                     {
                         string recipe = match.Groups[2].Value;
                         if (recipe.Length == 0) continue;
