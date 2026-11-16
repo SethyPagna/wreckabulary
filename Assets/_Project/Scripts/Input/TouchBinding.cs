@@ -12,7 +12,7 @@ namespace Wreckabulary
         readonly bool[] pressed = new bool[12];
         HoldToFire dropHold;
         bool craftOpen, craftDown;
-        int startFrame = -1;
+        int startFrame = -1, hand;
         Vector2 move, look;
 
         public override string Id => "touch-local";
@@ -43,6 +43,8 @@ namespace Wreckabulary
             if (action == TouchAction.Start) startFrame = Time.frameCount;
         }
 
+        public void PulseHand(int slot) => hand = slot is 1 or 2 ? slot : 0;
+
         public void SetCraftOpen(bool open)
         {
             if (open && !craftOpen) craftDown = true;
@@ -68,9 +70,11 @@ namespace Wreckabulary
             c.up = pressed[(int)TouchAction.Up];
             c.down = pressed[(int)TouchAction.Down];
             c.start = pressed[(int)TouchAction.Start];
+            c.slot = hand;
             if (c.start) startFrame = Time.frameCount;
             System.Array.Clear(pressed, 0, pressed.Length);
             craftDown = false;
+            hand = 0;
         }
 
         public void Merge(ref PlayerCommands c)
@@ -96,6 +100,7 @@ namespace Wreckabulary
             c.up |= touch.up;
             c.down |= touch.down;
             c.start |= touch.start;
+            if (touch.slot > 0) c.slot = touch.slot;
         }
 
         public void ReleaseAll()
@@ -106,6 +111,7 @@ namespace Wreckabulary
             craftOpen = craftDown = false;
             dropHold = default;
             startFrame = -1;
+            hand = 0;
         }
 
         public override bool JoinPressed() => false;

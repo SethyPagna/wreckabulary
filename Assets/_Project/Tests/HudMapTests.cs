@@ -83,8 +83,9 @@ namespace Wreckabulary.Tests
                     Assert.IsFalse(onWall && betweenEnds, door.A + "–" + door.B + " must be an open passage on the map.");
                 }
             }
-            var labels = Plan.Find("Room names").GetComponentsInChildren<TMP_Text>();
+            var labels = Plan.Find("Room names").GetComponentsInChildren<TMP_Text>(true);
             Assert.IsTrue(labels.All(label => label.text.Length >= 3), "Rooms use readable names, not ambiguous initials.");
+            Assert.IsTrue(labels.All(label => !label.gameObject.activeSelf), "In Dibs the minimap leaves room names to the room pill.");
             player.LookYaw = 1.1f; player.Frozen = false;
             yield return new WaitForSecondsRealtime(.25f);
             var marker = (RectTransform)Plan.Find("Markers/Player " + (player.Index + 1));
@@ -188,7 +189,10 @@ namespace Wreckabulary.Tests
             foreach (var box in layout.Rooms)
             {
                 var label = Plan.Find("Room names/" + box.Name).GetComponent<TMP_Text>();
-                Assert.AreEqual(mode.Remaining.Any(item => item.room == box.Name), label.text.StartsWith("+ "), box.Name);
+                bool pending = mode.Remaining.Any(item => item.room == box.Name);
+                Assert.AreEqual(pending, label.text.StartsWith("+ "), box.Name);
+                Assert.AreEqual(pending, label.gameObject.activeSelf, box.Name + ": only rooms still to furnish are named on the minimap.");
+                if (pending) Assert.GreaterOrEqual(label.fontSize, 18f, "12 px or more at 720p.");
             }
         }
     }

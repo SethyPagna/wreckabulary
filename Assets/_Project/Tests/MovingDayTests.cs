@@ -8,15 +8,17 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
-    /// <summary>Co-op Moving Day: deliveries, spelling furniture, placing it in the right room, stars and time outs.</summary>
     public class MovingDayTests
     {
         MovingDayDirector director;
         PlayerJoinManager joins;
+        string savedStars;
 
         [UnitySetUp]
         public IEnumerator SetUp()
         {
+            savedStars = PlayerPrefs.HasKey(Session.StarsKey) ? PlayerPrefs.GetString(Session.StarsKey) : null;
+            PlayerPrefs.DeleteKey(Session.StarsKey);
             yield return TestScenes.Reset();
             yield return TestScenes.Load(Session.MovingDayScene);
             director = Object.FindAnyObjectByType<MovingDayDirector>();
@@ -25,16 +27,39 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTearDown]
-        public IEnumerator TearDown() => TestScenes.Reset();
+        public IEnumerator TearDown()
+        {
+            if (savedStars == null) PlayerPrefs.DeleteKey(Session.StarsKey); else PlayerPrefs.SetString(Session.StarsKey, savedStars);
+            PlayerPrefs.Save();
+            yield return TestScenes.Reset();
+        }
 
         IEnumerator UntilPlaying() =>
             TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Playing, 5f, "level start");
 
-        /// <summary>Builds an item straight into a room, as if spelled there, and lets it settle.</summary>
         Smashable PlaceIn(string word, string room, float offset = 0f)
         {
             var at = director.RoomNamed(room).Centre + new Vector3(0f, 0.3f, offset);
             return FurnitureCatalog.Spawn(word, at, 0f, World.Transient);
+        }
+
+        [UnityTest]
+        public IEnumerator ChecklistNamesRoomsInPlainWordsWithTheirStorey()
+        {
+            yield return UntilPlaying();
+            yield return new WaitForSecondsRealtime(.2f);
+            var layout = Object.FindAnyObjectByType<RoomBuilder>().Layout;
+            var text = Object.FindAnyObjectByType<GameHud>().transform.Find("Safe HUD/Side column/Objective/Objective text")
+                .GetComponent<TMPro.TMP_Text>().text;
+            foreach (var room in director.CurrentLevel.items.Select(i => i.room).Distinct())
+            {
+                string label = MovingDayDirector.RoomLabel(layout, room);
+                StringAssert.Contains("in the " + label + "</color>", text);
+                if (label != room) StringAssert.DoesNotContain("in the " + room + "</color>", text, "Internal room ids stay off the checklist.");
+            }
+            Assert.AreEqual("Living Room", MovingDayDirector.RoomLabel(null, "LivingRoom"));
+            Assert.AreEqual("Bedroom 2", MovingDayDirector.RoomLabel(null, "Bedroom2"));
+            Assert.AreEqual(layout.WithStorey("LivingRoom").Replace("LivingRoom", "Living Room"), MovingDayDirector.RoomLabel(layout, "LivingRoom"));
         }
 
         [UnityTest]
@@ -160,13 +185,27 @@ namespace Wreckabulary.Tests
             }
             yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Complete, 5f, "level complete");
             Assert.AreEqual(3, director.Stars);
-            Assert.AreEqual(3, Session.MovingDayStars[0]);
+            Assert.AreEqual(3, Session.MovingDayStars["pinwheel"], "the stars are kept for this house");
 
             director.Retry();
             yield return null;
             Assert.AreEqual(0, director.LevelIndex);
             Assert.AreEqual(MovingDayDirector.State.Countdown, director.Current);
             Assert.AreEqual(director.CurrentLevel.items.Length, director.Remaining.Count);
+        }
+
+        [UnityTest]
+        public IEnumerator StarsAreKeptPerHouseAndSurviveARestart()
+        {
+            yield return null;
+            Session.RecordStars("flat", 2);
+            Session.RecordStars("pinwheel", 3);
+            Session.RecordStars("flat", 1);
+            Assert.AreEqual(2, Session.MovingDayStars["flat"], "a worse run never lowers the best");
+            Session.Clear();
+            Assert.AreEqual(2, Session.MovingDayStars["flat"], "stars outlast the session");
+            Assert.AreEqual(3, Session.MovingDayStars["pinwheel"]);
+            Assert.IsFalse(Session.MovingDayStars.ContainsKey("walkup"), "each house keeps its own record");
         }
 
         [UnityTest]
@@ -198,7 +237,7 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(typewriter.Choose(index), "one roommate can play Moving Day");
             yield return TestScenes.WaitForActive(Session.MovingDayScene);
             var p = Object.FindAnyObjectByType<PlayerJoinManager>().Players.Single();
-            Assert.AreEqual(24, p.Summoner.WordsOverride.Count, "the word wheel offers objectives and creative tools");
+            Assert.AreEqual(41, p.Summoner.WordsOverride.Count, "the word wheel offers objectives and creative tools");
         }
     }
 }

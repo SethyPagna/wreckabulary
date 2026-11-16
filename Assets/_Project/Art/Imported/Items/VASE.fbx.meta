@@ -7,6 +7,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: blue_Classic
+    second: {fileID: 2100000, guid: 3b784684e47ef284c81992317731eaa2, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: ceramic_Classic
     second: {fileID: 2100000, guid: ae0386c84812d294ab1b235fc1edc09f, type: 2}
   - first:

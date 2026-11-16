@@ -1,10 +1,13 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.TestTools;
+using UnityEngine.TestTools.Constraints;
+using Is = UnityEngine.TestTools.Constraints.Is;
 
 namespace Wreckabulary.Tests
 {
@@ -85,6 +88,84 @@ namespace Wreckabulary.Tests
             }
             Assert.IsFalse(floor.forceRenderingOff);
             Assert.AreEqual(ShadowCastingMode.TwoSided, floor.shadowCastingMode);
+            yield return null;
+        }
+
+        static StoreyCutaway TwoStoreyHouse(out Renderer upstairsFloor, out Renderer ceiling)
+        {
+            var world = new GameObject("Two-storey house").AddComponent<StoreyCutaway>();
+            new GameObject(RoomBuilder.StoreyName(0)).transform.SetParent(world.transform);
+            var upper = new GameObject(RoomBuilder.StoreyName(1)).transform;
+            upper.SetParent(world.transform);
+            upstairsFloor = Box("Upstairs floor", upper, new Vector3(0f, 2.9f, 0f), new Vector3(8f, .2f, 8f));
+            ceiling = Ceiling(new Vector3(0f, 2.6f, -1.5f), new Vector3(8f, .15f, 2f), world.transform);
+            return world;
+        }
+
+        [UnityTest]
+        public IEnumerator RenderReusesTheFramePlanButJudgesPropsWhereTheyAreNow()
+        {
+            var world = TwoStoreyHouse(out var floor, out _);
+            var prop = Box("Loose prop", null, new Vector3(2f, .5f, 0f), Vector3.one * .5f);
+            var faded = Box("Faded chair", null, new Vector3(-2f, .5f, 0f), Vector3.one * .5f);
+            var player = Player(0, Vector3.zero);
+            world.Configure(GameConfig.Current.HouseFor("terrace"), world.transform);
+            var view = View("Downstairs camera", world, player, new Vector3(0f, 1.5f, -3f));
+            view.SetOccluders(new[] { prop, faded });
+            var camera = view.GetComponent<Camera>();
+            int evaluations = StoreyCutaway.Evaluations;
+            prop.transform.position = new Vector3(2f, 3.6f, 0f);
+            HashSet<Renderer> hidden, shadows;
+            using (CameraCutaway.BeginCameraVisibility(camera))
+            {
+                Assert.IsTrue(floor.forceRenderingOff, "The frame plan still cuts the upper floor.");
+                Assert.IsTrue(prop.forceRenderingOff, "A prop raised after planning is judged where it is at render time.");
+                Assert.AreEqual(ShadowCastingMode.ShadowsOnly, faded.shadowCastingMode);
+                hidden = new HashSet<Renderer>(view.Visibility.Hidden);
+                shadows = new HashSet<Renderer>(view.Visibility.Shadows);
+            }
+            Assert.AreEqual(evaluations, StoreyCutaway.Evaluations, "Rendering reuses this frame's plan.");
+            view.RefreshVisibility();
+            CollectionAssert.AreEquivalent(view.Visibility.Hidden, hidden, "The reused plan equals a fresh evaluation.");
+            CollectionAssert.AreEquivalent(view.Visibility.Shadows, shadows);
+            prop.transform.position = new Vector3(2f, .5f, 0f);
+            using (CameraCutaway.BeginCameraVisibility(camera))
+            {
+                Assert.IsFalse(prop.forceRenderingOff, "A prop lowered again comes back.");
+                Assert.AreEqual(ShadowCastingMode.ShadowsOnly, prop.shadowCastingMode, "It is faded like any other occluder.");
+            }
+            Assert.AreEqual(evaluations + 1, StoreyCutaway.Evaluations);
+            camera.transform.position += Vector3.right * .1f;
+            using (CameraCutaway.BeginCameraVisibility(camera)) { }
+            Assert.AreEqual(evaluations + 2, StoreyCutaway.Evaluations, "A moved camera gets a fresh plan.");
+            player.transform.position += Vector3.right * .1f;
+            using (CameraCutaway.BeginCameraVisibility(camera)) { }
+            Assert.AreEqual(evaluations + 3, StoreyCutaway.Evaluations, "A moved player gets a fresh plan.");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator PlanningAndRenderingAFrameDoNotAllocate()
+        {
+            var world = TwoStoreyHouse(out _, out _);
+            var prop = Box("Loose prop", null, new Vector3(2f, 3.6f, 0f), Vector3.one * .5f);
+            var downstairs = Player(0, Vector3.zero);
+            Player(1, new Vector3(1f, 0f, 1f));
+            world.Configure(GameConfig.Current.HouseFor("terrace"), world.transform);
+            var overview = View("Overview", world, null, new Vector3(0f, 12f, -8f));
+            var follow = View("Follow", world, downstairs, new Vector3(0f, 1.5f, -3f));
+            overview.SetOccluders(new[] { prop });
+            var overviewCamera = overview.GetComponent<Camera>();
+            var followCamera = follow.GetComponent<Camera>();
+            void Frame()
+            {
+                overview.RefreshVisibility();
+                follow.RefreshVisibility();
+                using (CameraCutaway.BeginCameraVisibility(overviewCamera)) { }
+                using (CameraCutaway.BeginCameraVisibility(followCamera)) { }
+            }
+            Frame();
+            Assert.That(Frame, Is.Not.AllocatingGCMemory());
             yield return null;
         }
 
@@ -229,19 +310,18 @@ namespace Wreckabulary.Tests
                     targets[i].Create();
                     cameras[i].targetTexture = targets[i];
                 }
-                // Use normal camera frames, including GPU batch uploads and per-camera culling.
-                // Reading the completed prior frame also works in graphics-enabled batch mode.
                 yield return null;
                 yield return null;
                 yield return null;
-                var directory = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "docs", "reviews", "evidence", "camera-cutaway-native"));
-                Directory.CreateDirectory(directory);
+                string directory = System.Environment.GetEnvironmentVariable("WRECK_CAPTURE_DIR");
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory = Path.Combine(directory, "camera-cutaway-native"));
                 Color Capture(int cameraIndex, string name)
                 {
                     RenderTexture.active = targets[cameraIndex];
                     pixels.ReadPixels(new Rect(0, 0, 128, 128), 0, 0, false);
                     pixels.Apply();
-                    File.WriteAllBytes(Path.Combine(directory, name + ".png"), pixels.EncodeToPNG());
+                    if (!string.IsNullOrEmpty(directory)) File.WriteAllBytes(Path.Combine(directory, name + ".png"), pixels.EncodeToPNG());
                     return pixels.GetPixel(64, 64);
                 }
                 var open = Capture(0, "overview-floor-visible");

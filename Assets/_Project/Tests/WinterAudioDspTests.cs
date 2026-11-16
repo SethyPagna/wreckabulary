@@ -84,7 +84,7 @@ namespace Wreckabulary.Tests
                 speaker = Object.FindObjectsByType<AudioSource>(FindObjectsSortMode.None).Single(source => source.name == "House sound cues");
                 if (!sourceMutes.ContainsKey(speaker)) sourceMutes[speaker] = speaker.mute;
                 speaker.mute = false;
-                Assert.AreEqual(.13f, speaker.volume);
+                Assert.AreEqual(Wreckabulary.Audio.GameMix.HouseSpeaker, speaker.volume);
                 Assert.AreEqual(0f, speaker.spatialBlend);
                 Assert.IsNull(speaker.outputAudioMixerGroup, "The fixture measures the production direct-to-master route.");
                 speaker.Stop();

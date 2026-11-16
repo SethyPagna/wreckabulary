@@ -18,6 +18,7 @@ namespace Wreckabulary
 
         const float ThirdPersonShake = .3f;
         const float FadeHold = .15f;
+        static readonly Vector3 Overhead = new(0f, PartyCamera.Rise, -PartyCamera.Back);
 
         Vector3 basePosition, smooth;
         Quaternion baseRotation;
@@ -25,9 +26,10 @@ namespace Wreckabulary
         float baseFieldOfView, baseNearClip;
         float shake;
         bool framesLayout;
-        Vector3 layoutCentre;
-        float wholeHouseSize;
-        float layoutWidth, layoutDepth;
+        PartyArea area;
+        PartyView party;
+        float boom = 1f;
+        readonly List<PartySeat> seats = new(4);
         Camera lens;
         CameraCutaway visibility;
         StoreyCutaway house;
@@ -37,15 +39,26 @@ namespace Wreckabulary
         Vector3 lastFeet;
         readonly RaycastHit[] blockers = new RaycastHit[16];
         readonly Dictionary<Renderer, float> faded = new();
+        readonly List<Renderer> occluding = new();
         readonly List<Renderer> unfade = new();
         readonly Dictionary<Renderer, Renderer[]> cutawayParts = new();
         readonly List<Renderer> bodyRenderers = new();
+        int leases;
+        bool held, orbited;
+        float orbitYaw, orbitPitch;
 
         public PlayerController Target => target;
         public Camera ViewCamera => lens;
         public PlayerController FollowedPlayer => target;
         public bool IsFollowing(PlayerController player) => target && target == player;
-        public Vector3 PlanarForward => World.Flat(transform.forward).normalized;
+        public static bool TakesLook => Instance && Instance.isActiveAndEnabled;
+        public bool Looking => leases > 0 || held;
+        public bool Dragging => leases > 0;
+        public float OrbitYaw => orbitYaw;
+        public float OrbitPitch => orbitPitch;
+        bool Orbiting => orbitYaw != 0f || orbitPitch != 0f;
+        Vector3 SteadyForward => target ? ShoulderView.Forward(target.LookYaw, 0f) : baseRotation * Vector3.forward;
+        public Vector3 PlanarForward => World.Flat(Orbiting ? SteadyForward : transform.forward).normalized;
         public Vector2 ScreenDirectionToWorld(Vector2 input)
         {
             var forward = PlanarForward;
@@ -61,6 +74,32 @@ namespace Wreckabulary
 
         public void Follow(PlayerController player) => followed = player;
 
+        public void BeginLook() => leases++;
+
+        public void EndLook() => leases = Mathf.Max(0, leases - 1);
+
+        public void Orbit(float yawDegrees, float pitchDegrees)
+        {
+            if (!float.IsFinite(yawDegrees) || !float.IsFinite(pitchDegrees)) return;
+            orbitYaw = FreeLook.Wrap(orbitYaw + yawDegrees);
+            orbitPitch = ClampPitch(orbitPitch + pitchDegrees);
+        }
+
+        public void OrbitDrag(Vector2 screenPixels) =>
+            Orbit(DragDegrees(screenPixels.x), DragDegrees(KeyBindings.InvertY ? screenPixels.y : -screenPixels.y));
+
+        public static float DragDegrees(float pixels) => FreeLook.DragDegrees(pixels, Screen.height);
+
+        float ClampPitch(float pitch) => target
+            ? FreeLook.ClampPitch(pitch, target.LookPitch * Mathf.Rad2Deg, ShoulderView.MinPitch * Mathf.Rad2Deg, ShoulderView.MaxPitch * Mathf.Rad2Deg)
+            : FreeLook.OverheadPitch(pitch);
+
+        void ResetOrbit()
+        {
+            orbitYaw = orbitPitch = 0f;
+            orbited = false;
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => Instance = null;
 
@@ -75,17 +114,14 @@ namespace Wreckabulary
         public void FrameLayout(HouseLayout layout)
         {
             var camera = lens = GetComponent<Camera>();
-            float minX = layout.Rooms.Min(r => r.MinX), maxX = layout.Rooms.Max(r => r.MaxX);
-            float minZ = layout.Rooms.Min(r => r.MinZ), maxZ = layout.Rooms.Max(r => r.MaxZ);
-            var centre = new Vector3((minX + maxX) * .5f, 0f, (minZ + maxZ) * .5f);
-            layoutWidth = maxX - minX;
-            layoutDepth = maxZ - minZ;
+            area = new PartyArea(layout.Rooms.Min(r => r.MinX), layout.Rooms.Max(r => r.MaxX),
+                layout.Rooms.Min(r => r.MinZ), layout.Rooms.Max(r => r.MaxZ));
+            var centre = new Vector3(area.CentreX, 0f, area.CentreZ);
             camera.orthographic = true;
-            float aspect = Mathf.Max(.5f, camera.aspect);
-            camera.orthographicSize = HouseSize(aspect);
-            layoutCentre = centre;
-            wholeHouseSize = camera.orthographicSize;
-            basePosition = smooth = centre + new Vector3(0f, 30f, -22f);
+            camera.orthographicSize = PartyCamera.HouseSize(area.Width, area.Depth, camera.aspect);
+            party = PartyView.At(centre.x, 0f, centre.z, camera.orthographicSize);
+            boom = 1f;
+            basePosition = smooth = centre + Overhead;
             if (!target)
             {
                 transform.position = basePosition;
@@ -114,8 +150,8 @@ namespace Wreckabulary
                     lens.backgroundColor = new Color32(0x17, 0x3a, 0x3d, 0xff);
                 }
             }
-            visibility = GetComponent<CameraCutaway>() ?? gameObject.AddComponent<CameraCutaway>();
-            visibility.SetOccluders(faded.Keys);
+            if (!TryGetComponent(out visibility)) visibility = gameObject.AddComponent<CameraCutaway>();
+            visibility.SetOccluders(occluding);
             house = StoreyCutaway.Instance;
             GraphicsOptions.ApplyTo(lens);
         }
@@ -124,16 +160,17 @@ namespace Wreckabulary
         {
             if (target) target.ShooterView = false;
             target = null;
+            leases = 0;
+            held = false;
+            ResetOrbit();
             RestoreFaded();
             if (visibility) visibility.ClearView(this);
             CursorPolicy.Apply(false);
         }
 
-        float HouseSize(float aspect) => Mathf.Max(layoutWidth / aspect, layoutDepth * .85f) * .5f + .8f;
-
         public static void Shake(float amount)
         {
-            if (Instance) Instance.shake = Mathf.Max(Instance.shake, amount);
+            if (Instance) Instance.shake = Mathf.Max(Instance.shake, amount * ScreenShake.Scale);
         }
 
         PlayerController ChooseTarget()
@@ -154,6 +191,7 @@ namespace Wreckabulary
             bool wasThirdPerson = target;
             if (target) target.ShooterView = false;
             target = next;
+            ResetOrbit();
             if (target)
             {
                 target.ShooterView = true;
@@ -172,6 +210,7 @@ namespace Wreckabulary
                     lens.orthographic = baseOrthographic;
                     lens.fieldOfView = baseFieldOfView;
                     lens.nearClipPlane = baseNearClip;
+                    party = PartyView.At(lastFeet.x, party.Y, lastFeet.z, party.Size);
                 }
             }
             RoomBuilder.ApplyFog(target);
@@ -188,9 +227,10 @@ namespace Wreckabulary
             }
             var next = ChooseTarget();
             if (next != target) SetTarget(next);
+            GatherLook(Time.unscaledDeltaTime);
             if (!house) house = StoreyCutaway.Instance;
             visibility.SetView(this, house, target);
-            visibility.SetOccluders(faded.Keys);
+            visibility.SetOccluders(occluding);
             view.Environment = house;
             view.Cutaway = visibility;
             if (target) FollowTarget();
@@ -198,11 +238,32 @@ namespace Wreckabulary
             visibility.RefreshVisibility();
         }
 
+        void GatherLook(float dt)
+        {
+            held = false;
+            if (target) Gather(target);
+            else foreach (var player in World.Players) if (IsHuman(player)) Gather(player);
+            if (!Looking)
+            {
+                orbitYaw = FreeLook.Settle(orbitYaw, dt);
+                orbitPitch = FreeLook.Settle(orbitPitch, dt);
+            }
+            orbitPitch = ClampPitch(orbitPitch);
+        }
+
+        void Gather(PlayerController player)
+        {
+            if (!player.Commands.lookAround) return;
+            held = true;
+            Orbit(player.Commands.orbit.x * Mathf.Rad2Deg, player.Commands.orbit.y * Mathf.Rad2Deg);
+        }
+
         void FollowTarget()
         {
             if (!target.IsEliminated) lastFeet = target.transform.position;
             float dt = Time.unscaledDeltaTime;
-            if (lens) view.Place(lens, lastFeet, target.LookYaw, target.LookPitch, dt, !target.IsEliminated && target.Commands.aimHeld);
+            if (lens) view.Place(lens, lastFeet, target.LookYaw + orbitYaw * Mathf.Deg2Rad, target.LookPitch + orbitPitch * Mathf.Deg2Rad,
+                dt, !target.IsEliminated && target.Commands.aimHeld);
             if (shake > 0f)
             {
                 var t = transform;
@@ -224,6 +285,8 @@ namespace Wreckabulary
             unfade.Clear();
             foreach (var pair in faded) if (pair.Value < now) unfade.Add(pair.Key);
             foreach (var renderer in unfade) faded.Remove(renderer);
+            occluding.Clear();
+            foreach (var pair in faded) occluding.Add(pair.Key);
         }
 
         void FindOccluders(Vector3 feet, float now)
@@ -268,62 +331,85 @@ namespace Wreckabulary
             }
         }
 
-        void RestoreFaded() => faded.Clear();
+        void RestoreFaded()
+        {
+            faded.Clear();
+            occluding.Clear();
+        }
 
         void Overview()
         {
             CursorPolicy.Apply(false);
+            float dt = Time.unscaledDeltaTime;
+            if (framesLayout) smooth = FramePlayers(dt);
+            else smooth = Vector3.Lerp(smooth, Drift(), 1f - Mathf.Exp(-3f * dt));
+            var at = smooth;
+            if (Orbiting && TryPivot(out var pivot)) at = OrbitAround(pivot);
+            else if (orbited)
+            {
+                transform.rotation = baseRotation;
+                orbited = false;
+            }
+            transform.position = at + Random.insideUnitSphere * shake;
+            shake = Mathf.MoveTowards(shake, 0f, dt * 1.5f);
+            FadeBlockers();
+        }
+
+        bool TryPivot(out Vector3 pivot)
+        {
+            pivot = new Vector3(party.X, party.Y, party.Z);
+            if (framesLayout) return true;
+            var forward = baseRotation * Vector3.forward;
+            if (forward.y > -.1f) return false;
+            pivot = smooth + forward * (-smooth.y / forward.y);
+            return true;
+        }
+
+        Vector3 OrbitAround(Vector3 pivot)
+        {
+            var offset = smooth - pivot;
+            var (x, y, z) = FreeLook.Orbit(offset.x, offset.y, offset.z, orbitYaw, orbitPitch);
+            var at = pivot + new Vector3(x, y, z);
+            transform.rotation = Quaternion.LookRotation(pivot - at);
+            orbited = true;
+            if (framesLayout && lens && lens.orthographic) lens.orthographicSize = FreeLook.WidenedSize(party.Size, lens.aspect, orbitYaw);
+            return at;
+        }
+
+        Vector3 FramePlayers(float dt)
+        {
+            seats.Clear();
+            foreach (var p in World.Players)
+            {
+                if (!p) continue;
+                var at = p.transform.position;
+                seats.Add(new PartySeat(at.x, at.y, at.z, p.Binding != null && p.Binding is not BotBinding, p.IsEliminated));
+            }
+            var cutaway = StoreyCutaway.Instance;
+            var shot = PartyCamera.Frame(seats, area, lens ? lens.aspect : 16f / 9f, cutaway ? cutaway.FocusY : 0f, ref party, dt);
+            boom = Mathf.Lerp(boom, shot.Solo ? soloDistance : 1f, 1f - Mathf.Exp(-3f * dt));
+            if (lens)
+            {
+                lens.orthographic = !shot.Solo;
+                if (shot.Solo) lens.fieldOfView = soloFieldOfView;
+                lens.orthographicSize = party.Size;
+            }
+            return new Vector3(party.X, party.Y, party.Z) + Overhead * boom;
+        }
+
+        Vector3 Drift()
+        {
             var centre = Vector3.zero;
             int n = 0;
-            int localCount = 0;
-            PlayerController localPlayer = null;
-            Vector3 low = Vector3.positiveInfinity, high = Vector3.negativeInfinity;
             foreach (var p in World.Players)
             {
                 if (!p || p.IsEliminated) continue;
                 centre += p.transform.position;
                 n++;
-                if (p.Binding != null && p.Binding is not BotBinding)
-                {
-                    localCount++; localPlayer = p;
-                    low = Vector3.Min(low, p.transform.position); high = Vector3.Max(high, p.transform.position);
-                }
             }
-            var goal = basePosition;
-            if (framesLayout)
-            {
-                bool followLocal = localCount == 1;
-                float aspect = lens ? Mathf.Max(.5f, lens.aspect) : 16f / 9f;
-                wholeHouseSize = HouseSize(aspect);
-                var focus = followLocal ? localPlayer.transform.position : layoutCentre;
-                float size = wholeHouseSize;
-                if (localCount > 1)
-                {
-                    var spread = high - low;
-                    size = Mathf.Clamp(Mathf.Max((spread.x + 9f) / aspect, (spread.z + 7f) * .85f) * .5f + 1f, 7.5f, wholeHouseSize);
-                    var middle = (low + high) * .5f;
-                    focus = Vector3.Lerp(middle, layoutCentre, Mathf.InverseLerp(wholeHouseSize * .7f, wholeHouseSize, size));
-                }
-                var cutaway = StoreyCutaway.Instance;
-                focus.y = cutaway ? cutaway.FocusY : 0f;
-                goal = focus + new Vector3(0f, 30f, -22f) * (followLocal ? soloDistance : 1f);
-                if (lens)
-                {
-                    lens.orthographic = !followLocal;
-                    if (followLocal) lens.fieldOfView = soloFieldOfView;
-                    lens.orthographicSize = Mathf.Lerp(lens.orthographicSize, size,
-                        1f - Mathf.Exp(-3f * Time.unscaledDeltaTime));
-                }
-            }
-            else if (n > 0)
-            {
-                centre /= n;
-                goal += new Vector3(centre.x * follow, 0f, centre.z * follow * 0.6f);
-            }
-            smooth = Vector3.Lerp(smooth, goal, 1f - Mathf.Exp(-3f * Time.unscaledDeltaTime));
-            transform.position = smooth + Random.insideUnitSphere * shake;
-            shake = Mathf.MoveTowards(shake, 0f, Time.unscaledDeltaTime * 1.5f);
-            FadeBlockers();
+            if (n == 0) return basePosition;
+            centre /= n;
+            return basePosition + new Vector3(centre.x * follow, 0f, centre.z * follow * 0.6f);
         }
     }
 }

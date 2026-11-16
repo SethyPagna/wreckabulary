@@ -1,8 +1,10 @@
 using System;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -41,12 +43,14 @@ namespace Wreckabulary
             ((RectTransform)back.transform).Place(Vector2.one, Vector2.one, new Vector2(-164, -60), new Vector2(-28, -16));
             var tabs = LobbyKit.Row(pauseSettingsContent, "Tabs", 12);
             tabs.Place(new Vector2(0, 1), Vector2.one, new Vector2(28, -124), new Vector2(-28, -72));
-            foreach (var id in new[] { "controls", "audio", "graphics" })
+            Selectable current = back;
+            foreach (var id in new[] { "gameplay", "controls", "audio", "graphics" })
             {
                 string selected = id;
                 var button = LobbyKit.Chip(tabs, id.ToUpperInvariant(), tab == id, () => ShowPauseSettings(selected));
                 button.name = "Pause tab " + id;
                 button.Size(210, 48);
+                if (tab == id) current = button;
             }
             var body = LobbyKit.Rect(pauseSettingsContent, "Settings body").Place(Vector2.zero, Vector2.one, new Vector2(28, 24), new Vector2(-28, -142));
             Selectable first = back;
@@ -58,10 +62,12 @@ namespace Wreckabulary
             else
             {
                 var list = LobbyKit.Scroll(body, "Settings scroll", 14);
-                if (tab == "audio") BuildPauseAudio(list);
+                if (tab == "gameplay") BuildPauseGameplay(list);
+                else if (tab == "audio") BuildPauseAudio(list);
                 else BuildPauseGraphics(list);
                 var choices = list.GetComponentsInChildren<Selectable>();
                 if (choices.Length > 0) first = choices[0];
+                ChainRows(list, current);
             }
             if (EventSystem.current && first) EventSystem.current.SetSelectedGameObject(first.gameObject);
         }
@@ -74,6 +80,7 @@ namespace Wreckabulary
 
         void HandlePauseBack()
         {
+            if (LeaveAsked) { CloseLeave(); return; }
             if (pauseControls && pauseControls.CancelRebind()) return;
             if (PauseSettingsShown)
             {
@@ -86,11 +93,25 @@ namespace Wreckabulary
 
         void ClosePauseSettings()
         {
-            // A CanvasGroup hide does not disable children or release their gameplay-input lease.
             if (pauseControls) pauseControls.Close();
             if (!pauseSettingsGroup) return;
             pauseSettingsGroup.alpha = 0f;
             pauseSettingsGroup.interactable = pauseSettingsGroup.blocksRaycasts = false;
+        }
+
+        void BuildPauseGameplay(Transform list)
+        {
+            PauseStepper(list, "Screen shake", () => ShakeLevels.Label(ScreenShake.Level), step => ScreenShake.Level = ShakeLevels.Step(ScreenShake.Level, step));
+            PauseToggle(list, "Damage numbers", () => GameplayPrefs.DamageNumbers, value => GameplayPrefs.DamageNumbers = value);
+            PauseToggle(list, "Effect words", () => GameplayPrefs.EffectWords, value => GameplayPrefs.EffectWords = value);
+            PauseToggle(list, "Furniture names", () => GameplayPrefs.FurnitureNames, value => GameplayPrefs.FurnitureNames = value);
+            PauseToggle(list, "Control tips", () => GameplayPrefs.ControlTips, value => GameplayPrefs.ControlTips = value);
+            PauseToggle(list, "Points per hit", () => CombatFeedbackOptions.ShowPoints, value => CombatFeedbackOptions.ShowPoints = value);
+            PauseAction(list, "Reset feedback", "RESET FEEDBACK", () =>
+            {
+                CombatFeedbackOptions.ResetToDefaults();
+                ShowPauseSettings("gameplay");
+            });
         }
 
         void BuildPauseAudio(Transform list)
@@ -144,6 +165,21 @@ namespace Wreckabulary
             });
         }
 
+        static void ChainRows(Transform list, Selectable above)
+        {
+            var rows = list.Cast<Transform>().Select(row => row.GetComponentsInChildren<Selectable>()).Where(row => row.Length > 0).ToArray();
+            for (int r = 0; r < rows.Length; r++)
+                for (int i = 0; i < rows[r].Length; i++)
+                    rows[r][i].navigation = new Navigation
+                    {
+                        mode = Navigation.Mode.Explicit,
+                        selectOnUp = r > 0 ? rows[r - 1][0] : above,
+                        selectOnDown = r + 1 < rows.Length ? rows[r + 1][0] : null,
+                        selectOnLeft = i > 0 ? rows[r][i - 1] : null,
+                        selectOnRight = i + 1 < rows[r].Length ? rows[r][i + 1] : null,
+                    };
+        }
+
         static T Next<T>(T[] values, T current, int step) => values[Mathf.Clamp(Array.IndexOf(values, current) + step, 0, values.Length - 1)];
 
         static RectTransform PauseSetting(Transform list, string name)
@@ -164,7 +200,6 @@ namespace Wreckabulary
             {
                 change(amount);
                 number.text = value();
-                // Presets also change the scale, edge smoothing and shadow values shown in other rows.
                 if (list.parent) RefreshPauseGraphicsLabels(list);
             }
             PauseAction(row, name + " less", "−", () => Step(-1), 52);

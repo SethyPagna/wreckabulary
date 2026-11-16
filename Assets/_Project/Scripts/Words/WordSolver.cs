@@ -1,12 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// Finds which words can be spelled from a set of letters.
-    /// Uses 26-slot letter counts, so each check is O(word length).
-    /// </summary>
     public static class WordSolver
     {
         public static int[] Count(IEnumerable<char> letters)
@@ -31,7 +28,6 @@ namespace Wreckabulary
             return true;
         }
 
-        /// <summary>Returns the letters still missing for a word ("SWORD" with no O → "O").</summary>
         public static string Missing(int[] have, string word)
         {
             var left = (int[])have.Clone();
@@ -45,30 +41,43 @@ namespace Wreckabulary
             return missing.ToString();
         }
 
-        /// <summary>Spellable words, best score first.</summary>
-        public static List<WordEntry> Spellable(IEnumerable<WordEntry> words, IEnumerable<char> letters)
+        public static SpellRole RoleOf(WordEntry entry, IReadOnlyCollection<string> objectives = null)
+        {
+            if (objectives != null && objectives.Contains(entry.word)) return SpellRole.Objective;
+            return GameConfig.Current.Items.TryGet(entry.word, out var item) && item.Enabled ? SpellChoice.RoleOf(item) : RoleOf(entry.category);
+        }
+
+        static SpellRole RoleOf(WordCategory category) => category switch
+        {
+            WordCategory.Weapon => SpellRole.Weapon,
+            WordCategory.Defence => SpellRole.Shield,
+            WordCategory.Chaos => SpellRole.Shot,
+            _ => SpellRole.Gadget,
+        };
+
+        public static List<WordEntry> Spellable(IEnumerable<WordEntry> words, IEnumerable<char> letters) =>
+            Spellable(words, letters, SpellNeeds.Unarmed, null);
+
+        public static List<WordEntry> Spellable(IEnumerable<WordEntry> words, IEnumerable<char> letters, SpellNeeds needs, IReadOnlyCollection<string> objectives)
         {
             var have = Count(letters);
-            return words.Where(w => CanSpell(have, w.word))
-                        .OrderByDescending(w => w.Score)
-                        .ToList();
+            return SpellChoice.Order(words.Where(w => CanSpell(have, w.word)), w => w.word, w => RoleOf(w, objectives), needs);
         }
 
         public static List<WordEntry> Spellable(WordDatabase db, IEnumerable<char> letters) => Spellable(db.Words, letters);
 
-        /// <summary>
-        /// Words you are close to spelling, for greyed-out hints in the word wheel.
-        /// Hidden words and words longer than you can carry are never hinted.
-        /// </summary>
         public static List<(WordEntry entry, string missing)> Hints(IEnumerable<WordEntry> words, IEnumerable<char> letters,
-                                                                    int capacity, int maxMissing = 1)
+                                                                    int capacity, int maxMissing = 1) =>
+            Hints(words, letters, capacity, SpellNeeds.Unarmed, null, maxMissing);
+
+        public static List<(WordEntry entry, string missing)> Hints(IEnumerable<WordEntry> words, IEnumerable<char> letters, int capacity,
+                                                                    SpellNeeds needs, IReadOnlyCollection<string> objectives, int maxMissing = 1)
         {
             var have = Count(letters);
-            return words.Where(w => !w.hidden && w.word.Length <= capacity && !CanSpell(have, w.word))
-                        .Select(w => (entry: w, missing: Missing(have, w.word)))
-                        .Where(h => h.missing.Length <= maxMissing)
-                        .OrderByDescending(h => h.entry.Score)
-                        .ToList();
+            var near = words.Where(w => !w.hidden && w.word.Length <= capacity && !CanSpell(have, w.word))
+                            .Select(w => (entry: w, missing: Missing(have, w.word)))
+                            .Where(h => h.missing.Length <= maxMissing);
+            return SpellChoice.Order(near, h => h.entry.word, h => RoleOf(h.entry, objectives), needs);
         }
     }
 }

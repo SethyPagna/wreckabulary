@@ -92,16 +92,18 @@ namespace Wreckabulary.Rules
         readonly Dictionary<string, Closure> byRoom = new Dictionary<string, Closure>(StringComparer.Ordinal);
         readonly GameRules rules;
         public IReadOnlyList<Closure> Closures { get; }
+        public double Interval { get; }
 
         public ClearOutSchedule(GameRules rules, IList<string> order)
         {
             this.rules = rules;
+            Interval = order is PackingOrder { Interval: > 0f } paced ? paced.Interval : rules.ClearOutInterval;
             var list = new List<Closure>();
             if (rules.ClearOutEnabled)
             {
                 for (int i = 0; i < order.Count; i++)
                 {
-                    double fill = rules.ClearOutFirstAt + i * rules.ClearOutInterval;
+                    double fill = rules.ClearOutFirstAt + i * Interval;
                     var c = new Closure(order[i], fill - rules.ClearOutWarnSeconds, fill, fill + rules.ClearOutFillSeconds);
                     list.Add(c);
                     byRoom[c.Room] = c;
@@ -129,6 +131,13 @@ namespace Wreckabulary.Rules
         public IEnumerable<string> OpenRooms(IEnumerable<string> all, double t) => all.Where(r => PhaseOf(r, t) != RoomPhase.Closed);
     }
 
+    public sealed class PackingOrder : List<string>
+    {
+        public PackingOrder(IEnumerable<string> rooms, float interval = 0f) : base(rooms) => Interval = interval;
+
+        public float Interval { get; }
+    }
+
     public sealed class FurniturePlacement
     {
         public string Word;
@@ -142,6 +151,9 @@ namespace Wreckabulary.Rules
         public string Name;
         public float MinX, MinZ, MaxX, MaxZ;
         public float FloorY;
+        public bool Outdoor;
+
+        public float Area => (MaxX - MinX) * (MaxZ - MinZ);
 
         public bool Contains(float x, float z) => x >= MinX && x <= MaxX && z >= MinZ && z <= MaxZ;
 
@@ -230,6 +242,10 @@ namespace Wreckabulary.Rules
         }
 
         public RoomBox Room(string name) => Rooms.FirstOrDefault(r => r.Name == name);
+
+        public bool IsOutdoor(string name) => Room(name)?.Outdoor ?? false;
+
+        public float FloorArea => Rooms.Sum(r => r.Area);
 
         public string RoomAt(float x, float z)
         {
@@ -410,7 +426,12 @@ namespace Wreckabulary.Rules
             foreach (var r in root["rooms"].Items)
             {
                 var b = r["bounds"].Floats(4);
-                h.Rooms.Add(new RoomBox { Name = r["name"].String(), MinX = b[0], MinZ = b[1], MaxX = b[2], MaxZ = b[3], FloorY = r["floorY"].Float(0f) });
+                string name = r["name"].String();
+                h.Rooms.Add(new RoomBox
+                {
+                    Name = name, MinX = b[0], MinZ = b[1], MaxX = b[2], MaxZ = b[3], FloorY = r["floorY"].Float(0f),
+                    Outdoor = r["outdoor"].Bool(name == "Garden"),
+                });
             }
             foreach (var d in root["doors"].Items)
             {
@@ -466,9 +487,17 @@ namespace Wreckabulary.Rules
                     var at = keepsake["at"].Floats(2);
                     h.Keepsakes.Add(new SpawnPoint { Room = keepsake["room"].String(), X = at[0], Z = at[1] });
                 }
+            var intervals = root.Has("clearOutIntervals") ? root["clearOutIntervals"] : null;
             if (root.Has("clearOutOrders"))
                 foreach (string mode in root["clearOutOrders"].Keys)
-                    h.ClearOutOrders[mode] = root["clearOutOrders"][mode].Strings();
+                    h.ClearOutOrders[mode] = new PackingOrder(root["clearOutOrders"][mode].Strings(),
+                        intervals != null && intervals.Has(mode) ? intervals[mode].Float() : 0f);
+            if (intervals != null)
+                foreach (string mode in intervals.Keys)
+                {
+                    if (!h.ClearOutOrders.ContainsKey(mode)) throw new FormatException($"{source}: clearOutIntervals.{mode} has no clear-out order");
+                    if (!(intervals[mode].Float() > 0f)) throw new FormatException($"{source}: clearOutIntervals.{mode} must be more than 0 seconds");
+                }
             return h;
         }
     }

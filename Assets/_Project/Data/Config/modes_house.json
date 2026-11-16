@@ -1,0 +1,61 @@
+{
+  "notes": "House-only modes for offline House party play, layered over rules.json. Each mode starts from its 'base' mode in rules.json and overrides only what it lists; it may not redefine a rules.json mode. Online play and courses never read this file.",
+  "modes": {
+    "Deathmatch": {
+      "notes": "Free-for-All. Everyone against everyone; a knockout comes back after 'respawn' seconds at the spawn farthest from enemies. First to knockoutsToWin, or the most knockouts when time runs out; a tie goes to sudden death. The Movers are off.",
+      "base": "Dibs",
+      "respawn": 3,
+      "roundsToWin": 1,
+      "roundTimeLimit": 240,
+      "knockoutsToWin": 10,
+      "clearOut": {
+        "enabled": false
+      }
+    },
+    "War": {
+      "notes": "Two teams with a shared pool of teamLives. Every knockout costs one; knockouts come back in their own end of the house. A team out of lives with nobody standing loses. Holding the middle room alone for holdBonus seconds earns a life.",
+      "base": "Duos",
+      "teamSize": 4,
+      "downed": false,
+      "respawn": 3,
+      "roundsToWin": 1,
+      "roundTimeLimit": 300,
+      "teamLives": 12,
+      "holdBonus": 20,
+      "clearOut": {
+        "enabled": false
+      }
+    },
+    "ShoppingList": {
+      "notes": "Item race. Every round each player gets the same list of 'items' items in the same random order, drawn from what the house's furniture can spell at least 'copies' times over. Spell the current item, then land a hit with it, place it or use it to tick it off. First to finish wins the round; at time up the most ticked wins, the earliest last tick breaking ties. Knockouts come back after 'respawn' seconds and keep their progress.",
+      "base": "Dibs",
+      "respawn": 3,
+      "roundsToWin": 3,
+      "roundTimeLimit": 180,
+      "clearOut": {
+        "enabled": false
+      },
+      "settings": {
+        "items": 4,
+        "copies": 4
+      }
+    },
+    "RiddleRush": {
+      "notes": "Word game: everyone gets the same riddle from riddles_house.json; the first to spell its answer scores a point, and the first to pointsToWin wins. After hintSeconds the first letter shows and the furniture that holds the answer pulses. A new riddle follows beatSeconds after a solve. Bots know the answer botKnowsMin to botKnowsMax seconds into a riddle. Knockouts come back after 'respawn' seconds. roundTimeLimit is only a safety cap: the most points wins, a tie is a draw.",
+      "base": "Dibs",
+      "respawn": 3,
+      "roundsToWin": 1,
+      "roundTimeLimit": 600,
+      "clearOut": {
+        "enabled": false
+      },
+      "settings": {
+        "pointsToWin": 5,
+        "hintSeconds": 40,
+        "beatSeconds": 3,
+        "botKnowsMin": 8,
+        "botKnowsMax": 15
+      }
+    }
+  }
+}

@@ -12,6 +12,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: kraft_Classic
+    second: {fileID: 2100000, guid: 77bf5005acc49914695871d8650308b6, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: wood_dark_Classic
     second: {fileID: 2100000, guid: 2dcb4e575e1250d4f8cc9572cc1d0f6f, type: 2}
   - first:

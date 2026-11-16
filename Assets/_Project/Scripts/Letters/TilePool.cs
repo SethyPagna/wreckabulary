@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>Reuses letter tiles instead of instantiating and destroying them.</summary>
     public class TilePool : MonoBehaviour
     {
         public static TilePool Instance { get; private set; }
@@ -13,12 +12,11 @@ namespace Wreckabulary
         [Tooltip("When more tiles than this are loose, the oldest one is recycled.")]
         [SerializeField] int maxActive = 160;
 
-        readonly Stack<LetterTile> free = new();
+        readonly List<LetterTile> free = new();
         readonly List<LetterTile> active = new();
 
         public IReadOnlyList<LetterTile> Active => active;
 
-        /// <summary>Returns the pool, creating one if the scene has none (used by tests).</summary>
         public static TilePool Ensure()
         {
             if (!Instance) new GameObject("TilePool").AddComponent<TilePool>();
@@ -33,7 +31,7 @@ namespace Wreckabulary
             {
                 var t = Instantiate(tilePrefab, transform);
                 t.gameObject.SetActive(false);
-                free.Push(t);
+                free.Add(t);
             }
         }
 
@@ -45,10 +43,25 @@ namespace Wreckabulary
         public LetterTile Get(char letter)
         {
             if (free.Count == 0 && active.Count >= maxActive) Release(active[0]);
-            var t = free.Count > 0 ? free.Pop() : Instantiate(tilePrefab, transform);
+            var t = free.Count > 0 ? TakeFree(char.ToUpperInvariant(letter)) : Instantiate(tilePrefab, transform);
             t.gameObject.SetActive(true);
             t.SetLetter(letter);
             active.Add(t);
+            return t;
+        }
+
+        LetterTile TakeFree(char letter)
+        {
+            int same = -1, blank = -1;
+            for (int i = free.Count - 1; i >= 0 && same < 0; i--)
+            {
+                char shown = free[i].ShownLetter;
+                if (shown == letter) same = i;
+                else if (shown == '\0' && blank < 0) blank = i;
+            }
+            int pick = same >= 0 ? same : blank >= 0 ? blank : free.Count - 1;
+            var t = free[pick];
+            free.RemoveAt(pick);
             return t;
         }
 
@@ -56,7 +69,7 @@ namespace Wreckabulary
         {
             if (!active.Remove(t)) return;
             t.gameObject.SetActive(false);
-            free.Push(t);
+            free.Add(t);
         }
 
         public void ReleaseAll()
@@ -64,7 +77,6 @@ namespace Wreckabulary
             for (int i = active.Count - 1; i >= 0; i--) Release(active[i]);
         }
 
-        /// <summary>Bursts the letters of a word out from a point.</summary>
         public void Burst(string letters, Vector3 origin, float force = 4f)
         {
             foreach (char c in letters)
@@ -74,7 +86,6 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>Bursts each letter out from the block it came from.</summary>
         public void BurstFrom(IReadOnlyList<Transform> blocks, string word, Vector3 centre, float force = 4f)
         {
             for (int i = 0; i < word.Length; i++)

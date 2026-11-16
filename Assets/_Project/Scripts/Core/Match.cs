@@ -12,6 +12,8 @@ namespace Wreckabulary
 
         public static GameRules Rules => GameConfig.Current.RulesFor(Mode);
 
+        public static HouseMode House => HouseModes.Find(Mode);
+
         public static string ModeForScene(string scene) => scene switch
         {
             Session.HubScene => "Hub",

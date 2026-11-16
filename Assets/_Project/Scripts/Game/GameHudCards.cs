@@ -15,6 +15,11 @@ namespace Wreckabulary
         public int Round;
         public bool Final, Won;
         public string Heading = "", Detail = "";
+        public string Eyebrow = "", Flavour = "", NextLabel = "", HomeLabel = "";
+        public bool Stats = true;
+        public string Winner = "";
+        public bool Draw;
+        public string[] Lines;
         public int Broken, Crafted, Damage;
         public MatchRecord Reward;
         public bool Best;
@@ -66,18 +71,30 @@ namespace Wreckabulary
         GameObject resultRoot;
         RectTransform resultShade;
         Image resultSpark;
-        TextMeshProUGUI resultEyebrow, resultHeading, resultFlavour, resultDetail, resultNextLabel;
+        TextMeshProUGUI resultEyebrow, resultHeading, resultFlavour, resultDetail, resultPlayers, resultNextLabel, resultHomeLabel;
         readonly TextMeshProUGUI[] resultStats = new TextMeshProUGUI[3];
-        GameObject resultReward, resultRewardGap, resultBest;
+        GameObject resultReward, resultRewardGap, resultBest, resultStatsRow, resultStatsGap, resultPlayersGap;
         TextMeshProUGUI resultCoins, resultScore;
-        Button resultNext;
+        Button resultNext, resultHome, pauseHome, howToPlay;
+        ModeGuidePanel guide;
         Action resultNextAction, resultHomeAction;
+        bool resultFinal;
         Coroutine resultSoon;
+        RectTransform banner;
+        CanvasGroup bannerFade;
+        TextMeshProUGUI bannerTitle, bannerLine;
+        float bannerAt = -10f;
+        const float BannerSeconds = 2.5f;
+        GameObject leaveRoot;
+        Button leaveKeep;
+        Button leaveReturnFocus;
+        Action leaveAction;
         Sprite sparkSprite;
-        RectTransform composer, composerTiles, caret;
+        RectTransform composer, composerTiles, composerWell, caret;
         Image composerEdge, composerRing;
         readonly ComposerTile[] tiles = new ComposerTile[TrayTiles];
-        GameObject composerPrev, composerNext, bookLink;
+        GameObject composerPrev, composerNext, bookLink, composerChrome;
+        int composerLayout = -1;
         string composerText = "", composerError;
         bool composerOpen;
         float caretAt, shakeAt = -10f, eraseNext;
@@ -86,6 +103,8 @@ namespace Wreckabulary
         Keyboard typingKeyboard;
         readonly System.Collections.Generic.List<(RectTransform card, float width)> cardWidths = new();
         GridLayoutGroup helpKeys;
+        readonly System.Collections.Generic.List<(RectTransform cap, TextMeshProUGUI key, TextMeshProUGUI does)> helpRows = new();
+        TextMeshProUGUI helpSpellStep, helpSwingStep;
         float fittedRoom = -1f;
 
         sealed class ComposerTile
@@ -99,12 +118,17 @@ namespace Wreckabulary
         public bool ComposerOpen => craftRoot && craftRoot.activeSelf;
         public string ComposerText => composerText;
         public string ComposerStatus => craftStatus ? craftStatus.text : "";
+        public bool ComposerLettersOnly => composerChrome && !composerChrome.activeSelf;
         public string ToastText => toast && toast.gameObject.activeSelf ? toastLabel.text : "";
         public bool CountdownShown => chip && chip.gameObject.activeSelf;
         public string CountdownText => CountdownShown ? chipDigit.text : "";
         public bool ResultShown => resultRoot && resultRoot.activeSelf;
         public bool ResultPending => resultSoon != null;
-        public bool HelpShown => helpCard && helpCard.activeSelf;
+        public bool HelpShown => (helpCard && helpCard.activeSelf) || GuideShown;
+        public bool GuideShown => guide && guide.Showing;
+        public bool BannerShown => banner && banner.gameObject.activeSelf;
+        public string BannerText => BannerShown ? bannerTitle.text + " · " + bannerLine.text : "";
+        public bool LeaveAsked => leaveRoot && leaveRoot.activeSelf;
 
         TMP_FontAsset GameFont => GameAssets.I ? GameAssets.I.font : TMP_Settings.defaultFontAsset;
         TMP_FontAsset DisplayFont => LobbyFonts.Display ? LobbyFonts.Display : GameFont;
@@ -247,9 +271,11 @@ namespace Wreckabulary
         void BuildCards()
         {
             BuildChip();
+            BuildBanner();
             BuildModeActions();
             BuildResult();
             BuildToast();
+            BuildLeave();
             typingKeyboard = Keyboard.current;
             if (typingKeyboard != null) typingKeyboard.onTextInput += OnTextTyped;
         }
@@ -288,6 +314,88 @@ namespace Wreckabulary
             chip.gameObject.SetActive(false);
         }
 
+        void BuildBanner()
+        {
+            banner = Put(Rect("Round banner", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -100f), new Vector2(720f, 116f));
+            bannerFade = banner.gameObject.AddComponent<CanvasGroup>();
+            bannerFade.blocksRaycasts = bannerFade.interactable = false;
+            SoftShadow(banner, ToastDrop, 37.5f, -10f);
+            Paint(Cover("Face", banner), LobbyIcons.RoundedSprite(22), ToastFill);
+            Paint(Cover("Edge", banner), LobbyIcons.FrameSprite(22, 1), ToastEdge);
+            bannerTitle = Copy(banner, "Title", "", DisplayFont, 44f, ToastInk);
+            Put(bannerTitle.rectTransform, new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -12f), new Vector2(680f, 54f));
+            bannerTitle.textWrappingMode = TextWrappingModes.NoWrap;
+            bannerLine = Copy(banner, "Line", "", LobbyFonts.Body, 24f, ToastInk);
+            Put(bannerLine.rectTransform, new Vector2(.5f, 0f), new Vector2(.5f, 0f), new Vector2(0f, 14f), new Vector2(680f, 34f));
+            bannerLine.textWrappingMode = TextWrappingModes.NoWrap;
+            banner.gameObject.SetActive(false);
+        }
+
+        public void ShowBanner(string title, string line)
+        {
+            if (!banner) return;
+            bannerTitle.text = title ?? ""; bannerLine.text = line ?? "";
+            float wide = Mathf.Max(bannerTitle.GetPreferredValues(bannerTitle.text).x, bannerLine.GetPreferredValues(bannerLine.text).x);
+            float width = Mathf.Clamp(wide + 80f, 420f, Mathf.Max(420f, safe.rect.width * .9f));
+            banner.sizeDelta = new Vector2(width, 116f);
+            bannerTitle.rectTransform.sizeDelta = new Vector2(width - 40f, 54f);
+            bannerLine.rectTransform.sizeDelta = new Vector2(width - 40f, 34f);
+            bannerAt = Time.unscaledTime; bannerFade.alpha = 0f;
+            banner.gameObject.SetActive(true);
+            banner.SetAsLastSibling();
+        }
+
+        void BuildLeave()
+        {
+            var shade = Rect("Leave match", UiCanvas.transform, Vector2.zero, Vector2.zero, Vector2.zero);
+            Stretch(shade);
+            var dim = shade.gameObject.AddComponent<Image>(); dim.color = ModalShade; dim.raycastTarget = true;
+            leaveRoot = shade.gameObject;
+            var card = Card("Leave card", shade, 520f, 44f);
+            Copy(card, "Eyebrow", "LEAVE MATCH", LobbyFonts.Black, 18f, Eyebrow, 1f);
+            Gap(card, 12.5f);
+            Copy(card, "Heading", "Leave this match?", LobbyFonts.Black, 36f, Ink, -3f);
+            Gap(card, 12.5f);
+            Copy(card, "Blurb", "Everyone goes back to the lobby.", LobbyFonts.Body, 20f, BodyInk);
+            Gap(card, 22.5f);
+            leaveKeep = CardButton(card, "Keep playing", "KEEP PLAYING →", CloseLeave, true, 60f);
+            Gap(card, 12.5f);
+            CardButton(card, "Leave", "Leave match", ConfirmLeave, false, 50f);
+            leaveRoot.SetActive(false);
+        }
+
+        void AskLeave(Action leave, Button back)
+        {
+            if (!leaveRoot) { leave?.Invoke(); return; }
+            leaveAction = leave; leaveReturnFocus = back;
+            leaveRoot.SetActive(true);
+            leaveRoot.transform.SetAsLastSibling();
+            FocusOn(leaveKeep);
+        }
+
+        void CloseLeave()
+        {
+            if (!LeaveAsked) return;
+            leaveRoot.SetActive(false);
+            leaveAction = null;
+            FocusOn(leaveReturnFocus);
+        }
+
+        void ConfirmLeave()
+        {
+            var leave = leaveAction;
+            leaveAction = null;
+            if (leaveRoot) leaveRoot.SetActive(false);
+            leave?.Invoke();
+        }
+
+        void LeaveFromResult()
+        {
+            var home = resultHomeAction;
+            HideResult();
+            if (home != null) home(); else GoHome();
+        }
+
         void BuildModeActions()
         {
             var row = Put(Rect("Mode actions", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -300f), new Vector2(476f, 68f));
@@ -295,7 +403,7 @@ namespace Wreckabulary
             var play = CardButton(row, "Play", "START WITH AI →", () => { if (AcceptsGameplayInput) modeAction?.Invoke(); }, true, 60f);
             Put((RectTransform)play.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, new Vector2(260f, 60f));
             modePlayLabel = LabelOf(play);
-            var home = CardButton(row, "Home", "Back to the house party", GoHome, false, 60f);
+            var home = CardButton(row, "Home", "Leave match", GoHome, false, 60f);
             Put((RectTransform)home.transform, Vector2.one, Vector2.one, Vector2.zero, new Vector2(200f, 60f));
             modeActionsGroup = row.gameObject.AddComponent<CanvasGroup>();
             RefreshModeActionVisibility();
@@ -386,16 +494,18 @@ namespace Wreckabulary
             Gap(card, 12.5f);
             CardButton(card, "Pause controls", "Controls", () => ShowPauseSettings("controls"), false, 50f);
             Gap(card, 10f);
-            CardButton(card, "Pause settings", "Audio & graphics", () => ShowPauseSettings("audio"), false, 50f);
+            CardButton(card, "Pause settings", "Settings", () => ShowPauseSettings("audio"), false, 50f);
             Gap(card, 10f);
-            CardButton(card, "Pause how to play", "How to play", () => ShowHelp(true), false, 50f);
+            howToPlay = CardButton(card, "Pause how to play", "How to play", () => ShowHelp(true), false, 50f);
             Gap(card, 12.5f);
-            CardButton(card, "Pause home", "Back to the house party", GoHome, false, 46f);
+            pauseHome = CardButton(card, "Pause home", "Leave match", () => AskLeave(GoHome, pauseHome), false, 46f);
             bool touchable = Touchscreen.current != null || Application.isMobilePlatform;
             var gap = Gap(card, 12.5f); gap.SetActive(touchable);
             var touch = CardButton(card, "Touch switch", "Touch controls: off", () => { touchChosen = true; ShowTouchControls(!TouchControlsShown); }, false, 46f);
             touchToggle = LabelOf(touch);
             touch.gameObject.SetActive(touchable);
+            Gap(card, 10f).SetActive(touchable);
+            CardButton(card, "Pause touch layout", "Touch layout", TouchLayoutEditor.Open, false, 46f).gameObject.SetActive(touchable);
 
             BuildHelp(shade);
             StateController.Register(UIState.PauseMenu, pauseRoot.AddComponent<CanvasGroup>(), resumeButton.gameObject);
@@ -413,16 +523,13 @@ namespace Wreckabulary
             Gap(card, 22f);
 
             var rules = GameConfig.Current.Rules.Defaults;
-            int recipes = GameConfig.Current.Items.Enabled.Count();
             bool phone = Application.isMobilePlatform;
             var keys = DesktopBinding.Shared;
-            string spell = phone ? "SPELL" : ControlHints.KeyOf(keys.Spell);
-            string swing = phone ? "SMASH" : ControlHints.KeyOf(keys.Attack);
             var steps = Rect("Steps", card, Vector2.zero, Vector2.zero, Vector2.zero);
             var row = steps.gameObject.AddComponent<HorizontalLayoutGroup>();
             row.spacing = 25f; row.childControlWidth = row.childControlHeight = true;
             row.childForceExpandWidth = true; row.childForceExpandHeight = false;
-            void Step(string number, string title, string text)
+            TextMeshProUGUI Step(string number, string title, string text)
             {
                 var column = Rect("Step " + number, steps, Vector2.zero, Vector2.zero, Vector2.zero);
                 var stack = column.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -431,11 +538,13 @@ namespace Wreckabulary
                 var size = column.gameObject.AddComponent<LayoutElement>(); size.preferredWidth = 1f; size.flexibleWidth = 1f;
                 Copy(column, "Number", number, DisplayFont, 35f, StepNumber).alignment = TextAlignmentOptions.Left;
                 Copy(column, "Title", title, LobbyFonts.Black, 20f, Ink).alignment = TextAlignmentOptions.Left;
-                Copy(column, "Text", text, LobbyFonts.Body, 18f, StepInk).alignment = TextAlignmentOptions.TopLeft;
+                var body = Copy(column, "Text", text, LobbyFonts.Body, 18f, StepInk);
+                body.alignment = TextAlignmentOptions.TopLeft;
+                return body;
             }
             Step("01", "Break it.", "Smash the house's own furniture. A TABLE breaks into T, A, B, L and E.");
-            Step("02", "Spell it.", $"Walk over letters; your bag holds {rules.MaxLetters}. Press {spell} to craft any of the {recipes} recipes.");
-            Step("03", "Bring it.", $"Press {swing} to swing gear, throw it or set down a tool. Then wreck the place.");
+            helpSpellStep = Step("02", "Spell it.", SpellStepText(phone ? (InputBinding)TouchBinding.Shared : keys));
+            helpSwingStep = Step("03", "Bring it.", SwingStepText(phone ? "SMASH" : SwingKey(keys)));
 
             if (!phone)
             {
@@ -444,16 +553,8 @@ namespace Wreckabulary
                 helpKeys = table.gameObject.AddComponent<GridLayoutGroup>();
                 helpKeys.cellSize = new Vector2(356f, 36f); helpKeys.spacing = new Vector2(20f, 8f);
                 helpKeys.constraint = GridLayoutGroup.Constraint.FixedColumnCount; helpKeys.constraintCount = 2;
-                var entries = new[]
-                {
-                    ("WASD", "move"), ("MOUSE", "aim"),
-                    (ControlHints.KeyOf(keys.Attack), "smash, throw, place, block"), (ControlHints.KeyOf(keys.Aim), "hold to aim"),
-                    (ControlHints.KeyOf(keys.Dodge), "dodge"), (ControlHints.KeyOf(keys.Jump), "jump"),
-                    (ControlHints.KeyOf(keys.Spell), "spell"), (ControlHints.KeyOf(keys.Hand1) + " " + ControlHints.KeyOf(keys.Hand2), "switch hand"),
-                    (ControlHints.KeyOf(keys.Bag), "hold for bag and map"), (ControlHints.KeyOf(keys.Interact), "pick up, hold to revive"),
-                    (ControlHints.KeyOf(keys.Drop), "hold to drop gear"), (ControlHints.KeyOf(keys.Pause), "pause"),
-                };
-                foreach (var (key, what) in entries)
+                helpRows.Clear();
+                foreach (var (key, what) in HelpEntries(false))
                 {
                     var cell = Rect(what, table, Vector2.zero, Vector2.zero, Vector2.zero);
                     var cap = Put(Rect("Key", cell, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(0f, .5f), new Vector2(0f, .5f), Vector2.zero, new Vector2(40f, 30f));
@@ -462,10 +563,11 @@ namespace Wreckabulary
                     Paint(Cover("Edge", cap), LobbyIcons.FrameSprite(8, 1), Hair);
                     var name = Copy(cap, "Name", key, LobbyFonts.Black, 18f, Ink);
                     Stretch(name.rectTransform); name.textWrappingMode = TextWrappingModes.NoWrap;
-                    cap.sizeDelta = new Vector2(Mathf.Max(40f, name.GetPreferredValues(key).x + 20f), 30f);
                     var does = Copy(cell, "Does", what, LobbyFonts.Body, 18f, StepInk);
-                    Stretch(does.rectTransform); does.rectTransform.offsetMin = new Vector2(cap.sizeDelta.x + 12f, 0f);
+                    Stretch(does.rectTransform);
                     does.alignment = TextAlignmentOptions.MidlineLeft; does.textWrappingMode = TextWrappingModes.NoWrap;
+                    helpRows.Add((cap, name, does));
+                    ShowHelpRow(helpRows[^1], key, what);
                 }
             }
             Gap(card, 18f);
@@ -475,32 +577,121 @@ namespace Wreckabulary
             helpCard.SetActive(false);
         }
 
+        public static string SpellStepText(InputBinding binding)
+        {
+            string bag = $"Walk over letters (your bag holds {GameConfig.Current.Rules.Defaults.MaxLetters}). ";
+            var keys = DesktopBinding.Shared;
+            return binding switch
+            {
+                TouchBinding => bag + "Tap SPELL, pick a word, tap SPELL.",
+                GamepadBinding => bag + $"Hold {ControlHints.PadSpell}, pick a word with the stick, let go.",
+                KeyboardBinding half => bag + $"Hold {SpellKeyLabel(half)}, pick a word with {(half.Id.EndsWith("Left", StringComparison.Ordinal) ? "W and S" : "the arrow keys")}, let go.",
+                _ => bag + $"Press {ControlHints.KeyOf(keys.Spell)}, type a word, press Enter. Or hold {ControlHints.KeyOf(keys.Bag)} and click a lit card.",
+            };
+        }
+
+        public static string SwingStepText(string key) => $"Press {key} to swing, throw or set down an item. Harder words carry effects.";
+
+        static string SwingKey(InputBinding binding) => binding switch
+        {
+            GamepadBinding => "X",
+            TouchBinding => "SMASH",
+            KeyboardBinding half => half.Id.EndsWith("Left", StringComparison.Ordinal) ? "J" : "/",
+            _ => ControlHints.KeyOf(DesktopBinding.Shared.Attack),
+        };
+
+        public static (string key, string what)[] HelpEntries(bool gamepad)
+        {
+            if (gamepad)
+                return new[]
+                {
+                    ("L-STICK", "move"), ("R-STICK", "aim"),
+                    ("X", "smash, throw, place, block"), ("LT", "hold to block"),
+                    ("B", "dodge"), ("A", "jump"),
+                    (ControlHints.PadSpell, "hold to spell"), (ControlHints.PadHands, "switch hand"),
+                    (ControlHints.PadBag, "hold for bag and map"), ("RT", "pick up, hold to revive"),
+                    ("LB", "hold to drop an item"), ("START", "pause"),
+                };
+            var keys = DesktopBinding.Shared;
+            return new[]
+            {
+                ("WASD", "move"), ("MOUSE", "aim"),
+                (ControlHints.KeyOf(keys.Attack), "smash, throw, place, block"), (ControlHints.KeyOf(keys.Aim), "hold to aim"),
+                (ControlHints.KeyOf(keys.Dodge), "dodge"), (ControlHints.KeyOf(keys.Jump), "jump"),
+                (ControlHints.KeyOf(keys.Spell), "spell"), (ControlHints.KeyOf(keys.Hand1) + " " + ControlHints.KeyOf(keys.Hand2), "switch hand"),
+                (ControlHints.KeyOf(keys.Bag), "hold for bag and map"), (ControlHints.KeyOf(keys.Interact), "pick up, hold to revive"),
+                (ControlHints.KeyOf(keys.Drop), "hold to drop an item"), (ControlHints.KeyOf(keys.Pause), "pause"),
+            };
+        }
+
+        static void ShowHelpRow((RectTransform cap, TextMeshProUGUI key, TextMeshProUGUI does) row, string key, string what)
+        {
+            row.key.text = key; row.does.text = what;
+            row.cap.sizeDelta = new Vector2(Mathf.Max(40f, row.key.GetPreferredValues(key).x + 20f), 30f);
+            row.does.rectTransform.offsetMin = new Vector2(row.cap.sizeDelta.x + 12f, 0f);
+        }
+
+        void FillHelp()
+        {
+            if (Application.isMobilePlatform) return;
+            bool gamepad = LocalPlayer && LocalPlayer.Binding is GamepadBinding;
+            var entries = HelpEntries(gamepad);
+            for (int i = 0; i < helpRows.Count && i < entries.Length; i++) ShowHelpRow(helpRows[i], entries[i].key, entries[i].what);
+            var binding = TouchControlsShown ? TouchBinding.Shared
+                : LocalPlayer && LocalPlayer.Binding is GamepadBinding or KeyboardBinding ? LocalPlayer.Binding : DesktopBinding.Shared;
+            if (helpSpellStep) helpSpellStep.text = SpellStepText(binding);
+            if (helpSwingStep) helpSwingStep.text = SwingStepText(SwingKey(binding));
+        }
+
         void ShowHelp(bool on)
         {
             if (!helpCard) return;
+            if (on && OpenGuide()) return;
+            bool fromGuide = !on && CloseGuide();
+            if (on) FillHelp();
             helpCard.SetActive(on);
             pauseCard.SetActive(!on);
-            FocusOn(on ? helpDone : resumeButton);
+            FocusOn(on ? helpDone : fromGuide ? howToPlay : resumeButton);
+        }
+
+        string GuideMode => UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == Session.TutorialScene ? HouseModes.Tutorial : Match.Mode;
+
+        InputBinding GuideViewer => TouchControlsShown ? TouchBinding.Shared : LocalPlayer ? LocalPlayer.Binding : null;
+
+        bool OpenGuide()
+        {
+            if (!ModeGuides.Has(GuideMode)) return false;
+            helpCard.SetActive(false);
+            pauseCard.SetActive(false);
+            guide = ModeGuides.Show(GuideMode, GuideViewer, GuideClosed);
+            if (!guide) { pauseCard.SetActive(true); return false; }
+            guide.KeepWhile = () => this && Paused;
+            return true;
+        }
+
+        bool CloseGuide()
+        {
+            if (!guide) return false;
+            var open = guide;
+            guide = null;
+            open.Close();
+            return true;
+        }
+
+        void GuideClosed()
+        {
+            guide = null;
+            if (!this || !Paused || PauseSettingsShown || LeaveAsked || (helpCard && helpCard.activeSelf)) return;
+            pauseCard.SetActive(true);
+            FocusOn(howToPlay);
         }
 
         string ModeBlurb()
         {
             if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == Session.TutorialScene)
                 return "A friendly room to try smashing, spelling and every skill.";
-            return Match.Mode switch
-            {
-                "Duos" => "Watch each other’s backs. Hold interact to revive your buddy.",
-                "MovingOut" => "Find every keepsake, then get the whole crew to the van before the house is packed.",
-                "MovingDay" => "Spell the checklist furniture and place it in its marked room.",
-                _ => $"Smash, spell, survive. First to {NumberWord(Match.Rules.RoundsToWin)} rounds wins.",
-            };
+            return HouseGoals.Blurb(Match.Mode, Match.Rules);
         }
-
-        static string NumberWord(int n) => n switch
-        {
-            1 => "one", 2 => "two", 3 => "three", 4 => "four", 5 => "five", 6 => "six", 7 => "seven", 8 => "eight", 9 => "nine",
-            _ => n.ToString(),
-        };
 
         void OnPauseShown()
         {
@@ -524,9 +715,13 @@ namespace Wreckabulary
             Gap(card, 8f);
             resultFlavour = Copy(card, "Flavour", "", LobbyFonts.Body, 15f, BodyInk);
             resultDetail = Copy(card, "Detail", "", LobbyFonts.Black, 15f, Ink);
-            Gap(card, 22.5f);
+            resultPlayersGap = Gap(card, 14f);
+            resultPlayers = Copy(card, "Players", "", LobbyFonts.Body, 18f, Ink);
+            resultPlayers.lineSpacing = 6f;
+            resultStatsGap = Gap(card, 22.5f);
 
             var stats = Rect("Stats", card, Vector2.zero, Vector2.zero, Vector2.zero);
+            resultStatsRow = stats.gameObject;
             var statsSize = stats.gameObject.AddComponent<LayoutElement>(); statsSize.preferredHeight = statsSize.minHeight = 86f;
             Image Line(string label, Vector2 min, Vector2 max, Vector2 offsetMin, Vector2 offsetMax)
             {
@@ -539,7 +734,7 @@ namespace Wreckabulary
             Line("Bottom line", Vector2.zero, new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, 1f));
             Line("Divider 1", new Vector2(1f / 3f, 0f), new Vector2(1f / 3f, 1f), new Vector2(0f, 16f), new Vector2(1f, -16f));
             Line("Divider 2", new Vector2(2f / 3f, 0f), new Vector2(2f / 3f, 1f), new Vector2(0f, 16f), new Vector2(1f, -16f));
-            string[] names = { "OBJECTS WRECKED", "WORDS CRAFTED", "DAMAGE DEALT" };
+            string[] names = { "OBJECTS WRECKED", "WORDS SPELLED", "DAMAGE DEALT" };
             for (int i = 0; i < 3; i++)
             {
                 var cell = Rect(names[i], stats, Vector2.zero, Vector2.zero, Vector2.zero);
@@ -574,12 +769,12 @@ namespace Wreckabulary
             resultNext = CardButton(card, "Next", "NEXT ROUND →", ConfirmResult, true, 60f);
             resultNextLabel = LabelOf(resultNext);
             Gap(card, 12.5f);
-            CardButton(card, "Result home", "Back to the house party", () =>
+            resultHome = CardButton(card, "Result home", "Leave match", () =>
             {
-                var home = resultHomeAction;
-                HideResult();
-                if (home != null) home(); else GoHome();
+                if (resultFinal) LeaveFromResult();
+                else AskLeave(LeaveFromResult, resultHome);
             }, false, 46f);
+            resultHomeLabel = LabelOf(resultHome);
             resultRoot.SetActive(false);
         }
 
@@ -592,11 +787,16 @@ namespace Wreckabulary
             if (bagPinned) SetBagPinned(false);
             resultNextAction = next; resultHomeAction = home;
             resultSpark.sprite = result.Won ? SparkSprite() : LobbyIcons.Get(LobbyIcons.Arrow);
-            resultEyebrow.text = result.Final ? "HOUSE PARTY COMPLETE" : $"ROUND {result.Round} COMPLETE";
+            resultFinal = result.Final;
+            resultEyebrow.text = Or(result.Eyebrow, result.Final ? "HOUSE PARTY COMPLETE" : $"ROUND {result.Round} COMPLETE");
             resultHeading.text = result.Heading ?? "";
-            resultFlavour.text = result.Won ? "A little imagination goes a long way." : "Every good mess teaches you a new trick.";
+            resultFlavour.text = Or(result.Flavour, result.Won ? "A little imagination goes a long way." : "Every good mess teaches you a new trick.");
             resultDetail.text = result.Detail ?? "";
             resultDetail.gameObject.SetActive(!string.IsNullOrEmpty(result.Detail));
+            bool lines = result.Lines != null && result.Lines.Length > 0;
+            resultPlayers.text = lines ? string.Join('\n', result.Lines) : "";
+            resultPlayers.gameObject.SetActive(lines); resultPlayersGap.SetActive(lines);
+            resultStatsRow.SetActive(result.Stats); resultStatsGap.SetActive(result.Stats);
             resultStats[0].text = result.Broken.ToString();
             resultStats[1].text = result.Crafted.ToString();
             resultStats[2].text = result.Damage.ToString();
@@ -608,12 +808,15 @@ namespace Wreckabulary
                 resultScore.text = "Score " + result.Reward.Score;
                 resultBest.SetActive(result.Best);
             }
-            resultNextLabel.text = result.Final ? "PLAY AGAIN →" : "NEXT ROUND →";
+            resultNextLabel.text = Or(result.NextLabel, result.Final ? "PLAY AGAIN →" : "NEXT ROUND →");
+            resultHomeLabel.text = Or(result.HomeLabel, "Leave match");
             resultRoot.SetActive(true);
             resultRoot.transform.SetAsLastSibling();
             RefreshBagPanel();
             FocusOn(resultNext);
         }
+
+        static string Or(string chosen, string fallback) => string.IsNullOrEmpty(chosen) ? fallback : chosen;
 
         public void ShowResultSoon(HudResult result, Action next, float delay = .9f)
         {
@@ -637,12 +840,13 @@ namespace Wreckabulary
         {
             if (resultSoon != null) { StopCoroutine(resultSoon); resultSoon = null; }
             resultNextAction = resultHomeAction = null;
+            if (LeaveAsked && leaveReturnFocus == resultHome) { leaveRoot.SetActive(false); leaveAction = null; }
             if (resultRoot && resultRoot.activeSelf) { resultRoot.SetActive(false); ClearFocus(); }
         }
 
         public void ConfirmResult()
         {
-            if (!ResultShown) return;
+            if (!ResultShown || LeaveAsked) return;
             var next = resultNextAction;
             HideResult();
             next?.Invoke();
@@ -684,18 +888,21 @@ namespace Wreckabulary
             composerRing = Paint(Cover("Ring", composer, 5f), LobbyIcons.FrameSprite(30, 5), ReadyRing);
             composerRing.enabled = false;
 
-            var eyebrow = Copy(composer, "Eyebrow", "SPELL A WORD", LobbyFonts.Black, 12.5f, Faded, 21f);
+            composerChrome = Rect("Chrome", composer, Vector2.zero, Vector2.zero, Vector2.zero).gameObject;
+            Stretch((RectTransform)composerChrome.transform);
+            var chrome = (RectTransform)composerChrome.transform;
+            var eyebrow = Copy(chrome, "Eyebrow", "SPELL A WORD", LobbyFonts.Black, 12.5f, Faded, 21f);
             Put(eyebrow.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -16f), new Vector2(300f, 40f));
             eyebrow.alignment = TextAlignmentOptions.MidlineLeft; eyebrow.textWrappingMode = TextWrappingModes.NoWrap;
-            var book = MakeButton("Recipe book", composer, Vector2.one, new Vector2(-70f, -16f), new Vector2(170f, 40f),
+            var book = MakeButton("Recipe book", chrome, Vector2.one, new Vector2(-70f, -16f), new Vector2(170f, 40f),
                 "<u>Recipe book</u>", () => SetBagPinned(true), Color.clear);
             var bookText = book.GetComponentInChildren<TextMeshProUGUI>();
             bookText.fontSize = 13f; bookText.color = Faded; bookText.alignment = TextAlignmentOptions.Right;
             bookLink = book.gameObject;
-            var cancel = RoundButton(composer, "Cancel", LobbyIcons.Close, CancelCraft, 40f);
+            var cancel = RoundButton(chrome, "Cancel", LobbyIcons.Close, CancelCraft, 40f);
             Put((RectTransform)cancel.transform, Vector2.one, Vector2.one, new Vector2(-20f, -16f), Vector2.one * 40f);
 
-            var well = Put(Rect("Field", composer, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -64f), new Vector2(490f, 75f));
+            var well = composerWell = Put(Rect("Field", composer, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -64f), new Vector2(490f, 75f));
             Paint(well, LobbyIcons.RoundedSprite(16), Well);
             composerTiles = Rect("Tiles", well, Vector2.zero, Vector2.zero, Vector2.zero);
             Stretch(composerTiles);
@@ -714,12 +921,12 @@ namespace Wreckabulary
             composerPrev = Chevron(well, "Previous", false, () => { if (LocalPlayer) LocalPlayer.Summoner.Step(-1); });
             composerNext = Chevron(well, "Next", true, () => { if (LocalPlayer) LocalPlayer.Summoner.Step(1); });
 
-            buildButton = CardButton(composer, "Build", "SPELL", SpellNow, true, 75f);
+            buildButton = CardButton(chrome, "Build", "SPELL", SpellNow, true, 75f);
             Put((RectTransform)buildButton.transform, Vector2.one, Vector2.one, new Vector2(-20f, -64f), new Vector2(110f, 75f));
             buildLabel = LabelOf(buildButton);
             buildLabel.textWrappingMode = TextWrappingModes.Normal; buildLabel.lineSpacing = -12f;
 
-            craftStatus = Copy(composer, "Craft status", "", LobbyFonts.Body, 13f, Faded);
+            craftStatus = Copy(chrome, "Craft status", "", LobbyFonts.Body, 13f, Faded);
             Put(craftStatus.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -150f), new Vector2(610f, 24f));
             craftStatus.alignment = TextAlignmentOptions.MidlineLeft;
             craftStatus.enableAutoSizing = true; craftStatus.fontSizeMin = 10f; craftStatus.fontSizeMax = 13f;
@@ -771,10 +978,21 @@ namespace Wreckabulary
                 if (typed) ClearFocus();
             }
             composerOpen = open;
+            LayComposer(typed);
             if (craftRoot.activeSelf != open) craftRoot.SetActive(open);
             DesktopBinding.Typing = (open && typed) || composerReleaseWait;
             if (summoner && !summoner.IsSpelling && !summoner.IsCrafting && TouchBinding.Shared.CraftOpen && !TouchBinding.Shared.CraftPressPending)
                 TouchBinding.Shared.SetCraftOpen(false);
+        }
+
+        void LayComposer(bool typed)
+        {
+            int layout = typed ? 1 : 0;
+            if (composerLayout == layout) return;
+            composerLayout = layout;
+            composerChrome.SetActive(!typed);
+            composer.sizeDelta = typed ? new Vector2(530f, 103f) : new Vector2(650f, 189f);
+            composerWell.anchoredPosition = typed ? new Vector2(20f, -14f) : new Vector2(20f, -64f);
         }
 
         void OnTextTyped(char typed)
@@ -912,6 +1130,7 @@ namespace Wreckabulary
             if (!composerOpen || !LocalPlayer) return;
             var summoner = LocalPlayer.Summoner;
             bool typed = TypedMode;
+            LayComposer(typed);
             string word, line;
             int state;
             if (typed)
@@ -947,7 +1166,7 @@ namespace Wreckabulary
             string caption = typed ? "SPELL\n<size=62%><alpha=#99>ENTER</size>" : "SPELL";
             if (buildLabel.text != caption) buildLabel.text = caption;
             float shake = (Time.unscaledTime - shakeAt) / .24f;
-            float x = shake < 1f ? Mathf.Sin(shake * Mathf.PI * 6f) * 8.75f * (1f - shake) : 0f;
+            float x = shake < 1f ? Mathf.Sin(shake * Mathf.PI * 6f) * 8.75f * (1f - shake) * ScreenShake.Scale : 0f;
             composer.anchoredPosition = new Vector2(x, composer.anchoredPosition.y);
         }
 
@@ -978,7 +1197,7 @@ namespace Wreckabulary
                 tile.lip.color = got ? TileEdge : MissingLip;
                 tile.letter.color = got ? Ink : Bad;
                 tile.letter.fontSize = 32f * scale;
-                string text = letter.ToString();
+                string text = One(letter);
                 if (tile.letter.text != text) tile.letter.text = text;
             }
             bool blink = typed && (Time.unscaledTime - caretAt) % 1f < .5f;
@@ -1008,6 +1227,12 @@ namespace Wreckabulary
                     float pulse = Mathf.Clamp01((now - chipPulseAt) / .25f);
                     chipDigit.rectTransform.localScale = Vector3.one * Mathf.Lerp(1.18f, 1f, pulse);
                 }
+            }
+            if (banner && banner.gameObject.activeSelf)
+            {
+                float age = now - bannerAt;
+                if (age >= BannerSeconds) banner.gameObject.SetActive(false);
+                else bannerFade.alpha = Mathf.Clamp01(Mathf.Min(age / .2f, (BannerSeconds - age) / .3f)) * (bagHidden ? 0f : 1f);
             }
             RefreshModeActionVisibility();
             ReadComposerKeys();

@@ -49,6 +49,16 @@ namespace Wreckabulary.Rules
             .Select(bundle => new ShopOffer("look", bundle.Id, bundle.Name, bundle.Price))).ToArray();
 
         public string Name = "Housemate";
+
+        public static string CleanName(string name)
+        {
+            if (name == null) return null;
+            var text = new StringBuilder();
+            foreach (char c in name.Trim())
+                if (c >= ' ' && c <= '~') text.Append(c);
+            return text.ToString().Trim();
+        }
+
         public int Coins, Xp, Matches, Wins;
         public readonly List<string> Owned = new List<string>();
         public readonly Dictionary<string, int> Bests = new Dictionary<string, int>();
@@ -70,10 +80,25 @@ namespace Wreckabulary.Rules
         public bool Owns(string kind, string value) =>
             (kind == "skin" && (value == "Classic" || value == "Winter")) ||
             (kind == "colour" && FreeColours.Contains(value)) ||
-            (kind == "piece" && FreePieces.Contains(value)) ||
+            (kind == "piece" && (FreePieces.Contains(value) || OwnsLookFor(value))) ||
             (kind == "theme" && (value == "sunroom" || value == "winter")) ||
             (kind == "look" && CosmeticBundles.Find(value)?.OwnedBy(this) == true) ||
             Owned.Contains(kind + ":" + value);
+
+        bool OwnsLookFor(string piece) => CosmeticBundles.GrantedBy(piece) is CosmeticBundle look && Owns("look", look.Id);
+
+        public IReadOnlyList<string> Missing(Outfit outfit)
+        {
+            var missing = new List<string>();
+            if (outfit == null) return missing;
+            foreach (string piece in outfit.Pieces.Values.Distinct())
+                if (!Owns("piece", piece)) missing.Add("piece:" + piece);
+            string top = outfit.ColourOf("Top");
+            if (top != null && !Owns("colour", top)) missing.Add("colour:" + top);
+            foreach (string skin in outfit.ItemSkins.Values.Distinct())
+                if (!Owns("skin", skin)) missing.Add("skin:" + skin);
+            return missing;
+        }
 
         public int PriceOf(ShopOffer offer) => offer.Kind == "look" && CosmeticBundles.Find(offer.Value) is CosmeticBundle bundle
             ? bundle.RemainingPrice(this) : offer.Price;
@@ -148,14 +173,26 @@ namespace Wreckabulary.Rules
 
         public static Career Deserialize(string text)
         {
-            var career = new Career();
-            if (string.IsNullOrWhiteSpace(text)) return career;
+            TryDeserialize(text, out var career);
+            return career;
+        }
+
+        public static bool TryDeserialize(string text, out Career career)
+        {
+            career = new Career();
+            if (string.IsNullOrWhiteSpace(text)) return true;
             JsonNode root;
             try { root = Json.Parse(text, "career"); }
-            catch (FormatException) { return career; }
-            if (!root.IsObject) return career;
-            string name = Read(() => root["name"].String(null));
-            if (name != null && name.Trim().Length >= 2) career.Name = name.Trim().Length > NameLength ? name.Trim().Substring(0, NameLength) : name.Trim();
+            catch (FormatException) { return false; }
+            if (!root.IsObject) return false;
+            Fill(career, root);
+            return true;
+        }
+
+        static void Fill(Career career, JsonNode root)
+        {
+            string name = CleanName(Read(() => root["name"].String(null)));
+            if (name != null && name.Length >= 2) career.Name = name.Length > NameLength ? name.Substring(0, NameLength) : name;
             career.Coins = Math.Max(0, Read(() => root["coins"].Int(0)));
             career.Xp = Math.Max(0, Read(() => root["xp"].Int(0)));
             career.Matches = Math.Max(0, Read(() => root["matches"].Int(0)));
@@ -181,7 +218,6 @@ namespace Wreckabulary.Rules
                 });
                 if (match != null && career.History.Count < HistoryLength) career.History.Add(match);
             }
-            return career;
         }
 
         static T Read<T>(Func<T> read)

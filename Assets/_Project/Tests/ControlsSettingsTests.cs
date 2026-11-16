@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Linq;
 using NUnit.Framework;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -91,6 +92,146 @@ namespace Wreckabulary.Tests
             return ControlsPanel.Mount(host);
         }
 
+        [UnityTest]
+        public IEnumerator ModeLegendsPreserveSharedBindingsSelectionAndRebindCancellation()
+        {
+            var panel = Mount();
+            yield return null;
+            var keys = DesktopBinding.Shared;
+            int version = KeyBindings.Version;
+            string before = keys.Map.SaveBindingOverridesAsJson();
+            var jump = ButtonNamed(panel, "Rebind Jump");
+            var title = panel.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Control legend title");
+            Assert.AreEqual("HOUSE CONTROLS", title.text);
+            Assert.IsFalse(title.transform.IsChildOf(panel.GetComponentInChildren<ScrollRect>().content), "Mode context must remain outside the scrolling rows.");
+            Assert.AreEqual("View / Share", ControllerLegend(panel, "Pause").text);
+            Assert.AreEqual("—", ControllerLegend(panel, "Aim").text, "House controllers look with the stick, without an aim-held button.");
+            Assert.AreEqual("Hold Y / Triangle", ControllerLegend(panel, "Spell").text);
+            Assert.AreEqual("Hold RB / R1", ControllerLegend(panel, "Bag").text);
+            Assert.AreEqual("D-pad left\nR3 swaps hands", ControllerLegend(panel, "Hand 1").text);
+            Assert.AreEqual("D-pad right\nR3 swaps hands", ControllerLegend(panel, "Hand 2").text);
+            Assert.That(panel.GetComponentsInChildren<TMP_Text>(true).Where(text => text.name == "Controller Move").Select(text => text.text),
+                Is.Not.Empty.And.All.EqualTo("Left stick"), "Every move row shows the stick.");
+            Assert.AreEqual("Hold L3 + right stick", ControllerLegend(panel, "Look around").text);
+            Assert.AreEqual("Hold D-pad up", ControllerLegend(panel, "Push to talk").text);
+            Assert.AreEqual(17, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
+            SubmitLegend(panel, "Wordbound controls");
+            yield return null;
+            Assert.AreEqual("COURSE CONTROLS", title.text);
+            Assert.AreEqual("RB / R1", ControllerLegend(panel, "Aim").text);
+            Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text);
+            Assert.AreEqual("Y / Triangle", ControllerLegend(panel, "Spell").text);
+            Assert.AreEqual("R3 cycles gear", ControllerLegend(panel, "Bag").text);
+            Assert.AreEqual(16, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
+            Assert.IsFalse(ButtonNamed(panel, "Rebind Dodge").gameObject.activeInHierarchy, "Dodge is not a Wordbound action.");
+            Assert.IsTrue(ButtonNamed(panel, "Rebind Look around (hold)").gameObject.activeInHierarchy, "Courses look around too.");
+            Assert.IsTrue(ButtonNamed(panel, "Rebind Push to talk (hold)").gameObject.activeInHierarchy, "Team voice is for online courses.");
+            Assert.AreEqual("Hold D-pad up", ControllerLegend(panel, "Push to talk").text);
+            Assert.AreEqual("Hold L3 + right stick", ControllerLegend(panel, "Look around").text);
+            foreach (string name in new[] { "Hand 1", "Hand 2" })
+            {
+                var slot = ButtonNamed(panel, "Rebind " + name);
+                Assert.IsTrue(slot.gameObject.activeInHierarchy, "Direct keyboard equipment selection is supported.");
+                Assert.AreEqual("Equipment " + name.Substring(name.Length - 1), slot.transform.parent.parent.GetComponentInChildren<TMP_Text>().text);
+                Assert.AreEqual(name == "Hand 1" ? "D-pad left" : "D-pad right", ControllerLegend(panel, name).text,
+                    "The controller selects each numbered equipment slot directly.");
+            }
+            Assert.AreSame(jump, ButtonNamed(panel, "Rebind Jump"));
+            Assert.AreSame(ButtonNamed(panel, "Wordbound controls").gameObject, EventSystem.current.currentSelectedGameObject);
+            Assert.AreEqual(before, keys.Map.SaveBindingOverridesAsJson()); Assert.AreEqual(version, KeyBindings.Version);
+            Assert.IsTrue(keys.Map.enabled); Assert.IsTrue(KeyBindings.GameplayBlocked);
+            jump.onClick.Invoke();
+            Assert.IsTrue(panel.IsListening);
+            Assert.IsFalse(ButtonNamed(panel, "House controls").interactable);
+            Assert.IsFalse(ButtonNamed(panel, "Wordbound controls").interactable);
+            ButtonNamed(panel, "House controls").onClick.Invoke();
+            Assert.AreEqual("COURSE CONTROLS", title.text);
+            Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text, "Even a stale callback cannot switch legends while listening.");
+            Assert.IsTrue(panel.CancelRebind());
+            yield return null;
+            Assert.IsFalse(panel.IsListening);
+            Assert.AreEqual("COURSE CONTROLS", title.text, "Cancel/Refresh must preserve the fixed mode context.");
+            Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text, "Cancel/Refresh preserves the displayed game family.");
+            Assert.AreEqual(before, keys.Map.SaveBindingOverridesAsJson()); Assert.AreEqual(version, KeyBindings.Version);
+            SubmitLegend(panel, "House controls");
+            yield return null;
+            Assert.AreEqual("HOUSE CONTROLS", title.text);
+            Assert.AreEqual("View / Share", ControllerLegend(panel, "Pause").text);
+            Assert.AreEqual("Hold Y / Triangle", ControllerLegend(panel, "Spell").text);
+            Assert.IsTrue(ButtonNamed(panel, "Rebind Dodge").gameObject.activeInHierarchy);
+            Assert.IsTrue(ButtonNamed(panel, "Rebind Look around (hold)").gameObject.activeInHierarchy);
+            Assert.AreSame(jump, ButtonNamed(panel, "Rebind Jump"));
+            Assert.AreEqual(before, keys.Map.SaveBindingOverridesAsJson()); Assert.AreEqual(version, KeyBindings.Version);
+            panel.Close();
+        }
+
+        [UnityTest]
+        public IEnumerator BothControlLegendsFitRowsAndKeepFooterOutsideTheScroll()
+        {
+            var panel = Mount();
+            var host = (RectTransform)panel.transform.parent;
+            foreach (var size in new[] { new Vector2(800, 680), new Vector2(620, 450) })
+            {
+                host.sizeDelta = size;
+                foreach (string family in new[] { "House controls", "Wordbound controls" })
+                {
+                    SubmitLegend(panel, family);
+                    yield return null;
+                    Canvas.ForceUpdateCanvases();
+                    yield return null;
+                    Canvas.ForceUpdateCanvases();
+                    foreach (var text in panel.GetComponentsInChildren<TMP_Text>())
+                    {
+                        text.ForceMeshUpdate();
+                        Assert.IsFalse(text.isTextOverflowing || text.isTextTruncated, size + " " + family + " " + text.name + ": " + text.text);
+                    }
+                    foreach (var button in panel.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Rebind ")))
+                    {
+                        var row = (RectTransform)button.transform.parent.parent;
+                        AssertWithinRow(row, (RectTransform)button.transform, button.name);
+                        AssertWithinRow(row, row.GetComponentsInChildren<TMP_Text>().Single(text => text.name.StartsWith("Controller ")).rectTransform, button.name + " legend");
+                    }
+                    var scroll = panel.GetComponentInChildren<ScrollRect>();
+                    scroll.verticalNormalizedPosition = 0;
+                    Canvas.ForceUpdateCanvases();
+                    var footer = panel.transform.Find("Controls footer") as RectTransform;
+                    var viewport = scroll.viewport;
+                    var bounds = RelativeRect((RectTransform)panel.transform, footer);
+                    var visible = RelativeRect((RectTransform)panel.transform, viewport);
+                    Assert.LessOrEqual(bounds.yMax, visible.yMin + .1f, "Reset/cancel footer must not overlay the scrolling controls.");
+                    Assert.IsTrue(ButtonNamed(panel, "Reset controls").IsInteractable());
+                }
+            }
+            panel.Close();
+        }
+
+        static TMP_Text ControllerLegend(ControlsPanel panel, string action) => panel.GetComponentsInChildren<TMP_Text>(true)
+            .Single(text => text.name == "Controller " + action);
+
+        static void SubmitLegend(ControlsPanel panel, string name)
+        {
+            var button = ButtonNamed(panel, name);
+            Assert.IsTrue(button.IsInteractable());
+            EventSystem.current.SetSelectedGameObject(button.gameObject);
+            ExecuteEvents.Execute(button.gameObject, new BaseEventData(EventSystem.current), ExecuteEvents.submitHandler);
+        }
+
+        static void AssertWithinRow(RectTransform row, RectTransform child, string name)
+        {
+            var bounds = RelativeRect(row, child);
+            Assert.GreaterOrEqual(bounds.xMin, row.rect.xMin - .1f, name);
+            Assert.LessOrEqual(bounds.xMax, row.rect.xMax + .1f, name);
+            Assert.GreaterOrEqual(bounds.yMin, row.rect.yMin - .1f, name);
+            Assert.LessOrEqual(bounds.yMax, row.rect.yMax + .1f, name);
+        }
+
+        static Rect RelativeRect(RectTransform parent, RectTransform child)
+        {
+            var corners = new Vector3[4]; child.GetWorldCorners(corners);
+            var min = parent.InverseTransformPoint(corners[0]); var max = parent.InverseTransformPoint(corners[2]);
+            return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+        }
+
         [Test]
         public void FreshMapsReloadAllOverridesAndSwapOnlyTheirOwnBindings()
         {
@@ -112,6 +253,63 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("<Keyboard>/space", DesktopBinding.Shared.Jump.bindings[0].effectivePath);
             KeyBindings.Load(DesktopBinding.Shared.Map);
             Assert.AreEqual("F", ControlHints.KeyOf(DesktopBinding.Shared.Spell));
+        }
+
+        [UnityTest]
+        public IEnumerator PadHandsAndBagUseFreeButtonsWhileSavedKeyboardBindingsStillLoad()
+        {
+            var binding = new GamepadBinding(pad);
+            PlayerCommands Read()
+            {
+                var commands = default(PlayerCommands);
+                binding.Read(ref commands);
+                return commands;
+            }
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.DpadLeft));
+            yield return null;
+            var left = Read();
+            Assert.AreEqual(1, left.slot);
+            Assert.AreEqual(Vector2.zero, left.move, "The D-pad picks a hand instead of walking.");
+            Assert.IsFalse(left.swap || left.attack || left.jump || left.dodge || left.spellDown || left.grab || left.start);
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.DpadRight));
+            yield return null;
+            Assert.AreEqual(2, Read().slot);
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.RightShoulder));
+            yield return null;
+            var bag = Read();
+            Assert.IsTrue(binding.BagHeld);
+            Assert.AreEqual(0, bag.slot);
+            Assert.IsFalse(bag.swap || bag.attack || bag.jump || bag.dodge || bag.spellHeld || bag.grabHeld || bag.blockHeld || bag.start);
+            InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = new Vector2(0f, .9f) }.WithButton(GamepadButton.RightStick));
+            yield return null;
+            var swap = Read();
+            Assert.IsFalse(binding.BagHeld);
+            Assert.IsTrue(swap.swap, "R3 still swaps hands.");
+            Assert.Greater(swap.move.y, .8f, "The left stick still moves.");
+            InputSystem.QueueStateEvent(pad, new GamepadState());
+            yield return null;
+
+            var keys = DesktopBinding.Shared;
+            Assert.AreEqual("<Keyboard>/tab", keys.Bag.bindings[0].effectivePath);
+            Assert.AreEqual("<Keyboard>/1", keys.Hand1.bindings[0].effectivePath);
+            Assert.AreEqual("<Keyboard>/2", keys.Hand2.bindings[0].effectivePath);
+            Assert.IsFalse(keys.Map.bindings.Any(item => (item.effectivePath ?? "").StartsWith("<Gamepad>", StringComparison.Ordinal)),
+                "Pad buttons stay out of the rebindable keyboard map.");
+            KeyBindings.Assign(keys.Bag, 0, "<Keyboard>/g");
+            KeyBindings.Assign(keys.Hand1, 0, "<Keyboard>/z");
+            using var fresh = new DesktopBinding();
+            Assert.AreEqual("<Keyboard>/g", fresh.Bag.bindings[0].effectivePath);
+            Assert.AreEqual("<Keyboard>/z", fresh.Hand1.bindings[0].effectivePath);
+            Assert.AreEqual("<Keyboard>/2", fresh.Hand2.bindings[0].effectivePath);
+            Assert.AreEqual("G", GameHud.BagKeyLabel(keys));
+            Assert.AreEqual(ControlHints.PadBag, GameHud.BagKeyLabel(binding));
+            Assert.AreEqual("1", GameHud.HandKeyLabel(keys, 0));
+            Assert.AreEqual("‹", GameHud.HandKeyLabel(binding, 0));
+            Assert.AreEqual("›", GameHud.HandKeyLabel(binding, 1));
+            var padHelp = GameHud.HelpEntries(true);
+            CollectionAssert.Contains(padHelp, (ControlHints.PadBag, "hold for bag and map"));
+            CollectionAssert.Contains(padHelp, (ControlHints.PadHands, "switch hand"));
+            CollectionAssert.Contains(GameHud.HelpEntries(false), ("G", "hold for bag and map"));
         }
 
         [Test]

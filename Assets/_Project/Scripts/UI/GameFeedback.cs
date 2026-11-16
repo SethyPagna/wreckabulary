@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Wreckabulary.Audio;
+using Wreckabulary.Rules.Sound;
 
 namespace Wreckabulary
 {
@@ -8,8 +10,9 @@ namespace Wreckabulary
     public static class GameFeedback
     {
         static AudioSource speaker;
-        static readonly Dictionary<GameCue, AudioClip> clips = new();
-        static readonly Dictionary<GameCue, float> last = new();
+        static readonly Dictionary<GameCue, AudioClip[]> clips = new();
+        static readonly Dictionary<GameCue, int> lastVariant = new();
+        static readonly Dictionary<AudioClip, float> levels = new();
         public static event System.Action<GameCue, AudioClip> Played;
 
         public static bool Muted
@@ -21,8 +24,8 @@ namespace Wreckabulary
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Reset()
         {
-            foreach (var clip in clips.Values) if (clip) UnityEngine.Object.Destroy(clip);
-            clips.Clear(); last.Clear(); speaker = null; Played = null;
+            foreach (var variants in clips.Values) foreach (var clip in variants) if (clip) UnityEngine.Object.Destroy(clip);
+            clips.Clear(); lastVariant.Clear(); levels.Clear(); speaker = null; Played = null;
         }
 
         public static void Play(GameCue cue)
@@ -34,55 +37,67 @@ namespace Wreckabulary
         static bool PlayInternal(GameCue cue, string pack, bool preview)
         {
             if (Muted || AudioListener.volume <= 0f || AudioListener.pause) return false;
-            if (last.TryGetValue(cue, out float at) && Time.unscaledTime - at < 0.055f) return false;
             if (!speaker)
             {
                 var root = new GameObject("House sound cues");
                 UnityEngine.Object.DontDestroyOnLoad(root);
                 speaker = root.AddComponent<AudioSource>();
-                speaker.playOnAwake = false; speaker.spatialBlend = 0f; speaker.volume = 0.13f;
+                speaker.playOnAwake = false; speaker.spatialBlend = 0f; speaker.volume = GameMix.HouseSpeaker;
             }
             bool bankClip = GameSoundPacks.TryPick(cue, pack, preview, out var clip, out int variant);
-            if (!bankClip && !clips.TryGetValue(cue, out clip)) clips[cue] = clip = Make(cue);
-            speaker.PlayOneShot(clip);
-            last[cue] = Time.unscaledTime;
+            int pitched = -1;
+            if (!bankClip)
+            {
+                var variants = Variants(cue);
+                pitched = GameMix.NextVariant(variants.Length, lastVariant.TryGetValue(cue, out int previous) ? previous : -1);
+                clip = variants[pitched];
+            }
+            if (!GameMix.AdmitHouse((int)cue, PriorityOf(cue), clip)) return false;
+            float scale = Level(cue, clip) * GameMix.CueTrim * GameMix.NextGain();
+            if (preview) GameMix.HoldFullLevel(clip.length);
+            speaker.PlayOneShot(clip, scale);
+            GameMix.Record(clip, speaker.volume * scale, 1f);
+            if (pitched >= 0) lastVariant[cue] = pitched;
             if (bankClip) GameSoundPacks.Played(cue, preview, variant);
             Played?.Invoke(cue, clip);
             return true;
         }
 
-        static AudioClip Make(GameCue cue)
+        public static CuePriority PriorityOf(GameCue cue) => cue switch
         {
-            const int rate = 16000;
-            float seconds = cue is GameCue.Craft or GameCue.Heal ? 0.28f : cue == GameCue.Out ? 0.3f : 0.12f;
-            float low = cue switch
+            GameCue.Craft or GameCue.Out or GameCue.Heal or GameCue.Protect or GameCue.Boost or GameCue.Blast => CuePriority.High,
+            GameCue.Jump or GameCue.Dodge or GameCue.Swing => CuePriority.Low,
+            _ => CuePriority.Normal
+        };
+
+        static AudioClip[] Variants(GameCue cue)
+        {
+            if (clips.TryGetValue(cue, out var made)) return made;
+            made = new AudioClip[SoundJitter.Pitches.Length];
+            for (int i = 0; i < made.Length; i++)
             {
-                GameCue.Pickup => 670, GameCue.Craft => 430, GameCue.Break => 140,
-                GameCue.Hit => 170, GameCue.Block => 520, GameCue.Jump => 310,
-                GameCue.Dodge => 260, GameCue.Out => 400, GameCue.Protect => 760,
-                GameCue.Boost => 340, GameCue.Blast => 85, GameCue.Heal => 540, _ => 230
-            };
-            float high = cue switch
-            {
-                GameCue.Pickup => 1050, GameCue.Craft => 1050, GameCue.Jump => 750,
-                GameCue.Dodge => 680, GameCue.Out => 130, GameCue.Protect => 1150,
-                GameCue.Boost => 980, GameCue.Heal => 1080, _ => low * 0.45f
-            };
-            var samples = new float[Mathf.CeilToInt(rate * seconds)];
-            var noise = new System.Random(19 + (int)cue);
-            float phase = 0;
-            for (int i = 0; i < samples.Length; i++)
-            {
-                float t = (float)i / samples.Length;
-                phase += Mathf.Lerp(low, high, t) * Mathf.PI * 2f / rate;
-                float envelope = Mathf.Min(1f, t * 35f) * Mathf.Pow(1f - t, 2.5f);
-                float wave = Mathf.Sin(phase) * 0.7f + Mathf.Sin(phase * 2.01f) * 0.15f;
-                if (cue is GameCue.Break or GameCue.Hit or GameCue.Swing or GameCue.Blast)
-                    wave += ((float)noise.NextDouble() * 2f - 1f) * 0.24f;
-                samples[i] = wave * envelope;
+                var samples = ToyCueSynth.Render(cue.ToString(), ToyCueSynth.Rate, SoundJitter.Pitches[i]);
+                made[i] = AudioClip.Create("House " + cue, samples.Length, 1, ToyCueSynth.Rate, false);
+                made[i].SetData(samples, 0);
+                levels[made[i]] = HouseCueMix.Scale(cue.ToString(), Loudness.MomentaryMax(samples, ToyCueSynth.Rate));
             }
-            var clip = AudioClip.Create("House " + cue, samples.Length, 1, rate, false);
-            clip.SetData(samples, 0); return clip;
+            return clips[cue] = made;
+        }
+
+        public static float Level(GameCue cue, AudioClip clip)
+        {
+            if (!clip) return 1f;
+            if (levels.TryGetValue(clip, out float level)) return level;
+            var samples = new float[clip.samples * clip.channels];
+            double loudness = double.NaN;
+            if (clip.GetData(samples, 0))
+            {
+                var mono = clip.channels == 1 ? samples : new float[clip.samples];
+                if (clip.channels > 1)
+                    for (int i = 0; i < clip.samples; i++) mono[i] = samples[i * clip.channels];
+                loudness = Loudness.MomentaryMax(mono, clip.frequency);
+            }
+            return levels[clip] = HouseCueMix.Scale(cue.ToString(), loudness);
         }
 
         public static void Burst(string model, Vector3 position, float size = 0.4f)

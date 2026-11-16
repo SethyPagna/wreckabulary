@@ -14,7 +14,6 @@ namespace Wreckabulary.EditorTools
         {
             if (!assetPath.StartsWith(AudioDirectory, System.StringComparison.Ordinal)) return;
             var importer = (AudioImporter)assetImporter;
-            // Sources are already mono; disabling downmix also avoids importer normalization.
             importer.forceToMono = false;
             importer.loadInBackground = false;
             var settings = importer.defaultSampleSettings;
@@ -28,7 +27,7 @@ namespace Wreckabulary.EditorTools
         [MenuItem("Wreckabulary/Art/Import Winter Audio")]
         public static void Build()
         {
-            const string source = "ArtSource/Collections/Winter/Audio/";
+            const string source = "ArtSource/Collections/Winter/Audio/Mastered/";
             var names = new[] { "bell-01", "bell-02", "paper-01", "paper-02", "snow-01", "snow-02" };
             foreach (string name in names)
                 if (!File.Exists(source + name + ".wav")) throw new FileNotFoundException("Winter source audio is missing", source + name + ".wav");

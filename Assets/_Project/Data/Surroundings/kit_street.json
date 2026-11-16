@@ -1,0 +1,815 @@
+{
+  "kit": "street",
+  "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+  "pieces": [
+    {
+      "id": "road_straight",
+      "family": "road",
+      "width": 7.0,
+      "depth": 8.0,
+      "height": 0.02,
+      "slots": [
+        "bk_road",
+        "bk_line"
+      ],
+      "tris": 30,
+      "fbxObject": "road_straight",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_road": 26,
+        "bk_line": 4
+      },
+      "verts": 52,
+      "joins": [
+        {
+          "x": 0.0,
+          "z": -4.0,
+          "yaw": 180.0
+        },
+        {
+          "x": 0.0,
+          "z": 4.0,
+          "yaw": 0.0
+        }
+      ]
+    },
+    {
+      "id": "road_bend",
+      "family": "road",
+      "width": 11.0,
+      "depth": 11.0,
+      "height": 0.02,
+      "slots": [
+        "bk_road",
+        "bk_line"
+      ],
+      "tris": 168,
+      "fbxObject": "road_bend",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_road": 156,
+        "bk_line": 12
+      },
+      "verts": 218,
+      "joins": [
+        {
+          "x": -2.0,
+          "z": -5.5,
+          "yaw": 180.0
+        },
+        {
+          "x": 5.5,
+          "z": 2.0,
+          "yaw": 90.0
+        }
+      ]
+    },
+    {
+      "id": "road_circle",
+      "family": "road",
+      "width": 21.986,
+      "depth": 22.0,
+      "height": 0.14,
+      "slots": [
+        "bk_stone",
+        "bk_road"
+      ],
+      "tris": 281,
+      "fbxObject": "road_circle",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_stone": 246,
+        "bk_road": 35
+      },
+      "verts": 434,
+      "joins": [
+        {
+          "x": 0.0,
+          "z": -11.0,
+          "yaw": 180.0
+        }
+      ]
+    },
+    {
+      "id": "pavement_straight",
+      "family": "pavement",
+      "width": 2.2,
+      "depth": 8.0,
+      "height": 0.14,
+      "slots": [
+        "bk_stone"
+      ],
+      "tris": 70,
+      "fbxObject": "pavement_straight",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_stone": 70
+      },
+      "verts": 110,
+      "joins": [
+        {
+          "x": 0.0,
+          "z": -4.0,
+          "yaw": 180.0
+        },
+        {
+          "x": 0.0,
+          "z": 4.0,
+          "yaw": 0.0
+        }
+      ]
+    },
+    {
+      "id": "pavement_corner",
+      "family": "pavement",
+      "width": 4.0,
+      "depth": 4.0,
+      "height": 0.14,
+      "slots": [
+        "bk_stone"
+      ],
+      "tris": 102,
+      "fbxObject": "pavement_corner",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_stone": 102
+      },
+      "verts": 162,
+      "joins": [
+        {
+          "x": -0.9,
+          "z": -2.0,
+          "yaw": 180.0
+        },
+        {
+          "x": 2.0,
+          "z": 0.9,
+          "yaw": 90.0
+        }
+      ]
+    },
+    {
+      "id": "pavement_bend_outer",
+      "family": "pavement",
+      "width": 13.2,
+      "depth": 13.2,
+      "height": 0.14,
+      "slots": [
+        "bk_stone"
+      ],
+      "tris": 102,
+      "fbxObject": "pavement_bend_outer",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_stone": 102
+      },
+      "verts": 162,
+      "joins": [
+        {
+          "x": 6.6,
+          "z": 5.5,
+          "yaw": 90.0
+        },
+        {
+          "x": -5.5,
+          "z": -6.6,
+          "yaw": 180.0
+        }
+      ]
+    },
+    {
+      "id": "driveway",
+      "family": "driveway",
+      "width": 3.0,
+      "depth": 6.0,
+      "height": 0.14,
+      "slots": [
+        "bk_stone",
+        "bk_road"
+      ],
+      "tris": 34,
+      "fbxObject": "driveway",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_stone": 32,
+        "bk_road": 2
+      },
+      "verts": 56,
+      "joins": [
+        {
+          "x": 0.0,
+          "z": 3.0,
+          "yaw": 0.0
+        }
+      ]
+    },
+    {
+      "id": "verge",
+      "family": "verge",
+      "width": 2.0,
+      "depth": 8.0,
+      "height": 0.14,
+      "slots": [
+        "bk_stone",
+        "bk_grass"
+      ],
+      "tris": 14,
+      "fbxObject": "verge",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_stone": 4,
+        "bk_grass": 10
+      },
+      "verts": 26,
+      "joins": [
+        {
+          "x": 0.0,
+          "z": -4.0,
+          "yaw": 180.0
+        },
+        {
+          "x": 0.0,
+          "z": 4.0,
+          "yaw": 0.0
+        }
+      ]
+    },
+    {
+      "id": "hedge_2m",
+      "family": "hedge",
+      "width": 2.0,
+      "depth": 0.82,
+      "height": 1.44,
+      "slots": [
+        "bk_leaf"
+      ],
+      "tris": 142,
+      "fbxObject": "hedge_2m",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_leaf": 142
+      },
+      "verts": 125,
+      "joins": [
+        {
+          "x": -1.0,
+          "z": 0.0,
+          "yaw": 270.0
+        },
+        {
+          "x": 1.0,
+          "z": 0.0,
+          "yaw": 90.0
+        }
+      ]
+    },
+    {
+      "id": "hedge_end",
+      "family": "hedge",
+      "width": 0.39,
+      "depth": 0.75,
+      "height": 1.41,
+      "slots": [
+        "bk_leaf"
+      ],
+      "tris": 94,
+      "fbxObject": "hedge_end",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_leaf": 94
+      },
+      "verts": 97,
+      "joins": [
+        {
+          "x": -0.195,
+          "z": 0.0,
+          "yaw": 270.0
+        }
+      ]
+    },
+    {
+      "id": "fence_picket_2m",
+      "family": "fence",
+      "width": 2.0,
+      "depth": 0.1,
+      "height": 1.05,
+      "slots": [
+        "bk_paint"
+      ],
+      "tris": 120,
+      "fbxObject": "fence_picket_2m",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_paint": 120
+      },
+      "verts": 232,
+      "joins": [
+        {
+          "x": -1.0,
+          "z": 0.0,
+          "yaw": 270.0
+        },
+        {
+          "x": 1.0,
+          "z": 0.0,
+          "yaw": 90.0
+        }
+      ]
+    },
+    {
+      "id": "fence_board_2m",
+      "family": "fence",
+      "width": 2.0,
+      "depth": 0.108,
+      "height": 1.8,
+      "slots": [
+        "bk_wood"
+      ],
+      "tris": 58,
+      "fbxObject": "fence_board_2m",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_wood": 58
+      },
+      "verts": 116,
+      "joins": [
+        {
+          "x": -1.0,
+          "z": 0.0,
+          "yaw": 270.0
+        },
+        {
+          "x": 1.0,
+          "z": 0.0,
+          "yaw": 90.0
+        }
+      ]
+    },
+    {
+      "id": "gate_picket",
+      "family": "fence",
+      "width": 1.0,
+      "depth": 0.1,
+      "height": 1.05,
+      "slots": [
+        "bk_paint",
+        "bk_metal"
+      ],
+      "tris": 114,
+      "fbxObject": "gate_picket",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_paint": 104,
+        "bk_metal": 10
+      },
+      "verts": 224,
+      "joins": [
+        {
+          "x": -0.5,
+          "z": 0.0,
+          "yaw": 270.0
+        },
+        {
+          "x": 0.5,
+          "z": 0.0,
+          "yaw": 90.0
+        }
+      ]
+    },
+    {
+      "id": "lamp_post",
+      "family": "street",
+      "width": 0.304,
+      "depth": 0.304,
+      "height": 4.6,
+      "slots": [
+        "bk_metal",
+        "bk_paint"
+      ],
+      "tris": 190,
+      "fbxObject": "lamp_post",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_metal": 126,
+        "bk_paint": 64
+      },
+      "verts": 210
+    },
+    {
+      "id": "mailbox",
+      "family": "street",
+      "width": 0.436,
+      "depth": 0.406,
+      "height": 1.25,
+      "slots": [
+        "bk_wood",
+        "bk_paint",
+        "bk_metal",
+        "bk_brick"
+      ],
+      "tris": 109,
+      "fbxObject": "mailbox",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_wood": 18,
+        "bk_paint": 57,
+        "bk_metal": 10,
+        "bk_brick": 24
+      },
+      "verts": 183
+    },
+    {
+      "id": "bin_wheelie",
+      "family": "street",
+      "width": 0.62,
+      "depth": 0.705,
+      "height": 1.0,
+      "slots": [
+        "bk_paint",
+        "bk_metal"
+      ],
+      "tris": 120,
+      "fbxObject": "bin_wheelie",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_paint": 56,
+        "bk_metal": 64
+      },
+      "verts": 180
+    },
+    {
+      "id": "bench_park",
+      "family": "street",
+      "width": 1.8,
+      "depth": 0.58,
+      "height": 0.86,
+      "slots": [
+        "bk_wood",
+        "bk_metal"
+      ],
+      "tris": 176,
+      "fbxObject": "bench_park",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_wood": 92,
+        "bk_metal": 84
+      },
+      "verts": 336
+    },
+    {
+      "id": "planter_box",
+      "family": "street",
+      "width": 1.2,
+      "depth": 0.5,
+      "height": 0.615,
+      "slots": [
+        "bk_wood",
+        "bk_bark",
+        "bk_leaf"
+      ],
+      "tris": 124,
+      "fbxObject": "planter_box",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Street.fbx",
+      "slotTris": {
+        "bk_wood": 40,
+        "bk_bark": 2,
+        "bk_leaf": 82
+      },
+      "verts": 153
+    },
+    {
+      "id": "tree_round_a",
+      "family": "tree",
+      "width": 4.0,
+      "depth": 4.0,
+      "height": 6.0,
+      "slots": [
+        "bk_bark",
+        "bk_leaf"
+      ],
+      "tris": 432,
+      "far": "tree_far",
+      "fbxObject": "tree_round_a",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Nature.fbx",
+      "slotTris": {
+        "bk_bark": 24,
+        "bk_leaf": 408
+      },
+      "verts": 364
+    },
+    {
+      "id": "tree_round_b",
+      "family": "tree",
+      "width": 5.5,
+      "depth": 5.5,
+      "height": 7.5,
+      "slots": [
+        "bk_bark",
+        "bk_leaf"
+      ],
+      "tris": 576,
+      "far": "tree_far",
+      "fbxObject": "tree_round_b",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Nature.fbx",
+      "slotTris": {
+        "bk_bark": 48,
+        "bk_leaf": 528
+      },
+      "verts": 502
+    },
+    {
+      "id": "tree_round_c",
+      "family": "tree",
+      "width": 3.0,
+      "depth": 3.0,
+      "height": 4.5,
+      "slots": [
+        "bk_bark",
+        "bk_leaf"
+      ],
+      "tris": 312,
+      "far": "tree_far",
+      "fbxObject": "tree_round_c",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Nature.fbx",
+      "slotTris": {
+        "bk_bark": 24,
+        "bk_leaf": 288
+      },
+      "verts": 266
+    },
+    {
+      "id": "tree_poplar",
+      "family": "tree",
+      "width": 2.2,
+      "depth": 2.2,
+      "height": 9.0,
+      "slots": [
+        "bk_bark",
+        "bk_leaf"
+      ],
+      "tris": 384,
+      "far": "tree_far",
+      "fbxObject": "tree_poplar",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Nature.fbx",
+      "slotTris": {
+        "bk_bark": 24,
+        "bk_leaf": 360
+      },
+      "verts": 352
+    },
+    {
+      "id": "tree_far",
+      "family": "far",
+      "width": 4.2,
+      "depth": 3.637,
+      "height": 7.0,
+      "slots": [
+        "bk_bark",
+        "bk_leaf"
+      ],
+      "tris": 54,
+      "fbxObject": "tree_far",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Nature.fbx",
+      "slotTris": {
+        "bk_bark": 12,
+        "bk_leaf": 42
+      },
+      "verts": 69
+    },
+    {
+      "id": "bush_a",
+      "family": "bush",
+      "width": 1.2,
+      "depth": 1.2,
+      "height": 0.93,
+      "slots": [
+        "bk_leaf"
+      ],
+      "tris": 192,
+      "fbxObject": "bush_a",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Nature.fbx",
+      "slotTris": {
+        "bk_leaf": 192
+      },
+      "verts": 210
+    },
+    {
+      "id": "bush_b",
+      "family": "bush",
+      "width": 1.6,
+      "depth": 1.6,
+      "height": 1.1,
+      "slots": [
+        "bk_leaf"
+      ],
+      "tris": 240,
+      "fbxObject": "bush_b",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Nature.fbx",
+      "slotTris": {
+        "bk_leaf": 240
+      },
+      "verts": 210
+    },
+    {
+      "id": "flowerbed_2m",
+      "family": "flowerbed",
+      "width": 2.0,
+      "depth": 0.8,
+      "height": 0.346,
+      "slots": [
+        "bk_stone",
+        "bk_bark",
+        "bk_leaf",
+        "bk_paint"
+      ],
+      "tris": 196,
+      "fbxObject": "flowerbed_2m",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Nature.fbx",
+      "slotTris": {
+        "bk_stone": 24,
+        "bk_bark": 2,
+        "bk_leaf": 82,
+        "bk_paint": 88
+      },
+      "verts": 231
+    },
+    {
+      "id": "car_hatch",
+      "family": "car",
+      "width": 1.92,
+      "depth": 3.86,
+      "height": 1.47,
+      "slots": [
+        "bk_paint",
+        "bk_glass_dark",
+        "bk_metal",
+        "bk_line",
+        "bk_brick"
+      ],
+      "tris": 622,
+      "fbxObject": "car_hatch",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Vehicles.fbx",
+      "slotTris": {
+        "bk_paint": 250,
+        "bk_glass_dark": 12,
+        "bk_metal": 280,
+        "bk_line": 60,
+        "bk_brick": 20
+      },
+      "verts": 742
+    },
+    {
+      "id": "car_estate",
+      "family": "car",
+      "width": 1.94,
+      "depth": 4.46,
+      "height": 1.57,
+      "slots": [
+        "bk_paint",
+        "bk_glass_dark",
+        "bk_metal",
+        "bk_line",
+        "bk_brick"
+      ],
+      "tris": 642,
+      "fbxObject": "car_estate",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Vehicles.fbx",
+      "slotTris": {
+        "bk_paint": 250,
+        "bk_glass_dark": 12,
+        "bk_metal": 300,
+        "bk_line": 60,
+        "bk_brick": 20
+      },
+      "verts": 770
+    },
+    {
+      "id": "van_small",
+      "family": "van",
+      "width": 2.14,
+      "depth": 4.78,
+      "height": 2.08,
+      "slots": [
+        "bk_paint",
+        "bk_glass_dark",
+        "bk_metal",
+        "bk_line",
+        "bk_brick"
+      ],
+      "tris": 582,
+      "fbxObject": "van_small",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Vehicles.fbx",
+      "slotTris": {
+        "bk_paint": 216,
+        "bk_glass_dark": 6,
+        "bk_metal": 280,
+        "bk_line": 60,
+        "bk_brick": 20
+      },
+      "verts": 681
+    },
+    {
+      "id": "trampoline",
+      "family": "garden",
+      "width": 3.0,
+      "depth": 3.02,
+      "height": 0.91,
+      "slots": [
+        "bk_paint",
+        "bk_metal"
+      ],
+      "tris": 264,
+      "fbxObject": "trampoline",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Garden.fbx",
+      "slotTris": {
+        "bk_paint": 192,
+        "bk_metal": 72
+      },
+      "verts": 297
+    },
+    {
+      "id": "washing_line",
+      "family": "garden",
+      "width": 3.88,
+      "depth": 0.4,
+      "height": 1.95,
+      "slots": [
+        "bk_wood",
+        "bk_metal",
+        "bk_line",
+        "bk_brick",
+        "bk_paint"
+      ],
+      "tris": 108,
+      "fbxObject": "washing_line",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Garden.fbx",
+      "slotTris": {
+        "bk_wood": 44,
+        "bk_metal": 36,
+        "bk_line": 12,
+        "bk_brick": 4,
+        "bk_paint": 12
+      },
+      "verts": 192
+    },
+    {
+      "id": "swing_set",
+      "family": "garden",
+      "width": 3.0,
+      "depth": 1.5,
+      "height": 2.179,
+      "slots": [
+        "bk_paint",
+        "bk_wood",
+        "bk_metal"
+      ],
+      "tris": 156,
+      "fbxObject": "swing_set",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Garden.fbx",
+      "slotTris": {
+        "bk_paint": 100,
+        "bk_wood": 24,
+        "bk_metal": 32
+      },
+      "verts": 290
+    },
+    {
+      "id": "garden_table_set",
+      "family": "garden",
+      "width": 1.86,
+      "depth": 1.86,
+      "height": 0.84,
+      "slots": [
+        "bk_wood",
+        "bk_paint"
+      ],
+      "tris": 344,
+      "fbxObject": "garden_table_set",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Garden.fbx",
+      "slotTris": {
+        "bk_wood": 304,
+        "bk_paint": 40
+      },
+      "verts": 650
+    },
+    {
+      "id": "sprinkler",
+      "family": "garden",
+      "width": 0.3,
+      "depth": 0.3,
+      "height": 0.2,
+      "slots": [
+        "bk_metal",
+        "bk_paint"
+      ],
+      "tris": 48,
+      "fbxObject": "sprinkler",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Garden.fbx",
+      "slotTris": {
+        "bk_metal": 24,
+        "bk_paint": 24
+      },
+      "verts": 65
+    }
+  ]
+}

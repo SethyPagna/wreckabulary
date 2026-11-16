@@ -18,6 +18,9 @@ namespace Wreckabulary.EditorTests
 
         static readonly string[] CoreTwelve = { "BAT", "BLADE", "LAMP", "BALL", "PLATE", "TABLE", "BED", "MAT", "SOFA", "SOAP", "FOAM", "BOMB" };
 
+        static readonly string[] HouseOnly = { "PAN", "ARROW", "POT", "BARREL", "CRATE", "PLANT", "SHELF", "DESK", "CABINET", "CHAIR",
+            "PILLOW", "RACK", "MIRROR", "SPEAKER", "BENCH", "TOASTER", "BEAR" };
+
         [OneTimeSetUp]
         public void Load()
         {
@@ -47,7 +50,7 @@ namespace Wreckabulary.EditorTests
         public void TheShippedDataHasNoProblems()
         {
             Assert.IsEmpty(config.Validate());
-            CollectionAssert.AreEquivalent(CoreTwelve.Concat(new[] { "APPLE", "WATER", "CAKE", "SODA", "SHIELD", "FAN", "CLOCK", "BROOM", "HAMMER", "SPEAR", "PIE", "STOOL" }), config.Items.Enabled.Select(i => i.Id), "only completed recipes are craftable");
+            CollectionAssert.AreEquivalent(CoreTwelve.Concat(new[] { "APPLE", "WATER", "CAKE", "SODA", "SHIELD", "FAN", "CLOCK", "BROOM", "HAMMER", "SPEAR", "PIE", "STOOL" }).Concat(HouseOnly), config.Items.Enabled.Select(i => i.Id), "only completed recipes are craftable; items_house.json adds the House-only ones");
             Assert.AreEqual(100f, config.Rules.Defaults.MaxHealth);
             Assert.AreEqual(10, config.Rules.Defaults.MaxLetters);
             Assert.AreEqual(2, config.Rules.Defaults.MaxCarried);
@@ -158,7 +161,27 @@ namespace Wreckabulary.EditorTests
             var avatar = models.Find("Avatar/Avatar");
             Assert.IsNotNull(avatar);
             var renderers = avatar.GetComponentsInChildren<Renderer>(true);
-            foreach (var piece in config.Wardrobe.Pieces)
+            var bones = avatar.GetComponentsInChildren<Transform>(true).Select(t => t.name).ToHashSet();
+            var signature = Resources.Load<GameObject>(WardrobeRig.ArtPath);
+            foreach (var piece in config.Wardrobe.Pieces.Where(p => !string.IsNullOrEmpty(p.Rigid)))
+            {
+                Assert.IsNotNull(signature, $"{piece.Id}: Resources/{WardrobeRig.ArtPath} is missing");
+                Assert.IsTrue(bones.Contains(piece.Bone), $"{piece.Id}: Avatar.fbx has no bone {piece.Bone}");
+                var node = ModelVisual.FindNamed(signature, piece.Rigid);
+                Assert.IsNotNull(node, $"{piece.Id}: the signature art has no {piece.Rigid}");
+                var parts = node.GetComponentsInChildren<Renderer>(true);
+                Assert.IsNotEmpty(parts, $"{piece.Id}: {piece.Rigid} has no geometry");
+                foreach (string tint in piece.TintMaterials)
+                {
+                    Assert.IsNotNull(materials.Find(tint), $"{piece.Id}: no library material {tint}");
+                    Assert.IsTrue(parts.SelectMany(p => p.sharedMaterials).Any(m => m != null && WardrobeRig.CanonicalMaterial(m.name) == tint),
+                        $"{piece.Id}: {piece.Rigid} doesn't use {tint}");
+                }
+                if (piece.Letter)
+                    foreach (string letter in LetterBadge.Letters)
+                        Assert.IsNotNull(ModelVisual.FindNamed(node.gameObject, WardrobeRig.GlyphPrefix + letter), $"{piece.Id}: no glyph {letter}");
+            }
+            foreach (var piece in config.Wardrobe.Pieces.Where(p => !string.IsNullOrEmpty(p.Mesh)))
             {
                 var r = renderers.FirstOrDefault(x => x.name == piece.Mesh);
                 Assert.IsNotNull(r, $"{piece.Id}: Avatar.fbx has no mesh {piece.Mesh}");

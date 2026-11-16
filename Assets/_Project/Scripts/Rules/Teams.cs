@@ -26,6 +26,19 @@ namespace Wreckabulary.Rules
             for (int i = 0; i < players; i++) teams[i] = i % teamCount;
             return teams;
         }
+
+        public static int[] Sides(int players, int sides)
+        {
+            if (players < 0) throw new ArgumentOutOfRangeException(nameof(players));
+            if (sides < 1) throw new ArgumentOutOfRangeException(nameof(sides));
+            var teams = new int[players];
+            for (int i = 0; i < players; i++) teams[i] = i % sides;
+            return teams;
+        }
+
+        public static int[] For(int players, int teamSize, int sides) => sides > 0 ? Sides(players, sides) : Assign(players, teamSize);
+
+        public static string SideName(int team) => team >= 0 ? $"Team {team + 1}" : "";
     }
 
     public enum RoundState { Ongoing, Won, Draw }

@@ -7,6 +7,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: red_Classic
+    second: {fileID: 2100000, guid: 70fd46482218ea942be50f13a295cf4d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: wood_Classic
     second: {fileID: 2100000, guid: ac4f3f22418749941ad2a4edccc2703c, type: 2}
   - first:

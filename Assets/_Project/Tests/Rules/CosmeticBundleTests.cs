@@ -28,7 +28,8 @@ namespace Wreckabulary.Rules.Tests
         public void ExistingPiecesAndFreeCollectionsRemainOwnedWithoutPurchasing()
         {
             var career = new Career();
-            foreach (var piece in TestData.Wardrobe().Pieces) Assert.IsTrue(career.Owns("piece", piece.Id), piece.Id);
+            foreach (var piece in TestData.Wardrobe().Pieces)
+                Assert.AreEqual(CosmeticBundles.GrantedBy(piece.Id) is not CosmeticBundle look || look.Price == 0, career.Owns("piece", piece.Id), piece.Id);
             foreach (var bundle in CosmeticBundles.All.Where(b => b.Price == 0)) Assert.IsTrue(career.Owns("look", bundle.Id), bundle.Id);
             Assert.IsTrue(career.Owns("theme", "sunroom"));
             Assert.AreEqual(0, career.Coins);

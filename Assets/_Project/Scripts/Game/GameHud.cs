@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using TMPro;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -25,7 +26,7 @@ namespace Wreckabulary
         public bool Paused => StateController && StateController.CurrentState == UIState.PauseMenu;
         public bool AcceptsGameplayInput => StateController && StateController.CurrentState == UIState.GameplayHUD && !StateController.IsTransitioning;
         public static GameHud Active { get; private set; }
-        public bool NeedsPointer => !AcceptsGameplayInput || pointerFreed || BagOpen || (craftRoot && craftRoot.activeSelf) || (typewriter && typewriter.User) || (modeActions && modeWanted) || ResultShown;
+        public bool NeedsPointer => !AcceptsGameplayInput || pointerFreed || BagOpen || (craftRoot && craftRoot.activeSelf) || (typewriter && typewriter.User) || (modeActions && modeWanted) || ResultShown || LeaveAsked;
         public static bool? PauseOnFocusLossOverride;
         static bool PauseOnFocusLoss => PauseOnFocusLossOverride ?? !Application.isBatchMode;
 
@@ -43,12 +44,16 @@ namespace Wreckabulary
         static readonly Color BagInk = Hex(0xfff4e2), BagCell = Hex(0xffffff, .08f), BagCellEdge = Hex(0xffffff, .25f);
         static readonly Color BagCard = Hex(0xffffff, .09f), BagCardActive = Hex(0xffffff, .15f), BagCardEdge = Hex(0xffffff, .24f);
         static readonly Color Gold = Hex(0xffe7b8), GoldGlow = Hex(0xffd46a, .4f), TileGot = Hex(0xe8c48b), TileGotInk = Hex(0x3b2614);
-        static readonly Color TileMissing = Hex(0xffffff, .12f), TileMissingInk = Hex(0xffffff, .65f);
-        static readonly string[] WearSlots = { "Headwear", "Face", "Top", "Gloves", "Bottoms", "Footwear", "Back", "Badge" };
+        static readonly Color TileMissingInk = Hex(0xffffff, .65f), TileRim = Hex(0xfff4e2, .55f);
+        static readonly Color KeyPill = Hex(0x1e2a2e, .8f), CellRim = Hex(0x1e2a2e, .55f);
+        static readonly string[] HandNumbers = { "1", "2" };
+        static readonly string[] LetterTexts = Enumerable.Range('A', 26).Select(c => ((char)c).ToString()).ToArray();
+        static readonly ProfilerMarker RefreshMarker = new("Hud.Refresh");
         const float BagTop = 105f, BagSide = 35f, BagBottom = 35f, BagColumn = 375f, BookColumn = 840f, BagGap = 24f;
         const float Chip = 52f, ChipGap = 10f;
         const int ChipsPerRow = 6;
 
+        const int MaxCards = 8, RoomyCards = 4;
         readonly List<PlayerCard> cards = new();
         readonly List<Sprite> ownedSprites = new();
         readonly List<Texture2D> ownedTextures = new();
@@ -60,8 +65,9 @@ namespace Wreckabulary
         readonly HandView[] hands = new HandView[2], bagHands = new HandView[2];
         IReadOnlyList<PlayerController> players;
         Func<PlayerController, int> wins;
-        int roundsToWin;
+        int roundsToWin, cardsLaidOut = RoomyCards;
         bool showWins;
+        string scoreUnit;
         PlayerJoinManager joins;
         Typewriter typewriter;
         RoomBuilder rooms;
@@ -72,8 +78,14 @@ namespace Wreckabulary
         GameObject typewriterControls;
         TextMeshProUGUI typewriterChoice;
         TextMeshProUGUI matchTag, matchTitle, matchDetail, roomPill, objective, statusText;
+        TextMeshProUGUI staminaValue, interactPrompt;
+        Image staminaFill;
+        readonly List<Image> crosshairTicks = new();
         TextMeshProUGUI aliveText, hintText, hpValue, shieldText, bagPanelCount, touchToggle, spellKey, bagKey;
-        TextMeshProUGUI craftStatus, buildLabel, playLabel;
+        TextMeshProUGUI craftStatus, buildLabel, spellHint;
+        long spellHintKey = long.MinValue;
+        SpellNeeds spellHintNeeds;
+        IReadOnlyCollection<string> spellHintObjectives;
         Image craftProgress;
         Button buildButton;
         RectTransform playRect;
@@ -85,22 +97,35 @@ namespace Wreckabulary
         float nextRefresh, resumeScale = 1f;
         bool bagPinned;
         readonly List<CanvasGroup> bagHides = new();
-        readonly List<(GameObject root, RawImage icon)> wearChips = new();
         readonly List<(GameObject root, RawImage icon, GameObject badge, TextMeshProUGUI seconds)> effectChips = new();
         readonly List<BookCard> bookCards = new();
-        readonly List<char> spare = new();
+        readonly List<char> spare = new(), sorted = new();
         readonly Dictionary<string, Texture2D> glyphs = new(StringComparer.Ordinal);
-        RectTransform bagColumn, bagLetters, bagHandsRow, bagWearRow, bagEffectsRow, bagMapFrame, bagMapShadow, bagMapArea, bagBook, bagBackdrop, pauseShade;
+        RectTransform bagColumn, bagLetters, bagHandsRow, bagEffectsRow, bagMapFrame, bagMapShadow, bagMapArea, bagBook, bagBackdrop, pauseShade;
+        RectTransform spellCap, bagCap, roomBacking;
+        TextMeshProUGUI bookLine;
+        GameObject bookLegend;
         GridLayoutGroup recipeGrid;
         CanvasGroup bagFade;
         Sprite hairRing, circleRing, softSprite, lineBox;
         float bagOpenedAt;
         bool bagHidden;
         bool touchChosen;
-        bool? hintLooks;
-        int hintKeys = -1;
+        string tipWanted = "";
+        float tipSince;
+        ControlTips.Tip? tipShown, tipTextFor;
+        InputBinding tipTextBinding;
+        int tipTextVersion = -1;
+        string matchShown, layoutShown, objectiveShown, roomShown = "\u0000";
+        int roundShown, targetShown, aliveShown = int.MinValue, hpShown = int.MinValue, staminaShown = int.MinValue, keyVersion = -1;
+        InputBinding keyBinding;
+        string spellLabel = "", spellHintLabel = "", bagLabel = "", interactLabel = "";
+        bool hubScene;
+        Sprite tileRing;
+        HouseLayout practice;
+        PlayerController followed;
         bool pointerFreed;
-        string checklistText = "";
+        string checklistText = "", checklistSource;
         readonly Dictionary<PlayerController, bool> priorFrozen = new();
         bool simulationPaused;
 
@@ -108,11 +133,14 @@ namespace Wreckabulary
         {
             public GameObject root;
             public Image badge, fill;
-            public TextMeshProUGUI initial, name, status;
+            public TextMeshProUGUI name, status;
+            public string shownName;
+            public int shownWins = int.MinValue, shownTarget, shownStatus = int.MinValue;
+            public string shownUnit;
         }
         sealed class LetterCell
         {
-            public Image face, edge, ring;
+            public Image face, edge, ring, outline;
             public TextMeshProUGUI letter;
         }
         sealed class HandView
@@ -120,7 +148,7 @@ namespace Wreckabulary
             public Image face, wear;
             public Image edge;
             public RawImage icon, empty;
-            public TextMeshProUGUI label;
+            public TextMeshProUGUI label, key;
             public GameObject wearTrack;
         }
         sealed class BookCard
@@ -128,7 +156,7 @@ namespace Wreckabulary
             public string word;
             public Button button;
             public Image face, edge, glow;
-            public Image[] tiles;
+            public Image[] tiles, rims;
             public TextMeshProUGUI[] letters;
         }
 
@@ -157,11 +185,14 @@ namespace Wreckabulary
                 var events = new GameObject("UI Events", typeof(EventSystem), typeof(InputSystemUIInputModule));
                 events.GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
-            joins = FindFirstObjectByType<PlayerJoinManager>();
-            typewriter = FindFirstObjectByType<Typewriter>();
-            rooms = FindFirstObjectByType<RoomBuilder>();
-            clearOut = FindFirstObjectByType<ClearOutController>();
-            rounds = FindFirstObjectByType<RoundManager>();
+            joins = FindAnyObjectByType<PlayerJoinManager>();
+            typewriter = FindAnyObjectByType<Typewriter>();
+            rooms = FindAnyObjectByType<RoomBuilder>();
+            clearOut = FindAnyObjectByType<ClearOutController>();
+            practice = rooms || clearOut ? null : PracticeLayout();
+            rounds = FindAnyObjectByType<RoundManager>();
+            NoteScene(default, UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+            UnityEngine.SceneManagement.SceneManager.activeSceneChanged += NoteScene;
             iconAtlas = Resources.Load<Texture2D>("UI/ActionIcons");
             roundSprite = MakeShape(true);
             panelSprite = MakeShape(false);
@@ -185,6 +216,8 @@ namespace Wreckabulary
             if (joins) joins.Joined += OnPlayerJoined;
             OnUiStateChanged(StateController.CurrentState);
         }
+
+        void NoteScene(UnityEngine.SceneManagement.Scene _, UnityEngine.SceneManagement.Scene next) => hubScene = next.name == Session.HubScene;
 
         void OnPlayerJoined(PlayerController player)
         {
@@ -215,6 +248,7 @@ namespace Wreckabulary
                 DesktopBinding.Typing = false;
                 if (state == UIState.PauseMenu)
                 {
+                    ControlTips.Learn(ControlTips.Tip.Menu);
                     if (!simulationPaused) resumeScale = Time.timeScale > 0f ? Time.timeScale : 1f;
                     simulationPaused = true;
                     Time.timeScale = 0f;
@@ -257,30 +291,36 @@ namespace Wreckabulary
 
         void BuildTop()
         {
-            var brand = Panel("Brand", safe, new Vector2(0f, 1f), new Vector2(38f, -30f), new Vector2(81f, 81f), new Vector2(0f, 1f), Hex(0xf2d295));
+            var brand = Panel("Brand", safe, new Vector2(0f, 1f), new Vector2(38f, -30f), new Vector2(58f, 58f), new Vector2(0f, 1f), Hex(0xf2d295));
             brand.localRotation = Quaternion.Euler(0f, 0f, 5f);
             brand.GetComponent<Image>().raycastTarget = true;
             brand.gameObject.AddComponent<Button>().onClick.AddListener(TogglePause);
-            Text("W", brand, new Vector2(.5f, .5f), new Vector2(-4f, 0f), new Vector2(70f, 70f), 48f, Ink).text = "W<size=55%><color=#B86647>!</color></size>";
-            var label = Panel("Match label", safe, new Vector2(0f, 1f), new Vector2(134f, -30f), new Vector2(300f, 94f), new Vector2(0f, 1f), Paper);
-            matchTag = Text("Tag", label, new Vector2(0f, 1f), new Vector2(18f, -8f), new Vector2(264f, 24f), 18f, Ink, TextAlignmentOptions.Left);
+            Text("W", brand, new Vector2(.5f, .5f), new Vector2(-3f, 0f), new Vector2(50f, 50f), 34f, Ink).text = "W<size=55%><color=#B86647>!</color></size>";
+            var label = Rect("Match label", safe, new Vector2(0f, 1f), new Vector2(112f, -28f), new Vector2(460f, 100f));
+            label.pivot = new Vector2(0f, 1f);
+            matchTag = Text("Tag", label, new Vector2(0f, 1f), Vector2.zero, new Vector2(460f, 22f), 17f, Gold, TextAlignmentOptions.Left);
             matchTag.characterSpacing = 1f; matchTag.rectTransform.pivot = new Vector2(0f, 1f);
-            matchTitle = Text("Title", label, new Vector2(0f, 1f), new Vector2(18f, -30f), new Vector2(264f, 34f), 30f, Ink, TextAlignmentOptions.Left);
+            matchTitle = Text("Title", label, new Vector2(0f, 1f), new Vector2(0f, -22f), new Vector2(460f, 40f), 34f, OnGame, TextAlignmentOptions.Left);
             matchTitle.rectTransform.pivot = new Vector2(0f, 1f);
-            matchDetail = Text("Detail", label, new Vector2(0f, 1f), new Vector2(18f, -64f), new Vector2(264f, 24f), 18f, Ink, TextAlignmentOptions.Left);
+            matchDetail = Text("Detail", label, new Vector2(0f, 1f), new Vector2(0f, -66f), new Vector2(460f, 28f), 20f, OnGame, TextAlignmentOptions.Left);
             matchDetail.characterSpacing = 0f; matchDetail.rectTransform.pivot = new Vector2(0f, 1f);
+            matchDetail.overflowMode = TextOverflowModes.Ellipsis;
+            foreach (var text in new[] { matchTag, matchTitle, matchDetail }) { OnGameText(text); AddHudShadow(text); }
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < MaxCards; i++)
             {
-                var rt = Panel($"Roommate {i + 1}", safe, new Vector2(0f, 1f), new Vector2(38f, -138f - i * 80f), new Vector2(300f, 72f), new Vector2(0f, 1f), Paper);
-                var badge = Panel("Initial badge", rt, new Vector2(0f, .5f), new Vector2(9f, 0f), new Vector2(38f, 38f), new Vector2(0f, .5f), Mint, true).GetComponent<Image>();
+                var rt = Rect($"Roommate {i + 1}", safe, new Vector2(0f, 1f), CardSpot(i, RoomyCards), new Vector2(280f, 50f));
+                rt.pivot = new Vector2(0f, 1f);
+                var badge = Panel("Seat colour", rt, new Vector2(0f, 1f), new Vector2(4f, -5f), new Vector2(20f, 20f), new Vector2(0f, 1f), Mint, true).GetComponent<Image>();
+                AddHudShadow(badge);
                 var card = new PlayerCard { root = rt.gameObject, badge = badge };
-                card.initial = Text("Initial", badge.transform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(36f, 36f), 22f, Ink);
-                card.name = Text("Name", rt, new Vector2(0f, 1f), new Vector2(56f, -6f), new Vector2(230f, 26f), 20f, Ink, TextAlignmentOptions.Left);
+                card.name = Text("Name", rt, new Vector2(0f, 1f), new Vector2(38f, 0f), new Vector2(240f, 26f), 20f, OnGame, TextAlignmentOptions.Left);
                 card.name.rectTransform.pivot = new Vector2(0f, 1f);
-                card.status = Text("Status", rt, new Vector2(0f, 1f), new Vector2(56f, -32f), new Vector2(230f, 24f), 18f, Faded, TextAlignmentOptions.Left);
+                OnGameText(card.name); AddHudShadow(card.name);
+                card.status = Text("Status", rt, new Vector2(0f, 1f), new Vector2(38f, -34f), new Vector2(240f, 18f), 15f, LowHp, TextAlignmentOptions.Left);
                 card.status.rectTransform.pivot = new Vector2(0f, 1f);
-                card.fill = Fill("Health", Panel("Health track", rt, new Vector2(0f, 0f), new Vector2(56f, 10f), new Vector2(230f, 8f), Vector2.zero, Track), Health);
+                OnGameText(card.status);
+                card.fill = Fill("Health", Panel("Health track", rt, new Vector2(0f, 1f), new Vector2(38f, -28f), new Vector2(150f, 3f), new Vector2(0f, 1f), Hex(0x10292b, .55f)), Health);
                 cards.Add(card); rt.gameObject.SetActive(false);
             }
         }
@@ -291,6 +331,7 @@ namespace Wreckabulary
             side.pivot = Vector2.one;
             var mapFrame = Panel("Minimap", side, new Vector2(0f, 1f), Vector2.zero, new Vector2(252f, 252f), new Vector2(0f, 1f), MapEdge);
             miniMap = MakeMap(mapFrame, false, 7f);
+            BuildLookEye(side);
             var alive = Rect("Alive", side, new Vector2(0f, 1f), new Vector2(0f, -264f), new Vector2(110f, 54f));
             alive.pivot = new Vector2(0f, 1f);
             AddHudShadow(Panel("Head", alive, new Vector2(0f, .5f), new Vector2(15f, 8f), new Vector2(12f, 12f), new Vector2(.5f, .5f), Cream, true).GetComponent<Image>());
@@ -309,7 +350,6 @@ namespace Wreckabulary
                 timer.rectTransform.offsetMin = timer.rectTransform.offsetMax = Vector2.zero;
                 timer.font = LobbyFonts.Body ? LobbyFonts.Body : GameFont;
                 timer.fontSharedMaterial = timer.font.material;
-                // Replace the serialized legacy-font instance before TMP's outline setters reuse it.
                 _ = timer.fontMaterial;
                 timer.fontStyle = FontStyles.Normal; timer.fontSize = 32f; timer.color = OnGame; timer.alignment = TextAlignmentOptions.Right;
                 timer.characterSpacing = 0f; timer.raycastTarget = false; timer.textWrappingMode = TextWrappingModes.NoWrap;
@@ -318,8 +358,10 @@ namespace Wreckabulary
             }
             var room = Rect("Room", side, new Vector2(0f, 1f), new Vector2(0f, -324f), new Vector2(252f, 64f));
             room.pivot = new Vector2(0f, 1f);
-            roomPill = Text("Room name", room, new Vector2(.5f, .5f), Vector2.zero, new Vector2(252f, 64f), 23f, OnGame, TextAlignmentOptions.Right);
-            roomPill.textWrappingMode = TextWrappingModes.Normal;
+            roomBacking = Panel("Backing", room, new Vector2(1f, .5f), Vector2.zero, new Vector2(120f, 42f), new Vector2(1f, .5f), KeyPill);
+            roomPill = Text("Room name", room, new Vector2(1f, .5f), new Vector2(-16f, 0f), new Vector2(220f, 42f), 23f, OnGame, TextAlignmentOptions.Right);
+            roomPill.rectTransform.pivot = new Vector2(1f, .5f);
+            roomPill.overflowMode = TextOverflowModes.Ellipsis;
             OnGameText(roomPill); AddHudShadow(roomPill);
             var goal = Rect("Objective", side, new Vector2(0f, 1f), new Vector2(0f, -404f), new Vector2(252f, 120f));
             goal.pivot = new Vector2(0f, 1f);
@@ -333,10 +375,9 @@ namespace Wreckabulary
         {
             status = Rect("Status", safe, new Vector2(.5f, 1f), new Vector2(0f, -140f), new Vector2(525f, 50f));
             status.pivot = new Vector2(.5f, 1f);
-            SoftShadow(status, Hex(0x183b3c, .08f), 25f, -4f);
-            Paint(Cover("Face", status), LobbyIcons.RoundedSprite(15), Hex(0xfff0dc, .91f));
-            statusText = Text("Status text", status, new Vector2(.5f, .5f), Vector2.zero, new Vector2(475f, 54f), 20f, Ink);
+            statusText = Text("Status text", status, new Vector2(.5f, .5f), Vector2.zero, new Vector2(475f, 54f), 22f, OnGame);
             statusText.textWrappingMode = TextWrappingModes.Normal;
+            OnGameText(statusText); AddHudShadow(statusText);
             if (instruction) instruction.gameObject.SetActive(false);
             status.gameObject.SetActive(false);
         }
@@ -351,12 +392,19 @@ namespace Wreckabulary
                 var piece = CreateImage(bar, cross, new Vector2(.5f, .5f), Vector2.zero, size, OnGame);
                 var shadow = piece.gameObject.AddComponent<Shadow>(); shadow.effectColor = Shade; shadow.effectDistance = new Vector2(0f, -2f);
             }
-            hpValue = Text("HP", vitals, new Vector2(0f, 1f), new Vector2(46f, -8f), new Vector2(220f, 64f), 60f, OnGame, TextAlignmentOptions.Left);
+            hpValue = Text("HP", vitals, new Vector2(0f, 1f), new Vector2(46f, -8f), new Vector2(162f, 64f), 56f, OnGame, TextAlignmentOptions.Left);
             hpValue.rectTransform.pivot = new Vector2(0f, 1f);
             OnGameText(hpValue);
-            shieldText = Text("Shield", vitals, new Vector2(0f, 1f), new Vector2(206f, -30f), new Vector2(154f, 26f), 18f, Hex(0x9ff8d3), TextAlignmentOptions.Left);
+            shieldText = Text("Shield", vitals, new Vector2(0f, 1f), new Vector2(46f, -67f), new Vector2(320f, 26f), 18f, Hex(0x9ff8d3), TextAlignmentOptions.Left);
             shieldText.rectTransform.pivot = new Vector2(0f, 1f);
             OnGameText(shieldText);
+            staminaValue = Text("Stamina", vitals, new Vector2(0f, 1f), new Vector2(220f, -14f), new Vector2(140f, 46f), 36f, Hex(0x9ff8d3), TextAlignmentOptions.Left);
+            staminaValue.rectTransform.pivot = new Vector2(0f, 1f);
+            OnGameText(staminaValue);
+            var track = CreateImage("Stamina track", vitals, new Vector2(0f, 1f), new Vector2(220f, -63f), new Vector2(130f, 5f), Hex(0x10292b, .75f));
+            track.rectTransform.pivot = new Vector2(0f, 1f);
+            staminaFill = CreateImage("Stamina fill", track.transform, new Vector2(0f, .5f), Vector2.zero, new Vector2(130f, 5f), Hex(0x9ff8d3));
+            staminaFill.rectTransform.pivot = new Vector2(0f, .5f);
         }
 
         void BuildTray()
@@ -368,51 +416,101 @@ namespace Wreckabulary
                 int slot = i;
                 hands[i] = MakeHand($"Gear slot {i + 1}", tray, new Vector2(324f, 94f - i * 94f), new Vector2(176f, 82f), i, () => SelectHand(slot));
             }
-            TextMeshProUGUI Shortcut(string label, float x, string glyph, Action action)
+            TextMeshProUGUI Shortcut(string label, float x, Action action, out RectTransform cap)
             {
-                var button = MakeButton(label, tray, Vector2.zero, new Vector2(x, 0f), new Vector2(108f, 40f), "", action, Color.clear);
-                AddHudShadow(GlyphImage("Glyph", button.transform, new Vector2(0f, .5f), new Vector2(17f, 0f), 25f, glyph, OnGame));
+                var button = MakeButton(label, tray, Vector2.zero, new Vector2(x, 0f), new Vector2(120f, 40f), "", action, Color.clear);
+                cap = Panel("Key cap", button.transform, new Vector2(0f, .5f), new Vector2(36f, 0f), new Vector2(40f, 32f), new Vector2(0f, .5f), KeyPill);
+                cap.SetSiblingIndex(0);
                 var key = button.GetComponentInChildren<TextMeshProUGUI>();
-                key.rectTransform.anchoredPosition = new Vector2(16f, 0f);
-                key.rectTransform.sizeDelta = new Vector2(70f, 36f);
+                key.rectTransform.anchorMin = key.rectTransform.anchorMax = key.rectTransform.pivot = new Vector2(0f, .5f);
+                key.rectTransform.anchoredPosition = new Vector2(36f, 0f);
+                key.rectTransform.sizeDelta = new Vector2(40f, 32f);
                 key.fontSize = 20f; key.color = OnGame;
-                OnGameText(key); AddHudShadow(key);
+                key.enableAutoSizing = true; key.fontSizeMin = 14f; key.fontSizeMax = 20f;
                 return key;
             }
-            spellKey = Shortcut("Spell key", 20f, "bag", OpenComposer);
-            bagKey = Shortcut("Bag link", 160f, "book", () => SetBagPinned(!bagPinned));
+            spellKey = Shortcut("Spell key", 20f, OpenComposer, out spellCap);
+            SpellGlyph(spellKey.transform.parent);
+            bagKey = Shortcut("Bag link", 150f, () => SetBagPinned(!bagPinned), out bagCap);
+            AddHudShadow(GlyphImage("Glyph", bagKey.transform.parent, new Vector2(0f, .5f), new Vector2(17f, 0f), 25f, "book", OnGame));
+            spellHint = Text("Spell hint", tray, new Vector2(0f, 1f), new Vector2(0f, 8f), new Vector2(310f, 30f), 23f, OnGame, TextAlignmentOptions.BottomLeft);
+            spellHint.rectTransform.pivot = Vector2.zero;
+            spellHint.overflowMode = TextOverflowModes.Ellipsis;
+            OnGameText(spellHint); AddHudShadow(spellHint);
+            spellHint.text = "";
+            spellHint.gameObject.SetActive(false);
             for (int i = 0; i < TrayTiles; i++)
-                trayCells[i] = MakeCell($"Letter {i + 1}", tray, new Vector2((i % TilesPerRow) * 62f, -(i / TilesPerRow) * 70f), new Vector2(54f, 58f), 34f);
+            {
+                var cell = trayCells[i] = MakeCell($"Letter {i + 1}", tray, new Vector2((i % TilesPerRow) * 62f, -(i / TilesPerRow) * 70f), new Vector2(54f, 58f), 34f);
+                cell.outline = CreateImage("Outline", cell.face.transform, Vector2.zero, Vector2.zero, Vector2.zero, CellRim);
+                Stretch(cell.outline.rectTransform); cell.outline.sprite = hairRing; cell.outline.type = Image.Type.Sliced;
+            }
             craftProgress = Fill("Building", Panel("Progress track", tray, Vector2.zero, new Vector2(0f, -12f), new Vector2(302f, 6f), Vector2.zero, Track), Health);
         }
 
         void BuildHint()
         {
-            hint = Panel("Desktop controls", safe, Vector2.zero, new Vector2(39f, 38f), new Vector2(500f, 60f), Vector2.zero, Hex(0x173b3c, .78f));
-            hintText = Text("Keys", hint, new Vector2(0f, .5f), new Vector2(18f, 0f), new Vector2(464f, 56f), 18f, Cream, TextAlignmentOptions.Left);
-            hintText.rectTransform.pivot = new Vector2(0f, .5f);
-            hintText.fontStyle = FontStyles.Normal;
-            hintText.textWrappingMode = TextWrappingModes.Normal;
-            hintText.lineSpacing = 4f;
-            SetHint(false);
+            hint = Rect("Desktop controls", safe, new Vector2(.5f, 1f), new Vector2(0f, -140f), new Vector2(720f, 40f));
+            hint.pivot = new Vector2(.5f, 1f);
+            hintText = Text("Keys", hint, new Vector2(.5f, .5f), Vector2.zero, new Vector2(720f, 40f), 22f, OnGame);
+            OnGameText(hintText); AddHudShadow(hintText);
+            hintText.text = ""; hintText.alpha = 0f;
             desktopHints = hint.gameObject;
+            desktopHints.SetActive(false);
         }
 
-        void SetHint(bool looks)
+        InputBinding TipBinding => LocalPlayer && LocalPlayer.Binding is GamepadBinding or KeyboardBinding ? LocalPlayer.Binding : DesktopBinding.Shared;
+
+        void LearnTips(bool thirdPerson)
         {
-            if (hintLooks == looks && hintKeys == KeyBindings.Version) return;
-            hintLooks = looks;
-            hintKeys = KeyBindings.Version;
-            var keys = DesktopBinding.Shared;
-            static string Key(string k) => $"<color=#FFF7E8>{k}</color>";
-            const string dot = "  <alpha=#55>·<alpha=#FF>  ";
-            hintText.text = Key(ControlHints.MoveKeys) + " move" + dot + (looks ? "mouse look" : "mouse aim") + dot + Key(ControlHints.KeyOf(keys.Attack)) + " smash, throw, place, block" + dot
-                + (looks ? Key(ControlHints.KeyOf(keys.Aim)) + " aim" + dot : "") + Key(ControlHints.KeyOf(keys.Spell)) + " spell" + dot + Key(ControlHints.KeyOf(keys.Interact)) + " interact" + dot
-                + Key(ControlHints.KeyOf(keys.Bag)) + " bag & map" + dot + Key(ControlHints.KeyOf(keys.Pause)) + " pause";
-            float height = hintText.GetPreferredValues(hintText.text, 464f, 0f).y;
-            hintText.rectTransform.sizeDelta = new Vector2(464f, height);
-            hint.sizeDelta = new Vector2(500f, Mathf.Max(44f, height + 20f));
-            if (vitals && !TouchControlsShown) vitals.anchoredPosition = new Vector2(39f, Mathf.Max(110f, hint.anchoredPosition.y + hint.sizeDelta.y + 12f));
+            if (!LocalPlayer || TouchControlsShown || !AcceptsGameplayInput) return;
+            if (LocalPlayer.Binding is DesktopBinding or TouchBinding)
+            {
+                var keys = DesktopBinding.Shared;
+                if (keys.Move.ReadValue<Vector2>().sqrMagnitude > .25f) ControlTips.Learn(ControlTips.Tip.Move);
+                if (thirdPerson && keys.Look.ReadValue<Vector2>().sqrMagnitude > 25f) ControlTips.Learn(ControlTips.Tip.Look);
+                if (keys.Attack.WasPressedThisFrame()) ControlTips.Learn(ControlTips.Tip.Smash);
+                if (keys.Aim.WasPressedThisFrame()) ControlTips.Learn(ControlTips.Tip.Aim);
+                if (keys.Spell.WasPressedThisFrame()) ControlTips.Learn(ControlTips.Tip.Spell);
+                if (keys.Interact.WasPressedThisFrame()) ControlTips.Learn(ControlTips.Tip.Interact);
+                if (BagOpen) ControlTips.Learn(ControlTips.Tip.Bag);
+                return;
+            }
+            ControlTips.LearnFrom(LocalPlayer.Commands, thirdPerson, BagOpen);
+        }
+
+        void RefreshTips(bool thirdPerson)
+        {
+            bool quiet = !LocalPlayer || TouchControlsShown || NeedsPointer || BannerShown
+                || status.gameObject.activeSelf || composer && composer.gameObject.activeSelf;
+            var binding = TipBinding;
+            var next = quiet ? null : ControlTips.Next(thirdPerson, binding);
+            if (next != tipTextFor || binding != tipTextBinding || KeyBindings.Version != tipTextVersion)
+            {
+                tipTextFor = next; tipTextBinding = binding; tipTextVersion = KeyBindings.Version;
+                tipWanted = next.HasValue ? ControlTips.Text(next.Value, binding) : "";
+            }
+            tipShown = next;
+            ShowTipLine();
+        }
+
+        void FadeTip()
+        {
+            float step = Time.unscaledDeltaTime;
+            if (tipWanted != hintText.text)
+            {
+                hintText.alpha = Mathf.MoveTowards(hintText.alpha, 0f, step / .25f);
+                if (hintText.alpha <= 0f) { hintText.text = tipWanted; tipSince = Time.unscaledTime; }
+            }
+            else if (tipWanted.Length > 0 && Time.unscaledTime - tipSince > .4f) hintText.alpha = Mathf.MoveTowards(hintText.alpha, 1f, step / .35f);
+            if (tipShown.HasValue && hintText.alpha > 0f && hintText.text == tipWanted) ControlTips.Showing(tipShown.Value, step);
+            ShowTipLine();
+        }
+
+        void ShowTipLine()
+        {
+            bool show = !TouchControlsShown && (tipWanted.Length > 0 || hintText.alpha > 0f);
+            if (desktopHints.activeSelf != show) desktopHints.SetActive(show);
         }
 
         static void OnGameText(TMP_Text t)
@@ -436,6 +534,7 @@ namespace Wreckabulary
             {
                 var tick = CreateImage(label, root, Vector2.zero, at, size, Hex(0xfff8e8));
                 tick.rectTransform.pivot = Vector2.zero;
+                crosshairTicks.Add(tick);
                 var outline = tick.gameObject.AddComponent<Outline>();
                 outline.effectColor = Hex(0x10292b, .8f);
                 outline.effectDistance = new Vector2(1f, -1f);
@@ -447,6 +546,8 @@ namespace Wreckabulary
             Tick("Bottom", new Vector2(10f, 0f), new Vector2(2f, 6f));
             Tick("Left", new Vector2(0f, 10f), new Vector2(6f, 2f));
             Tick("Right", new Vector2(16f, 10f), new Vector2(6f, 2f));
+            interactPrompt = Text("Interaction key", root, new Vector2(.5f, 0f), new Vector2(0f, -22f), new Vector2(260f, 30f), 22f, Hex(0x9ff8d3), TextAlignmentOptions.Center);
+            OnGameText(interactPrompt);
             crosshair = root.gameObject;
             crosshair.SetActive(false);
         }
@@ -464,8 +565,8 @@ namespace Wreckabulary
             AddSkill(rt, TouchAction.Grab, "INTERACT", new Vector2(-384f, 161f), 89f, Cream);
             AddSkill(rt, TouchAction.Craft, "SPELL", new Vector2(-503f, 270f), 89f, Mint);
             AddSkill(rt, TouchAction.Drop, "HOLD DROP", new Vector2(-384f, 51f), 76f, Cream);
-            playLabel = MakeButton("Play or Ready", rt, new Vector2(.5f, 1f), new Vector2(0f, -185f), new Vector2(200f, 50f), "PLAY", JoinOrReady).GetComponentInChildren<TextMeshProUGUI>();
-            playRect = (RectTransform)playLabel.transform.parent;
+            playRect = (RectTransform)MakeButton("Play or Ready", rt, new Vector2(.5f, 1f), new Vector2(0f, -185f), new Vector2(200f, 50f), "PLAY", JoinOrReady).transform;
+            TouchLayoutView.Attach(rt, this);
         }
 
         void AddStick(Transform parent, bool aim, Vector2 position, Vector2 anchor, float diameter)
@@ -523,12 +624,6 @@ namespace Wreckabulary
                 int slot = i;
                 bagHands[i] = MakeBagHand($"Bag hand {i + 1}", bagHandsRow, new Vector2(i * 193.5f, 0f), i, () => SelectHand(slot));
             }
-            bagWearRow = Row("Wearing");
-            foreach (var slot in WearSlots)
-            {
-                var chip = MakeChip(slot, bagWearRow);
-                wearChips.Add((chip.gameObject, GlyphImage("Glyph", chip, new Vector2(.5f, .5f), Vector2.zero, 28f, slot, BagInk)));
-            }
             bagEffectsRow = Row("Effects");
             foreach (var effect in new[] { "Effect 1", "Effect 2", "Effect 3", "Effect 4" })
             {
@@ -555,6 +650,17 @@ namespace Wreckabulary
             book.anchorMin = new Vector2(1f, 0f); book.pivot = Vector2.one;
             book.offsetMin = new Vector2(-BagSide - BookColumn, BagBottom); book.offsetMax = new Vector2(-BagSide, -BagTop);
             GlyphImage("Book glyph", book, new Vector2(0f, 1f), new Vector2(4f, -2f), 34f, "book", BagInk);
+            bookLine = Text("Book line", book, new Vector2(0f, 1f), Vector2.zero, Vector2.zero, 23f, BagInk, TextAlignmentOptions.MidlineLeft);
+            bookLine.rectTransform.anchorMax = Vector2.one; bookLine.rectTransform.pivot = new Vector2(0f, 1f);
+            bookLine.rectTransform.offsetMin = new Vector2(48f, -44f); bookLine.rectTransform.offsetMax = new Vector2(0f, -4f);
+            bookLine.overflowMode = TextOverflowModes.Ellipsis; bookLine.text = "";
+            var legend = Rect("Legend", book, Vector2.one, new Vector2(0f, -4f), new Vector2(380f, 40f));
+            legend.pivot = Vector2.one;
+            bookLegend = legend.gameObject;
+            var legendText = Text("Text", legend, Vector2.one, Vector2.zero, new Vector2(340f, 40f), 20f, Hex(0xfff4e2, .8f), TextAlignmentOptions.MidlineRight);
+            legendText.rectTransform.pivot = Vector2.one; legendText.text = RecipeStars.Legend;
+            var legendStar = CreateImage("Star", legend, new Vector2(0f, .5f), new Vector2(26f, 0f), new Vector2(18f, 18f), TierColour(RecipeTier.Epic));
+            legendStar.sprite = SparkSprite(); legendStar.preserveAspect = true;
             var view = Rect("View", book, Vector2.zero, Vector2.zero, Vector2.zero);
             Stretch(view); view.offsetMax = new Vector2(0f, -50f);
             view.gameObject.AddComponent<RectMask2D>();
@@ -605,7 +711,7 @@ namespace Wreckabulary
             rt.gameObject.AddComponent<Button>().onClick.AddListener(() => onTap());
             view.edge = Edge(rt, BagCardEdge, 17.5f);
             view.edge.sprite = MakeShape(false, 2.6f);
-            var key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(10f, -8f), new Vector2(26f, 26f), 20f, BagInk, TextAlignmentOptions.Left);
+            var key = view.key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(10f, -8f), new Vector2(26f, 26f), 20f, BagInk, TextAlignmentOptions.Left);
             key.text = (slot + 1).ToString(); key.rectTransform.pivot = new Vector2(0f, 1f);
             view.icon = Rect("Icon", rt, new Vector2(.5f, .5f), new Vector2(0f, 10f), new Vector2(78f, 78f)).gameObject.AddComponent<RawImage>();
             view.icon.raycastTarget = false;
@@ -633,20 +739,37 @@ namespace Wreckabulary
             card.button.targetGraphic = card.face;
             var colours = card.button.colors; colours.disabledColor = Color.white; card.button.colors = colours;
             card.button.onClick.AddListener(() => SpellFromBook(word));
+            root.gameObject.AddComponent<BookCardFocus>().Changed = on => ShowBookLine(on ? word : null);
             var icon = Rect("Picture", root, new Vector2(.5f, 1f), new Vector2(0f, -16f), new Vector2(112f, 112f)).gameObject.AddComponent<RawImage>();
             ((RectTransform)icon.transform).pivot = new Vector2(.5f, 1f); icon.raycastTarget = false;
             Wreckabulary.UI.ItemArt.Apply(icon, word);
+            var tier = RecipeDifficulty.TierOf(word);
+            int stars = GameConfig.Current.Tuning != null ? RecipeStars.Count(tier) : 0;
+            for (int s = 0; s < stars; s++)
+            {
+                var star = CreateImage("Star", root, Vector2.one, new Vector2(-16f - s * 19f, -16f), new Vector2(18f, 18f), TierColour(tier));
+                star.sprite = SparkSprite(); star.preserveAspect = true;
+            }
+            if (!tileRing) tileRing = MakeShape(false, 4.4f);
             const float tile = 24f, step = 28f;
             float x0 = -(word.Length * step - 4f) * .5f;
+            card.rims = new Image[word.Length];
             for (int i = 0; i < word.Length; i++)
             {
-                var t = Panel($"Tile {i + 1}", root, new Vector2(.5f, 0f), new Vector2(x0 + i * step, 20f), new Vector2(tile, 32f), Vector2.zero, TileMissing);
+                var t = Panel($"Tile {i + 1}", root, new Vector2(.5f, 0f), new Vector2(x0 + i * step, 20f), new Vector2(tile, 32f), Vector2.zero, Color.clear);
                 card.tiles[i] = t.GetComponent<Image>(); card.tiles[i].pixelsPerUnitMultiplier = 11f / 3.75f;
+                var rim = card.rims[i] = CreateImage("Rim", t, Vector2.zero, Vector2.zero, Vector2.zero, TileRim);
+                Stretch(rim.rectTransform); rim.sprite = tileRing; rim.type = Image.Type.Sliced; rim.pixelsPerUnitMultiplier = card.tiles[i].pixelsPerUnitMultiplier;
                 card.letters[i] = Text("Letter", t, new Vector2(.5f, .5f), Vector2.zero, new Vector2(tile, 32f), 23f, TileMissingInk);
                 card.letters[i].text = word[i].ToString();
             }
             return card;
         }
+
+        static Color TierColour(RecipeTier tier) => tier switch
+        {
+            RecipeTier.Uncommon => Hex(0x9ff8d3), RecipeTier.Rare => Hex(0x8cc8ff), RecipeTier.Epic => Hex(0xffc568), _ => Hex(0xe2dccd),
+        };
 
         void SpellFromBook(string word)
         {
@@ -668,6 +791,16 @@ namespace Wreckabulary
             if (anchor == new Vector2(0f, 1f)) image.rectTransform.pivot = anchor;
             image.texture = Glyph(glyph); image.color = colour; image.raycastTarget = false;
             return image;
+        }
+
+        void SpellGlyph(Transform parent)
+        {
+            var tile = Panel("Glyph", parent, new Vector2(0f, .5f), new Vector2(17f, 0f), new Vector2(24f, 26f), new Vector2(.5f, .5f), Tile);
+            tile.localRotation = Quaternion.Euler(0f, 0f, -6f);
+            var face = tile.GetComponent<Image>(); face.pixelsPerUnitMultiplier = 11f / 4f;
+            AddHudShadow(face);
+            var letter = Text("Letter", tile, new Vector2(.5f, .5f), Vector2.zero, new Vector2(24f, 26f), 19f, Ink);
+            letter.text = "A"; letter.fontStyle = FontStyles.Bold;
         }
 
         Texture2D Glyph(string name)
@@ -696,7 +829,7 @@ namespace Wreckabulary
             touchRoot.SetActive(on); TouchBinding.Shared.ReleaseAll(); TouchBinding.Shared.Enabled = on;
             TouchBinding.Shared.OverlayDesktop = on && LocalPlayer && LocalPlayer.Binding is DesktopBinding;
             TouchBinding.Shared.OverlayBindingId = on && LocalPlayer && LocalPlayer.Binding is not TouchBinding ? LocalPlayer.Binding?.Id : null;
-            if (desktopHints) desktopHints.SetActive(!on);
+            if (desktopHints && on) desktopHints.SetActive(false);
             if (touchToggle) touchToggle.text = on ? "Touch controls: on" : "Touch controls: off";
             if (LocalPlayer) LocalPlayer.Summoner.Close();
             ApplySafeArea();
@@ -720,7 +853,26 @@ namespace Wreckabulary
             TouchBinding.Shared.SetCraftOpen(false);
         }
         void SelectHand(int slot) { if (LocalPlayer && AcceptsGameplayInput) LocalPlayer.Combat.SelectSlot(slot); }
-        void SetBagPinned(bool on) { bagPinned = on; RefreshBagPanel(); }
+        void SetBagPinned(bool on) { bagPinned = on; if (!on) ShowBookLine(null); RefreshBagPanel(); }
+
+        public void ToggleBag() => SetBagPinned(!bagPinned);
+
+        void ShowBookLine(string word)
+        {
+            if (!bookLine) return;
+            string effect = word == null ? null : GameConfig.Current.Tuning?.Describe(word);
+            bookLine.text = word == null ? "" : $"{word} · {(string.IsNullOrEmpty(effect) ? "no extra effect" : effect)}";
+            if (bookLegend) bookLegend.SetActive(word == null);
+        }
+
+        sealed class BookCardFocus : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, ISelectHandler, IDeselectHandler
+        {
+            public Action<bool> Changed;
+            public void OnPointerEnter(PointerEventData _) => Changed?.Invoke(true);
+            public void OnPointerExit(PointerEventData _) => Changed?.Invoke(false);
+            public void OnSelect(BaseEventData _) => Changed?.Invoke(true);
+            public void OnDeselect(BaseEventData _) => Changed?.Invoke(false);
+        }
         void GoHome()
         {
             if (Paused) SetPaused(false);
@@ -730,7 +882,8 @@ namespace Wreckabulary
         public void TogglePause()
         {
             if (KeyBindings.Busy) return;
-            if (Paused) HandlePauseBack();
+            if (LeaveAsked) CloseLeave();
+            else if (Paused) HandlePauseBack();
             else SetPaused(true);
         }
         void SetPaused(bool on)
@@ -743,15 +896,16 @@ namespace Wreckabulary
         void Update()
         {
             if (!safe || (!AcceptsGameplayInput && !Paused)) return;
-            bool hub = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == Session.HubScene;
             if (!KeyBindings.Busy && (DesktopBinding.Shared.Pause.WasPressedThisFrame()
-                || (Paused && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)))
+                || ((Paused || LeaveAsked) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+                || (LeaveAsked && PadBackPressed())))
             {
-                if (Paused) HandlePauseBack();
+                if (LeaveAsked) CloseLeave();
+                else if (Paused) HandlePauseBack();
                 else if (bagPinned) SetBagPinned(false);
                 else if (craftRoot.activeSelf) CancelCraft();
                 else if (ResultShown) { }
-                else if (hub) pointerFreed = CursorPolicy.Locked;
+                else if (hubScene) pointerFreed = CursorPolicy.Locked;
                 else if (!(typewriter && typewriter.User)) SetPaused(true);
             }
             else if (pointerFreed && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame
@@ -765,7 +919,14 @@ namespace Wreckabulary
             UpdateCards();
         }
 
-        bool WantsBag() => LocalPlayer && !Paused && !ResultShown && !composerReleaseWait && (bagPinned || (LocalPlayer.Binding is DesktopBinding && DesktopBinding.Shared.Bag.IsPressed()));
+        static bool PadBackPressed()
+        {
+            foreach (var pad in Gamepad.all) if (pad.buttonEast.wasPressedThisFrame) return true;
+            return false;
+        }
+
+        bool WantsBag() => LocalPlayer && !Paused && !ResultShown && !composerReleaseWait && (bagPinned || (LocalPlayer.Binding is DesktopBinding && DesktopBinding.Shared.Bag.IsPressed()) ||
+            (LocalPlayer.Binding is GamepadBinding pad && pad.BagHeld));
 
         void OnEnable() => Active = this;
 
@@ -776,96 +937,189 @@ namespace Wreckabulary
             if (StateController.CurrentState != UIState.GameplayHUD) { FitCards(); return; }
             var rig = CameraRig.Instance;
             bool aiming = rig && rig.isActiveAndEnabled && rig.IsThirdPerson && !NeedsPointer;
-            if (crosshair && crosshair.activeSelf != aiming) crosshair.SetActive(aiming);
-            if (hintText) SetHint(rig && rig.isActiveAndEnabled && rig.IsThirdPerson);
+            bool crossed = aiming && !rig.Looking;
+            if (crosshair && crosshair.activeSelf != crossed) crosshair.SetActive(crossed);
+            bool thirdPerson = rig && rig.isActiveAndEnabled && rig.IsThirdPerson;
+            LearnTips(thirdPerson); FadeTip();
             if (BagOpen && bagFade.alpha < 1f) bagFade.alpha = Mathf.Clamp01((Time.unscaledTime - bagOpenedAt) / .12f);
             SyncComposer(); RefreshComposer();
             if (Time.unscaledTime < nextRefresh) return;
             nextRefresh = Time.unscaledTime + .08f;
-            FindLocalPlayer(); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshSkills(); RefreshNavigation();
-            FitCards();
-            if (BagOpen) RefreshBagContents();
-            if (playRect) playRect.gameObject.SetActive(!LocalPlayer);
-            if (playLabel) playLabel.text = "PLAY";
+            using (RefreshMarker.Auto())
+            {
+                FindLocalPlayer(); RefreshKeys(); RefreshTips(thirdPerson); RefreshInteraction(aiming); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshSkills(); RefreshNavigation();
+                FitCards();
+                if (BagOpen) RefreshBagContents();
+                if (playRect) playRect.gameObject.SetActive(!LocalPlayer);
+            }
         }
+
+        void RefreshKeys()
+        {
+            var binding = LocalPlayer ? LocalPlayer.Binding : null;
+            if (keyVersion == KeyBindings.Version && keyBinding == binding) return;
+            keyVersion = KeyBindings.Version; keyBinding = binding;
+            var keys = DesktopBinding.Shared;
+            spellLabel = binding is GamepadBinding or KeyboardBinding ? SpellKeyLabel(binding) : ControlHints.KeyOf(keys.Spell);
+            spellHintLabel = SpellKeyLabel(binding);
+            bagLabel = BagKeyLabel(binding);
+            interactLabel = binding switch { GamepadBinding => "RT", TouchBinding => "GRAB", _ => ControlHints.KeyOf(keys.Interact) };
+            FitCap(spellKey, spellCap, spellLabel);
+            FitCap(bagKey, bagCap, bagLabel);
+            spellHintKey = long.MinValue;
+        }
+
+        static void FitCap(TextMeshProUGUI key, RectTransform cap, string label)
+        {
+            if (!key || !cap) return;
+            key.text = label;
+            float width = Mathf.Clamp(key.GetPreferredValues(label, 999f, 32f).x + 16f, 32f, 78f);
+            key.rectTransform.sizeDelta = cap.sizeDelta = new Vector2(width, 32f);
+        }
+        void RefreshInteraction(bool aiming)
+        {
+            bool available = aiming && LocalPlayer && LocalPlayer.CanAct && !LocalPlayer.Combat.IsChanneling &&
+                (LocalPlayer.Combat.GrabTarget() || LocalPlayer.Combat.DownedTeammateNearby());
+            var color = available ? Hex(0x9ff8d3) : Hex(0xfff8e8);
+            foreach (var tick in crosshairTicks) tick.color = color;
+            if (interactPrompt) interactPrompt.text = available ? interactLabel : "";
+        }
+
+        public void Follow(PlayerController player)
+        {
+            followed = player;
+            LocalPlayer = null;
+            nextRefresh = 0f;
+        }
+
         void FindLocalPlayer()
         {
             if (LocalPlayer && LocalPlayer.isActiveAndEnabled) return;
-            LocalPlayer = null;
-            foreach (var p in World.Players) if (p && (p.Binding is TouchBinding || p.Binding is DesktopBinding)) { LocalPlayer = p; break; }
-            if (!LocalPlayer) foreach (var p in World.Players) if (p && p.Binding is not ScriptedBinding and not BotBinding) { LocalPlayer = p; break; }
+            LocalPlayer = followed && followed.isActiveAndEnabled ? followed : null;
+            if (!LocalPlayer) foreach (var p in World.Players) if (p && (p.Binding is TouchBinding || p.Binding is DesktopBinding)) { LocalPlayer = p; break; }
+            if (!LocalPlayer) foreach (var p in World.Players) if (p && p.Binding is not (null or ScriptedBinding or BotBinding)) { LocalPlayer = p; break; }
             TouchBinding.Shared.OverlayDesktop = TouchControlsShown && LocalPlayer && LocalPlayer.Binding is DesktopBinding;
             TouchBinding.Shared.OverlayBindingId = TouchControlsShown && LocalPlayer && LocalPlayer.Binding is not TouchBinding ? LocalPlayer.Binding?.Id : null;
         }
         IReadOnlyList<PlayerController> Roster => players ?? joins?.Players;
         void RefreshMatch()
         {
-            bool hub = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == Session.HubScene;
-            string mode = hub ? "Hub" : Match.Mode;
-            (string tag, string name) = mode switch
-            {
-                "Dibs" => ("HOUSE BRAWL", "Dibs!"),
-                "Duos" => ("2V2 · TEAMS", "Double trouble"),
-                "MovingOut" => ("CO-OP", "The great escape"),
-                "MovingDay" => ("CO-OP", "Moving day"),
-                "Tutorial" => ("PRACTICE", "Play & learn"),
-                "Hub" => ("WELCOME HOME", "The house"),
-                _ => ("HOUSE PARTY", "Wreckabulary"),
-            };
-            matchTag.text = tag; matchTitle.text = name;
-            var mine = LocalPlayer && wins != null ? wins(LocalPlayer) : 0;
-            matchDetail.text = mode is "Dibs" or "Duos" && rounds && rounds.Round > 0 ? $"ROUND {rounds.Round} · {mine} / {roundsToWin} WINS"
-                : mode == "Tutorial" ? "NO PRESSURE. JUST PLAY." : (Layout?.Name ?? "").ToUpperInvariant();
+            string mode = hubScene ? "Hub" : Match.Mode;
+            int target = roundsToWin > 0 ? roundsToWin : Match.Rules.RoundsToWin;
+            int round = HouseGoals.Rounds(mode) && rounds && rounds.Round > 0 ? rounds.Round : 0;
+            string layoutName = Layout?.Name ?? "";
+            if (mode == matchShown && round == roundShown && target == targetShown && layoutName == layoutShown) return;
+            matchShown = mode; roundShown = round; targetShown = target; layoutShown = layoutName;
+            (string tag, string name) = MatchHeading(mode);
+            matchTag.text = round > 0 ? HouseGoals.RoundTag(round, target) : tag;
+            matchTitle.text = name;
+            string goal = HouseGoals.Line(mode);
+            matchDetail.text = goal.Length > 0 ? goal : layoutName.ToUpperInvariant();
         }
+        public static (string tag, string name) MatchHeading(string mode) => HouseModes.Find(mode) is { } house ? (house.Tag, house.Name)
+            : mode == "Hub" ? ("WELCOME HOME", "The house") : ("HOUSE PARTY", "Wreckabulary");
+        static bool SeatHuman(PlayerController p) => p.Binding != null && p.Binding is not BotBinding;
         void RefreshCards()
         {
             var current = Roster;
+            int seats = 0, humans = 0;
+            if (current != null) foreach (var p in current) if (p) { seats++; if (SeatHuman(p)) humans++; }
             int shown = 0;
-            for (int i = 0; current != null && i < current.Count && shown < cards.Count; i++)
+            LayOutCards(seats);
+            for (int i = 0; seats > 1 && i < current.Count && shown < cards.Count; i++)
             {
                 var p = current[i];
-                if (!p || p == LocalPlayer || p.Binding is BotBinding) continue;
+                if (!p) continue;
                 var card = cards[shown++];
-                card.root.SetActive(true);
-                card.badge.color = p.Color; card.initial.text = p.Initial.ToString();
-                card.name.text = p.Name + (showWins && wins != null ? $"  <size=75%>{wins(p)}/{roundsToWin}</size>" : "");
+                if (!card.root.activeSelf) card.root.SetActive(true);
+                card.badge.color = p.Color;
+                string name = SeatTags.Name(p.Name, p == LocalPlayer, humans);
+                int won = showWins && wins != null ? wins(p) : -1;
+                if (name != card.shownName || won != card.shownWins || roundsToWin != card.shownTarget || !ReferenceEquals(scoreUnit, card.shownUnit))
+                {
+                    card.shownName = name; card.shownWins = won; card.shownTarget = roundsToWin; card.shownUnit = scoreUnit;
+                    card.name.text = won >= 0 ? $"{name}  <size=75%>{SeatScore(won, roundsToWin, scoreUnit)}</size>" : name;
+                }
                 card.fill.fillAmount = p.Health.Fraction; card.fill.color = p.Health.Fraction > .35f ? Health : Low;
-                card.status.text = p.IsEliminated ? "WRECKED" : p.IsDowned ? $"REVIVE ME {Mathf.CeilToInt(p.Health.BleedOutLeft)}s" : $"{Mathf.CeilToInt(p.Health.Current)} HP · {p.Inventory.TotalCount}/{p.Inventory.Capacity}";
+                int status = p.IsEliminated ? -1 : p.IsDowned ? Mathf.CeilToInt(p.Health.BleedOutLeft) : -2;
+                if (status != card.shownStatus)
+                {
+                    card.shownStatus = status;
+                    card.status.text = status == -1 ? "WRECKED" : status >= 0 ? $"REVIVE ME {status}s" : "";
+                }
             }
-            for (int i = shown; i < cards.Count; i++) cards[i].root.SetActive(false);
+            for (int i = shown; i < cards.Count; i++) if (cards[i].root.activeSelf) cards[i].root.SetActive(false);
         }
-        HouseLayout Layout => rooms && rooms.Layout != null ? rooms.Layout : clearOut ? clearOut.Layout : null;
+        public static string SeatScore(int score, int target, string unit) => target > 0 ? $"{score}/{target}{unit}" : $"{score}{unit}";
+        static Vector2 CardSpot(int index, int seats) => new(38f, -150f - index * (seats > RoomyCards ? 52f : 58f));
+        void LayOutCards(int seats)
+        {
+            int layout = seats > RoomyCards ? MaxCards : RoomyCards;
+            if (layout == cardsLaidOut) return;
+            cardsLaidOut = layout;
+            for (int i = 0; i < cards.Count; i++) ((RectTransform)cards[i].root.transform).anchoredPosition = CardSpot(i, layout);
+        }
+        HouseLayout Layout => rooms && rooms.Layout != null ? rooms.Layout : clearOut ? clearOut.Layout : practice;
         void RefreshSide()
         {
             UpdateMap(miniMap);
             var layout = Layout;
             string room = LocalPlayer && layout != null ? RoomOf(layout, LocalPlayer) : null;
-            roomPill.text = room != null ? Spaced(room) : layout != null ? "House" : "";
-            roomPill.transform.parent.gameObject.SetActive(roomPill.text.Length > 0);
-            objective.text = checklistText;
+            string roomKey = room ?? (layout != null ? "" : null);
+            if (roomKey != roomShown)
+            {
+                roomShown = roomKey;
+                roomPill.text = room != null ? Spaced(room) : layout != null ? "House" : "";
+                float width = Mathf.Min(252f, roomPill.GetPreferredValues(roomPill.text, 999f, 42f).x + 32f);
+                roomBacking.sizeDelta = new Vector2(width, 42f);
+                roomPill.rectTransform.sizeDelta = new Vector2(width - 32f, 42f);
+            }
+            roomPill.transform.parent.gameObject.SetActive(roomPill.text.Length > 0 && layout.Rooms.Count > 1);
             var current = Roster;
             int up = 0, all = 0;
             if (current != null) foreach (var p in current) { if (!p) continue; all++; if (!p.IsDowned && !p.IsEliminated) up++; }
-            aliveText.text = all > 0 ? $"{up}/{all}" : "-";
-            var goal = (RectTransform)objective.transform.parent;
-            goal.gameObject.SetActive(objective.text.Length > 0);
-            float height = Mathf.Max(48f, objective.GetPreferredValues(objective.text, 252f, 0f).y);
-            goal.sizeDelta = objective.rectTransform.sizeDelta = new Vector2(252f, height);
+            int alive = all > 0 ? up * 64 + all : -1;
+            if (alive != aliveShown) { aliveShown = alive; aliveText.text = all > 0 ? $"{up}/{all}" : "-"; }
+            aliveText.transform.parent.gameObject.SetActive(all > 1);
+            if (!ReferenceEquals(checklistText, objectiveShown))
+            {
+                objectiveShown = checklistText;
+                objective.text = checklistText;
+                var goal = (RectTransform)objective.transform.parent;
+                goal.gameObject.SetActive(objective.text.Length > 0);
+                float height = Mathf.Max(48f, objective.GetPreferredValues(objective.text, 252f, 0f).y);
+                goal.sizeDelta = objective.rectTransform.sizeDelta = new Vector2(252f, height);
+            }
         }
         void RefreshVitals()
         {
             vitals.gameObject.SetActive(LocalPlayer);
             if (!LocalPlayer) return;
             var health = LocalPlayer.Health;
-            hpValue.text = health.IsDowned ? $"DOWN <size=40%>{Mathf.CeilToInt(health.BleedOutLeft)}s</size>" : $"{Mathf.CeilToInt(health.Current)}<size=30%> HP</size>";
+            int hp = health.IsDowned ? -1 - Mathf.CeilToInt(health.BleedOutLeft) : Mathf.CeilToInt(health.Current);
+            if (hp != hpShown)
+            {
+                hpShown = hp;
+                hpValue.text = health.IsDowned ? $"DOWN <size=40%>{Mathf.CeilToInt(health.BleedOutLeft)}s</size>" : $"{hp}<size=30%> HP</size>";
+            }
+            int stamina = Mathf.CeilToInt(health.Stamina);
+            if (stamina != staminaShown) { staminaShown = stamina; staminaValue.text = $"{stamina}<size=45%> STA</size>"; }
+            var staminaColor = health.Stamina < health.Rules.DodgeStamina ? Hex(0xffc568) : Hex(0x9ff8d3);
+            staminaValue.color = staminaFill.color = staminaColor;
+            staminaFill.rectTransform.sizeDelta = new Vector2(130f * health.StaminaFraction, 5f);
             bool low = health.IsDowned || health.Current < 30f;
             hpValue.color = low ? LowHp : OnGame;
             hpValue.rectTransform.localScale = Vector3.one * (low ? 1f + .06f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 5f)) : 1f);
-            shieldText.text = health.Bubble > 0f ? $"+{Mathf.CeilToInt(health.Bubble)} SHIELD" : "";
+            sb.Clear();
+            if (health.Bubble > 0f) sb.Append($"+{Mathf.CeilToInt(health.Bubble)} SHIELD");
+            if (health.BleedingLeft > 0f) sb.Append(sb.Length > 0 ? "  " : "").Append("<color=#FF6B5E>BLEEDING</color>");
+            if (LocalPlayer.SlowLeft > 0f) sb.Append(sb.Length > 0 ? "  " : "").Append("<color=#FFC568>SLOWED</color>");
+            shieldText.text = sb.ToString();
             for (int i = 0; i < 2; i++) ShowHand(hands[i], i, false);
         }
         void ShowHand(HandView view, int slot, bool detail)
         {
+            if (view == null || !view.face || !view.edge || !view.label || !view.empty || !view.icon) return;
             var combat = LocalPlayer.Combat;
             var gear = combat.GearIn(slot);
             bool active = slot == combat.ActiveSlot;
@@ -883,6 +1137,7 @@ namespace Wreckabulary
                 view.label.text = word ?? ""; view.label.color = OnGame;
                 view.empty.enabled = word == null;
             }
+            if (view.key) view.key.text = HandKeyLabel(LocalPlayer.Binding, slot);
             Wreckabulary.UI.ItemArt.Apply(view.icon, gear ? gear.word : null);
             view.icon.enabled = view.icon.texture;
             if (view.wearTrack)
@@ -897,30 +1152,83 @@ namespace Wreckabulary
             tray.gameObject.SetActive(LocalPlayer);
             if (!LocalPlayer) return;
             var inv = LocalPlayer.Inventory;
-            spellKey.text = ControlHints.KeyOf(DesktopBinding.Shared.Spell);
-            bagKey.text = ControlHints.KeyOf(DesktopBinding.Shared.Bag);
             FillCells(trayCells, inv);
             var summon = LocalPlayer.Summoner;
             craftProgress.transform.parent.gameObject.SetActive(summon.IsCrafting);
             craftProgress.fillAmount = summon.CraftProgress;
+            RefreshSpellHint(inv, summon);
         }
+        void RefreshSpellHint(LetterInventory inv, Summoner summon)
+        {
+            bool quiet = summon.IsCrafting || summon.IsSpelling || (craftRoot && craftRoot.activeSelf);
+            string spell = spellHintLabel;
+            var needs = summon.Needs;
+            var objectives = summon.Objectives;
+            long key = quiet ? long.MinValue + 1 : LetterSignature(inv.Letters, inv.Capacity);
+            if (key != spellHintKey || !needs.Equals(spellHintNeeds) || !ReferenceEquals(objectives, spellHintObjectives))
+            {
+                spellHintKey = key; spellHintNeeds = needs; spellHintObjectives = objectives;
+                string line = quiet ? "" : SpellHintText(summon.Words, inv.Letters, inv.Capacity, spell, needs, objectives);
+                spellHint.text = line;
+                spellHint.color = line.Contains(" ready") ? Hex(0x9ff8d3) : OnGame;
+            }
+            bool shown = spellHint.text.Length > 0;
+            if (spellHint.gameObject.activeSelf != shown) spellHint.gameObject.SetActive(shown);
+        }
+        static long LetterSignature(IReadOnlyList<char> letters, int capacity)
+        {
+            unchecked
+            {
+                long sum = 0, squares = 0;
+                for (int i = 0; i < letters.Count; i++) { long v = letters[i] * 2654435761L; sum += v; squares += v * v; }
+                return sum * 31 + squares + capacity;
+            }
+        }
+
+        public static string SpellHintText(IEnumerable<WordEntry> words, IReadOnlyList<char> letters, int capacity, string key) =>
+            SpellHintText(words, letters, capacity, key, SpellNeeds.Unarmed, null);
+
+        public static string SpellHintText(IEnumerable<WordEntry> words, IReadOnlyList<char> letters, int capacity, string key,
+            SpellNeeds needs, IReadOnlyCollection<string> objectives)
+        {
+            if (words == null || letters == null || letters.Count == 0) return "";
+            var usable = words.Where(w => w != null && !string.IsNullOrEmpty(w.word)).ToList();
+            var ready = WordSolver.Spellable(usable, letters, needs, objectives);
+            if (ready.Count > 0) return ready[0].word + " ready" + (string.IsNullOrEmpty(key) ? "" : " · " + key);
+            var near = WordSolver.Hints(usable, letters, capacity, needs, objectives);
+            return near.Count > 0 ? near[0].entry.word + " needs " + near[0].missing : "";
+        }
+        public static string SpellKeyLabel(InputBinding binding) => binding switch
+        {
+            GamepadBinding => "Y",
+            TouchBinding => "SPELL",
+            KeyboardBinding keys => keys.Id.EndsWith("Left", StringComparison.Ordinal) ? "K" : "R-SHIFT",
+            _ => ControlHints.KeyOf(DesktopBinding.Shared.Spell),
+        };
+        public static string BagKeyLabel(InputBinding binding) =>
+            binding is GamepadBinding ? ControlHints.PadBag : ControlHints.KeyOf(DesktopBinding.Shared.Bag);
+        public static string HandKeyLabel(InputBinding binding, int slot) =>
+            binding is GamepadBinding ? ControlHints.PadHand(slot) : slot >= 0 && slot < HandNumbers.Length ? HandNumbers[slot] : (slot + 1).ToString();
         void FillCells(LetterCell[] cells, LetterInventory inv)
         {
-            var letters = inv.Letters.OrderBy(c => c).ToArray();
+            sorted.Clear(); sorted.AddRange(inv.Letters); sorted.Sort();
             var crafting = LocalPlayer.Summoner.IsCrafting ? LocalPlayer.Summoner.CraftWord ?? "" : "";
             for (int i = 0; i < cells.Length; i++)
             {
                 var cell = cells[i];
                 cell.face.transform.parent.gameObject.SetActive(i < inv.Capacity);
-                bool held = i < letters.Length, reserved = !held && i < letters.Length + inv.ReservedCount;
-                int r = i - letters.Length;
+                bool held = i < sorted.Count, reserved = !held && i < sorted.Count + inv.ReservedCount;
+                int r = i - sorted.Count;
                 cell.face.color = held ? Tile : reserved ? Reserved : cell.ring ? BagCell : EmptyCell;
                 cell.edge.enabled = held;
                 if (cell.ring) cell.ring.enabled = !held && !reserved;
+                if (cell.outline) cell.outline.enabled = !held && !reserved;
                 cell.letter.color = reserved ? ReservedInk : Ink;
-                cell.letter.text = held ? letters[i].ToString() : reserved && r < crafting.Length ? crafting[r].ToString() : "";
+                cell.letter.text = held ? One(sorted[i]) : reserved && r < crafting.Length ? One(crafting[r]) : "";
             }
         }
+
+        static string One(char letter) => letter >= 'A' && letter <= 'Z' ? LetterTexts[letter - 'A'] : letter.ToString();
         void RefreshBagPanel()
         {
             if (!bagPanel) return;
@@ -955,16 +1263,6 @@ namespace Wreckabulary
             bagPanelCount.text = $"{inv.TotalCount}/{inv.Capacity}";
             FillCells(bagCells, inv);
             for (int i = 0; i < 2; i++) ShowHand(bagHands[i], i, true);
-            var outfit = LocalPlayer.GetComponent<PlayerAppearance>()?.CurrentOutfit;
-            int worn = 0;
-            if (outfit != null)
-                foreach (var slot in WearSlots)
-                {
-                    if (string.IsNullOrEmpty(outfit.PieceIn(slot))) continue;
-                    var (root, icon) = wearChips[worn++];
-                    root.SetActive(true); icon.texture = Glyph(slot);
-                }
-            for (int i = worn; i < wearChips.Count; i++) wearChips[i].root.SetActive(false);
             int effects = 0;
             void Effect(Texture picture, Color tint, float seconds, Rect? uv = null)
             {
@@ -990,7 +1288,7 @@ namespace Wreckabulary
             }
             for (int i = effects; i < effectChips.Count; i++) effectChips[i].root.SetActive(false);
             RefreshBook(inv);
-            LayoutBag(worn, effects);
+            LayoutBag(effects);
             UpdateMap(bigMap);
         }
 
@@ -1006,7 +1304,8 @@ namespace Wreckabulary
                     int at = spare.IndexOf(card.word[i]);
                     bool got = at >= 0;
                     if (got) spare.RemoveAt(at); else all = false;
-                    card.tiles[i].color = got ? TileGot : TileMissing;
+                    card.tiles[i].color = got ? TileGot : Color.clear;
+                    card.rims[i].enabled = !got;
                     card.letters[i].color = got ? TileGotInk : TileMissingInk;
                 }
                 card.face.color = all ? Hex(0xffe7b8, .17f) : BagCard;
@@ -1016,7 +1315,7 @@ namespace Wreckabulary
             }
         }
 
-        void LayoutBag(int worn, int effects)
+        void LayoutBag(int effects)
         {
             float y = 0f;
             static float Rows(int n) => n == 0 ? 0f : Mathf.Ceil(n / (float)ChipsPerRow) * (Chip + ChipGap) - ChipGap;
@@ -1032,8 +1331,8 @@ namespace Wreckabulary
                 for (int i = 0; i < count; i++)
                     ((RectTransform)chip(i).transform).anchoredPosition = new Vector2(i % ChipsPerRow * (Chip + ChipGap), -(i / ChipsPerRow) * (Chip + ChipGap));
             }
-            Place(bagLetters, 155f); Place(bagHandsRow, 145f); Place(bagWearRow, Rows(worn)); Place(bagEffectsRow, Rows(effects));
-            Flow(worn, i => wearChips[i].root); Flow(effects, i => effectChips[i].root);
+            Place(bagLetters, 155f); Place(bagHandsRow, 145f); Place(bagEffectsRow, Rows(effects));
+            Flow(effects, i => effectChips[i].root);
             bagColumn.sizeDelta = new Vector2(BagColumn, Mathf.Max(0f, y - BagGap));
             var area = safe.rect;
             bool compact = area.width < 1400f;
@@ -1104,7 +1403,7 @@ namespace Wreckabulary
             var coverMax = new Vector2(1f + (lastWidth - lastSafe.xMax) / safeWidth, 1f + (lastHeight - lastSafe.yMax) / safeHeight);
             foreach (var cover in new[] { bagBackdrop, resultShade }) if (cover) { cover.anchorMin = coverMin; cover.anchorMax = coverMax; }
             bool portrait = lastWidth < lastHeight, touch = TouchControlsShown;
-            if (vitals) vitals.anchoredPosition = new Vector2(39f, touch ? (portrait ? 420f : 250f) : Mathf.Max(110f, hint.anchoredPosition.y + hint.sizeDelta.y + 12f));
+            if (vitals) vitals.anchoredPosition = new Vector2(39f, touch ? (portrait ? 420f : 250f) : 38f);
             if (tray)
             {
                 tray.anchorMin = tray.anchorMax = tray.pivot = portrait ? new Vector2(0f, 1f) : new Vector2(.5f, 0f);
@@ -1119,6 +1418,7 @@ namespace Wreckabulary
                 playRect.anchoredPosition = portrait ? new Vector2(30f, 340f) : new Vector2(0f, -185f);
             }
             if (status) status.anchoredPosition = new Vector2(0f, portrait ? -360f : -140f);
+            if (hint) hint.anchoredPosition = new Vector2(0f, portrait ? -360f : -140f);
             ResizeStatus();
         }
         void ResizeStatus()
@@ -1135,7 +1435,7 @@ namespace Wreckabulary
         {
             if (focused) return; TouchBinding.Shared.ReleaseAll();
             foreach (var stick in sticks) if (stick) stick.Release(); if (LocalPlayer) LocalPlayer.Summoner.Close();
-            if (PauseOnFocusLoss && safe && LocalPlayer && UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != Session.HubScene)
+            if (PauseOnFocusLoss && safe && LocalPlayer && !hubScene)
                 SetPaused(true);
         }
         void OnDisable()
@@ -1157,6 +1457,7 @@ namespace Wreckabulary
                 StateController.TransitionCompleted -= OnUiTransitionCompleted;
             }
             if (joins) joins.Joined -= OnPlayerJoined;
+            UnityEngine.SceneManagement.SceneManager.activeSceneChanged -= NoteScene;
             RestoreSimulation();
             UnhookKeyboard();
             foreach (var sprite in ownedSprites) if (sprite) Destroy(sprite);
@@ -1173,15 +1474,17 @@ namespace Wreckabulary
         }
         public void SetInstruction(string main, string hint = "")
         {
-            string text = string.IsNullOrEmpty(hint) ? main : $"<b>{main}</b>\n<size=82%><color=#173B3CB3>{hint}</color></size>";
+            string text = string.IsNullOrEmpty(hint) ? main : $"<b>{main}</b>\n<size=82%><color=#FFF4E0CC>{hint}</color></size>";
             if (instruction) instruction.text = text;
-            if (!statusText || statusText.text == OnCream(text)) return;
-            statusText.text = OnCream(text);
+            if (!statusText || statusText.text == text) return;
+            statusText.text = text;
             status.gameObject.SetActive(!string.IsNullOrEmpty(main) || !string.IsNullOrEmpty(hint));
             ResizeStatus();
         }
         public void SetChecklist(string text)
         {
+            if (checklistSource != null && text == checklistSource && (!checklist || checklist.text == text)) return;
+            checklistSource = text;
             if (checklist) checklist.text = text;
             checklistText = (text ?? "").Replace("<b>", "").Replace("</b>", "").Replace("<size=75%>", "<size=90%>");
         }
@@ -1191,14 +1494,13 @@ namespace Wreckabulary
             if (timer) timer.transform.parent.gameObject.SetActive(!string.IsNullOrEmpty(text));
         }
         public void SetScoreboard(IReadOnlyList<PlayerController> currentPlayers, Func<PlayerController, int> currentWins, int targetWins, bool winsVisible)
-        { players = currentPlayers; wins = currentWins; roundsToWin = targetWins; showWins = winsVisible; }
+            => SetScoreboard(currentPlayers, currentWins, targetWins, winsVisible, null);
 
-        static string OnCream(string text) => text
-            .Replace("#FFF4E0AA", "#173B3C99").Replace("#FFF4E0CC", "#173B3CB3").Replace("#FFF4E0", "#173B3C")
-            .Replace("#8FD18B", "#2F7A5C").Replace("#FFD24A", "#B86647");
+        public void SetScoreboard(IReadOnlyList<PlayerController> currentPlayers, Func<PlayerController, int> currentScore, int target, bool scoreVisible, string unit)
+        { players = currentPlayers; wins = currentScore; roundsToWin = target; showWins = scoreVisible; scoreUnit = unit; }
 
         static readonly Regex Words = new("(?<=[a-z])(?=[A-Z])");
-        static string Spaced(string name) => Words.Replace(name, " ");
+        public static string Spaced(string name) => Words.Replace(name ?? "", " ");
 
         static string RoomOf(HouseLayout layout, PlayerController p) => layout.RoomAt(p.transform.position.x, p.transform.position.y, p.transform.position.z);
 
@@ -1221,7 +1523,7 @@ namespace Wreckabulary
             rt.gameObject.AddComponent<Button>().onClick.AddListener(() => onTap());
             view.edge = CreateImage("Edge", rt, Vector2.zero, Vector2.zero, Vector2.zero, GlassIdle);
             Stretch(view.edge.rectTransform); view.edge.sprite = ringSprite; view.edge.type = Image.Type.Sliced;
-            var key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(8f, -7f), new Vector2(18f, 26f), 20f, OnGame, TextAlignmentOptions.Left);
+            var key = view.key = Text("Key", rt, new Vector2(0f, 1f), new Vector2(8f, -7f), new Vector2(18f, 26f), 20f, OnGame, TextAlignmentOptions.Left);
             key.text = (slot + 1).ToString(); key.rectTransform.pivot = new Vector2(0f, 1f);
             view.icon = Rect("Icon", rt, new Vector2(0f, .5f), new Vector2(52f, -3f), new Vector2(52f, 52f)).gameObject.AddComponent<RawImage>();
             view.icon.raycastTarget = false;

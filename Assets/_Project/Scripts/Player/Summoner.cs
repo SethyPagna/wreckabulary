@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
@@ -27,7 +28,52 @@ namespace Wreckabulary
         public IReadOnlyList<WordEntry> WordsOverride { get; set; }
         public IReadOnlyCollection<string> ChecklistPlacementWords { get; set; }
         public bool Typed { get; set; }
-        IReadOnlyList<WordEntry> Words => WordsOverride ?? (database ? database : GameAssets.I.words).Words;
+        public string WantedWord => HouseModeDirectors.WantedWord(controller);
+        string objectivesGoal;
+        IReadOnlyCollection<string> objectivesFrom, objectives;
+
+        public IReadOnlyCollection<string> Objectives
+        {
+            get
+            {
+                string goal = WantedWord;
+                var placement = ChecklistPlacementWords;
+                if (goal != objectivesGoal || !ReferenceEquals(placement, objectivesFrom))
+                {
+                    objectivesGoal = goal;
+                    objectivesFrom = placement;
+                    objectives = SpellChoice.WithGoal(placement, goal);
+                }
+                return objectives;
+            }
+        }
+        public IReadOnlyList<WordEntry> Words => WordsOverride ?? (database ? database : GameAssets.I.words).Words;
+
+        public SpellNeeds Needs
+        {
+            get
+            {
+                bool armed = false, guarded = false;
+                var combat = controller ? controller.Combat : null;
+                if (combat)
+                {
+                    Carry(combat.Weapon, ref armed, ref guarded);
+                    Carry(combat.StoredGear, ref armed, ref guarded);
+                }
+                var health = controller ? controller.Health : null;
+                return new SpellNeeds(armed, guarded, health && health.IsAlive && health.Fraction <= SpellNeeds.HurtAt);
+            }
+        }
+
+        static void Carry(HeldWeapon gear, ref bool armed, ref bool guarded)
+        {
+            if (!gear) return;
+            var role = gear.Definition != null ? SpellChoice.RoleOf(gear.Definition) : gear.Shield != null ? SpellRole.Shield : SpellRole.Weapon;
+            armed |= SpellChoice.Fights(role);
+            guarded |= role == SpellRole.Shield;
+        }
+
+        public List<WordEntry> Options() => WordSolver.Spellable(Words, inventory.Letters, Needs, Objectives);
 
         void Awake()
         {
@@ -97,8 +143,10 @@ namespace Wreckabulary
         void Refresh()
         {
             var keep = SelectedWord;
-            Ready = WordSolver.Spellable(Words, inventory.Letters);
-            var hints = WordSolver.Hints(Words, inventory.Letters, inventory.Capacity);
+            var needs = Needs;
+            var wanted = Objectives;
+            Ready = WordSolver.Spellable(Words, inventory.Letters, needs, wanted);
+            var hints = WordSolver.Hints(Words, inventory.Letters, inventory.Capacity, needs, wanted);
             Hints = hints.GetRange(0, Mathf.Min(maxHints, hints.Count));
             Selected = keep != null && Ready.Contains(keep) ? Ready.IndexOf(keep) : 0;
         }

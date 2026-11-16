@@ -11,6 +11,9 @@ namespace Wreckabulary.EditorTools
         public const string AssetPath = "Assets/_Project/Resources/GameData.asset";
         public const string RulesFile = "rules.json";
         public const string ItemsFile = "items.json";
+        public const string HouseItemsFile = "items_house.json";
+        public const string HouseModesFile = "modes_house.json";
+        public const string HouseRiddlesFile = "riddles_house.json";
         public const string HouseFile = "house_pinwheel.json";
         public const string WardrobeFile = "wardrobe.json";
 
@@ -28,6 +31,9 @@ namespace Wreckabulary.EditorTools
             }
             data.rules = Text(RulesFile);
             data.items = Text(ItemsFile);
+            data.houseItems = Text(HouseItemsFile);
+            data.houseModes = Text(HouseModesFile);
+            data.houseRiddles = Text(HouseRiddlesFile);
             data.house = Text(HouseFile);
             data.wardrobe = Text(WardrobeFile);
             data.maps = Directory.GetFiles(ConfigFolder, "house_*.json")

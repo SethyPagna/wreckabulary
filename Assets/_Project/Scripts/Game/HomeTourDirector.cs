@@ -16,7 +16,7 @@ namespace Wreckabulary
             lens = camera;
             if (lens)
             {
-                cutaway = lens.GetComponent<CameraCutaway>() ?? lens.gameObject.AddComponent<CameraCutaway>();
+                if (!lens.TryGetComponent(out cutaway)) cutaway = lens.gameObject.AddComponent<CameraCutaway>();
                 view.Environment = environment;
                 view.Cutaway = cutaway;
             }
@@ -62,8 +62,17 @@ namespace Wreckabulary
         sealed class TourBinding : InputBinding
         {
             readonly InputBinding source;
+            string sourceId, id;
             public TourBinding(InputBinding source) { this.source = source ?? DesktopBinding.Shared; }
-            public override string Id => "home-tour:" + source.Id;
+            public override string Id
+            {
+                get
+                {
+                    var current = source.Id;
+                    if (id == null || current != sourceId) { sourceId = current; id = "home-tour:" + current; }
+                    return id;
+                }
+            }
             public override bool CanLook => source.CanLook;
             public override bool ReadsMouse => source.ReadsMouse;
             public override void Read(ref PlayerCommands c)

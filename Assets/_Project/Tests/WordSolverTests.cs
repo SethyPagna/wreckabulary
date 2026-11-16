@@ -1,5 +1,6 @@
 using System.Linq;
 using NUnit.Framework;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary.Tests
 {
@@ -39,10 +40,23 @@ namespace Wreckabulary.Tests
         }
 
         [Test]
-        public void SpellableIsSortedByScore()
+        public void SpellableOffersAnEmptyHandAWeaponFirst()
         {
             var words = WordSolver.Spellable(Db(), "ABLDEXZP");
-            CollectionAssert.AreEqual(new[] { "ZAP", "AXE", "BLADE" }, words.Select(w => w.word).ToArray());
+            CollectionAssert.AreEqual(new[] { "AXE", "BLADE", "ZAP" }, words.Select(w => w.word).ToArray());
+            var armed = WordSolver.Spellable(Db().Words, "ABLDEXZP", new SpellNeeds(true, false, false), null);
+            CollectionAssert.AreEqual(new[] { "ZAP", "AXE", "BLADE" }, armed.Select(w => w.word).ToArray(), "with a weapon in hand the harder word leads");
+        }
+
+        [Test]
+        public void DeployablesAreNeverTheQuickSpellWhileSomethingElseIsReady()
+        {
+            var words = GameConfig.Current.Items.Enabled.Select(i => new WordEntry { word = i.Id }).ToList();
+            Assert.AreEqual("PAN", WordSolver.Spellable(words, "PLANT".ToCharArray().Concat("PAN")).First().word, "a newcomer gets a PAN, not a potted PLANT");
+            Assert.AreEqual("FAN", WordSolver.Spellable(words, "FAN".ToCharArray()).First().word, "a deployable is offered when it is the only word ready");
+            Assert.AreEqual(WordCategory.Deployable, UnityEngine.Resources.Load<GameAssets>("GameAssets").words.Find("SPEAKER").category);
+            var checklist = new[] { "BED" };
+            Assert.AreEqual("BED", WordSolver.Spellable(words, "BEDBAT".ToCharArray(), default, checklist).First().word, "a checklist word comes first");
         }
 
         [Test]
@@ -51,7 +65,7 @@ namespace Wreckabulary.Tests
             var hints = WordSolver.Hints(Db().Words, "SWRDZA", capacity: 6);
             var words = hints.Select(h => h.entry.word).ToArray();
             CollectionAssert.Contains(words, "SWORD");
-            CollectionAssert.DoesNotContain(words, "ZAP"); // hidden, one letter short
+            CollectionAssert.DoesNotContain(words, "ZAP");
             Assert.AreEqual("O", hints.First(h => h.entry.word == "SWORD").missing);
 
             var umbrella = WordSolver.Hints(Db().Words, "UMBRELL", capacity: 6);

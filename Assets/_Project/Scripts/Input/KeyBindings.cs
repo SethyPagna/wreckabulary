@@ -61,8 +61,8 @@ namespace Wreckabulary
                 foreach (var row in new[] { ("Move forward", "Up"), ("Move back", "Down"), ("Move left", "Left"), ("Move right", "Right") })
                     yield return (row.Item1, move, Part(move, row.Item2));
             foreach (var row in new[] {
-                ("Smash, throw, place, block", "Attack"), ("Aim (hold)", "Aim"), ("Jump", "Jump"), ("Dodge", "Dodge"),
-                ("Pick up, hold to revive", "Interact"), ("Spell a word", "Spell"), ("Drop gear (hold)", "Drop"),
+                ("Smash, throw, place, block", "Attack"), ("Aim (hold)", "Aim"), ("Look around (hold)", "Look around"), ("Jump", "Jump"), ("Dodge", "Dodge"),
+                ("Pick up, hold to revive", "Interact"), ("Spell a word", "Spell"), ("Drop gear (hold)", "Drop"), ("Push to talk (hold)", "Push to talk"),
                 ("Hand 1", "Hand 1"), ("Hand 2", "Hand 2"), ("Bag and map (hold)", "Bag"), ("Pause", "Pause") })
             {
                 var action = map.FindAction(row.Item2);
@@ -70,7 +70,6 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>Programmatic bindings need repeatable IDs for Unity's override JSON to survive a fresh map.</summary>
         public static void IdentifyBindings(InputActionMap map)
         {
             using var hash = MD5.Create();
@@ -92,8 +91,46 @@ namespace Wreckabulary
             return 0;
         }
 
-        public static string KeyName(InputAction action, int binding) =>
-            action.GetBindingDisplayString(binding).ToUpperInvariant();
+        public static string KeyName(InputAction action, int binding)
+        {
+            if (action == null) return "";
+            string display = action.GetBindingDisplayString(binding);
+            if (IsLatin(display)) return display.ToUpperInvariant();
+            return PhysicalKey(binding >= 0 && binding < action.bindings.Count ? action.bindings[binding].effectivePath : null);
+        }
+
+        public static string Display(InputAction action, int binding = -1)
+        {
+            if (action == null) return "";
+            string display = binding < 0 ? action.GetBindingDisplayString() : action.GetBindingDisplayString(binding);
+            if (IsLatin(display)) return display.ToUpperInvariant();
+
+            if (binding < 0)
+            {
+                var parts = new List<string>();
+                for (int i = 0; i < action.bindings.Count; i++)
+                    if (action.bindings[i].isPartOfComposite) parts.Add(PhysicalKey(action.bindings[i].effectivePath));
+                if (parts.Count > 0) return string.Join("/", parts).ToUpperInvariant();
+                binding = 0;
+            }
+            return PhysicalKey(binding >= 0 && binding < action.bindings.Count ? action.bindings[binding].effectivePath : null);
+        }
+
+        static string PhysicalKey(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return "?";
+            int slash = path.LastIndexOf('/');
+            string key = slash >= 0 ? path.Substring(slash + 1) : path;
+            if (key.Length == 1) return key.ToUpperInvariant();
+            return key.Replace("Digit", string.Empty).Replace("Arrow", string.Empty).ToUpperInvariant();
+        }
+
+        public static bool IsLatin(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return true;
+            foreach (char c in text) if (c > 126) return false;
+            return true;
+        }
 
         public static void Load(InputActionMap map)
         {
@@ -122,7 +159,6 @@ namespace Wreckabulary
                     {
                         string actionName = entry.action?.Substring(entry.action.LastIndexOf('/') + 1);
                         var legacy = string.IsNullOrEmpty(actionName) ? null : map.FindAction(actionName);
-                        // Old composite IDs cannot identify which movement direction was edited; retain a backup instead of guessing.
                         if (legacy != null && legacy.bindings.Count == 1) { found = legacy; index = 0; migrated = true; }
                     }
                     if (found != null) found.ApplyBindingOverride(index, entry.path);

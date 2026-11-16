@@ -1,10 +1,10 @@
 using System.Text;
 using TMPro;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>Remote identity and short contextual prompts; health, gear and letters live in the screen HUD.</summary>
     public class PlayerHud : MonoBehaviour
     {
         [SerializeField] PlayerController player;
@@ -12,9 +12,14 @@ namespace Wreckabulary
         [SerializeField] TextMeshPro wheelText;
         [SerializeField] float height = 1.95f;
 
+        const float RingRadius = .6f, RingWidth = .07f, RingLift = .05f;
+
         readonly StringBuilder sb = new();
         string lastLetters, lastWheel, nameMarkup;
         WorldSpaceBillboard billboard;
+        LineRenderer ring;
+
+        public LineRenderer SeatRing => ring;
 
         void Awake()
         {
@@ -29,33 +34,55 @@ namespace Wreckabulary
             if (CameraRig.Instance) billboard.SetCamera(CameraRig.Instance.ViewCamera);
         }
 
+        void OnDisable()
+        {
+            if (ring) ring.enabled = false;
+        }
+
+        void OnDestroy()
+        {
+            if (ring) Destroy(ring.gameObject);
+        }
+
+        static bool IsSeat(PlayerController p) => p && p.Binding != null && p.Binding is not BotBinding;
+
         void LateUpdate()
         {
             if (!player) return;
             transform.position = player.transform.position + Vector3.up * height;
-            bool followed = GameHud.Active && GameHud.Active.LocalPlayer == player;
-            if (!followed) followed = CameraRig.Instance && CameraRig.Instance.IsFollowing(player);
-            if (!followed && player.Binding is not BotBinding)
-            {
-                int humans = 0;
-                foreach (var seat in World.Players)
-                    if (seat && seat.Binding != null && seat.Binding is not BotBinding) humans++;
-                followed = humans == 1;
-            }
-            SetIfChanged(lettersText, IdentityLine(followed), ref lastLetters);
+            bool human = IsSeat(player);
+            int humans = 0;
+            foreach (var seat in World.Players) if (IsSeat(seat)) humans++;
+            var rig = CameraRig.Instance;
+            bool shoulder = rig && rig.isActiveAndEnabled && rig.IsThirdPerson && rig.IsFollowing(player);
+            bool followed = (GameHud.Active && GameHud.Active.LocalPlayer == player) || (rig && rig.IsFollowing(player)) || (human && humans == 1);
+            SetIfChanged(lettersText, IdentityLine(human, humans, shoulder), ref lastLetters);
             bool remoteCraft = !followed && player.Summoner && player.Summoner.IsSpelling;
             SetIfChanged(wheelText, remoteCraft ? WheelLines() : ContextLine(), ref lastWheel);
+            ShowRing(SeatTags.ShowsRing(human, player.IsEliminated));
         }
 
-        string IdentityLine(bool followed)
+        void ShowRing(bool on)
+        {
+            if (!on && !ring) return;
+            if (!ring)
+            {
+                ring = SummonEffects.Ring(player.transform, "Seat ring", player.Color, RingRadius, Quaternion.Euler(90f, 0f, 0f));
+                ring.transform.localPosition = Vector3.up * RingLift;
+                ring.startWidth = ring.endWidth = RingWidth;
+            }
+            if (ring.enabled != on) ring.enabled = on;
+        }
+
+        string IdentityLine(bool human, int humans, bool shoulder)
         {
             if (player.IsEliminated) return "";
             if (player.IsDowned)
                 return $"<color=#FF967D>REVIVE · {Mathf.CeilToInt(player.Health.BleedOutLeft)}s</color>";
-            return followed ? "" : nameMarkup ?? "";
+            bool tagged = player.Binding == null ? humans != 1 : SeatTags.ShowsTag(human, humans, shoulder);
+            return tagged ? nameMarkup ?? "" : "";
         }
 
-        /// <summary>Show only actions that need nearby world context.</summary>
         string ContextLine()
         {
             var combat = player.Combat;

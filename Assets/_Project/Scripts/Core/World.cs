@@ -3,20 +3,20 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>Scene-wide lookups: live players, physics layers and a parent for temporary objects.</summary>
     public static class World
     {
+        const int UnknownLayer = int.MinValue;
         static Transform transient;
+        static int playerLayer = UnknownLayer, tileLayer = UnknownLayer;
 
-        // Static state survives between Play sessions when domain reload is off, so reset it.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             transient = null;
+            playerLayer = tileLayer = UnknownLayer;
             Players.Clear();
         }
 
-        /// <summary>Parent for summons, delivery boxes and effects. Cleared between rounds.</summary>
         public static Transform Transient
         {
             get
@@ -52,12 +52,11 @@ namespace Wreckabulary
 
         public static readonly List<PlayerController> Players = new();
 
-        public static int PlayerLayer => LayerMask.NameToLayer("Player");
-        public static int TileLayer => LayerMask.NameToLayer("Tile");
+        public static int PlayerLayer => playerLayer != UnknownLayer ? playerLayer : (playerLayer = LayerMask.NameToLayer("Player"));
+        public static int TileLayer => tileLayer != UnknownLayer ? tileLayer : (tileLayer = LayerMask.NameToLayer("Tile"));
 
         public static int TileMask => TileLayer >= 0 ? 1 << TileLayer : ~0;
 
-        /// <summary>Everything a player can stand on: not players and not loose tiles.</summary>
         public static int GroundMask
         {
             get

@@ -4,7 +4,6 @@ using Wreckabulary.Art;
 
 namespace Wreckabulary
 {
-    /// <summary>A physical letter tile that can be picked up, carried and dropped.</summary>
     [RequireComponent(typeof(Rigidbody))]
     public class LetterTile : MonoBehaviour
     {
@@ -15,7 +14,10 @@ namespace Wreckabulary
         public char Letter => letter;
         public LetterRarity Rarity => LetterScores.RarityOf(letter);
         public Rigidbody Body { get; private set; }
+        internal char ShownLetter => importedVisual ? visualLetter : '\0';
 
+        static readonly string[] glyphs = new string[26], keys = new string[26];
+        static MaterialPropertyBlock tintBlock;
         GameObject importedVisual;
         char visualLetter;
         LetterPickupView pickupView;
@@ -29,15 +31,34 @@ namespace Wreckabulary
         public void SetLetter(char c)
         {
             letter = char.ToUpperInvariant(c);
-            if (labels != null) foreach (var label in labels) if (label) label.text = letter.ToString();
+            if (labels != null)
+            {
+                string glyph = Glyph(letter);
+                foreach (var label in labels)
+                    if (label && (!importedVisual || label.gameObject.activeSelf)) label.text = glyph;
+            }
             if (body) body.sharedMaterial = GameAssets.I.TileMaterial(Rarity);
             UpdateImportedVisual();
+        }
+
+        static string Glyph(char c)
+        {
+            int i = c - 'A';
+            if (i < 0 || i >= glyphs.Length) return c.ToString();
+            return glyphs[i] ??= c.ToString();
+        }
+
+        static string ModelKey(char c)
+        {
+            int i = c - 'A';
+            if (i < 0 || i >= keys.Length) return "Letters/Tile_" + c;
+            return keys[i] ??= "Letters/Tile_" + c;
         }
 
         void UpdateImportedVisual()
         {
             var library = ModelLibrary.Load();
-            string key = "Letters/Tile_" + letter;
+            string key = ModelKey(letter);
             if (!library || !library.Find(key)) return;
             if (importedVisual && visualLetter == letter) return;
             if (importedVisual)
@@ -47,7 +68,6 @@ namespace Wreckabulary
             }
             importedVisual = new GameObject("ImportedTile");
             importedVisual.transform.SetParent(transform, false);
-            // Keep the broad-backed physical proxy. The pickup view may lift only the imported art after settling.
             importedVisual.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
             importedVisual.transform.localScale = Vector3.one * 1.6f;
             var model = ModelVisual.Spawn(key, importedVisual.transform);
@@ -75,13 +95,14 @@ namespace Wreckabulary
             Color tint = Rarity == LetterRarity.Legendary ? new Color(.95f,.77f,.30f)
                 : Rarity == LetterRarity.Rare ? new Color(.49f,.77f,.71f) : Color.white;
             if (Rarity == LetterRarity.Common) return;
+            var block = tintBlock ??= new MaterialPropertyBlock();
             foreach (var renderer in model.GetComponentsInChildren<Renderer>())
             {
                 var materials = renderer.sharedMaterials;
                 for (int i = 0; i < materials.Length; i++)
                 {
                     if (!materials[i] || !materials[i].name.StartsWith("wood_light")) continue;
-                    var block = new MaterialPropertyBlock();
+                    block.Clear();
                     block.SetColor("_BaseColor", tint);
                     block.SetColor("_Color", tint);
                     renderer.SetPropertyBlock(block, i);
@@ -89,14 +110,11 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>Freshly launched tiles can't be grabbed straight away, and never instantly by whoever dropped them.</summary>
         public bool CanBeCollectedBy(LetterInventory who) =>
             Time.time >= readyAt && (who != droppedBy || Time.time >= ownerLockUntil);
 
-        /// <summary>Called when a player collects this tile.</summary>
         public void Collect() => TilePool.Instance.Release(this);
 
-        /// <summary>Launches the tile out into the world.</summary>
         public void Launch(Vector3 position, Vector3 velocity, LetterInventory from = null)
         {
             transform.SetPositionAndRotation(position, Random.rotation);
