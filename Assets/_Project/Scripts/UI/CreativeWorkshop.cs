@@ -460,11 +460,12 @@ namespace Wreckabulary
                 if (!importing) { SetStatus(storage.TryExportFile(history.Current,out var path,out var error) ? "Exported to " + path : error); return; }
                 var result = designer.Import(jsonInput.text);
                 if (!result.Ok) { SetStatus(string.Join("\n",result.Errors)); return; }
+                int locked = HomeDesigner.ResetLockedFinishes(result.Layout,skin => Owner.Owns("skin",skin));
                 if (!stage.Show(result.Layout,out var renderError)) { SetStatus(renderError); return; }
                 if (!drafts.TryGetValue(result.Layout.Map,out var target)) target = new HomeHistory(designer,designer.CreateLayout(result.Layout.Map));
                 if (!target.TryApply(result.Layout,out var historyError)) { stage.Show(history.Current,out _); SetStatus(historyError); return; }
                 drafts[result.Layout.Map] = target; map = result.Layout.Map; history = target; selected = null;
-                Refresh(); LayoutUi(); CloseJson(); SetStatus("Imported validated draft. Save when ready.");
+                Refresh(); LayoutUi(); CloseJson(); SetStatus(ImportNote(locked));
             }); Bottom(apply);
             jsonApplyButton = apply;
             var cancel = MakeButton(jsonSheet,"Close",new Vector2(-18,14),new Vector2(150,48),CloseJson);
@@ -472,6 +473,8 @@ namespace Wreckabulary
             jsonCloseButton = cancel; LayoutUi();
             EventSystem.current?.SetSelectedGameObject(importing ? jsonInput.gameObject : copy.gameObject);
         }
+        public static string ImportNote(int locked) => locked == 0 ? "Imported validated draft. Save when ready." :
+            "Imported validated draft. " + locked + (locked == 1 ? " prop had a locked finish and now uses" : " props had locked finishes and now use") + " Classic. Save when ready.";
         static void Bottom(Button button) { var r = (RectTransform)button.transform; r.anchorMin = r.anchorMax = r.pivot = Vector2.zero; }
         void CloseJson() { if (jsonSheet) Destroy(jsonSheet.gameObject); jsonSheet = null; jsonStatus = jsonTitle = null; SelectDesignControl(); }
 

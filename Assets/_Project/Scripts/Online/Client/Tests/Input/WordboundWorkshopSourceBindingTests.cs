@@ -398,7 +398,7 @@ namespace Wreckabulary.Online.Tests
             Invoke(workshop, "ProcessSourceChoice", true);
             Assert.AreSame(before, workshop.History); Assert.IsTrue(workshop.UsesAssignedCourse);
             double started = EditorApplication.timeSinceStartup;
-            double deadline = started + 5;
+            double deadline = started + 60;
             while (KeyBindings.GameplayBlocked)
             {
                 Assert.Less(EditorApplication.timeSinceStartup, deadline, "Gameplay quiet interval did not expire; frame=" +

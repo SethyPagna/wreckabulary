@@ -11,7 +11,7 @@ export const HOME_LIMITS = Object.freeze({
 });
 const EPS = 1e-6;
 const angles = [0, 90, 180, 270];
-const skins = ["Classic", "Candy", "Arcade"];
+const skins = ["Classic", "Candy", "Arcade", "Winter"];
 const documentKeys = ["schema", "map", "name", "props"];
 const propKeys = ["id", "word", "x", "z", "yaw", "skin"];
 const object = (value) =>
@@ -86,7 +86,7 @@ function shape(prop, data, errors) {
   const yaw = angles.includes(prop.yaw);
   if (!yaw) errors.push("yaw: use 0, 90, 180 or 270 degrees.");
   if (!skins.includes(prop.skin))
-    errors.push("skin: choose Classic, Candy or Arcade.");
+    errors.push("skin: choose Classic, Candy, Arcade or Winter.");
   if (!item || !grid || !yaw) return null;
   let width = Math.max(0.4, item.size[0]),
     depth = Math.max(0.4, item.size[2]);

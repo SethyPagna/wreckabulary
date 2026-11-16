@@ -81,7 +81,7 @@ namespace Wreckabulary.Rules.Tests
             string block = asset.Substring(asset.IndexOf("playerColors:", StringComparison.Ordinal));
             block = block.Substring(0, block.IndexOf("playerInitials:", StringComparison.Ordinal));
             float F(Group g) => float.Parse(g.Value, CultureInfo.InvariantCulture);
-            return Regex.Matches(block, @"r: ([\d.]+), g: ([\d.]+), b: ([\d.]+)").Cast<Match>()
+            return Regex.Matches(block, @"r: ([\d.]+), g: ([\d.]+), b: ([\d.]+)").Cast<System.Text.RegularExpressions.Match>()
                 .Select(m => new Srgb(F(m.Groups[1]), F(m.Groups[2]), F(m.Groups[3]))).ToList();
         }
 
