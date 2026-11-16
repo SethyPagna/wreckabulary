@@ -73,7 +73,7 @@ namespace Wreckabulary.Tests
             Assert.AreSame(heard[0], heard[2]);
             Assert.AreEqual(.37f, AudioListener.volume);
             var speaker = Object.FindObjectsByType<AudioSource>(FindObjectsSortMode.None).Single(source => source.name == "House sound cues");
-            Assert.AreEqual(.13f, speaker.volume);
+            Assert.AreEqual(Wreckabulary.Audio.GameMix.HouseSpeaker, speaker.volume);
             Assert.AreEqual(0f, speaker.spatialBlend);
         }
 
@@ -127,7 +127,7 @@ namespace Wreckabulary.Tests
         {
             GameFeedback.Play(GameCue.Jump);
             Assert.AreEqual("House Jump", heard.Last().name);
-            Assert.AreEqual(16000, heard.Last().frequency);
+            Assert.AreEqual(48000, heard.Last().frequency, "cues render at 48 kHz");
             GameSoundPacks.Select("default");
             GameFeedback.Play(GameCue.Dodge);
             Assert.AreEqual("House Dodge", heard.Last().name);

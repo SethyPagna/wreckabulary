@@ -113,7 +113,8 @@ namespace Wreckabulary.Tests
             Assert.That(panel.GetComponentsInChildren<TMP_Text>(true).Where(text => text.name == "Controller Move").Select(text => text.text),
                 Is.Not.Empty.And.All.EqualTo("Left stick"), "Every move row shows the stick.");
             Assert.AreEqual("Hold L3 + right stick", ControllerLegend(panel, "Look around").text);
-            Assert.AreEqual(16, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
+            Assert.AreEqual("Hold D-pad up", ControllerLegend(panel, "Push to talk").text);
+            Assert.AreEqual(17, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
             SubmitLegend(panel, "Wordbound controls");
             yield return null;
             Assert.AreEqual("COURSE CONTROLS", title.text);
@@ -121,9 +122,11 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text);
             Assert.AreEqual("Y / Triangle", ControllerLegend(panel, "Spell").text);
             Assert.AreEqual("R3 cycles gear", ControllerLegend(panel, "Bag").text);
-            Assert.AreEqual(15, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
+            Assert.AreEqual(16, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
             Assert.IsFalse(ButtonNamed(panel, "Rebind Dodge").gameObject.activeInHierarchy, "Dodge is not a Wordbound action.");
             Assert.IsTrue(ButtonNamed(panel, "Rebind Look around (hold)").gameObject.activeInHierarchy, "Courses look around too.");
+            Assert.IsTrue(ButtonNamed(panel, "Rebind Push to talk (hold)").gameObject.activeInHierarchy, "Team voice is for online courses.");
+            Assert.AreEqual("Hold D-pad up", ControllerLegend(panel, "Push to talk").text);
             Assert.AreEqual("Hold L3 + right stick", ControllerLegend(panel, "Look around").text);
             foreach (string name in new[] { "Hand 1", "Hand 2" })
             {

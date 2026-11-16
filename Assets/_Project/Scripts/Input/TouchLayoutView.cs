@@ -13,19 +13,21 @@ namespace Wreckabulary
             { "Move stick", "Aim stick", "SMASH", "DODGE", "JUMP", "BLOCK", "INTERACT", "SPELL", "HOLD DROP", "BOOK", "HAND 1", "HAND 2", "PAUSE", "EYE" };
         static readonly Color Ink = LobbyKit.Hex(0x173b3c), Cream = LobbyKit.Hex(0xfff0d9), Mint = LobbyKit.Hex(0xb7dfc8), FaceColour = LobbyKit.Hex(0xfff0dc, .95f);
 
-        readonly RectTransform[] parts = new RectTransform[TouchLayout.Count];
-        readonly float[] design = new float[TouchLayout.Count];
-        readonly CanvasGroup[] groups = new CanvasGroup[TouchLayout.Count];
-        readonly TouchActionButton[] buttons = new TouchActionButton[TouchLayout.Count];
-        readonly TouchEyeButton[] eyes = new TouchEyeButton[TouchLayout.Count];
+        static readonly int Shown = HudNames.Length;
+        readonly RectTransform[] parts = new RectTransform[Shown];
+        readonly float[] design = new float[Shown];
+        readonly CanvasGroup[] groups = new CanvasGroup[Shown];
+        readonly TouchActionButton[] buttons = new TouchActionButton[Shown];
+        readonly TouchEyeButton[] eyes = new TouchEyeButton[Shown];
         RectTransform root;
         GameHud hud;
         int version = -1;
         Vector2 size;
 
         public TouchLayout Applied { get; private set; }
-        public static string HudName(TouchPart part) => HudNames[(int)part];
-        public RectTransform Part(TouchPart part) => parts[(int)part];
+        public static bool InHouse(TouchPart part) => (int)part >= 0 && (int)part < Shown;
+        public static string HudName(TouchPart part) => InHouse(part) ? HudNames[(int)part] : TouchLayout.Label(part);
+        public RectTransform Part(TouchPart part) => InHouse(part) ? parts[(int)part] : null;
 
         public static TouchLayoutView Attach(RectTransform root, GameHud hud)
         {
@@ -43,7 +45,7 @@ namespace Wreckabulary
             Add(TouchPart.Hand2, Cream, face => Number(face, "2"), () => TouchBinding.Shared.PulseHand(2));
             Add(TouchPart.Pause, Cream, PauseBars, () => { if (hud) hud.TogglePause(); });
             Add(TouchPart.Eye, Mint, face => LobbyKit.Icon(face, LobbyIcons.Eye, Ink).rectTransform.Pin(new Vector2(.5f, .5f), Vector2.zero, Vector2.one * AddedDiameter * .5f), null);
-            for (int i = 0; i < TouchLayout.Count; i++)
+            for (int i = 0; i < Shown; i++)
             {
                 parts[i] = root.Find(HudNames[i]) as RectTransform;
                 if (!parts[i]) continue;
@@ -115,7 +117,7 @@ namespace Wreckabulary
             if (size.x < 1f || size.y < 1f) return;
             Applied = TouchLayouts.Current(size);
             float side = Mathf.Min(size.x, size.y);
-            for (int i = 0; i < TouchLayout.Count; i++)
+            for (int i = 0; i < Shown; i++)
             {
                 var rect = parts[i];
                 if (!rect) continue;

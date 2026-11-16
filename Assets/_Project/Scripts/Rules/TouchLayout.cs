@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Wreckabulary.Rules
 {
-    public enum TouchPart { Move, Aim, Attack, Dodge, Jump, Block, Grab, Spell, Drop, Book, Hand1, Hand2, Pause, Eye }
+    public enum TouchPart { Move, Aim, Attack, Dodge, Jump, Block, Grab, Spell, Drop, Book, Hand1, Hand2, Pause, Eye, Mic, Speaker }
 
     public readonly struct TouchSpot : IEquatable<TouchSpot>
     {
@@ -31,7 +31,7 @@ namespace Wreckabulary.Rules
 
     public sealed class TouchLayout
     {
-        public const int Count = 14, Version = 1, MaxCodeLength = 512;
+        public const int Count = 16, Version = 2, LegacyVersion = 1, LegacyCount = 14, MaxCodeLength = 512;
         public const float MinSize = .06f, MaxSize = .3f, MinOpacity = .2f, GridX = 1f / 64f, GridY = 1f / 36f, Touching = .004f;
         public const string Prefix = "wb-touch";
         public const string NoCode = "Copy a touch layout code first.", NotACode = "That isn't a touch layout code.",
@@ -44,14 +44,14 @@ namespace Wreckabulary.Rules
             (0f, 0f, 135f, 128f, 190f), (1f, 0f, -128f, 142f, 152f), (1f, 0f, -280f, 167f, 112f), (1f, 0f, -250f, 297f, 89f),
             (1f, 0f, -123f, 294f, 89f), (1f, 0f, -384f, 270f, 89f), (1f, 0f, -384f, 161f, 89f), (1f, 0f, -503f, 270f, 89f),
             (1f, 0f, -384f, 51f, 76f), (1f, 0f, -503f, 161f, 76f), (0f, 0f, 290f, 75f, 76f), (0f, 0f, 290f, 180f, 76f),
-            (.5f, 1f, 0f, -62f, 70f), (1f, 0f, -384f, 380f, 76f),
+            (.5f, 1f, 0f, -62f, 70f), (1f, 0f, -384f, 380f, 76f), (.5f, 1f, 100f, -62f, 70f), (.5f, 1f, -100f, -62f, 70f),
         };
         static readonly (float ax, float ay, float x, float y, float d)[] ClawPins =
         {
             (0f, 0f, 150f, 150f, 190f), (1f, 0f, -150f, 160f, 152f), (1f, 1f, -380f, -120f, 112f), (1f, 0f, -300f, 300f, 89f),
             (1f, 1f, -520f, -100f, 89f), (0f, 1f, 760f, -80f, 89f), (1f, 0f, -330f, 130f, 89f), (0f, 1f, 640f, -80f, 89f),
             (1f, 0f, -470f, 80f, 76f), (0f, 0f, 330f, 90f, 76f), (0f, 0f, 330f, 200f, 70f), (0f, 0f, 440f, 150f, 70f),
-            (1f, 1f, -640f, -70f, 70f), (1f, 0f, -470f, 240f, 76f),
+            (1f, 1f, -640f, -70f, 70f), (1f, 0f, -470f, 240f, 76f), (0f, 1f, 250f, -70f, 70f), (0f, 1f, 150f, -70f, 70f),
         };
 
         readonly TouchSpot[] spots;
@@ -159,6 +159,8 @@ namespace Wreckabulary.Rules
             TouchPart.Hand2 => "HAND 2",
             TouchPart.Pause => "PAUSE",
             TouchPart.Eye => "EYE",
+            TouchPart.Mic => "MIC",
+            TouchPart.Speaker => "SPEAKER",
             _ => "",
         };
 
@@ -196,13 +198,16 @@ namespace Wreckabulary.Rules
             if (parts.Length != 4 || !string.Equals(parts[0], Prefix, StringComparison.OrdinalIgnoreCase) ||
                 !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int version)) return NotACode;
             if (version > Version) return Newer;
-            if (version < Version) return Older;
+            if (version < LegacyVersion) return Older;
+            int count = version == Version ? Count : LegacyCount;
             string body = Prefix + ":" + parts[1] + ":" + parts[2];
             if (!string.Equals(parts[3], Checksum(body), StringComparison.OrdinalIgnoreCase)) return Damaged;
             var bytes = FromBase64Url(parts[2]);
-            if (bytes == null || bytes.Length != 2 + Count * 6 || bytes[0] != Count) return Damaged;
+            if (bytes == null || bytes.Length != 2 + count * 6 || bytes[0] != count) return Damaged;
             var read = new TouchSpot[Count];
-            for (int i = 0; i < Count; i++)
+            var added = Classic(1920f, 1080f);
+            for (int i = count; i < Count; i++) read[i] = added[(TouchPart)i];
+            for (int i = 0; i < count; i++)
             {
                 int at = 2 + i * 6;
                 read[i] = new TouchSpot((bytes[at] << 8 | bytes[at + 1]) / (float)ushort.MaxValue, (bytes[at + 2] << 8 | bytes[at + 3]) / (float)ushort.MaxValue,

@@ -61,6 +61,7 @@ namespace Wreckabulary.Online
             var binding = controller.Authority.Match.Binding;
             seat = Enumerable.Range(0, binding.Seats.Count).Single(i => binding.Seats[i].PlayerId == actorId);
             team = binding.Seats[seat].Team;
+            JoinVoice(mode, binding.Seats, actorId);
             story = gameObject.AddComponent<WordboundStoryView>();
             story.Bind(controller, course, items, actorId, view.Camera, StoryProfile);
             controller.FrameChanged += ApplyFrame;
@@ -167,6 +168,7 @@ namespace Wreckabulary.Online
             ExecuteMenuAction(Application.isFocused);
             ShowResultsOnce();
             if (eyeHeld && (!view || view.MenuOpen || !Application.isFocused)) ReleaseEye();
+            if (voicePressed != VoiceNone && (!view || view.MenuOpen || !Application.isFocused)) ReleaseVoice();
             if (!defenseHeld) return;
             var shield = SelectedShield();
             if (!view || view.MenuOpen || !Application.isFocused || controller.IsSimulationPaused ||
@@ -405,13 +407,14 @@ namespace Wreckabulary.Online
             _ => "That action could not be completed."
         };
 
-        void OnDisable() { ReleaseDefense(); ResetMenuInput(); ReleaseEye(); }
+        void OnDisable() { ReleaseDefense(); ResetMenuInput(); ReleaseEye(); ReleaseVoice(); }
 
         void OnDestroy()
         {
             ui.Dispose();
             DisposeGuidance();
             DisposeLookEye();
+            LeaveVoice();
             if (controller) { controller.FrameChanged -= ApplyFrame; controller.Faulted -= ConnectionFailed; }
             if (view)
             {

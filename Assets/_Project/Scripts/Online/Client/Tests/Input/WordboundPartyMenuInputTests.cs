@@ -13,7 +13,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.TestTools;
+using Wreckabulary.Rules.Voice;
 using Wreckabulary.Rules.Wordbound;
+using Wreckabulary.Voice;
 using Object = UnityEngine.Object;
 
 namespace Wreckabulary.Online.Tests
@@ -141,6 +143,69 @@ namespace Wreckabulary.Online.Tests
             Assert.Contains("quick-play", controls, "Exactly two human players must be admitted without changing their Fill setting.");
             yield return Activate("ready"); yield return Activate("quick-play");
             Assert.AreEqual("QuickPlay", coordinator.Party.Channel); Assert.IsFalse(coordinator.Party.Settings.Fill);
+        }
+
+        [UnityTest]
+        public IEnumerator PartyMembersGetPerPlayerMutesSpeakingMarksAndYourRowShowsYourMic()
+        {
+            using var voice = new VoiceTestScope();
+            const string other = "10000000-0000-4000-8000-000000000002";
+            humans = 2;
+            yield return Activate("connect"); yield return Activate("mode:4"); yield return Activate("create-party");
+            Assert.AreEqual(2, coordinator.Party.Members.Count);
+            Invoke(menu, "SyncPartyVoice");
+            Assert.AreEqual(2, VoiceChat.Room.Members.Count, "The party lobby is one voice room.");
+            Assert.AreEqual(Player, VoiceChat.Self);
+            Assert.AreSame(VoiceChat.Room, voice.Fake.Room);
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            var controls = Get<List<string>>(Get<WordboundMenuFocus>(menu, "partyFocus"), "controls");
+            Assert.Contains("voice-mute:" + other, controls);
+            Assert.IsFalse(controls.Contains("voice-mute:" + Player), "Your own row has no mute button.");
+
+            yield return Activate("voice-mute:" + other);
+            Assert.IsTrue(VoiceChat.IsMuted(other));
+            Assert.IsTrue(voice.Fake.Muted.Contains(other), "The mute reaches the transport.");
+            Assert.AreEqual(VoiceIcons.SpeakerOff, Call(menu, "MemberVoiceIcon", other));
+            yield return Activate("voice-mute:" + other);
+            Assert.IsFalse(VoiceChat.IsMuted(other));
+
+            VoiceChat.Tick(false, 50);
+            Assert.AreEqual("", Call(menu, "MemberVoiceIcon", other));
+            voice.Fake.Speak(other, true);
+            Assert.AreEqual(VoiceIcons.Wave, Call(menu, "MemberVoiceIcon", other), "A talking member shows the sound-wave mark.");
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+
+            Assert.AreEqual("Mic off", Call(menu, "SelfVoiceLine"));
+            VoiceChat.Mic = MicMode.PushToTalk;
+            string key = Get<bool>(menu, "partyUsesPad") ? ControlHints.PadPushToTalk : ControlHints.PushToTalkKey;
+            Assert.AreEqual("Hold " + key + " to talk", Call(menu, "SelfVoiceLine"));
+            VoiceChat.SelfMuted = true;
+            Assert.AreEqual("Mic muted", Call(menu, "SelfVoiceLine"));
+
+            Invoke(menu, "SyncPartyVoice");
+            Assert.AreEqual(2, VoiceChat.Room.Members.Count, "An unchanged party keeps its room.");
+            yield return Activate("leave-party");
+            Assert.IsNull(coordinator.Party);
+            Invoke(menu, "SyncPartyVoice");
+            Assert.AreSame(VoiceRoom.Empty, VoiceChat.Room, "Leaving the party leaves its voice room.");
+        }
+
+        [UnityTest]
+        public IEnumerator ASoloPartyHasNoVoiceRows()
+        {
+            using var voice = new VoiceTestScope();
+            yield return Activate("connect"); yield return Activate("mode:4"); yield return Activate("create-party");
+            Invoke(menu, "SyncPartyVoice");
+            Assert.AreSame(VoiceRoom.Empty, VoiceChat.Room, "Nobody to hear, so no voice room.");
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            var controls = Get<List<string>>(Get<WordboundMenuFocus>(menu, "partyFocus"), "controls");
+            Assert.IsFalse(controls.Any(id => id.StartsWith("voice-", StringComparison.Ordinal)));
+        }
+
+        static object Call(object target, string name, params object[] args)
+        {
+            try { return target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(target, args); }
+            catch (TargetInvocationException error) { throw error.InnerException ?? error; }
         }
 
         [UnityTest]

@@ -115,6 +115,33 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator MicAndSpeakerArePlaceableInTheEditorAndNeverBuiltInHousePlay()
+        {
+            yield return ShowHud();
+            var editor = TouchLayoutEditor.Show();
+            yield return null;
+            foreach (var part in new[] { TouchPart.Mic, TouchPart.Speaker })
+            {
+                Assert.IsNotNull(HandleOf(editor, part), part + " can be placed in the editor.");
+                Assert.IsNull(HudPart(part), part + " is never built in House play.");
+            }
+            var before = editor.Draft[TouchPart.Mic];
+            Drag(HandleOf(editor, TouchPart.Mic), new Vector2(-Screen.width * .2f, -Screen.height * .3f));
+            Assert.AreEqual(TouchPart.Mic, editor.Selected);
+            var after = editor.Draft[TouchPart.Mic];
+            Assert.Less(after.X, before.X - .1f);
+            Assert.Less(after.Y, before.Y - .1f);
+            Click(editor, "Touch save");
+            yield return null;
+            var saved = TouchLayoutBook.Load(folder, out string problem);
+            Assert.IsNull(problem);
+            Assert.AreEqual(after.X, saved.Stored(TouchTemplate.Custom1)[TouchPart.Mic].X, 1e-4f);
+            Assert.AreEqual(after.Y, saved.Stored(TouchTemplate.Custom1)[TouchPart.Mic].Y, 1e-4f);
+            Assert.IsNull(HudPart(TouchPart.Mic), "Saving a layout still adds no voice button to House play.");
+            Assert.IsNotNull(HudPart(TouchPart.Spell));
+        }
+
+        [UnityTest]
         public IEnumerator ChoosingATemplateAppliesItInPlayAtOnce()
         {
             yield return ShowHud();

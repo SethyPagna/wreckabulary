@@ -160,8 +160,8 @@ namespace Wreckabulary.Rules.Tests
                     (float)random.NextDouble() * .3f, (float)random.NextDouble())).ToArray();
                 var layout = new TouchLayout(spots, (float)random.NextDouble());
                 string code = layout.Encode();
-                StringAssert.StartsWith("wb-touch:1:", code);
-                Assert.Less(code.Length, 140, "A code stays short enough to paste in a chat.");
+                StringAssert.StartsWith("wb-touch:" + TouchLayout.Version + ":", code);
+                Assert.Less(code.Length, 160, "A code stays short enough to paste in a chat.");
                 Assert.IsTrue(TouchLayout.TryDecode(code, out var back, out string message), message);
                 Assert.IsNull(message);
                 Assert.AreEqual(layout.Opacity, back.Opacity, .5f / 255f * .8f + 1e-6f);
@@ -199,21 +199,68 @@ namespace Wreckabulary.Rules.Tests
             Expect("wb-touch:-1:" + parts[2] + ":" + parts[3], TouchLayout.NotACode);
             Expect("wb-touch:99999999999999:" + parts[2] + ":" + parts[3], TouchLayout.NotACode);
             Expect(new string('A', 600), TouchLayout.NotACode);
-            Expect(Code(2, Payload(TouchLayout.Count)), TouchLayout.Newer);
-            Expect("wb-touch:2:anything:0000", TouchLayout.Newer);
+            Expect(Code(TouchLayout.Version + 1, Payload(TouchLayout.Count)), TouchLayout.Newer);
+            Expect("wb-touch:" + (TouchLayout.Version + 1) + ":anything:0000", TouchLayout.Newer);
             Expect(Code(0, Payload(TouchLayout.Count)), TouchLayout.Older);
             char swapped = parts[2][5] == 'A' ? 'B' : 'A';
-            Expect(parts[0] + ":1:" + parts[2].Substring(0, 5) + swapped + parts[2].Substring(6) + ":" + parts[3], TouchLayout.Damaged);
-            Expect(parts[0] + ":1:" + parts[2] + ":" + (parts[3] == "0000" ? "0001" : "0000"), TouchLayout.Damaged);
+            Expect(parts[0] + ":" + parts[1] + ":" + parts[2].Substring(0, 5) + swapped + parts[2].Substring(6) + ":" + parts[3], TouchLayout.Damaged);
+            Expect(parts[0] + ":" + parts[1] + ":" + parts[2] + ":" + (parts[3] == "0000" ? "0001" : "0000"), TouchLayout.Damaged);
             Expect(code.Substring(0, code.Length - 5), TouchLayout.NotACode);
-            Expect(TextCode(1, parts[2].Substring(0, parts[2].Length - 8)), TouchLayout.Damaged);
-            Expect(Code(1, Payload(TouchLayout.Count - 1)), TouchLayout.Damaged);
-            Expect(Code(1, Payload(TouchLayout.Count).Concat(new byte[] { 0 }).ToArray()), TouchLayout.Damaged);
-            Expect(Code(1, Encoding.ASCII.GetBytes("not a layout")), TouchLayout.Damaged);
-            Expect(TextCode(1, "!!!!"), TouchLayout.Damaged);
-            Expect(TextCode(1, "A"), TouchLayout.Damaged);
-            Assert.IsTrue(TouchLayout.TryDecode(Code(1, Payload(TouchLayout.Count)), out var built, out _), "The test's own encoder matches the game's.");
+            int version = TouchLayout.Version;
+            Expect(TextCode(version, parts[2].Substring(0, parts[2].Length - 8)), TouchLayout.Damaged);
+            Expect(Code(version, Payload(TouchLayout.Count - 1)), TouchLayout.Damaged);
+            Expect(Code(version, Payload(TouchLayout.Count).Concat(new byte[] { 0 }).ToArray()), TouchLayout.Damaged);
+            Expect(Code(version, Payload(TouchLayout.LegacyCount)), TouchLayout.Damaged);
+            Expect(Code(TouchLayout.LegacyVersion, Payload(TouchLayout.Count)), TouchLayout.Damaged);
+            Expect(Code(version, Encoding.ASCII.GetBytes("not a layout")), TouchLayout.Damaged);
+            Expect(TextCode(version, "!!!!"), TouchLayout.Damaged);
+            Expect(TextCode(version, "A"), TouchLayout.Damaged);
+            Assert.IsTrue(TouchLayout.TryDecode(Code(version, Payload(TouchLayout.Count)), out var built, out _), "The test's own encoder matches the game's.");
             Assert.AreEqual(TouchLayout.MinOpacity, built.Opacity);
+        }
+
+        [Test]
+        public void OlderCodesWithoutMicAndSpeakerStillLoad()
+        {
+            var classic = TouchLayout.Classic(1920f, 1080f);
+            var bytes = Payload(TouchLayout.LegacyCount);
+            bytes[1] = 255;
+            for (int i = 0; i < TouchLayout.LegacyCount; i++)
+            {
+                var spot = TouchLayout.Claw(1920f, 1080f)[(TouchPart)i];
+                int at = 2 + i * 6, x = (int)Math.Round(spot.X * ushort.MaxValue), y = (int)Math.Round(spot.Y * ushort.MaxValue);
+                bytes[at] = (byte)(x >> 8); bytes[at + 1] = (byte)x; bytes[at + 2] = (byte)(y >> 8); bytes[at + 3] = (byte)y;
+                bytes[at + 4] = (byte)Math.Round((spot.Size - TouchLayout.MinSize) / (TouchLayout.MaxSize - TouchLayout.MinSize) * 255f);
+                bytes[at + 5] = 255;
+            }
+            string old = Code(TouchLayout.LegacyVersion, bytes);
+            Assert.IsTrue(TouchLayout.TryDecode(old, out var layout, out string message), message);
+            Assert.AreEqual(TouchLayout.Claw(1920f, 1080f)[TouchPart.Eye].X, layout[TouchPart.Eye].X, 1f / 65535f);
+            foreach (var part in new[] { TouchPart.Mic, TouchPart.Speaker })
+                Assert.AreEqual(classic[part], layout[part], part + " takes its Classic place.");
+            StringAssert.StartsWith("wb-touch:" + TouchLayout.Version + ":", layout.Encode(), "Saving writes the current version.");
+            var book = TouchLayoutBook.Parse(TouchLayoutBook.Header + "\nactive Custom1\nslot 1 " + old + " Mine");
+            Assert.AreEqual(TouchTemplate.Custom1, book.Active, "A saved book from before Mic and Speaker keeps its layout.");
+            Assert.AreEqual(classic[TouchPart.Mic], book.Stored(TouchTemplate.Custom1)[TouchPart.Mic]);
+        }
+
+        [Test]
+        public void MicAndSpeakerSitBesidePauseInClassicAndTopLeftInClaw()
+        {
+            foreach (var (width, height) in Phones)
+            {
+                var classic = TouchLayout.Classic(width, height);
+                Assert.AreEqual(classic[TouchPart.Pause].Y, classic[TouchPart.Mic].Y, 1e-5f);
+                Assert.AreEqual(classic[TouchPart.Pause].Y, classic[TouchPart.Speaker].Y, 1e-5f);
+                Assert.Greater(classic[TouchPart.Mic].X, classic[TouchPart.Pause].X);
+                Assert.Less(classic[TouchPart.Speaker].X, classic[TouchPart.Pause].X);
+                var claw = TouchLayout.Claw(width, height);
+                Assert.Less(claw[TouchPart.Speaker].X, claw[TouchPart.Mic].X);
+                Assert.Less(claw[TouchPart.Mic].X, .25f);
+                Assert.Greater(claw[TouchPart.Mic].Y, .85f);
+            }
+            Assert.AreEqual("MIC", TouchLayout.Label(TouchPart.Mic));
+            Assert.AreEqual("SPEAKER", TouchLayout.Label(TouchPart.Speaker));
         }
 
         static void Expect(string text, string message)

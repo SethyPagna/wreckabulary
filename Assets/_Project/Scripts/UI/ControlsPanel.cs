@@ -176,7 +176,7 @@ namespace Wreckabulary
             "Move" => "Left stick", "Attack" => "X / Square\nLT / L2 blocks",
             "Aim" => wordbound ? "RB / R1" : "—", "Look around" => "Hold L3 + right stick", "Jump" => "A / Cross",
             "Dodge" => wordbound ? "—" : "B / Circle", "Interact" => "RT / R2",
-            "Spell" => wordbound ? "Y / Triangle" : "Hold Y / Triangle", "Drop" => "Hold LB / L1",
+            "Spell" => wordbound ? "Y / Triangle" : "Hold Y / Triangle", "Drop" => "Hold LB / L1", "Push to talk" => "Hold D-pad up",
             "Hand 1" => wordbound ? "D-pad left" : "D-pad left\nR3 swaps hands",
             "Hand 2" => wordbound ? "D-pad right" : "D-pad right\nR3 swaps hands",
             "Bag" => wordbound ? "R3 cycles gear" : "Hold RB / R1", "Pause" => wordbound ? "Start / Options" : "View / Share", _ => "—"

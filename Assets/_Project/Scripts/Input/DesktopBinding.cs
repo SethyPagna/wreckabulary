@@ -11,6 +11,7 @@ namespace Wreckabulary
         public static bool Typing;
 
         public static DesktopBinding Shared => shared ??= new DesktopBinding();
+        public static DesktopBinding Existing => shared;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetShared()
@@ -21,7 +22,7 @@ namespace Wreckabulary
         }
 
         public readonly InputActionMap Map = new("Desktop");
-        public readonly InputAction Move, Attack, Aim, LookAround, Jump, Dodge, Interact, Spell, Drop, Hand1, Hand2, Bag, Pause, Up, Down, Start, Point, Look;
+        public readonly InputAction Move, Attack, Aim, LookAround, Jump, Dodge, Interact, Spell, Drop, PushToTalk, Hand1, Hand2, Bag, Pause, Up, Down, Start, Point, Look;
         HoldToFire dropHold;
         readonly List<RaycastResult> uiHits = new();
         PointerEventData uiPointer;
@@ -41,6 +42,7 @@ namespace Wreckabulary
             Interact = Button("Interact", "<Keyboard>/e");
             Spell = Button("Spell", "<Keyboard>/q");
             Drop = Button("Drop", "<Keyboard>/r");
+            PushToTalk = Button("Push to talk", "<Keyboard>/v");
             Hand1 = Button("Hand 1", "<Keyboard>/1");
             Hand2 = Button("Hand 2", "<Keyboard>/2");
             Bag = Button("Bag", "<Keyboard>/tab");

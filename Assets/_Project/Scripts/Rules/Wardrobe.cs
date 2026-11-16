@@ -9,6 +9,10 @@ namespace Wreckabulary.Rules
         public string Id;
         public string Slot;
         public string Mesh;
+        public string Name;
+        public string Rigid;
+        public string Bone;
+        public bool Letter;
 
         public List<string> TintMaterials = new List<string>();
 
@@ -16,6 +20,9 @@ namespace Wreckabulary.Rules
         public string ColourFrom;
         public List<string> Requires = new List<string>();
         public List<string> Excludes = new List<string>();
+        public Dictionary<string, float> Lifts = new Dictionary<string, float>(StringComparer.Ordinal);
+
+        public string DisplayName => string.IsNullOrEmpty(Name) ? Id : Name;
     }
 
     public sealed class Colourway
@@ -30,6 +37,8 @@ namespace Wreckabulary.Rules
         public readonly Dictionary<string, string> Pieces = new Dictionary<string, string>(StringComparer.Ordinal);
         public readonly Dictionary<string, string> Colours = new Dictionary<string, string>(StringComparer.Ordinal);
         public readonly Dictionary<string, string> ItemSkins = new Dictionary<string, string>(StringComparer.Ordinal);
+        public string Letter;
+        public int Seat = -1;
 
         public string PieceIn(string slot) => Pieces.TryGetValue(slot, out string p) ? p : null;
         public string ColourOf(string slot) => Colours.TryGetValue(slot, out string c) ? c : null;
@@ -41,6 +50,8 @@ namespace Wreckabulary.Rules
             foreach (var kv in Pieces) o.Pieces[kv.Key] = kv.Value;
             foreach (var kv in Colours) o.Colours[kv.Key] = kv.Value;
             foreach (var kv in ItemSkins) o.ItemSkins[kv.Key] = kv.Value;
+            o.Letter = Letter;
+            o.Seat = Seat;
             return o;
         }
 
@@ -49,7 +60,8 @@ namespace Wreckabulary.Rules
             var slots = Pieces.Keys.Union(Colours.Keys).OrderBy(k => k, StringComparer.Ordinal)
                 .Select(s => $"{s}={PieceIn(s) ?? ""}{(ColourOf(s) != null ? ":" + ColourOf(s) : "")}");
             var skins = ItemSkins.OrderBy(k => k.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}={kv.Value}");
-            return string.Join(";", slots) + "|" + string.Join(";", skins);
+            string text = string.Join(";", slots) + "|" + string.Join(";", skins);
+            return LetterBadge.IsLetter(Letter) ? text + "|" + Letter : text;
         }
 
         public static Outfit Deserialize(string text)
@@ -72,6 +84,7 @@ namespace Wreckabulary.Rules
                     int eq = part.IndexOf('=');
                     if (eq > 0) o.ItemSkins[part.Substring(0, eq)] = part.Substring(eq + 1);
                 }
+            if (halves.Length > 2 && LetterBadge.IsLetter(halves[2])) o.Letter = halves[2];
             return o;
         }
     }
@@ -85,6 +98,19 @@ namespace Wreckabulary.Rules
         public Outfit Default = new Outfit();
 
         public WardrobePiece Piece(string id) => Pieces.FirstOrDefault(p => p.Id == id);
+
+        public string NameOf(string pieceId) => Piece(pieceId)?.DisplayName ?? pieceId;
+
+        public float LiftFor(Outfit outfit, string slot)
+        {
+            float lift = 0f;
+            foreach (var kv in outfit.Pieces)
+            {
+                var piece = Piece(kv.Value);
+                if (piece != null && piece.Slot == kv.Key && piece.Lifts.TryGetValue(slot, out float by)) lift += by;
+            }
+            return lift;
+        }
 
         public IEnumerable<WardrobePiece> PiecesFor(string slot) => Pieces.Where(p => p.Slot == slot);
 
@@ -168,6 +194,8 @@ namespace Wreckabulary.Rules
             if (outfit != null && Fits(outfit)) return outfit;
             var fixedUp = Default.Clone();
             if (outfit == null) return fixedUp;
+            fixedUp.Letter = LetterBadge.IsLetter(outfit.Letter) ? outfit.Letter : null;
+            fixedUp.Seat = outfit.Seat;
             foreach (var kv in outfit.ItemSkins) fixedUp.ItemSkins[kv.Key] = kv.Value;
             foreach (var kv in outfit.Colours)
                 if (Colour(kv.Key, kv.Value) != null) fixedUp.Colours[kv.Key] = kv.Value;
@@ -178,10 +206,16 @@ namespace Wreckabulary.Rules
         {
             var problems = new List<string>();
             if (Pieces.Select(p => p.Id).Distinct().Count() != Pieces.Count) problems.Add("a piece id is used twice");
+            if (Pieces.Where(p => !string.IsNullOrEmpty(p.Rigid)).Select(p => p.Rigid).Distinct().Count() != Pieces.Count(p => !string.IsNullOrEmpty(p.Rigid)))
+                problems.Add("two pieces share rigid art");
             foreach (var p in Pieces)
             {
                 if (!Slots.Contains(p.Slot)) problems.Add($"{p.Id} is in unknown slot {p.Slot}");
-                if (string.IsNullOrEmpty(p.Mesh)) problems.Add($"{p.Id} has no mesh");
+                if (string.IsNullOrEmpty(p.Mesh) && string.IsNullOrEmpty(p.Rigid)) problems.Add($"{p.Id} has no mesh");
+                if (!string.IsNullOrEmpty(p.Rigid) && string.IsNullOrEmpty(p.Bone)) problems.Add($"{p.Id} has no bone to hang from");
+                if (p.Letter && string.IsNullOrEmpty(p.Rigid)) problems.Add($"{p.Id} shows a letter but has no letter art");
+                foreach (string slot in p.Lifts.Keys)
+                    if (!Slots.Contains(slot)) problems.Add($"{p.Id} lifts unknown slot {slot}");
                 foreach (string r in p.Requires.Concat(p.Excludes))
                     if (Piece(r) == null) problems.Add($"{p.Id} refers to unknown piece {r}");
                 if (p.ColourFrom != null && !Slots.Contains(p.ColourFrom)) problems.Add($"{p.Id} takes its colour from unknown slot {p.ColourFrom}");
@@ -201,6 +235,14 @@ namespace Wreckabulary.Rules
             }
             foreach (string p in Problems(Default)) problems.Add("default outfit: " + p);
             return problems;
+        }
+
+        static Dictionary<string, float> ReadLifts(JsonNode node)
+        {
+            var lifts = new Dictionary<string, float>(StringComparer.Ordinal);
+            if (node == null || node.IsNull) return lifts;
+            foreach (string slot in node.Keys) lifts[slot] = node[slot].Float();
+            return lifts;
         }
 
         static List<string> ReadTints(JsonNode node)
@@ -230,11 +272,16 @@ namespace Wreckabulary.Rules
                 {
                     Id = n["id"].String(),
                     Slot = n["slot"].String(),
-                    Mesh = n["mesh"].String(),
+                    Mesh = n["mesh"].String(null),
+                    Name = n["name"].String(null),
+                    Rigid = n["rigid"].String(null),
+                    Bone = n["bone"].String(null),
+                    Letter = n["letter"].Bool(false),
                     TintMaterials = ReadTints(n["tint"]),
                     ColourFrom = n["colourFrom"].String(null),
                     Requires = n["requires"].Strings(),
                     Excludes = n["excludes"].Strings(),
+                    Lifts = ReadLifts(n["lift"]),
                 });
             }
             foreach (string slot in root["palettes"].Keys)

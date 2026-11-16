@@ -26,9 +26,11 @@ namespace Wreckabulary.Online.Tests
                 Field("controller").SetValue(hud, controller);
                 Field("view").SetValue(hud, view);
                 Field("returnLabel").SetValue(hud, "Return to workshop");
+                double before = Time.unscaledTimeAsDouble;
                 Invoke(hud, "SetNotice", "Move closer and keep the object in sight.");
+                double after = Time.unscaledTimeAsDouble;
                 double expiry = (double)Field("noticeUntil").GetValue(hud);
-                Assert.That(expiry - Time.unscaledTimeAsDouble, Is.InRange(3.9, 4.0));
+                Assert.That(expiry, Is.InRange(before + 4, after + 4), "A notice lasts four seconds from when it is set.");
                 Assert.AreEqual("Move closer and keep the object in sight.", Invoke(hud, "TransientNotice", expiry - .001));
                 Assert.AreEqual("", Invoke(hud, "TransientNotice", expiry));
                 Assert.AreEqual("", Invoke(hud, "TransientNotice", expiry + 100));

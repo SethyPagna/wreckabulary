@@ -73,6 +73,7 @@ namespace Wreckabulary
                     if (!group) continue;
                     foreach (var renderer in group.GetComponentsInChildren<Renderer>(true))
                     {
+                        if (Art.MapSurroundings.IsBackdrop(renderer)) continue;
                         fixedParts.Add((renderer, s));
                         fixedSet.Add(renderer);
                         if (renderer.name is "Step" or "Stair rail") flightParts.Add(renderer);
@@ -238,7 +239,7 @@ namespace Wreckabulary
             dynamicParts.Clear();
             foreach (var renderer in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
             {
-                if (fixedSet.Contains(renderer) || renderer.gameObject.scene != gameObject.scene) continue;
+                if (fixedSet.Contains(renderer) || Art.MapSurroundings.IsBackdrop(renderer) || renderer.gameObject.scene != gameObject.scene) continue;
                 var canvas = renderer.GetComponentInParent<Canvas>();
                 if (canvas && canvas.renderMode != RenderMode.WorldSpace) continue;
                 dynamicParts.Add(renderer);

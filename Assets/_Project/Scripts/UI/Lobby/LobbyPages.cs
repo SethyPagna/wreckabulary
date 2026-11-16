@@ -12,8 +12,8 @@ namespace Wreckabulary
 {
     public abstract class LobbyPage
     {
-        protected static readonly string[] Finishes = { "Classic", "Candy", "Arcade" };
         public const float SideWidth = 860f;
+        public const string Tag = "Name tag", TagLine = "Tag line", CardName = "Card name";
 
         public abstract string Id { get; }
         public virtual LobbyStage.Focus Focus => LobbyStage.Focus.Centre;
@@ -137,20 +137,60 @@ namespace Wreckabulary
             return next;
         }
 
-        protected static (Color from, Color to) FinishPaint(string skin) => skin switch
+        public static IEnumerable<Finish> CustomizeFinishes => Rules.Finishes.All.Where(finish => finish.InCustomize);
+
+        public static string FinishName(string skin) => Rules.Finishes.Find(skin)?.Name ?? skin;
+
+        public static (Color from, Color to) FinishPaint(string skin) =>
+            Rules.Finishes.Find(skin) is Finish finish ? (LobbyKit.Hex(finish.Swatch), LobbyKit.Hex(finish.Accent)) : (LobbyKit.WoodHi, LobbyKit.WoodLo);
+
+        public static string ShowcaseItem(string skin)
         {
-            "Candy" => (LobbyKit.Hex(0xff7ac8), LobbyKit.Hex(0x7fe3ff)),
-            "Arcade" => (LobbyKit.Hex(0x3a1fd1), LobbyKit.Hex(0x00e0c6)),
-            "Winter" => (LobbyKit.Hex(0x236c57), LobbyKit.Hex(0xe4b451)),
-            _ => (LobbyKit.WoodHi, LobbyKit.WoodLo),
-        };
+            var items = GameConfig.Current.Items;
+            bool Shows(ItemDefinition item) => skin == Skin.Standard || item.HasSkin(skin);
+            if (items.TryGet("BAT", out var bat) && bat.Enabled && Shows(bat)) return bat.Id;
+            return items.Enabled.FirstOrDefault(Shows)?.Id ?? "BAT";
+        }
+
+        protected static RawImage FinishedItem(Transform parent, string id, string skin, float size, float degrees = 0)
+        {
+            if (!Wreckabulary.UI.ItemArt.TryGet(id, skin, out var texture, out var uv)) return null;
+            var rect = LobbyKit.Rect(parent, "Art " + id).Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(size, size));
+            rect.localRotation = Quaternion.Euler(0, 0, degrees);
+            var image = rect.gameObject.AddComponent<RawImage>();
+            image.texture = texture; image.uvRect = uv; image.raycastTarget = false;
+            return image;
+        }
+
+        protected static RawImage Emblem(Transform parent, string path, Vector2 anchor, Vector2 position, float size)
+        {
+            var picture = string.IsNullOrEmpty(path) ? null : Resources.Load<Texture2D>(path);
+            if (!picture) return null;
+            var image = LobbyKit.Rect(parent, "Emblem").Pin(anchor, position, new Vector2(size, size)).gameObject.AddComponent<RawImage>();
+            image.texture = picture; image.raycastTarget = false;
+            return image;
+        }
+
+        protected static RectTransform NameTag(RectTransform art, string line, float height = 28)
+        {
+            var tag = LobbyKit.Rect(art, Tag).Place(Vector2.zero, new Vector2(1, 0), new Vector2(6, 6), new Vector2(-6, 6 + height));
+            var fill = LobbyKit.Panel; fill.a = .88f;
+            tag.Paint(fill, 9).raycastTarget = false;
+            var text = LobbyKit.Text(tag, line, 15, LobbyKit.Cream, TextAlignmentOptions.Center);
+            text.name = TagLine;
+            text.textWrappingMode = height > 30 ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
+            text.enableAutoSizing = true; text.fontSizeMin = 11; text.fontSizeMax = 15;
+            text.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(8, 2), new Vector2(-8, -2));
+            return tag;
+        }
 
         protected static RectTransform FinishDisc(Transform parent, string skin, float size)
         {
             var (from, to) = FinishPaint(skin);
             var disc = LobbyKit.Rect(parent, "Finish").Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(size, size));
             LobbyKit.Face(disc, from, Mathf.RoundToInt(size / 2f), LobbyKit.Navy, 3, 0, to);
-            LobbyKit.ItemImage(disc, "BAT", size * .95f, 20f);
+            FinishedItem(disc, ShowcaseItem(skin), skin, size * .95f, 20f);
+            Emblem(disc, Rules.Finishes.Find(skin)?.Emblem, new Vector2(1, 0), new Vector2(size * .12f, -size * .12f), size * .42f);
             return disc;
         }
 
@@ -278,26 +318,23 @@ namespace Wreckabulary
             lockerList.anchoredPosition = new Vector2(0, scrolled);
             AddLockerScrollbar(view, lockerList.GetComponentInParent<ScrollRect>());
 
-            var pickers = LobbyKit.Row(lockerList, "Outfit", 16);
-            pickers.Size(-1, 84);
-            pickers.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-            foreach (string slot in wardrobe.Slots.Where(s => wardrobe.PiecesFor(s).Count() > 1))
+            var slots = wardrobe.Slots.Where(s => wardrobe.PiecesFor(s).Count() > 1).ToList();
+            var paired = slots.Where(s => Choices(s).Count <= 3).ToList();
+            for (int i = 0; i < paired.Count; i += 2)
             {
-                var column = LobbyKit.Column(pickers, slot, 8);
-                column.Size(-1, -1, 1);
-                LobbyKit.SectionLabel(column, slot);
-                var choices = wardrobe.PiecesFor(slot).Select(p => (p.Id, p.Id)).ToList();
-                if (!wardrobe.RequiredSlots.Contains(slot)) choices.Add(("No " + slot, "None"));
-                string worn = outfit.PieceIn(slot) ?? "No " + slot;
-                var picker = LobbyKit.Segmented(column, "Pick " + slot, choices, worn, id => PutOn(slot, id, id));
-                if (!First) First = picker.GetComponentsInChildren<Button>().FirstOrDefault(b => b.name == worn);
+                var pickers = LobbyKit.Row(lockerList, "Outfit", 16);
+                pickers.Size(-1, 84);
+                pickers.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+                foreach (string slot in paired.Skip(i).Take(2)) PiecePicker(LobbyKit.Column(pickers, slot, 8), slot);
             }
+            foreach (string slot in slots.Except(paired)) PiecePicker(LobbyKit.Column(lockerList, slot, 8), slot);
+            if (outfit.Pieces.Values.Any(id => wardrobe.Piece(id)?.Letter == true)) LetterPicker(lockerList);
 
             var colour = LobbyKit.Column(lockerList, "Colour", 8);
             LobbyKit.SectionLabel(colour, "Colour");
             var parts = Parts(outfit);
             if (!parts.Contains(Part)) Part = parts.Contains("Top") ? "Top" : parts.FirstOrDefault();
-            var chips = LobbyKit.Grid(colour, "Parts", new Vector2(124, 40), 8);
+            var chips = LobbyKit.Grid(colour, "Parts", new Vector2(140, 40), 8);
             foreach (string slot in parts) PartChip(chips, slot, wardrobe.ColourFor(outfit, slot));
             if (Part != null) Colours(colour, Part);
 
@@ -326,7 +363,7 @@ namespace Wreckabulary
             LobbyKit.TextAction(gearHeading, "Per-recipe finishes", "By recipe", 16,
                 () => ShowRecipes(true), icon: LobbyIcons.Chevron).Size(132, 40);
             string wornSkin = SkinOf(outfit);
-            var finishState = LobbyKit.Text(gear, wornSkin == null ? "Mixed recipe finishes · choose below to match all." : "All recipes: " + wornSkin,
+            var finishState = LobbyKit.Text(gear, wornSkin == null ? "Mixed recipe finishes · choose below to match all." : "All recipes: " + FinishName(wornSkin),
                 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
             finishState.name = "Gear finish state";
             finishState.enableAutoSizing = true; finishState.fontSizeMin = 12; finishState.fontSizeMax = 16;
@@ -334,7 +371,7 @@ namespace Wreckabulary
             var styles = LobbyKit.Row(gear, "Styles", 12);
             styles.Size(-1, 80);
             styles.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-            foreach (string skin in Finishes) FinishCard(styles, skin, wornSkin == skin);
+            foreach (var finish in CustomizeFinishes) FinishCard(styles, finish, wornSkin == finish.Id);
         }
 
         static void AddLockerScrollbar(RectTransform host, ScrollRect scroll)
@@ -363,7 +400,88 @@ namespace Wreckabulary
             }).ToList();
         }
 
-        string PartName(string slot) => Menu.Outfit.PieceIn(slot) ?? slot;
+        string PartName(string slot) => Menu.Outfit.PieceIn(slot) is string piece ? GameConfig.Current.Wardrobe.NameOf(piece) : slot;
+
+        static List<(string id, string label, bool locked)> Choices(string slot, Career career = null)
+        {
+            var wardrobe = GameConfig.Current.Wardrobe;
+            var choices = wardrobe.PiecesFor(slot).Select(p => (p.Id, p.DisplayName, career != null && !career.Owns("piece", p.Id))).ToList();
+            if (!wardrobe.RequiredSlots.Contains(slot)) choices.Add(("No " + slot, "None", false));
+            return choices;
+        }
+
+        void PiecePicker(RectTransform column, string slot)
+        {
+            column.Size(-1, -1, 1);
+            LobbyKit.SectionLabel(column, slot);
+            var choices = Choices(slot, Menu.Career);
+            string worn = Menu.Outfit.PieceIn(slot) ?? "No " + slot;
+            RectTransform track;
+            if (choices.Count > 5)
+            {
+                track = LobbyKit.Grid(column, "Pick " + slot, new Vector2(194, 46), 8);
+                track.GetComponent<GridLayoutGroup>().padding = new RectOffset(2, 2, 2, 2);
+            }
+            else
+            {
+                track = LobbyKit.Row(column, "Pick " + slot, 4, 4);
+                track.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+                track.Size(-1, 48);
+            }
+            foreach (var (id, label, locked) in choices)
+            {
+                var button = LobbyKit.TextAction(track, id, label, 18, () => Choose(slot, id), id == worn, locked ? LobbyIcons.Lock : null,
+                    locked ? LobbyKit.Faded : (Color?)null);
+                button.Body().Find("Content").GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(5, 5, 4, 6);
+                if (choices.Count <= 5)
+                    button.Size(-1, -1, Mathf.Max(1f, button.GetComponentInChildren<TMP_Text>().GetPreferredValues(label).x + 16f + (locked ? 28f : 0f)));
+                if (locked && CosmeticBundles.GrantedBy(id) is CosmeticBundle look)
+                    button.gameObject.AddComponent<LobbyHint>().Text = label + " comes with " + look.Name;
+                if (!First && id == worn) First = button;
+            }
+        }
+
+        void Choose(string slot, string id)
+        {
+            if (id != "No " + slot && !Menu.Career.Owns("piece", id))
+            {
+                var look = CosmeticBundles.GrantedBy(id);
+                Menu.Post(GameConfig.Current.Wardrobe.NameOf(id) + (look != null ? " comes with " + look.Name + "." : " is in the shop."));
+                if (look != null) Menu.OpenShop("look:" + look.Id);
+                return;
+            }
+            PutOn(slot, id, id);
+        }
+
+        void LetterPicker(Transform parent)
+        {
+            var row = LobbyKit.Row(parent, "Letter", 10);
+            row.Size(-1, 56);
+            var layout = row.GetComponent<HorizontalLayoutGroup>();
+            layout.childForceExpandHeight = false; layout.childAlignment = TextAnchor.MiddleLeft;
+            LobbyKit.SectionLabel(row, "Letter").Size(86, 28);
+            LobbyKit.TextAction(row, "Letter previous", "‹", 30, () => StepLetter(-1)).Size(52, 48);
+            LobbyKit.LetterTile(row, LetterBadge.For(Menu.Outfit, 0), 46).name = "Letter tile";
+            LobbyKit.TextAction(row, "Letter next", "›", 30, () => StepLetter(1)).Size(52, 48);
+            LobbyKit.TextAction(row, "Letter seat", "Seat letter", 17, () => WearLetter(null, "Letter seat"), Menu.Outfit.Letter == null).Size(130, 44);
+            LobbyKit.Rect(row, "Gap").Size(0, 10, 1);
+        }
+
+        void StepLetter(int step)
+        {
+            var letters = LetterBadge.Letters.ToList();
+            int index = Mathf.Max(0, letters.IndexOf(LetterBadge.For(Menu.Outfit, 0)));
+            WearLetter(letters[(index + step + letters.Count) % letters.Count], step < 0 ? "Letter previous" : "Letter next");
+        }
+
+        void WearLetter(string letter, string reselect)
+        {
+            var next = LetterBadge.With(Menu.Outfit, letter);
+            if (next == null) return;
+            Menu.Wear(next);
+            Refresh();
+            Reselect(reselect);
+        }
 
         static string ExtraIcon(string slot) => slot switch
         {
@@ -373,7 +491,7 @@ namespace Wreckabulary
             _ => LobbyIcons.Plus,
         };
 
-        static string ExtraName(string piece) => piece == "TBadge" ? "Letter badge" : piece;
+        static string ExtraName(string piece) => GameConfig.Current.Wardrobe.NameOf(piece);
 
         void PartChip(Transform parent, string slot, Colourway colour)
         {
@@ -411,8 +529,8 @@ namespace Wreckabulary
             var palette = wardrobe.Palettes[slot];
             var current = wardrobe.ColourFor(outfit, slot);
             bool sold = slot == "Top";
-            var swatches = LobbyKit.Grid(section, "Colours", new Vector2(40, 40), 12);
-            swatches.GetComponent<GridLayoutGroup>().padding = new RectOffset(4, 4, 8, 8);
+            var swatches = LobbyKit.Grid(section, "Colours", new Vector2(80, 64), 8);
+            swatches.GetComponent<GridLayoutGroup>().padding = new RectOffset(4, 4, 8, 4);
             foreach (var way in palette.Where(c => !sold || Menu.Career.Owns("colour", c.Id)))
                 Swatch(swatches, slot, way, current?.Id == way.Id);
             var locked = sold ? palette.Where(c => !Menu.Career.Owns("colour", c.Id)).ToList() : new List<Colourway>();
@@ -429,14 +547,20 @@ namespace Wreckabulary
                 LobbyKit.Pill(shop, "Open shop", "Shop", 16, () => Menu.OpenShop("colour:" + locked[0].Id)).Size(84, 34);
             }
             var matching = outfit.Pieces.Values.Select(wardrobe.Piece).Where(p => p != null && p.ColourFrom == slot)
-                .Select(p => p.Id.ToLowerInvariant() + " matches");
+                .Select(p => p.DisplayName.ToLowerInvariant() + " matches");
             string caption = string.Join("  ·  ", new[] { PartName(slot), current?.Name }.Where(s => s != null).Concat(matching));
             LobbyKit.Text(section, caption, 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 22);
         }
 
         void Swatch(Transform parent, string slot, Colourway colour, bool on)
         {
-            var button = LobbyKit.Button(parent, "Colour " + colour.Id, LobbyKit.Navy, () => PickColour(slot, colour), 20, null, 0, 3);
+            var cell = LobbyKit.Rect(parent, "Swatch " + colour.Id);
+            var label = LobbyKit.Text(cell, colour.Name, 13, on ? LobbyKit.Cream : LobbyKit.Muted, TextAlignmentOptions.Center);
+            label.name = CardName;
+            label.enableAutoSizing = true; label.fontSizeMin = 9; label.fontSizeMax = 13;
+            label.rectTransform.Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 20));
+            var button = LobbyKit.Button(cell, "Colour " + colour.Id, LobbyKit.Navy, () => PickColour(slot, colour), 20, null, 0, 3);
+            ((RectTransform)button.transform).Pin(new Vector2(.5f, 1), Vector2.zero, new Vector2(40, 40));
             SwatchFill(button.Body(), colour, 17);
             var press = button.GetComponent<LobbyPress>();
             press.HoverScale = 1.06f; press.Tilt = 0f;
@@ -514,24 +638,32 @@ namespace Wreckabulary
                 Menu.Post("That doesn't go with what you're wearing.");
                 return;
             }
+            if (Menu.Career.Missing(next).Any(missing => missing.StartsWith("piece:", StringComparison.Ordinal)))
+            {
+                Menu.Post("That piece isn't yours yet.");
+                return;
+            }
             Menu.Wear(next);
             Refresh();
             Reselect(reselect);
         }
 
-        void FinishCard(Transform parent, string skin, bool worn)
+        void FinishCard(Transform parent, Finish finish, bool worn)
         {
+            string skin = finish.Id;
             bool owned = Menu.Career.Owns("skin", skin);
             var offer = Career.Shop.FirstOrDefault(o => o.Kind == "skin" && o.Value == skin);
-            var card = LobbyKit.Button(parent, "Finish " + skin, LobbyKit.Card, () => PickFinish(skin, owned), 14, LobbyKit.Line, 1, 0);
+            var card = LobbyKit.Button(parent, "Finish " + skin, LobbyKit.Card, () => PickFinish(finish, owned), 14, LobbyKit.Line, 1, 0);
             card.Size(-1, -1, 1);
+            if (!string.IsNullOrEmpty(finish.Tagline)) card.gameObject.AddComponent<LobbyHint>().Text = finish.Name + " · " + finish.Tagline;
             var press = card.GetComponent<LobbyPress>();
             press.Lift = 3f; press.Tilt = 1f;
             var body = card.Body();
             if (worn) LobbyKit.Ring(body, LobbyKit.Selection, 14, 2);
             FinishDisc(body, skin, 52).Pin(new Vector2(0, .5f), new Vector2(12, 0), new Vector2(52, 52));
-            var name = LobbyKit.Text(body, skin, 20, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
-            name.enableAutoSizing = true; name.fontSizeMin = 14; name.fontSizeMax = 20;
+            var name = LobbyKit.Text(body, finish.Name, 20, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
+            name.name = CardName;
+            name.enableAutoSizing = true; name.fontSizeMin = 13; name.fontSizeMax = 20;
             name.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(74, 38), new Vector2(-8, -10));
             var state = LobbyKit.Row(body, "State", 4);
             state.Place(Vector2.zero, new Vector2(1, 0), new Vector2(74, 12), new Vector2(-8, 36));
@@ -551,17 +683,17 @@ namespace Wreckabulary
             }
         }
 
-        void PickFinish(string skin, bool owned)
+        void PickFinish(Finish finish, bool owned)
         {
             if (!owned)
             {
-                Menu.Post(skin + " gear is in the shop.");
-                Menu.OpenShop("skin:" + skin);
+                Menu.Post(finish.Name + " gear is in the shop.");
+                Menu.OpenShop("skin:" + finish.Id);
                 return;
             }
-            Menu.Wear(WithFinish(Menu.Outfit, skin));
+            Menu.Wear(WithFinish(Menu.Outfit, finish.Id));
             Refresh();
-            Reselect("Finish " + skin);
+            Reselect("Finish " + finish.Id);
         }
 
         ItemDefinition Shown()
@@ -652,13 +784,14 @@ namespace Wreckabulary
         {
             if (!detail || item == null) return;
             shownRecipe = item.Id;
-            if (recipeFinish) recipeFinish.text = "Finish · " + Appearance.Pick(item, Menu.Outfit.SkinFor(item.Id));
+            string skin = Appearance.Pick(item, Menu.Outfit.SkinFor(item.Id));
+            if (recipeFinish) recipeFinish.text = "Finish · " + FinishName(skin);
             LobbyKit.Clear(detail);
             var strip = LobbyKit.Rect(detail, "Strip").Fill();
             LobbyKit.Face(strip, LobbyKit.Track, 18);
             var art = LobbyKit.Rect(strip, "Art").Pin(new Vector2(0, .5f), new Vector2(16, 0), new Vector2(150, 150));
             Burst(art, 150, 150, 16);
-            LobbyKit.ItemImage(art, item.Id, 118);
+            FinishedItem(art, item.Id, skin, 118);
             var words = LobbyKit.Column(strip, "Words", 10);
             words.Place(Vector2.zero, Vector2.one, new Vector2(184, 16), new Vector2(-16, -16));
             words.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;

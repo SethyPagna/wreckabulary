@@ -1,25 +1,43 @@
 {
- "notes": "The shared avatar's wardrobe (brief section 3): cosmetic only, never stats. Each piece switches on one skinned mesh in Avatar.fbx and tints one material with the slot's colourway. rgb values are sRGB 0-1. The rib material (cuffs, hems) is tinted 25% darker than fabric_main by the wardrobe code. The head, eyes and base body are always on.",
+ "notes": "The shared avatar's wardrobe (brief section 3): cosmetic only, never stats. A piece either switches on one skinned mesh in Avatar.fbx (mesh) or hangs a rigid node from Resources/Wardrobe/SignaturePieces on a bone (rigid, bone); a piece with both shows the rigid art when it is available. tint names the materials tinted with the slot's colourway. lift moves the named slot's rigid pieces forward (metres) while the piece is worn, e.g. a badge pinned on the messenger strap. letter marks the Letter badge, which shows the outfit's letter or the seat initial. rgb values are sRGB 0-1. The rib material (cuffs, hems) is tinted 25% darker than fabric_main by the wardrobe code. The head, eyes and base body are always on.",
  "slots": ["Top", "Bottoms", "Gloves", "Footwear", "Headwear", "Face", "Back", "Badge"],
  "requiredSlots": ["Top", "Bottoms", "Gloves", "Footwear"],
  "pieces": [
-  {"id": "Crewneck", "slot": "Top", "mesh": "SK_Crewneck", "tint": "fabric_main"},
-  {"id": "Hoodie", "slot": "Top", "mesh": "SK_Hoodie", "tint": "fabric_main"},
-  {"id": "Joggers", "slot": "Bottoms", "mesh": "SK_Joggers", "tint": "joggers_color"},
-  {"id": "Mittens", "slot": "Gloves", "mesh": "SK_Mittens", "tint": "gloves_color"},
-  {"id": "Boots", "slot": "Footwear", "mesh": "SK_Boots", "tint": "boots_color"},
-  {"id": "Cap", "slot": "Headwear", "mesh": "SK_Cap", "tint": "headwear_color"},
+  {"id": "Crewneck", "slot": "Top", "name": "Crewneck", "mesh": "SK_Crewneck", "tint": "fabric_main"},
+  {"id": "Hoodie", "slot": "Top", "name": "Hoodie", "mesh": "SK_Hoodie", "tint": "fabric_main"},
+  {"id": "Joggers", "slot": "Bottoms", "name": "Joggers", "mesh": "SK_Joggers", "tint": "joggers_color"},
+  {"id": "Mittens", "slot": "Gloves", "name": "Mittens", "mesh": "SK_Mittens", "tint": "gloves_color"},
+  {"id": "Boots", "slot": "Footwear", "name": "Boots", "mesh": "SK_Boots", "tint": "boots_color"},
+  {"id": "Cap", "slot": "Headwear", "name": "Cap", "mesh": "SK_Cap", "tint": "headwear_color"},
   {
    "id": "Hood",
    "slot": "Headwear",
+   "name": "Hood",
    "mesh": "SK_Hood",
    "tint": "fabric_main",
    "colourFrom": "Top",
    "requires": ["Hoodie"]
   },
-  {"id": "Glasses", "slot": "Face", "mesh": "SK_Glasses", "tint": "glasses_frame"},
-  {"id": "Satchel", "slot": "Back", "mesh": "SK_Satchel", "tint": ["satchel_canvas", "satchel_straps"]},
-  {"id": "TBadge", "slot": "Badge", "mesh": "SK_Badge_T"}
+  {"id": "Headphones", "slot": "Headwear", "name": "Headphones", "rigid": "Sig_Headphones", "bone": "head", "tint": "headwear_color"},
+  {"id": "Beanie", "slot": "Headwear", "name": "Bobble beanie", "rigid": "Sig_Beanie", "bone": "head", "tint": "headwear_color"},
+  {"id": "Glasses", "slot": "Face", "name": "Glasses", "mesh": "SK_Glasses", "tint": "glasses_frame"},
+  {"id": "Satchel", "slot": "Back", "name": "Satchel", "mesh": "SK_Satchel", "tint": ["satchel_canvas", "satchel_straps"]},
+  {
+   "id": "MessengerBag",
+   "slot": "Back",
+   "name": "Messenger bag",
+   "rigid": "Sig_MessengerBag",
+   "bone": "chest",
+   "tint": ["satchel_canvas", "satchel_straps"],
+   "lift": {"Badge": 0.012}
+  },
+  {"id": "TBadge", "slot": "Badge", "name": "Letter badge", "mesh": "SK_Badge_T", "rigid": "Sig_LetterBadge", "bone": "chest", "letter": true},
+  {"id": "SunBadge", "slot": "Badge", "name": "Sun badge", "rigid": "Sig_SunBadge", "bone": "chest"},
+  {"id": "StampBadge", "slot": "Badge", "name": "Stamp badge", "rigid": "Sig_StampBadge", "bone": "chest"},
+  {"id": "SweetBadge", "slot": "Badge", "name": "Sweet badge", "rigid": "Sig_SweetBadge", "bone": "chest"},
+  {"id": "PixelBadge", "slot": "Badge", "name": "Pixel heart badge", "rigid": "Sig_PixelBadge", "bone": "chest"},
+  {"id": "LanternBadge", "slot": "Badge", "name": "Lantern badge", "rigid": "Sig_LanternBadge", "bone": "chest"},
+  {"id": "HollyBadge", "slot": "Badge", "name": "Holly badge", "rigid": "Sig_HollyBadge", "bone": "chest"}
  ],
  "palettes": {
   "Top": [

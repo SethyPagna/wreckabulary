@@ -7,6 +7,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Wreckabulary.Rules;
+using Wreckabulary.Rules.Voice;
+using Wreckabulary.Voice;
 
 namespace Wreckabulary
 {
@@ -20,6 +22,13 @@ namespace Wreckabulary
             { (ShakeLevel.Off.ToString(), "Off"), (ShakeLevel.Low.ToString(), "Low"), (ShakeLevel.Full.ToString(), "Full") };
         public static readonly string[] GameplayRows =
             { "Screen shake", "Damage numbers", "Effect words", "Furniture names", "Control tips", "Points per hit", "Combat feedback", "Reduce theme motion" };
+        public static readonly string[] VoiceRows = new[]
+        {
+            "Voice chat", "Voice status", "Voice echo hint", "Microphone", "Push-to-talk key", "Microphone device", "Test microphone", "Hear yourself",
+            VoiceChat.QaTools ? VoiceChat.SimulateRow : null, "Voice volume", "Hear teammates",
+        }.Where(row => row != null).ToArray();
+        static readonly (string id, string label)[] VoiceMics =
+            { (VoiceSettings.MicId(MicMode.Off), "Off"), (VoiceSettings.MicId(MicMode.PushToTalk), "Push to talk"), (VoiceSettings.MicId(MicMode.OpenMic), "Open mic") };
         const float KeepFor = 10f;
 
         public override string Id => LobbyMenu.Settings;
@@ -68,7 +77,7 @@ namespace Wreckabulary
                 saved.Validate();
                 authoredFrame = LobbyRuntimeTypography.Instantiate(saved.Page, Root, false);
                 authoredFrame.Bind(Menu.Close, revertTo.HasValue);
-                authoredFrame.FitHeight(tab switch { "profile" => 500, "gameplay" => 820, "audio" => 560, _ => 860 });
+                authoredFrame.FitHeight(tab switch { "profile" => 500, "gameplay" => 820, "audio" => 860, _ => 860 });
                 body = authoredFrame.Body;
             }
             else body = Panel(new Vector2(.12f, 0), new Vector2(.88f, 1), "Settings");
@@ -192,7 +201,49 @@ namespace Wreckabulary
                 PlayerPrefs.Save();
                 RefreshSetting("Reset audio");
             }).Size(220, 46);
+            VoiceChatGroup(list);
         }
+
+        void VoiceChatGroup(Transform list)
+        {
+            var heading = LobbyKit.Text(list, "Voice chat", 22, LobbyKit.Cyan, TextAlignmentOptions.BottomLeft);
+            heading.name = "Voice chat";
+            heading.Size(-1, 44);
+            Wrapped(list, VoiceChat.Status, 17, LobbyKit.Muted, 30).name = "Voice status";
+            Wrapped(list, VoiceChat.EchoHint, 17, LobbyKit.Muted, 30).name = "Voice echo hint";
+            Choose(Setting(list, "Microphone", "Off until you turn it on."), "Microphone", VoiceMics,
+                VoiceSettings.MicId(VoiceChat.Mic), id => VoiceChat.Mic = VoiceSettings.ParseMic(id), 480);
+            var key = Setting(list, "Push-to-talk key", "Hold it to talk. Controller: hold D-pad up.");
+            var shown = LobbyKit.Text(key, VoiceChat.PushToTalkKey, 22, LobbyKit.Navy, TextAlignmentOptions.MidlineRight);
+            shown.name = "Push-to-talk key name";
+            shown.enableAutoSizing = true; shown.fontSizeMin = 14; shown.fontSizeMax = 22;
+            shown.Size(120, 40);
+            LobbyKit.Pill(key, "Change push-to-talk key", "Change", 20, () => ShowTab("controls")).Size(160, 46);
+            var devices = new[] { "" }.Concat(VoiceChat.Devices).Distinct().ToList();
+            int device = Mathf.Max(0, devices.IndexOf(VoiceChat.Device));
+            Stepper(Setting(list, "Microphone device"), "Mic device", VoiceSettings.ShortDevice(devices[device]),
+                step => VoiceChat.Device = devices[(device + step + devices.Count) % devices.Count]);
+            var test = VoiceTest;
+            var controls = Setting(list, "Test microphone", test.Status);
+            var words = ((RectTransform)controls.parent).Find("Words");
+            var status = words.GetChild(words.childCount - 1).GetComponent<TMP_Text>();
+            status.name = "Mic test status";
+            var meter = LobbyKit.Rect(controls, "Mic level").Size(160, 14);
+            meter.Paint(LobbyKit.Track, 7);
+            var fill = LobbyKit.Rect(meter, "Fill").Fill();
+            fill.anchorMax = new Vector2(0, 1);
+            fill.Paint(LobbyKit.Cyan, 7);
+            var button = LobbyKit.Pill(controls, "Test microphone", VoiceTestView.StartLabel, 20, () => test.Toggle()).Size(140, 46);
+            VoiceTestView.Bind(controls.gameObject, test, fill, status, button.GetComponentInChildren<TMP_Text>());
+            Toggle(Setting(list, "Hear yourself", "Plays your mic back to you."), "Hear yourself", test.HearYourself, on => test.HearYourself = on);
+            if (VoiceChat.QaTools)
+                Toggle(Setting(list, VoiceChat.SimulateRow, VoiceChat.SimulateHelp), VoiceChat.SimulateRow, test.SimulateBadConnection,
+                    on => test.SimulateBadConnection = on);
+            Stepper(Setting(list, "Voice volume", "Separate from game volume."), "Voice volume", VoiceChat.Volume + "%", VoiceChat.StepVolume);
+            Toggle(Setting(list, "Hear teammates", VoiceChat.SpeakersNote + "."), "Hear teammates", VoiceChat.HearTeammates, on => VoiceChat.HearTeammates = on);
+        }
+
+        LocalVoiceTest VoiceTest => Root.TryGetComponent(out LocalVoiceTest test) ? test : Root.gameObject.AddComponent<LocalVoiceTest>();
 
         void Graphics(Transform list)
         {

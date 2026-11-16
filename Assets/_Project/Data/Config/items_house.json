@@ -385,7 +385,9 @@
         0.1924
       ],
       "skins": [
-        "Classic"
+        "Classic",
+        "Candy",
+        "Arcade"
       ],
       "family": "MeleeSwing",
       "hands": 1,
@@ -422,7 +424,9 @@
         0.5669
       ],
       "skins": [
-        "Classic"
+        "Classic",
+        "Candy",
+        "Arcade"
       ],
       "family": "MeleeThrust",
       "hands": 1,
@@ -459,7 +463,9 @@
         0.1993
       ],
       "skins": [
-        "Classic"
+        "Classic",
+        "Candy",
+        "Arcade"
       ],
       "family": "Shield",
       "hands": 1,
@@ -491,7 +497,9 @@
         0.2093
       ],
       "skins": [
-        "Classic"
+        "Classic",
+        "Candy",
+        "Arcade"
       ],
       "family": "DeployZone",
       "hands": 2,
@@ -529,7 +537,9 @@
         0.5762
       ],
       "skins": [
-        "Classic"
+        "Classic",
+        "Candy",
+        "Arcade"
       ],
       "family": "DeployCover",
       "hands": 2,
@@ -563,7 +573,9 @@
         0.1596
       ],
       "skins": [
-        "Classic"
+        "Classic",
+        "Candy",
+        "Arcade"
       ],
       "family": "Thrown",
       "hands": 1,
@@ -597,7 +609,9 @@
         0.3897
       ],
       "skins": [
-        "Classic"
+        "Classic",
+        "Candy",
+        "Arcade"
       ],
       "family": "Thrown",
       "hands": 1,

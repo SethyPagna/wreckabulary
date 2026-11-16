@@ -239,9 +239,12 @@ namespace Wreckabulary.Tests
                 Assert.AreEqual(GameConfig.Current.Items.Get(recipe).Skins.Count, cards.Length);
                 foreach (var card in cards)
                 {
-                    var images = card.Art.GetComponentsInChildren<RawImage>();
+                    var images = card.Art.GetComponentsInChildren<RawImage>().Where(image => image.name.StartsWith("Art ")).ToArray();
                     Assert.AreEqual(1, images.Length, card.name + " must not contain the old unrelated BAT illustration.");
-                    Assert.AreSame(Wreckabulary.UI.OriginalItemArt.Find(recipe), images[0].texture);
+                    Assert.AreEqual("Art " + recipe, images[0].name);
+                    string skin = card.name.Substring("Offer skin:".Length);
+                    Assert.AreSame(Wreckabulary.UI.ItemArt.FinishIcon(recipe, skin) ?? Wreckabulary.UI.OriginalItemArt.Find(recipe), images[0].texture,
+                        card.name + " shows the item in that finish");
                     Assert.AreEqual(Color.white, images[0].color, "Keep original material colours untinted.");
                     Assert.IsFalse(images[0].raycastTarget);
                     Assert.Greater(images[0].rectTransform.rect.height, 84f, "The saved offer artwork must use more than the previous tiny thumbnail area.");

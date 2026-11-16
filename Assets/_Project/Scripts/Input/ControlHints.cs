@@ -9,7 +9,7 @@ namespace Wreckabulary
     {
         static DesktopBinding Desktop => DesktopBinding.Shared;
 
-        public const string PadSpell = "Y", PadBag = "RB", PadHands = "D-PAD ‹ ›", PadLookAround = "L3";
+        public const string PadSpell = "Y", PadBag = "RB", PadHands = "D-PAD ‹ ›", PadLookAround = "L3", PadPushToTalk = "D-PAD UP";
 
         public static string PadHand(int slot) => slot == 0 ? "‹" : "›";
 
@@ -57,6 +57,15 @@ namespace Wreckabulary
         {
             ControlDevice.MouseKeyboard => LookAroundKey,
             ControlDevice.Gamepad => PadLookAround,
+            _ => "",
+        };
+
+        public static string PushToTalkKey => Key(Desktop.PushToTalk).Replace("LEFT ", "L-").Replace("RIGHT ", "R-").Replace("CONTROL", "CTRL");
+
+        public static string PushToTalk(InputBinding binding) => Device(binding) switch
+        {
+            ControlDevice.MouseKeyboard => PushToTalkKey,
+            ControlDevice.Gamepad => PadPushToTalk,
             _ => "",
         };
 

@@ -121,6 +121,13 @@ namespace Wreckabulary.Tests
             foreach (var part in TouchLayout.Parts)
             {
                 var rect = view.Part(part);
+                if (part == TouchPart.Mic || part == TouchPart.Speaker)
+                {
+                    Assert.IsFalse(TouchLayoutView.InHouse(part));
+                    Assert.IsNull(rect, part + " is a voice control and never exists in House play.");
+                    Assert.IsNull(root.Find(TouchLayout.Label(part)));
+                    continue;
+                }
                 Assert.IsNotNull(rect, part + " has a HUD control");
                 Assert.AreSame(root, rect.parent);
                 Assert.AreEqual(TouchLayoutView.HudName(part), rect.name);

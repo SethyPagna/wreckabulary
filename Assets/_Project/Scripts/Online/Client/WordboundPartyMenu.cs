@@ -107,6 +107,7 @@ namespace Wreckabulary.Online
                 mode = Array.IndexOf(Modes, settings.Mode); region = Array.IndexOf(Regions, settings.Region);
                 format = Array.IndexOf(Formats, settings.Format); fill = settings.Fill; seed = coordinator.Seed ?? "0123456789abcdef";
             }
+            SyncPartyVoice();
             if (!launching && BeginMatchRequested != null)
             {
                 var launch = coordinator.TakeLaunch();
@@ -438,9 +439,7 @@ namespace Wreckabulary.Online
                     party.Channel == "PrivateCreate" ? "Creating room…" : "Finding players…", hint);
             if (coordinator.IsLeader && party.HasAttempt)
                 PartyControl("cancel-queue", party.Assignment == null ? "Cancel search" : "Cancel reservation", () => Invoke(() => coordinator.CancelQueue()));
-            foreach (var member in party.Members)
-                GUILayout.Label((member.PlayerId == coordinator.PlayerId ? "You" : "Player " + member.PlayerId.Substring(0, 6)) +
-                    (member.PlayerId == party.LeaderId ? " · leader" : "") + (member.Ready ? " · ready" : " · not ready"));
+            DrawMembers(party);
             GUILayout.BeginHorizontal();
             bool canAct = GUI.enabled;
             GUI.enabled = canAct && coordinator.Content != null;
@@ -526,6 +525,7 @@ namespace Wreckabulary.Online
             try
             {
                 partyInput?.Dispose();
+                LeavePartyVoice();
                 lifetime.Cancel(); coordinator?.Dispose(); transport?.Dispose();
             }
             finally { ui.Dispose(); }

@@ -13,8 +13,12 @@ namespace Wreckabulary
     public sealed class CreativeWorkshop : MonoBehaviour
     {
         static readonly Color Cream = new(.97f,.94f,.86f), Ink = new(.18f,.23f,.23f), Teal = new(.13f,.48f,.48f);
-        static readonly string[] Skins = { "Classic", "Candy", "Arcade" };
+        static readonly Color Chip = new(.84f,.89f,.82f), Faded = new(.8f,.8f,.78f), Muted = new(.42f,.45f,.44f);
+        public const string LockedNote = "Get locked finishes in the Shop.";
         public static CreativeWorkshop Instance { get; private set; }
+        readonly List<(Finish finish, Button button, Image face, TextMeshProUGUI label, Image locked)> finishChips = new();
+        TextMeshProUGUI finishNote;
+        Career savedCareer;
         readonly Dictionary<string, HomeHistory> drafts = new();
         readonly List<(GameObject root, bool active)> roots = new();
         readonly List<(Behaviour component, bool enabled)> suspended = new();
@@ -196,18 +200,20 @@ namespace Wreckabulary
             MakeButton(content,"→",new Vector2(260,-628),new Vector2(72,46),() => Nudge(.5,0));
             MakeButton(content,"Change finish",new Vector2(12,-684),new Vector2(156,46),ChangeSkin);
             MakeButton(content,"Remove",new Vector2(178,-684),new Vector2(154,46),Remove);
-            undoButton = MakeButton(content,"Undo",new Vector2(12,-740),new Vector2(156,46),() => HistoryStep(false));
-            redoButton = MakeButton(content,"Redo",new Vector2(178,-740),new Vector2(154,46),() => HistoryStep(true));
-            MakeButton(content,"Export JSON",new Vector2(12,-796),new Vector2(156,46),() => OpenJson(false));
-            MakeButton(content,"Import JSON",new Vector2(178,-796),new Vector2(154,46),() => OpenJson(true));
-            status = Label(content,"",new Vector2(12,-854),new Vector2(320,125),18,Ink);
+            FinishChips(content,-740);
+            undoButton = MakeButton(content,"Undo",new Vector2(12,-822),new Vector2(156,46),() => HistoryStep(false));
+            redoButton = MakeButton(content,"Redo",new Vector2(178,-822),new Vector2(154,46),() => HistoryStep(true));
+            MakeButton(content,"Export JSON",new Vector2(12,-878),new Vector2(156,46),() => OpenJson(false));
+            MakeButton(content,"Import JSON",new Vector2(178,-878),new Vector2(154,46),() => OpenJson(true));
+            status = Label(content,"",new Vector2(12,-936),new Vector2(320,125),18,Ink);
             status.textWrappingMode = TextWrappingModes.Normal;
             foreach (RectTransform child in content)
                 if (child.anchoredPosition.y <= -572) child.anchoredPosition += new Vector2(0,-40);
-            content.sizeDelta = new Vector2(0,1030);
+            content.sizeDelta = new Vector2(0,1112);
             toolContent = content;
             foreach (RectTransform child in content) toolRows.Add((child,child.anchoredPosition,child.sizeDelta));
-            foreach (var text in content.GetComponentsInChildren<TMP_Text>(true)) toolText.Add((text,text.fontSize));
+            foreach (var text in content.GetComponentsInChildren<TMP_Text>(true))
+                if (!finishChips.Any(chip => chip.label == text)) toolText.Add((text,text.fontSize));
             tourBar = Panel(safe,"Peaceful tour",Cream); tourBar.gameObject.SetActive(false);
             tourTitle = Label(tourBar,"YOUR SAVED HOME  ·  peaceful tour",new Vector2(12,-12),new Vector2(580,40),22,Ink);
             tourBackButton = MakeButton(tourBar,"Back to workshop",new Vector2(610,-10),new Vector2(260,46),EndTour);
@@ -239,8 +245,86 @@ namespace Wreckabulary
         void RefreshSelection()
         {
             var prop = Selected;
-            selectionLabel.text = prop == null ? "Tap a prop to select it" : prop.Word + "  /  " + prop.Skin + "\n(" + prop.X + ", " + prop.Z + ")  ·  " + prop.Yaw + "°";
+            selectionLabel.text = prop == null ? "Tap a prop to select it" : prop.Word + "  /  " + (Finishes.Find(prop.Skin)?.Name ?? prop.Skin) + "\n(" + prop.X + ", " + prop.Z + ")  ·  " + prop.Yaw + "°";
             stage.Highlight(prop);
+            RefreshFinishes(prop);
+        }
+
+        public static IReadOnlyList<Finish> HomeFinishes => Finishes.All.Where(finish => finish.InCustomize).ToArray();
+        public static bool Fits(ItemDefinition item, Finish finish) =>
+            finish != null && (finish.Id == Skin.Standard || (item != null && item.HasSkin(finish.Id) && finish.Covers(item.Id)));
+
+        public static string NextFinish(string current, ItemDefinition item, Career career, Func<string,bool> accepts = null)
+        {
+            var order = HomeFinishes.Select(finish => finish.Id).ToList();
+            var offered = HomeFinishes.Where(finish => Fits(item,finish) && career != null && career.Owns("skin",finish.Id) && (accepts == null || accepts(finish.Id)))
+                .Select(finish => finish.Id).ToList();
+            if (offered.Count == 0) return current;
+            int index = offered.IndexOf(current);
+            if (index >= 0) return offered[(index+1)%offered.Count];
+            int at = order.IndexOf(current);
+            return offered.FirstOrDefault(id => order.IndexOf(id) > at) ?? offered[0];
+        }
+
+        public Career Owner => LobbyMenu.Instance ? LobbyMenu.Instance.Career : savedCareer ??= SavedCareer();
+        static Career SavedCareer() => Career.TryDeserialize(PlayerPrefs.GetString(MatchTally.CareerKey,""),out var saved) && saved != null ? saved : new Career();
+        static ItemDefinition ItemFor(string word) => word != null && GameConfig.Current.Items.TryGet(word,out var item) ? item : null;
+
+        bool Accepts(HomeProp prop,string skin)
+        {
+            if (prop.Skin == skin) return true;
+            var candidate = history.Current; var target = candidate.Props.FirstOrDefault(p => p.Id == prop.Id);
+            if (target == null) return false;
+            target.Skin = skin;
+            return designer.Validate(candidate).Ok;
+        }
+
+        void FinishChips(RectTransform content,float y)
+        {
+            var finishes = HomeFinishes;
+            float width = (320f-8f*(finishes.Count-1))/Mathf.Max(1,finishes.Count);
+            for (int i=0;i<finishes.Count;i++)
+            {
+                var finish = finishes[i];
+                var chip = MakeButton(content,"Finish " + finish.Id,new Vector2(12+i*(width+8),y),new Vector2(width,40),() => PickFinish(finish.Id));
+                var label = chip.GetComponentInChildren<TextMeshProUGUI>();
+                label.text = finish.Name; label.enableAutoSizing = true; label.fontSizeMin = 11; label.fontSizeMax = 18;
+                var mark = Rect(chip.transform,"Locked",Vector2.zero,new Vector2(16,16));
+                mark.anchorMin = mark.anchorMax = mark.pivot = Vector2.one; mark.anchoredPosition = new Vector2(-3,-3);
+                var locked = mark.gameObject.AddComponent<Image>();
+                locked.sprite = LobbyIcons.Get(LobbyIcons.Lock); locked.color = Ink; locked.preserveAspect = true; locked.raycastTarget = false;
+                finishChips.Add((finish,chip,chip.GetComponent<Image>(),label,locked));
+            }
+            finishNote = Label(content,LockedNote,new Vector2(12,y-46),new Vector2(320,28),16,Muted);
+            finishNote.name = "Finish note";
+        }
+
+        void RefreshFinishes(HomeProp prop)
+        {
+            var item = prop == null ? null : ItemFor(prop.Word);
+            bool locked = false;
+            foreach (var chip in finishChips)
+            {
+                bool fits = prop != null && Fits(item,chip.finish) && Accepts(prop,chip.finish.Id);
+                bool owned = Owner.Owns("skin",chip.finish.Id), current = prop != null && prop.Skin == chip.finish.Id;
+                chip.button.interactable = fits;
+                chip.locked.enabled = !owned;
+                chip.face.color = current ? Teal : owned ? Chip : Faded;
+                chip.label.color = current ? Cream : owned ? Ink : Muted;
+                locked |= !owned && (prop == null || fits);
+            }
+            if (finishNote) finishNote.text = locked ? LockedNote : "";
+        }
+
+        void PickFinish(string skin)
+        {
+            var prop = Selected; var finish = Finishes.Find(skin);
+            if (prop == null) { SetStatus("Select a prop first."); return; }
+            if (finish == null) return;
+            if (!Fits(ItemFor(prop.Word),finish) || !Accepts(prop,skin)) { SetStatus(prop.Word + " has no " + finish.Name + " finish."); return; }
+            if (!Owner.Owns("skin",skin)) { SetStatus(finish.Name + " is locked. Get it in the Shop."); return; }
+            if (prop.Skin == skin) { SetStatus("Finish: " + finish.Name + "."); return; }
+            EditSelected(p => p.Skin = skin,"Finish: " + finish.Name + ".");
         }
         void SelectProp(int direction)
         {
@@ -279,7 +363,14 @@ namespace Wreckabulary
         }
         void Nudge(double x,double z) => EditSelected(p => { p.X += x; p.Z += z; },"Moved on the half-metre grid.");
         void Rotate() => EditSelected(p => p.Yaw = (p.Yaw+90)%360,"Rotated 90°.");
-        void ChangeSkin() => EditSelected(p => p.Skin = Skins[(Array.IndexOf(Skins,p.Skin)+1)%Skins.Length],"Finish changed.");
+        void ChangeSkin()
+        {
+            var prop = Selected;
+            if (prop == null) { SetStatus("Select a prop first."); return; }
+            string next = NextFinish(prop.Skin,ItemFor(prop.Word),Owner,skin => Accepts(prop,skin));
+            if (next == prop.Skin) { SetStatus(finishNote && finishNote.text.Length > 0 ? "No other finish you own fits. " + LockedNote : "This object has no other finish."); return; }
+            PickFinish(next);
+        }
         void Remove()
         {
             if (Selected == null) { SetStatus("Select a prop first."); return; }

@@ -161,7 +161,27 @@ namespace Wreckabulary.EditorTests
             var avatar = models.Find("Avatar/Avatar");
             Assert.IsNotNull(avatar);
             var renderers = avatar.GetComponentsInChildren<Renderer>(true);
-            foreach (var piece in config.Wardrobe.Pieces)
+            var bones = avatar.GetComponentsInChildren<Transform>(true).Select(t => t.name).ToHashSet();
+            var signature = Resources.Load<GameObject>(WardrobeRig.ArtPath);
+            foreach (var piece in config.Wardrobe.Pieces.Where(p => !string.IsNullOrEmpty(p.Rigid)))
+            {
+                Assert.IsNotNull(signature, $"{piece.Id}: Resources/{WardrobeRig.ArtPath} is missing");
+                Assert.IsTrue(bones.Contains(piece.Bone), $"{piece.Id}: Avatar.fbx has no bone {piece.Bone}");
+                var node = ModelVisual.FindNamed(signature, piece.Rigid);
+                Assert.IsNotNull(node, $"{piece.Id}: the signature art has no {piece.Rigid}");
+                var parts = node.GetComponentsInChildren<Renderer>(true);
+                Assert.IsNotEmpty(parts, $"{piece.Id}: {piece.Rigid} has no geometry");
+                foreach (string tint in piece.TintMaterials)
+                {
+                    Assert.IsNotNull(materials.Find(tint), $"{piece.Id}: no library material {tint}");
+                    Assert.IsTrue(parts.SelectMany(p => p.sharedMaterials).Any(m => m != null && WardrobeRig.CanonicalMaterial(m.name) == tint),
+                        $"{piece.Id}: {piece.Rigid} doesn't use {tint}");
+                }
+                if (piece.Letter)
+                    foreach (string letter in LetterBadge.Letters)
+                        Assert.IsNotNull(ModelVisual.FindNamed(node.gameObject, WardrobeRig.GlyphPrefix + letter), $"{piece.Id}: no glyph {letter}");
+            }
+            foreach (var piece in config.Wardrobe.Pieces.Where(p => !string.IsNullOrEmpty(p.Mesh)))
             {
                 var r = renderers.FirstOrDefault(x => x.name == piece.Mesh);
                 Assert.IsNotNull(r, $"{piece.Id}: Avatar.fbx has no mesh {piece.Mesh}");

@@ -56,8 +56,8 @@ namespace Wreckabulary.EditorTools
         [Serializable] sealed class MemoryProof { public string path, name, before, after; public bool dirtyBefore, dirtyAfter; }
         [Serializable] sealed class Report
         {
-            public string utc, unity, graphics, colorSpace, pipeline, folder, status = "IN_PROGRESS", error = "", cleanupError = "", globalBefore, globalAfter;
-            public string scope = "Isolated Editor preview scene. Each model spawns through ModelVisual.Spawn (Classic skin, tactile material variants) as the game does, at yaw 0 and scale 1 on the pivot plane. " +
+            public string utc, unity, graphics, colorSpace, pipeline, folder, status = "IN_PROGRESS", error = "", cleanupError = "", globalBefore, globalAfter, finish = Skin.Standard;
+            public string scope = "Isolated Editor preview scene. Each model spawns through ModelVisual.Spawn (the finish named in 'finish', tactile material variants) as the game does, at yaw 0 and scale 1 on the pivot plane. " +
                 "One key directional light at the game sun's 48 degree elevation and -32 degree yaw relative to each camera, flat ambient, no fill, no shadows, no post-processing. " +
                 "Front, back, left, three-quarter and overhead share one orthographic size per item; the front widens only when the reference bar needs room. " +
                 "WordboundPvP replacement meshes and WordboundVisualProfile overrides are not captured; their item ids use the original ModelLibrary artwork. No art approval is implied.";
@@ -76,20 +76,38 @@ namespace Wreckabulary.EditorTools
         sealed class Plan { public string view; public bool orthographic, reference; public Vector3 position, target; public float size, near, far; public Bounds bar; }
 
         [MenuItem("Wreckabulary/Art/Capture item angle sheets")]
-        public static void Run()
+        public static void Run() => Capture(Skin.Standard);
+
+        [MenuItem("Wreckabulary/Art/Capture item angle sheets (Candy)")]
+        public static void RunCandy() => Capture("Candy");
+
+        [MenuItem("Wreckabulary/Art/Capture item angle sheets (Arcade)")]
+        public static void RunArcade() => Capture("Arcade");
+
+        [MenuItem("Wreckabulary/Art/Capture item angle sheets (Winter)")]
+        public static void RunWinter() => Capture("Winter");
+
+        public static void RunAllFinishes()
         {
+            foreach (var finish in Finishes.All) Capture(finish.Id);
+        }
+
+        static void Capture(string finish)
+        {
+            if (Finishes.Find(finish) == null) throw new ArgumentException("Unknown finish " + finish);
             if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Capture item angle sheets in Edit Mode.");
             if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) throw new InvalidOperationException("Item angle sheets need a graphics device; do not run with -nographics.");
             if (!GraphicsSettings.currentRenderPipeline) throw new InvalidOperationException("Item angle sheets need the active render pipeline.");
             if (GraphicsSettings.currentRenderPipeline is not UniversalRenderPipelineAsset) throw new InvalidOperationException("Item angle sheets expect the game's URP pipeline asset to be active.");
             var library = ModelLibrary.Load(); var materials = MaterialLibrary.Load(); var data = Resources.Load<GameData>(GameData.ResourcePath); var equipment = WordboundEquipmentCollection.Load();
             if (!library || !materials || !data) throw new InvalidOperationException("Resources ModelLibrary, MaterialLibrary and GameData are required; run Wreckabulary > Art > Set Up Imported Art and Data > Set Up Game Data.");
-            string relative = OutputRoot + "/" + DateTime.UtcNow.ToString("yyyyMMddTHHmmssZ"), folder = Full(relative);
+            string relative = OutputRoot + "/" + DateTime.UtcNow.ToString("yyyyMMddTHHmmssZ") + (finish == Skin.Standard ? "" : "-" + finish.ToLowerInvariant()), folder = Full(relative);
             if (Directory.Exists(folder) || File.Exists(folder)) throw new IOException("Preserve existing item angle sheets: " + folder);
             var report = new Report { utc = DateTime.UtcNow.ToString("O"), unity = Application.unityVersion, folder = relative,
                 graphics = SystemInfo.graphicsDeviceType + ": " + SystemInfo.graphicsDeviceName, colorSpace = QualitySettings.activeColorSpace.ToString(),
-                pipeline = AssetDatabase.GetAssetPath(GraphicsSettings.currentRenderPipeline) };
+                pipeline = AssetDatabase.GetAssetPath(GraphicsSettings.currentRenderPipeline), finish = finish };
             var candidates = Collect(library, data, equipment, report);
+            if (finish != Skin.Standard) candidates = Wearing(candidates, finish, report);
             var settings = new[] { "ProjectSettings/GraphicsSettings.asset", "ProjectSettings/QualitySettings.asset", "ProjectSettings/EditorSettings.asset" };
             var inputs = new[] { AssetDatabase.GetAssetPath(library), AssetDatabase.GetAssetPath(materials), AssetDatabase.GetAssetPath(data),
                 equipment ? AssetDatabase.GetAssetPath(equipment) : "", report.pipeline, ScriptPath }.Where(path => !string.IsNullOrEmpty(path)).ToArray();
@@ -126,7 +144,7 @@ namespace Wreckabulary.EditorTools
                 var barRenderer = bar.GetComponent<MeshRenderer>(); barRenderer.sharedMaterial = barMaterial; barRenderer.shadowCastingMode = ShadowCastingMode.Off; barRenderer.receiveShadows = false;
                 bar.SetActive(false);
                 var slugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var candidate in candidates) Capture(candidate, library, preview, scene, bar, relative, slugs, report);
+                foreach (var candidate in candidates) Capture(candidate, library, preview, scene, bar, relative, slugs, report, finish);
                 report.status = "CAPTURED_NOT_VISUALLY_APPROVED";
             }
             catch (Exception error) { failure = error; report.status = "FAIL"; report.error = error.ToString(); }
@@ -162,7 +180,7 @@ namespace Wreckabulary.EditorTools
             string index = relative + "/index.json";
             if (failure != null) throw new InvalidOperationException("Item angle sheet capture failed; evidence kept at " + index, failure);
             if (report.cleanupError.Length != 0 || !Preserved(report)) throw new InvalidOperationException("Item angle sheet preservation or cleanup failed; inspect " + index + "\n" + report.cleanupError);
-            string summary = "[Wreckabulary] Item angle sheets " + report.status + ": items=" + report.items.Count + " missing=" + report.missing.Count + " invalid=" + report.invalid.Count +
+            string summary = "[Wreckabulary] Item angle sheets " + report.status + ": finish=" + finish + " items=" + report.items.Count + " missing=" + report.missing.Count + " invalid=" + report.invalid.Count +
                 " skipped=" + report.skipped.Count + " index=" + index;
             if (report.missing.Count + report.invalid.Count > 0) Debug.LogWarning(summary); else Debug.Log(summary);
         }
@@ -232,7 +250,20 @@ namespace Wreckabulary.EditorTools
             return result;
         }
 
-        static void Capture(Candidate candidate, ModelLibrary library, PreviewRenderUtility preview, Scene scene, GameObject bar, string relative, HashSet<string> slugs, Report report)
+        static List<Candidate> Wearing(List<Candidate> candidates, string finish, Report report)
+        {
+            var items = GameConfig.Current.Items;
+            var kept = new List<Candidate>();
+            foreach (var candidate in candidates)
+            {
+                bool wears = candidate.ids.Any(id => items.TryGet(id, out var item) && Finishes.ForItem(item.Id, item.Skins).Any(f => f.Id == finish));
+                if (wears) { kept.Add(candidate); continue; }
+                report.skipped.Add(new Problem { modelKey = candidate.key, ids = candidate.ids.ToArray(), sources = candidate.sources.ToArray(), reason = "No catalogue item with this model lists the " + finish + " finish." });
+            }
+            return kept;
+        }
+
+        static void Capture(Candidate candidate, ModelLibrary library, PreviewRenderUtility preview, Scene scene, GameObject bar, string relative, HashSet<string> slugs, Report report, string finish)
         {
             string slug = Slug(candidate.key, slugs);
             var item = new Item { modelKey = candidate.key, asset = AssetDatabase.GetAssetPath(library.Find(candidate.key)), folder = relative + "/" + slug,
@@ -242,7 +273,7 @@ namespace Wreckabulary.EditorTools
             {
                 anchor = EditorUtility.CreateGameObjectWithHideFlags("Item angle sheet " + candidate.key, HideFlags.HideAndDontSave);
                 SceneManager.MoveGameObjectToScene(anchor, scene);
-                var model = ModelVisual.Spawn(candidate.key, anchor.transform);
+                var model = ModelVisual.Spawn(candidate.key, anchor.transform, finish);
                 if (!model || model.scene != scene) throw new InvalidOperationException("The model did not spawn into the owned preview scene.");
                 var renderers = model.GetComponentsInChildren<Renderer>(true).Where(renderer => renderer.enabled && renderer.gameObject.activeInHierarchy && !renderer.forceRenderingOff).ToArray();
                 if (renderers.Length == 0) throw new InvalidOperationException("The model has no visible renderers.");

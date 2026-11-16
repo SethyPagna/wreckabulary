@@ -1130,14 +1130,14 @@ namespace Wreckabulary.Tests
             var panel = loadout.Root.GetComponentsInChildren<RectTransform>().First(r => r.name == "Panel");
             Assert.AreEqual(LoadoutPage.Width, panel.rect.width, 1f, "the saved customization width");
             foreach (string name in new[] { "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear", "Part Top", "Part Bottoms", "Colour tomato",
-                "Extra Face", "Extra Back", "Extra Badge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
+                "Extra Face", "Satchel", "TBadge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
                 Find(name);
             Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Slot ")),
                 "the full list stays available without extra modal slot pages");
             var list = loadout.Root.GetComponentsInChildren<ScrollRect>().Single();
             Assert.IsTrue(list.vertical && !list.horizontal);
             Assert.IsNotNull(list.verticalScrollbar, "long customization pages show their scroll position");
-            foreach (string name in new[] { "Extra Face", "Extra Back", "Extra Badge", "Finish Classic", "Finish Candy", "Finish Arcade" })
+            foreach (string name in new[] { "Extra Face", "Finish Classic", "Finish Candy", "Finish Arcade" })
                 Assert.GreaterOrEqual(((RectTransform)Find(name).transform).rect.height, 52f, "one readable option per row");
             var corners = new Vector3[4];
             panel.GetWorldCorners(corners);

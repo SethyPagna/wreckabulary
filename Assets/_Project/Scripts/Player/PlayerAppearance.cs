@@ -82,19 +82,34 @@ namespace Wreckabulary
         {
             var catalogue = GameConfig.Current.Wardrobe;
             string saved = PlayerPrefs.GetString("wv.outfit." + seat, "");
-            var initial = string.IsNullOrEmpty(saved) ? DefaultPresentationOutfit() : Outfit.Deserialize(saved);
-            if (string.IsNullOrEmpty(saved) && catalogue.Palettes.TryGetValue("Top", out var palette))
-            {
-                float nearest = float.PositiveInfinity;
-                foreach (var option in palette)
-                {
-                    float distance = (new Vector3(option.R, option.G, option.B) - new Vector3(colour.r, colour.g, colour.b)).sqrMagnitude;
-                    if (distance >= nearest) continue;
-                    nearest = distance;
-                    initial.Colours["Top"] = option.Id;
-                }
-            }
+            var initial = string.IsNullOrEmpty(saved) ? SeatDefault(catalogue, seat, colour) : Outfit.Deserialize(saved);
+            initial.Seat = seat;
             return catalogue.Sanitize(initial);
+        }
+
+        public static Outfit SeatDefault(WardrobeCatalogue catalogue, int seat, Color colour)
+        {
+            var look = DefaultPresentationOutfit(catalogue).Clone();
+            look.Seat = seat;
+            if (catalogue.Palettes.TryGetValue("Top", out var palette))
+            {
+                var tops = SeatLooks.TopColours(palette, SeatColours(seat, colour), Career.FreeColours);
+                if (seat >= 0 && seat < tops.Count) look.Colours["Top"] = tops[seat];
+            }
+            return catalogue.Sanitize(look);
+        }
+
+        static Srgb[] SeatColours(int seat, Color colour)
+        {
+            var assets = GameAssets.I;
+            int count = Mathf.Max(seat + 1, assets && assets.playerColors != null ? assets.playerColors.Length : 0);
+            var seats = new Srgb[count];
+            for (int i = 0; i < count; i++)
+            {
+                var c = i == seat || !assets ? colour : assets.PlayerColor(i);
+                seats[i] = new Srgb(c.r, c.g, c.b);
+            }
+            return seats;
         }
 
         public bool Initialize(PlayerController player)
@@ -201,7 +216,7 @@ namespace Wreckabulary
 
         void ApplyOutfit(Outfit next, bool save)
         {
-            outfit = Dress(meshes, next);
+            outfit = Dress(meshes, next, GameConfig.Current.Wardrobe, controller ? controller.Index : 0);
             if (save && controller)
             {
                 PlayerPrefs.SetString("wv.outfit." + controller.Index, outfit.Serialize());
@@ -209,19 +224,28 @@ namespace Wreckabulary
             }
         }
 
-        public static Outfit Dress(SkinnedMeshRenderer[] meshes, Outfit next) => Dress(meshes, next, GameConfig.Current.Wardrobe);
+        public static Outfit Dress(SkinnedMeshRenderer[] meshes, Outfit next) => Dress(meshes, next, GameConfig.Current.Wardrobe, 0);
 
-        public static Outfit Dress(SkinnedMeshRenderer[] meshes, Outfit next, WardrobeCatalogue catalogue)
+        public static Outfit Dress(SkinnedMeshRenderer[] meshes, Outfit next, WardrobeCatalogue catalogue) => Dress(meshes, next, catalogue, -1);
+
+        public static Outfit Dress(SkinnedMeshRenderer[] meshes, Outfit next, WardrobeCatalogue catalogue, int seat)
         {
             if (catalogue == null) throw new System.ArgumentNullException(nameof(catalogue));
             var outfit = catalogue.Sanitize(next).Clone();
+            string letter = seat >= 0 || outfit.Seat >= 0 || LetterBadge.IsLetter(outfit.Letter) ? LetterBadge.For(outfit, seat) : null;
+            var rigid = RigidPieces(outfit, catalogue, letter);
+            var rig = WardrobeRig.For(meshes, catalogue, rigid.Count > 0);
+            var shown = new HashSet<string>(System.StringComparer.Ordinal);
+            if (rig)
+                foreach (var piece in rigid)
+                    if (rig.Has(piece.Rigid)) shown.Add(piece.Rigid);
             if (meshes != null)
                 foreach (var renderer in meshes)
                 {
                     WardrobePiece piece = null;
                     foreach (var candidate in catalogue.Pieces)
                         if (candidate.Mesh == renderer.name) { piece = candidate; break; }
-                    bool visible = piece == null || outfit.PieceIn(piece.Slot) == piece.Id;
+                    bool visible = piece == null || outfit.PieceIn(piece.Slot) == piece.Id && !shown.Contains(piece.Rigid ?? "");
                     renderer.enabled = visible;
                     var materials = renderer.sharedMaterials;
                     for (int i = 0; i < materials.Length; i++)
@@ -247,7 +271,20 @@ namespace Wreckabulary
                         renderer.SetPropertyBlock(block, i);
                     }
                 }
+            if (rig) rig.Show(outfit, catalogue, shown, letter);
             return outfit;
+        }
+
+        static List<WardrobePiece> RigidPieces(Outfit outfit, WardrobeCatalogue catalogue, string letter)
+        {
+            var pieces = new List<WardrobePiece>();
+            foreach (var kv in outfit.Pieces)
+            {
+                var piece = catalogue.Piece(kv.Value);
+                if (piece == null || piece.Slot != kv.Key || string.IsNullOrEmpty(piece.Rigid) || piece.Letter && letter == null) continue;
+                pieces.Add(piece);
+            }
+            return pieces;
         }
 
         public string SkinFor(string word) => outfit?.SkinFor(word) ?? Skin.Standard;

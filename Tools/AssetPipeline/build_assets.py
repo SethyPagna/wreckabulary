@@ -16,6 +16,7 @@ from mathutils import Matrix, Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from gltf_read import Glb
+import finish_materials
 
 SKIN_SUFFIX = re.compile(r"^(?P<family>.+)_(?P<skin>Classic|Candy|Arcade)$")
 DUP_SUFFIX = re.compile(r"^(?P<base>.+)\.\d{3}$")
@@ -122,8 +123,8 @@ class Library:
                 if m[key]:
                     m[key] = written[m[key]]["file"]
             materials.append(m)
-        payload = {"generator": "Tools/AssetPipeline/build_assets.py", "materials": materials,
-                   "textures": written, "conflicts": self.conflicts}
+        payload = finish_materials.apply({"generator": "Tools/AssetPipeline/build_assets.py", "materials": materials,
+                                          "textures": written, "conflicts": self.conflicts})
         with open(os.path.join(data_dir, "materials.json"), "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=1)
         return payload
@@ -542,7 +543,7 @@ def main():
     reset_scene()
     lib = library.write(art_dir, data_dir, art_rel)
     if partial:
-        lib = merge_library(previous_lib, lib)
+        lib = finish_materials.apply(merge_library(previous_lib, lib))
         with open(materials_path, "w", encoding="utf-8") as f:
             json.dump(lib, f, indent=1)
         rebuilt = {KIND_OF[k] for k in only}

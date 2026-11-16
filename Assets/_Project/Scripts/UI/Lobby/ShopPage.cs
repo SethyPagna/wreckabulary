@@ -168,9 +168,7 @@ namespace Wreckabulary
             {
                 RecipeChooser(list);
                 var finishes = OfferGrid(list, "Finishes");
-                foreach (string skin in GameConfig.Current.Items.Get(recipe).Skins)
-                    FinishCard(finishes, Career.Shop.FirstOrDefault(o => o.Kind == "skin" && o.Value == skin)
-                        ?? new ShopOffer("skin", skin, skin, 0));
+                foreach (var finish in Finishes.ForItem(recipe, GameConfig.Current.Items.Get(recipe).Skins)) FinishCard(finishes, finish);
             }
             else if (Category == Colours)
             {
@@ -185,7 +183,8 @@ namespace Wreckabulary
             else
             {
                 var accessories = LobbyKit.Grid(list, "Accessories", new Vector2(248, 170), 16);
-                foreach (string piece in new[] { "Cap", "Hood", "Glasses", "Satchel", "TBadge" }) Accessory(accessories, piece);
+                var wardrobe = GameConfig.Current.Wardrobe;
+                foreach (var piece in wardrobe.Pieces.Where(p => !wardrobe.RequiredSlots.Contains(p.Slot))) Accessory(accessories, piece);
                 WinterEmote(list);
             }
         }
@@ -223,7 +222,7 @@ namespace Wreckabulary
         {
             var collection = Art.SeasonalCollection.Winter;
             if (!collection || !collection.emote) return;
-            LobbyKit.SectionLabel(parent, "Move");
+            LobbyKit.SectionLabel(parent, "Winter shuffle");
             var row = LobbyKit.Row(parent, "Winter emote", 8);
             row.Size(-1, 58);
             LobbyKit.TextAction(row, "Play winter shuffle", "SHUFFLE", 24, PlayWinterEmote,
@@ -304,39 +303,50 @@ namespace Wreckabulary
             var offer = Career.Shop.FirstOrDefault(o => o.Id == "look:" + bundle.Id) ?? new ShopOffer("look", bundle.Id, bundle.Name, 0);
             var proposed = bundle.Apply(Menu.Outfit, GameConfig.Current.Wardrobe);
             bool worn = proposed != null && proposed.Serialize() == Menu.Outfit.Serialize();
-            ArtCard(parent, offer, bundle.Name, bundle.Collection + "\n" + bundle.Description, worn, out var art);
+            ArtCard(parent, offer, bundle.Name, (string.IsNullOrEmpty(bundle.Tagline) ? "" : bundle.Tagline + "\n") + bundle.Description, worn, out var art);
             var portrait = Resources.Load<Texture2D>("UI/Shop/Looks/" + bundle.Id);
             if (portrait)
             {
-                var image = LobbyKit.Rect(art, "Outfit portrait").Fill().gameObject.AddComponent<RawImage>();
+                var image = LobbyKit.Rect(art, "Outfit portrait").Place(Vector2.zero, Vector2.one, new Vector2(0, TagRoom), Vector2.zero)
+                    .gameObject.AddComponent<RawImage>();
                 image.texture = portrait;
                 image.raycastTarget = false;
                 var fit = image.gameObject.AddComponent<AspectRatioFitter>();
                 fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
                 fit.aspectRatio = (float)portrait.width / portrait.height;
-                return;
             }
-            var colour = GameConfig.Current.Wardrobe.Colour("Top", bundle.TopColour);
-            Blob(art, new Color(colour.R, colour.G, colour.B), 94);
-            var icon = LobbyKit.Icon(art, LobbyIcons.Satchel, LobbyKit.Navy);
-            icon.rectTransform.Pin(new Vector2(.75f, .35f), Vector2.zero, new Vector2(48, 48));
+            else
+            {
+                var colour = GameConfig.Current.Wardrobe.Colour("Top", bundle.TopColour);
+                Blob(art, new Color(colour.R, colour.G, colour.B), 94);
+                var icon = LobbyKit.Icon(art, LobbyIcons.Satchel, LobbyKit.Navy);
+                icon.rectTransform.Pin(new Vector2(.75f, .35f), Vector2.zero, new Vector2(48, 48));
+            }
+            Emblem(art, bundle.Emblem, new Vector2(0, 1), new Vector2(8, -8), 40);
+            NameTag(art, bundle.Collection);
         }
 
-        void FinishCard(Transform parent, ShopOffer offer)
+        const float TagRoom = 34f, TaglineRoom = 46f;
+
+        void FinishCard(Transform parent, Finish finish)
         {
-            bool worn = (Menu.Outfit.SkinFor(recipe) ?? "Classic") == offer.Value;
-            ArtCard(parent, offer, offer.Value, "Original " + recipe + " shape · Select to preview " + offer.Value + " finish", worn, out var art);
-            var frame = LobbyKit.Rect(art, "Item frame").Place(Vector2.zero, Vector2.one, new Vector2(6, 6), new Vector2(-6, -6));
-            var item = LobbyKit.ItemImage(frame, recipe, 144);
+            var offer = Career.Shop.FirstOrDefault(o => o.Kind == "skin" && o.Value == finish.Id) ?? new ShopOffer("skin", finish.Id, finish.Name, 0);
+            bool worn = (Menu.Outfit.SkinFor(recipe) ?? Skin.Standard) == finish.Id;
+            string line = string.IsNullOrEmpty(finish.Tagline) ? finish.Name : finish.Tagline;
+            ArtCard(parent, offer, finish.Name, line + "\nOriginal " + recipe + " shape · Select to preview " + finish.Name + " finish", worn, out var art);
+            var frame = LobbyKit.Rect(art, "Item frame").Place(Vector2.zero, Vector2.one, new Vector2(6, TaglineRoom), new Vector2(-6, -6));
+            var item = FinishedItem(frame, recipe, finish.Id, 144);
             if (item)
             {
                 var fit = item.gameObject.AddComponent<AspectRatioFitter>();
                 fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
                 fit.aspectRatio = item.texture.width * item.uvRect.width / (item.texture.height * item.uvRect.height);
             }
-            var (from, to) = FinishPaint(offer.Value);
-            var swatch = LobbyKit.Rect(art, "Finish swatch").Pin(new Vector2(1, 0), new Vector2(-14, 14), new Vector2(20, 20));
-            LobbyKit.Face(swatch, from, 10, LobbyKit.Line, 1, 0, to);
+            var (from, to) = FinishPaint(finish.Id);
+            var swatch = LobbyKit.Rect(art, "Finish swatch").Pin(Vector2.one, new Vector2(-10, -10), new Vector2(22, 22));
+            LobbyKit.Face(swatch, from, 11, LobbyKit.Line, 1, 0, to);
+            Emblem(art, finish.Emblem, new Vector2(0, 1), new Vector2(8, -8), 38);
+            NameTag(art, line, TaglineRoom - 10);
         }
 
         void ColourCard(Transform parent, ShopOffer offer)
@@ -347,17 +357,36 @@ namespace Wreckabulary
             Blob(art, new Color(colour.R, colour.G, colour.B), 100);
         }
 
-        void Accessory(Transform parent, string id)
+        static string AccessoryIcon(WardrobePiece piece) => piece.Slot switch
         {
-            var piece = GameConfig.Current.Wardrobe.Piece(id);
+            "Face" => LobbyIcons.Glasses,
+            "Back" => LobbyIcons.Satchel,
+            "Badge" => LobbyIcons.Badge,
+            _ => LobbyIcons.Locker,
+        };
+
+        void Accessory(Transform parent, WardrobePiece piece)
+        {
+            string id = piece.Id;
             bool worn = Menu.Outfit.PieceIn(piece.Slot) == id;
+            var look = CosmeticBundles.GrantedBy(id);
+            bool owned = Menu.Career.Owns("piece", id);
             var face = LobbyKit.Rect(parent, "Accessory " + id);
             face.Paint(LobbyKit.Card, 14).raycastTarget = false;
-            var icon = LobbyKit.Icon(face, id == "Glasses" ? LobbyIcons.Glasses : id == "Satchel" ? LobbyIcons.Satchel : id == "TBadge" ? LobbyIcons.Badge : LobbyIcons.Locker, LobbyKit.Cyan);
-            icon.rectTransform.Pin(new Vector2(.5f, 1), new Vector2(0, -14), new Vector2(54, 54));
-            LobbyKit.Text(face, id == "TBadge" ? "Letter badge" : id, 21, LobbyKit.Navy, TextAlignmentOptions.Center).rectTransform
-                .Place(new Vector2(0, 1), Vector2.one, new Vector2(8, -106), new Vector2(-8, -74));
-            var action = LobbyKit.TextAction(face, "Accessory toggle " + id, worn ? "REMOVE" : "EQUIP", 19, () => EquipAccessory(id), worn);
+            var emblem = look != null && look.Signature == id ? Emblem(face, look.Emblem, new Vector2(.5f, 1), new Vector2(0, -12), 58) : null;
+            if (!emblem)
+                LobbyKit.Icon(face, AccessoryIcon(piece), LobbyKit.Cyan).rectTransform.Pin(new Vector2(.5f, 1), new Vector2(0, -14), new Vector2(54, 54));
+            var name = LobbyKit.Text(face, piece.DisplayName, 21, LobbyKit.Navy, TextAlignmentOptions.Center);
+            name.name = CardName;
+            name.enableAutoSizing = true; name.fontSizeMin = 15; name.fontSizeMax = 21;
+            name.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(8, -106), new Vector2(-8, -74));
+            Button action;
+            if (!owned && look != null)
+            {
+                action = LobbyKit.TextAction(face, "Accessory look " + id, look.Name, 18, () => Spotlight("look:" + look.Id), icon: LobbyIcons.Lock);
+                action.gameObject.AddComponent<LobbyHint>().Text = piece.DisplayName + " comes with " + look.Name;
+            }
+            else action = LobbyKit.TextAction(face, "Accessory toggle " + id, worn ? "REMOVE" : "EQUIP", 19, () => EquipAccessory(id), worn);
             ((RectTransform)action.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(12, 10), new Vector2(-12, 54));
         }
 

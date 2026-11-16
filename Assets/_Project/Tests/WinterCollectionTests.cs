@@ -106,7 +106,8 @@ namespace Wreckabulary.Tests
             Click("Wear look:winter");
             Assert.IsEmpty(GameConfig.Current.Wardrobe.Problems(menu.Outfit));
             Assert.AreEqual("Hoodie", menu.Outfit.PieceIn("Top"));
-            Assert.AreEqual("Hood", menu.Outfit.PieceIn("Headwear"));
+            Assert.AreEqual("Beanie", menu.Outfit.PieceIn("Headwear"));
+            Assert.AreEqual("HollyBadge", menu.Outfit.PieceIn("Badge"));
             Assert.AreEqual("Candy", menu.Outfit.SkinFor("BAT"));
             Click("Shop category rooms");
             Click("Wear theme:winter");

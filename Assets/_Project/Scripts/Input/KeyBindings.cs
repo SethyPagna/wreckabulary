@@ -62,7 +62,7 @@ namespace Wreckabulary
                     yield return (row.Item1, move, Part(move, row.Item2));
             foreach (var row in new[] {
                 ("Smash, throw, place, block", "Attack"), ("Aim (hold)", "Aim"), ("Look around (hold)", "Look around"), ("Jump", "Jump"), ("Dodge", "Dodge"),
-                ("Pick up, hold to revive", "Interact"), ("Spell a word", "Spell"), ("Drop gear (hold)", "Drop"),
+                ("Pick up, hold to revive", "Interact"), ("Spell a word", "Spell"), ("Drop gear (hold)", "Drop"), ("Push to talk (hold)", "Push to talk"),
                 ("Hand 1", "Hand 1"), ("Hand 2", "Hand 2"), ("Bag and map (hold)", "Bag"), ("Pause", "Pause") })
             {
                 var action = map.FindAction(row.Item2);

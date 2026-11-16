@@ -61,7 +61,10 @@ namespace Wreckabulary.Qa
             yield return QaStep.Named("create_choices").Timeout(20).Do(value =>
                 GuardChoices(value, Create(value), Time.realtimeSinceStartupAsDouble + 15, 15, 20, "create_owned_stack_cleanup"));
             yield return QaStep.Named("customize_and_shop").Timeout(20).Do(CustomizeAndShop);
+            yield return QaStep.Named("shop_tabs").Timeout(30).Do(ShopTabs);
+            yield return QaStep.Named("lobby_themes").Timeout(30).Do(Themes);
             yield return QaStep.Named("settings_navigation").Timeout(30).Do(Settings);
+            yield return QaStep.Named("phone_width").Timeout(30).Do(PhoneWidth);
             yield return QaStep.Named("open_wordbound").Timeout(60).Do(Online);
         }
 
@@ -537,13 +540,35 @@ namespace Wreckabulary.Qa
                 yield return Capture(context, "lobby_customize");
                 var wardrobeScroll = Page().GetComponentsInChildren<ScrollRect>().Single();
                 float originalScroll = wardrobeScroll.verticalNormalizedPosition;
+                var priorFocus = EventSystem.current.currentSelectedGameObject;
                 try
                 {
-                    wardrobeScroll.verticalNormalizedPosition = 0;
+                    var finishes = CustomizeFinishes();
+                    EventSystem.current.SetSelectedGameObject(finishes[0].gameObject);
+                    LobbyScrollFollow.Show(wardrobeScroll, (RectTransform)finishes[0].transform.parent);
                     yield return Settle();
+                    var viewport = ScreenRect(wardrobeScroll.viewport);
+                    var shown = new List<object>();
+                    foreach (var finish in finishes)
+                    {
+                        var rect = ScreenRect((RectTransform)finish.transform);
+                        Require(rect.yMin >= viewport.yMin - 2 && rect.yMax <= viewport.yMax + 2 && rect.xMin >= viewport.xMin - 2 && rect.xMax <= viewport.xMax + 2,
+                            "The Customize finish is not scrolled fully into view: " + finish.name);
+                        string name = Finishes.Find(finish.name.Substring("Finish ".Length))?.Name;
+                        var title = finish.GetComponentsInChildren<TMP_Text>().Where(text => text.text == name).ToArray();
+                        Require(name != null && title.Length == 1, "The Customize finish card must show its finish name: " + finish.name);
+                        TextFits(title[0]);
+                        shown.Add(new Dictionary<string, object> { ["id"] = finish.name, ["name"] = name, ["rect"] = new[] { rect.x, rect.y, rect.width, rect.height } });
+                    }
+                    context.Note("customize_finishes_in_view", new Dictionary<string, object> { ["finishes"] = shown.ToArray(),
+                        ["viewport"] = new[] { viewport.x, viewport.y, viewport.width, viewport.height }, ["scroll"] = wardrobeScroll.verticalNormalizedPosition });
                     yield return Capture(context, "lobby_customize_finishes");
                 }
-                finally { if (wardrobeScroll) wardrobeScroll.verticalNormalizedPosition = originalScroll; }
+                finally
+                {
+                    if (wardrobeScroll) wardrobeScroll.verticalNormalizedPosition = originalScroll;
+                    if (priorFocus && priorFocus.activeInHierarchy) EventSystem.current.SetSelectedGameObject(priorFocus);
+                }
                 Submit(Find(Page(), "RECIPES"));
                 yield return Settle();
                 yield return Capture(context, "lobby_customize_equipment");
@@ -556,6 +581,140 @@ namespace Wreckabulary.Qa
                 context.Note("customization_scope", "Navigation only; no purchase, outfit change or unlock mutation.");
             }
             finally { PreservePreferences(context); }
+        }
+
+        Button[] CustomizeFinishes()
+        {
+            var finishes = Page().GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Finish ")).ToArray();
+            string[] expected = Finishes.All.Where(finish => finish.InCustomize).Select(finish => "Finish " + finish.Id).ToArray();
+            Require(finishes.Select(button => button.name).SequenceEqual(expected), "Customize must list the registry finishes in order: " + string.Join(", ", expected));
+            return finishes;
+        }
+
+        IEnumerator ShopTabs(QaContext context)
+        {
+            var shop = menu.Page<ShopPage>();
+            string category = shop.Category;
+            string outfit = menu.Outfit.Serialize();
+            int coins = menu.Career.Coins;
+            try
+            {
+                if (menu.Current != LobbyMenu.Shop) { Submit(Top("Shop")); yield return Settle(); }
+                Require(menu.Current == LobbyMenu.Shop, "Shop navigation did not open Shop.");
+                foreach (string tab in new[] { ShopPage.Looks, ShopPage.Gear, ShopPage.Colours, ShopPage.Rooms, ShopPage.Extras })
+                {
+                    Submit(Find(Page(), "Shop category " + tab));
+                    yield return Settle();
+                    Require(shop.Category == tab, "The Shop tab did not open: " + tab);
+                    context.Note("shop_" + tab + "_cards", ShopCards(tab));
+                    yield return Capture(context, "lobby_shop_" + tab);
+                }
+                Require(menu.Outfit.Serialize() == outfit && menu.Career.Coins == coins, "Browsing Shop tabs changed the outfit or coins.");
+                context.Note("shop_tabs_scope", "Every Shop tab opened through its real tab button; preview only, no purchase or equip.");
+            }
+            finally
+            {
+                try { if (menu && shop.Category != category) shop.ShowCategory(category); }
+                finally { PreservePreferences(context); }
+            }
+        }
+
+        Dictionary<string, object> ShopCards(string tab)
+        {
+            var names = new List<string>(); var tags = new List<string>();
+            if (tab == ShopPage.Extras)
+            {
+                var cards = Page().GetComponentsInChildren<RectTransform>().Where(rect => rect.name.StartsWith("Accessory ") && !rect.GetComponent<Button>()).ToArray();
+                Require(cards.Length > 0, "Extras must show accessory cards.");
+                foreach (var card in cards)
+                {
+                    var title = card.GetComponentsInChildren<TMP_Text>().Where(text => text.name == LobbyPage.CardName).ToArray();
+                    Require(title.Length == 1 && title[0].text.Length > 0, "Each Extras card shows its name: " + card.name);
+                    TextFits(title[0]); names.Add(title[0].text);
+                }
+                return new Dictionary<string, object> { ["names"] = names.ToArray() };
+            }
+            var offers = Page().GetComponentsInChildren<LobbyShopOfferView>();
+            Require(offers.Length > 0, "The Shop tab shows no cards: " + tab);
+            foreach (var offer in offers)
+            {
+                Require(!string.IsNullOrWhiteSpace(offer.Title.text) && offer.Title.gameObject.activeInHierarchy && offer.Title.enabled,
+                    "Each Shop card shows its name on the card: " + offer.name);
+                TextFits(offer.Title); names.Add(offer.Title.text);
+                if (tab != ShopPage.Looks && tab != ShopPage.Gear) continue;
+                var line = offer.GetComponentsInChildren<TMP_Text>().Where(text => text.name == LobbyPage.TagLine).ToArray();
+                Require(line.Length == 1 && line[0].text.Length > 0, "Looks and Gear cards carry a name tag line: " + offer.name);
+                TextFits(line[0]); tags.Add(line[0].text);
+            }
+            return new Dictionary<string, object> { ["names"] = names.ToArray(), ["tags"] = tags.ToArray() };
+        }
+
+        IEnumerator Themes(QaContext context)
+        {
+            string saved = LobbyThemes.Current.Id;
+            var previewed = new List<string>();
+            try
+            {
+                if (menu.Current != LobbyMenu.Home) { Submit(Top("Home")); yield return Settle(); }
+                Require(menu.Current == LobbyMenu.Home, "Home navigation did not open Home.");
+                foreach (var theme in LobbyThemes.All)
+                {
+                    Require(LobbyThemes.Preview(theme.Id) && LobbyThemes.Current == theme, "The lobby theme could not be previewed: " + theme.Id);
+                    yield return Settle();
+                    yield return Capture(context, "lobby_home_theme_" + theme.Id);
+                    previewed.Add(theme.Id);
+                }
+            }
+            finally
+            {
+                LobbyThemes.Restore();
+                bool restored = LobbyThemes.Current.Id == saved;
+                context.Note("lobby_themes_previewed", new Dictionary<string, object> { ["themes"] = previewed.ToArray(), ["saved"] = saved, ["restored"] = restored });
+                try { Require(restored, "The saved lobby theme did not come back after the previews."); }
+                finally { PreservePreferences(context); }
+            }
+        }
+
+        IEnumerator PhoneWidth(QaContext context)
+        {
+            const int Width = 1248, Height = 576;
+            int width = Screen.width, height = Screen.height;
+            var mode = Screen.fullScreenMode;
+            try
+            {
+                Screen.SetResolution(Width, Height, FullScreenMode.Windowed);
+                double until = Time.realtimeSinceStartupAsDouble + 4;
+                while ((Screen.width != Width || Screen.height != Height) && Time.realtimeSinceStartupAsDouble < until) yield return null;
+                if (Screen.width != Width || Screen.height != Height)
+                    context.Note("phone_width", new Dictionary<string, object> { ["skipped"] = "The player window did not resize.", ["size"] = new[] { Screen.width, Screen.height } });
+                else
+                {
+                    yield return Settle();
+                    Submit(Top("Shop")); yield return Settle(); yield return Settle();
+                    Require(menu.Current == LobbyMenu.Shop, "Shop navigation did not open Shop at phone width.");
+                    context.Note("phone_shop_cards", ShopCards(menu.Page<ShopPage>().Category));
+                    yield return Capture(context, "lobby_shop_phone");
+                    Submit(Top("LOADOUT")); yield return Settle(); yield return Settle();
+                    Require(menu.Current == LobbyMenu.Loadout, "Customize did not open at phone width.");
+                    var finishes = CustomizeFinishes();
+                    EventSystem.current.SetSelectedGameObject(finishes[0].gameObject);
+                    LobbyScrollFollow.Show(Page().GetComponentsInChildren<ScrollRect>().Single(), (RectTransform)finishes[0].transform.parent);
+                    yield return Settle();
+                    yield return Capture(context, "lobby_customize_phone");
+                    Submit(Top("Home")); yield return Settle();
+                    context.Note("phone_width", new Dictionary<string, object> { ["size"] = new[] { Width, Height }, ["aspect"] = "19.5:9 landscape window",
+                        ["scope"] = "Windowed size only; no phone DPI, touch input or safe-area emulation." });
+                }
+            }
+            finally
+            {
+                if (Screen.width != width || Screen.height != height) Screen.SetResolution(width, height, mode);
+                PreservePreferences(context);
+            }
+            double back = Time.realtimeSinceStartupAsDouble + 4;
+            while ((Screen.width != width || Screen.height != height) && Time.realtimeSinceStartupAsDouble < back) yield return null;
+            yield return Settle();
+            Require(Screen.width == width && Screen.height == height, "The player window did not return to its size after the phone captures.");
         }
 
         void GameplayRows(QaContext context)
@@ -647,7 +806,7 @@ namespace Wreckabulary.Qa
             Require(EventSystem.current.currentSelectedGameObject == Find(panel.transform, "Wordbound controls").gameObject,
                 "Wordbound legend Submit did not retain selector focus.");
             Require(!panel.GetComponentsInChildren<Button>(true).Single(button => button.name == "Rebind Dodge").gameObject.activeInHierarchy &&
-                panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")) == 15,
+                panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")) == 16,
                 "Wordbound must retain both numbered equipment bindings and hide only Dodge.");
             var craft = BindingButton(panel, "Spell");
             EventSystem.current.SetSelectedGameObject(craft.gameObject);
@@ -671,7 +830,7 @@ namespace Wreckabulary.Qa
             ControlFits(house);
             Submit(house);
             yield return Settle();
-            Require(panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")) == 16 &&
+            Require(panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")) == 17 &&
                 panel.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Controller Pause").text == "View / Share" &&
                 EventSystem.current.currentSelectedGameObject == house.gameObject && !panel.IsListening,
                 "House legend and selector focus were not restored.");

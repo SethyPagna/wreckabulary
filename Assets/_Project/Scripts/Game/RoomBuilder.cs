@@ -50,6 +50,7 @@ namespace Wreckabulary
                 if (Session.MapId is "pinwheel" or "courtyard") sign = root;
                 else root.SetActive(false);
             }
+            MapSurroundings.Attach(transform, Layout, Session.MapId, geometry);
             ApplyFog(false);
             var cutaway = GetComponent<StoreyCutaway>();
             if (!cutaway) cutaway = gameObject.AddComponent<StoreyCutaway>();

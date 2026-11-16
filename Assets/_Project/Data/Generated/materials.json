@@ -32,24 +32,24 @@
   {
    "name": "blue_Arcade",
    "baseColor": [
-    0.17,
-    0.66,
-    0.74,
+    0.0103,
+    0.0497,
+    0.4342,
     1
    ],
-   "metallic": 0,
+   "metallic": 0.0,
    "roughness": 0.42,
    "emissive": [
-    0,
-    0,
-    0
+    0.0194,
+    0.633,
+    0.8
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
    "baseMap": null,
    "normalMap": null,
-   "emissionMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
    "family": "blue",
    "skin": "Arcade",
    "sources": [
@@ -58,19 +58,28 @@
     "item/SHIELD",
     "item/WATER",
     "item/BOOK",
-    "item/FAN"
+    "item/FAN",
+    "environment/Floor_Carpet_2m",
+    "environment/Kitchen_Counter",
+    "environment/Kitchen_Fridge",
+    "environment/Round_Rug",
+    "vfx/Craft_Ring",
+    "vfx/Jump_Arrow",
+    "vfx/Speed_Trail",
+    "item/SHELF",
+    "item/VASE"
    ]
   },
   {
    "name": "blue_Candy",
    "baseColor": [
-    0.33,
-    0.69,
-    0.86,
+    0.3467,
+    0.807,
+    1.0,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.42,
+   "metallic": 0.0,
+   "roughness": 0.26,
    "emissive": [
     0,
     0,
@@ -79,7 +88,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": null,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "blue",
@@ -90,7 +99,16 @@
     "item/SHIELD",
     "item/WATER",
     "item/BOOK",
-    "item/FAN"
+    "item/FAN",
+    "environment/Floor_Carpet_2m",
+    "environment/Kitchen_Counter",
+    "environment/Kitchen_Fridge",
+    "environment/Round_Rug",
+    "vfx/Craft_Ring",
+    "vfx/Jump_Arrow",
+    "vfx/Speed_Trail",
+    "item/SHELF",
+    "item/VASE"
    ]
   },
   {
@@ -164,24 +182,24 @@
   {
    "name": "ceramic_Arcade",
    "baseColor": [
-    0.95,
-    0.92,
-    0.81,
+    0.0232,
+    0.0284,
+    0.1946,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.24,
+   "metallic": 0.0,
+   "roughness": 0.3,
    "emissive": [
-    0,
-    0,
-    0
+    0.0194,
+    0.633,
+    0.8
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
    "baseMap": null,
    "normalMap": null,
-   "emissionMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
    "family": "ceramic",
    "skin": "Arcade",
    "sources": [
@@ -191,19 +209,22 @@
     "item/CAKE",
     "item/WATER",
     "item/PLANT",
-    "item/VASE"
+    "item/VASE",
+    "environment/Kitchen_Counter",
+    "environment/Kitchen_Fridge",
+    "environment/Kitchen_Sink"
    ]
   },
   {
    "name": "ceramic_Candy",
    "baseColor": [
-    0.95,
-    0.92,
-    0.81,
+    1.0,
+    0.6308,
+    0.7605,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.24,
+   "metallic": 0.0,
+   "roughness": 0.16,
    "emissive": [
     0,
     0,
@@ -212,7 +233,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": null,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "ceramic",
@@ -224,7 +245,10 @@
     "item/CAKE",
     "item/WATER",
     "item/PLANT",
-    "item/VASE"
+    "item/VASE",
+    "environment/Kitchen_Counter",
+    "environment/Kitchen_Fridge",
+    "environment/Kitchen_Sink"
    ]
   },
   {
@@ -266,22 +290,22 @@
   {
    "name": "cream_Arcade",
    "baseColor": [
-    0.77,
-    0.69,
-    0.93,
+    0.0242,
+    0.7913,
+    1.0,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.72,
+   "metallic": 0.0,
+   "roughness": 0.38,
    "emissive": [
-    0,
-    0,
-    0
+    0.0169,
+    0.5539,
+    0.7
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": "Assets/_Project/Art/Imported/Textures/fabric_subtle_pattern.png",
+   "baseMap": null,
    "normalMap": null,
    "emissionMap": null,
    "family": "cream",
@@ -299,19 +323,20 @@
     "item/CAKE",
     "item/PIE",
     "item/BOX",
-    "item/BOOK"
+    "item/BOOK",
+    "environment/Round_Rug"
    ]
   },
   {
    "name": "cream_Candy",
    "baseColor": [
-    0.98,
-    0.93,
-    0.77,
+    1.0,
+    0.7454,
+    0.1329,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.72,
+   "metallic": 0.0,
+   "roughness": 0.26,
    "emissive": [
     0,
     0,
@@ -320,7 +345,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": "Assets/_Project/Art/Imported/Textures/fabric_subtle_pattern.png",
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "cream",
@@ -338,7 +363,8 @@
     "item/CAKE",
     "item/PIE",
     "item/BOX",
-    "item/BOOK"
+    "item/BOOK",
+    "environment/Round_Rug"
    ]
   },
   {
@@ -384,24 +410,24 @@
   {
    "name": "dark_Arcade",
    "baseColor": [
-    0.035,
-    0.047,
-    0.062,
+    0.003,
+    0.003,
+    0.0103,
     1
    ],
-   "metallic": 0.12,
-   "roughness": 0.58,
+   "metallic": 0.0,
+   "roughness": 0.42,
    "emissive": [
-    0,
-    0,
-    0
+    0.8,
+    0.0398,
+    0.5156
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
    "baseMap": null,
    "normalMap": null,
-   "emissionMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
    "family": "dark",
    "skin": "Arcade",
    "sources": [
@@ -411,19 +437,21 @@
     "item/BOMB",
     "item/PAN",
     "item/CLOCK",
-    "item/POT"
+    "item/POT",
+    "environment/Kitchen_Sink",
+    "environment/Kitchen_Stove"
    ]
   },
   {
    "name": "dark_Candy",
    "baseColor": [
-    0.035,
-    0.047,
-    0.062,
+    0.147,
+    0.0423,
+    0.0232,
     1
    ],
-   "metallic": 0.12,
-   "roughness": 0.58,
+   "metallic": 0.0,
+   "roughness": 0.3,
    "emissive": [
     0,
     0,
@@ -432,7 +460,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": null,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "dark",
@@ -444,7 +472,9 @@
     "item/BOMB",
     "item/PAN",
     "item/CLOCK",
-    "item/POT"
+    "item/POT",
+    "environment/Kitchen_Sink",
+    "environment/Kitchen_Stove"
    ]
   },
   {
@@ -595,6 +625,64 @@
    ]
   },
   {
+   "name": "glass_Arcade",
+   "baseColor": [
+    1.0,
+    0.159,
+    0.7454,
+    0.38
+   ],
+   "metallic": 0.0,
+   "roughness": 0.08,
+   "emissive": [
+    0.3,
+    0.0477,
+    0.2236
+   ],
+   "alphaMode": "BLEND",
+   "alphaCutoff": 0.5,
+   "doubleSided": true,
+   "baseMap": null,
+   "normalMap": null,
+   "emissionMap": null,
+   "family": "glass",
+   "skin": "Arcade",
+   "sources": [
+    "environment/Wall_Window",
+    "environment/Window_Frame",
+    "vfx/Soap_Puddle"
+   ]
+  },
+  {
+   "name": "glass_Candy",
+   "baseColor": [
+    1.0,
+    0.5647,
+    0.7529,
+    0.38
+   ],
+   "metallic": 0.0,
+   "roughness": 0.08,
+   "emissive": [
+    0,
+    0,
+    0
+   ],
+   "alphaMode": "BLEND",
+   "alphaCutoff": 0.5,
+   "doubleSided": true,
+   "baseMap": null,
+   "normalMap": null,
+   "emissionMap": null,
+   "family": "glass",
+   "skin": "Candy",
+   "sources": [
+    "environment/Wall_Window",
+    "environment/Window_Frame",
+    "vfx/Soap_Puddle"
+   ]
+  },
+  {
    "name": "glass_Classic",
    "baseColor": [
     0.38,
@@ -680,17 +768,17 @@
   {
    "name": "glow_Arcade",
    "baseColor": [
-    0.96,
-    0.56,
-    0.09,
+    0.4793,
+    1.0,
+    1.0,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.4,
+   "metallic": 0.0,
+   "roughness": 0.3,
    "emissive": [
-    0.9,
-    0.32,
-    0.04
+    0.0795,
+    1.5019,
+    1.6
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
@@ -701,23 +789,27 @@
    "family": "glow",
    "skin": "Arcade",
    "sources": [
-    "item/LAMP"
+    "item/LAMP",
+    "environment/Wall_Sconce",
+    "vfx/Craft_Ring",
+    "vfx/Pickup_Ring",
+    "vfx/Room_Hazard"
    ]
   },
   {
    "name": "glow_Candy",
    "baseColor": [
-    0.96,
-    0.56,
-    0.09,
+    1.0,
+    0.3813,
+    0.6445,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.4,
+   "metallic": 0.0,
+   "roughness": 0.3,
    "emissive": [
-    0.9,
-    0.32,
-    0.04
+    1.2,
+    0.0938,
+    0.4699
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
@@ -728,7 +820,11 @@
    "family": "glow",
    "skin": "Candy",
    "sources": [
-    "item/LAMP"
+    "item/LAMP",
+    "environment/Wall_Sconce",
+    "vfx/Craft_Ring",
+    "vfx/Pickup_Ring",
+    "vfx/Room_Hazard"
    ]
   },
   {
@@ -765,17 +861,17 @@
   {
    "name": "gold_Arcade",
    "baseColor": [
-    0.91,
-    0.58,
-    0.17,
+    1.0,
+    0.0497,
+    0.6445,
     1
    ],
-   "metallic": 0.68,
-   "roughness": 0.32,
+   "metallic": 0.3,
+   "roughness": 0.3,
    "emissive": [
-    0,
-    0,
-    0
+    0.7,
+    0.0348,
+    0.4511
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
@@ -801,19 +897,27 @@
     "item/BOOK",
     "item/CLOCK",
     "item/FAN",
-    "item/VASE"
+    "item/VASE",
+    "environment/Arena_Rug",
+    "environment/Curtain",
+    "environment/Kitchen_Counter",
+    "environment/Kitchen_Fridge",
+    "environment/Kitchen_Stove",
+    "environment/Wall_Sconce",
+    "environment/Wall_Shelf",
+    "vfx/Impact_Star"
    ]
   },
   {
    "name": "gold_Candy",
    "baseColor": [
-    0.91,
-    0.58,
-    0.17,
+    0.8879,
+    0.3515,
+    0.2747,
     1
    ],
-   "metallic": 0.68,
-   "roughness": 0.32,
+   "metallic": 0.55,
+   "roughness": 0.14,
    "emissive": [
     0,
     0,
@@ -843,7 +947,15 @@
     "item/BOOK",
     "item/CLOCK",
     "item/FAN",
-    "item/VASE"
+    "item/VASE",
+    "environment/Arena_Rug",
+    "environment/Curtain",
+    "environment/Kitchen_Counter",
+    "environment/Kitchen_Fridge",
+    "environment/Kitchen_Stove",
+    "environment/Wall_Sconce",
+    "environment/Wall_Shelf",
+    "vfx/Impact_Star"
    ]
   },
   {
@@ -899,42 +1011,47 @@
   {
    "name": "green_Arcade",
    "baseColor": [
-    0.37,
-    0.18,
-    0.65,
+    0.0048,
+    0.1022,
+    0.0802,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.48,
+   "metallic": 0.0,
+   "roughness": 0.42,
    "emissive": [
-    0,
-    0,
-    0
+    0.0194,
+    0.633,
+    0.8
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
    "baseMap": null,
    "normalMap": null,
-   "emissionMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
    "family": "green",
    "skin": "Arcade",
    "sources": [
     "item/MAT",
     "item/SOFA",
-    "item/CHAIR"
+    "item/CHAIR",
+    "environment/Curtain",
+    "environment/Doorstep",
+    "environment/Kitchen_Fridge",
+    "item/DESK",
+    "item/SHELF"
    ]
   },
   {
    "name": "green_Candy",
    "baseColor": [
-    0.46,
-    0.77,
-    0.62,
+    0.5089,
+    0.9301,
+    0.6867,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.45,
+   "metallic": 0.0,
+   "roughness": 0.26,
    "emissive": [
     0,
     0,
@@ -943,7 +1060,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": null,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "green",
@@ -951,7 +1068,12 @@
    "sources": [
     "item/MAT",
     "item/SOFA",
-    "item/CHAIR"
+    "item/CHAIR",
+    "environment/Curtain",
+    "environment/Doorstep",
+    "environment/Kitchen_Fridge",
+    "item/DESK",
+    "item/SHELF"
    ]
   },
   {
@@ -1045,17 +1167,17 @@
   {
    "name": "ivory_Arcade",
    "baseColor": [
-    0.94,
-    0.76,
-    0.28,
+    1.0,
+    0.807,
+    0.0467,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.4,
+   "metallic": 0.0,
+   "roughness": 0.38,
    "emissive": [
-    0,
-    0,
-    0
+    0.6,
+    0.4842,
+    0.028
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
@@ -1079,19 +1201,28 @@
     "item/BOOK",
     "item/CLOCK",
     "item/FAN",
-    "item/MUG"
+    "item/MUG",
+    "environment/Arena_Rug",
+    "environment/Kitchen_Fridge",
+    "environment/Kitchen_Stove",
+    "environment/Radiator",
+    "environment/Wall_Door",
+    "environment/Wall_Sign",
+    "environment/Wall_Solid",
+    "environment/Wall_Window",
+    "environment/Window_Frame"
    ]
   },
   {
    "name": "ivory_Candy",
    "baseColor": [
-    0.94,
-    0.88,
-    0.72,
+    1.0,
+    0.7454,
+    0.8714,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.48,
+   "metallic": 0.0,
+   "roughness": 0.2,
    "emissive": [
     0,
     0,
@@ -1119,7 +1250,16 @@
     "item/BOOK",
     "item/CLOCK",
     "item/FAN",
-    "item/MUG"
+    "item/MUG",
+    "environment/Arena_Rug",
+    "environment/Kitchen_Fridge",
+    "environment/Kitchen_Stove",
+    "environment/Radiator",
+    "environment/Wall_Door",
+    "environment/Wall_Sign",
+    "environment/Wall_Solid",
+    "environment/Wall_Window",
+    "environment/Window_Frame"
    ]
   },
   {
@@ -1255,24 +1395,24 @@
   {
    "name": "kraft_Arcade",
    "baseColor": [
-    0.1,
-    0.45,
-    0.5,
+    0.0086,
+    0.0452,
+    0.1329,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.7,
+   "metallic": 0.0,
+   "roughness": 0.42,
    "emissive": [
-    0,
-    0,
-    0
+    0.0194,
+    0.633,
+    0.8
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": "Assets/_Project/Art/Imported/Textures/fabric_subtle_pattern.png",
+   "baseMap": null,
    "normalMap": null,
-   "emissionMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
    "family": "kraft",
    "skin": "Arcade",
    "sources": [
@@ -1282,13 +1422,13 @@
   {
    "name": "kraft_Candy",
    "baseColor": [
-    0.98,
-    0.55,
-    0.36,
+    1.0,
+    0.5149,
+    0.3005,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.7,
+   "metallic": 0.0,
+   "roughness": 0.26,
    "emissive": [
     0,
     0,
@@ -1297,7 +1437,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": "Assets/_Project/Art/Imported/Textures/fabric_subtle_pattern.png",
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "kraft",
@@ -1336,17 +1476,17 @@
   {
    "name": "leaf_Arcade",
    "baseColor": [
-    0.16,
-    0.43,
-    0.12,
+    0.1529,
+    1.0,
+    0.0452,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.69,
+   "metallic": 0.0,
+   "roughness": 0.38,
    "emissive": [
-    0,
-    0,
-    0
+    0.0917,
+    0.6,
+    0.0271
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
@@ -1365,13 +1505,13 @@
   {
    "name": "leaf_Candy",
    "baseColor": [
-    0.16,
-    0.43,
-    0.12,
+    0.2705,
+    0.8308,
+    0.5271,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.69,
+   "metallic": 0.0,
+   "roughness": 0.3,
    "emissive": [
     0,
     0,
@@ -1423,17 +1563,17 @@
   {
    "name": "metal_Arcade",
    "baseColor": [
-    0.43,
-    0.3,
-    0.69,
+    0.2747,
+    0.9047,
+    1.0,
     1
    ],
-   "metallic": 0.68,
-   "roughness": 0.33,
+   "metallic": 0.85,
+   "roughness": 0.1,
    "emissive": [
-    0,
-    0,
-    0
+    0.0029,
+    0.095,
+    0.12
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
@@ -1455,19 +1595,23 @@
     "item/SODA",
     "item/BARREL",
     "item/FAN",
-    "item/POT"
+    "item/POT",
+    "environment/Doorstep",
+    "environment/Kitchen_Sink",
+    "environment/Kitchen_Stove",
+    "environment/Radiator"
    ]
   },
   {
    "name": "metal_Candy",
    "baseColor": [
-    0.56,
-    0.74,
-    0.78,
+    1.0,
+    0.4508,
+    0.5333,
     1
    ],
-   "metallic": 0.5,
-   "roughness": 0.3,
+   "metallic": 0.45,
+   "roughness": 0.14,
    "emissive": [
     0,
     0,
@@ -1493,7 +1637,11 @@
     "item/SODA",
     "item/BARREL",
     "item/FAN",
-    "item/POT"
+    "item/POT",
+    "environment/Doorstep",
+    "environment/Kitchen_Sink",
+    "environment/Kitchen_Stove",
+    "environment/Radiator"
    ]
   },
   {
@@ -1541,17 +1689,17 @@
   {
    "name": "pink_Arcade",
    "baseColor": [
-    0.97,
-    0.4,
-    0.53,
+    1.0,
+    0.0782,
+    0.4793,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.4,
+   "metallic": 0.0,
+   "roughness": 0.38,
    "emissive": [
-    0,
-    0,
-    0
+    0.6,
+    0.0469,
+    0.2876
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
@@ -1568,13 +1716,13 @@
   {
    "name": "pink_Candy",
    "baseColor": [
-    0.97,
-    0.4,
-    0.53,
+    1.0,
+    0.3419,
+    0.1946,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.4,
+   "metallic": 0.0,
+   "roughness": 0.22,
    "emissive": [
     0,
     0,
@@ -1620,6 +1768,56 @@
    ]
   },
   {
+   "name": "plush_Arcade",
+   "baseColor": [
+    0.0423,
+    0.016,
+    0.1683,
+    1
+   ],
+   "metallic": 0.0,
+   "roughness": 0.42,
+   "emissive": [
+    0.8,
+    0.0398,
+    0.5156
+   ],
+   "alphaMode": "OPAQUE",
+   "alphaCutoff": 0.5,
+   "doubleSided": false,
+   "baseMap": null,
+   "normalMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
+   "family": "plush",
+   "skin": "Arcade",
+   "sources": []
+  },
+  {
+   "name": "plush_Candy",
+   "baseColor": [
+    1.0,
+    0.3916,
+    0.6172,
+    1
+   ],
+   "metallic": 0.0,
+   "roughness": 0.26,
+   "emissive": [
+    0,
+    0,
+    0
+   ],
+   "alphaMode": "OPAQUE",
+   "alphaCutoff": 0.5,
+   "doubleSided": false,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
+   "normalMap": null,
+   "emissionMap": null,
+   "family": "plush",
+   "skin": "Candy",
+   "sources": []
+  },
+  {
    "name": "plush_Classic",
    "baseColor": [
     0.342,
@@ -1647,24 +1845,24 @@
   {
    "name": "red_Arcade",
    "baseColor": [
-    0.65,
-    0.22,
-    0.78,
+    0.1946,
+    0.006,
+    0.117,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.4,
+   "metallic": 0.0,
+   "roughness": 0.42,
    "emissive": [
-    0,
-    0,
-    0
+    0.8,
+    0.0398,
+    0.5156
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
    "baseMap": null,
    "normalMap": null,
-   "emissionMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
    "family": "red",
    "skin": "Arcade",
    "sources": [
@@ -1674,19 +1872,25 @@
     "item/APPLE",
     "item/CAKE",
     "item/SODA",
-    "item/MUG"
+    "item/MUG",
+    "environment/Arena_Rug",
+    "environment/Kitchen_Fridge",
+    "environment/Wall_Sign",
+    "vfx/Bomb_Warning",
+    "item/TABLE",
+    "item/SHELF"
    ]
   },
   {
    "name": "red_Candy",
    "baseColor": [
-    1,
-    0.44,
-    0.61,
+    1.0,
+    0.0782,
+    0.3231,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.43,
+   "metallic": 0.0,
+   "roughness": 0.26,
    "emissive": [
     0,
     0,
@@ -1695,7 +1899,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": null,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "red",
@@ -1707,7 +1911,13 @@
     "item/APPLE",
     "item/CAKE",
     "item/SODA",
-    "item/MUG"
+    "item/MUG",
+    "environment/Arena_Rug",
+    "environment/Kitchen_Fridge",
+    "environment/Wall_Sign",
+    "vfx/Bomb_Warning",
+    "item/TABLE",
+    "item/SHELF"
    ]
   },
   {
@@ -1833,17 +2043,17 @@
   {
    "name": "soap_Arcade",
    "baseColor": [
-    1,
-    0.77,
-    0.66,
+    0.2623,
+    1.0,
+    0.0685,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.23,
+   "metallic": 0.0,
+   "roughness": 0.2,
    "emissive": [
-    0,
-    0,
-    0
+    0.1311,
+    0.5,
+    0.0343
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
@@ -1860,13 +2070,13 @@
   {
    "name": "soap_Candy",
    "baseColor": [
-    1,
-    0.77,
-    0.66,
+    0.6105,
+    0.4452,
+    1.0,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.23,
+   "metallic": 0.0,
+   "roughness": 0.18,
    "emissive": [
     0,
     0,
@@ -1875,7 +2085,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": null,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "soap",
@@ -1970,17 +2180,17 @@
   {
    "name": "water_Arcade",
    "baseColor": [
-    0.12,
-    0.64,
-    0.91,
+    0.0242,
+    0.7913,
+    1.0,
     0.72
    ],
-   "metallic": 0,
-   "roughness": 0.18,
+   "metallic": 0.0,
+   "roughness": 0.1,
    "emissive": [
-    0,
-    0,
-    0
+    0.0097,
+    0.3165,
+    0.4
    ],
    "alphaMode": "BLEND",
    "alphaCutoff": 0.5,
@@ -1991,19 +2201,20 @@
    "family": "water",
    "skin": "Arcade",
    "sources": [
-    "item/WATER"
+    "item/WATER",
+    "vfx/Soap_Puddle"
    ]
   },
   {
    "name": "water_Candy",
    "baseColor": [
-    0.12,
-    0.64,
-    0.91,
+    1.0,
+    0.3467,
+    0.5972,
     0.72
    ],
-   "metallic": 0,
-   "roughness": 0.18,
+   "metallic": 0.0,
+   "roughness": 0.1,
    "emissive": [
     0,
     0,
@@ -2018,7 +2229,8 @@
    "family": "water",
    "skin": "Candy",
    "sources": [
-    "item/WATER"
+    "item/WATER",
+    "vfx/Soap_Puddle"
    ]
   },
   {
@@ -2052,17 +2264,17 @@
   {
    "name": "white_Arcade",
    "baseColor": [
-    1,
-    1,
-    1,
+    0.6724,
+    0.552,
+    1.0,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.65,
+   "metallic": 0.0,
+   "roughness": 0.38,
    "emissive": [
-    0,
-    0,
-    0
+    0.2017,
+    0.1656,
+    0.3
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
@@ -2081,13 +2293,13 @@
   {
    "name": "white_Candy",
    "baseColor": [
-    1,
-    1,
-    1,
+    0.5776,
+    0.9131,
+    0.7379,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.65,
+   "metallic": 0.0,
+   "roughness": 0.24,
    "emissive": [
     0,
     0,
@@ -2139,24 +2351,24 @@
   {
    "name": "wood_Arcade",
    "baseColor": [
-    0.37,
-    0.19,
-    0.64,
+    0.0194,
+    0.0144,
+    0.1441,
     1
    ],
-   "metallic": 0.12,
-   "roughness": 0.4,
+   "metallic": 0.0,
+   "roughness": 0.42,
    "emissive": [
-    0,
-    0,
-    0
+    0.0194,
+    0.633,
+    0.8
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
    "baseMap": null,
    "normalMap": null,
-   "emissionMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
    "family": "wood",
    "skin": "Arcade",
    "sources": [
@@ -2171,19 +2383,26 @@
     "item/DESK",
     "item/SHELF",
     "item/STOOL",
-    "item/CLOCK"
+    "item/CLOCK",
+    "environment/Corner_Post",
+    "environment/Platform_2m",
+    "environment/Railing_2m",
+    "environment/Stairs_1m",
+    "environment/Wall_Sign",
+    "environment/Wall_Solid",
+    "environment/Wall_Window"
    ]
   },
   {
    "name": "wood_Candy",
    "baseColor": [
-    0.28,
-    0.7,
-    0.66,
+    0.5711,
+    0.3916,
+    1.0,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.38,
+   "metallic": 0.0,
+   "roughness": 0.26,
    "emissive": [
     0,
     0,
@@ -2192,7 +2411,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": null,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "wood",
@@ -2209,7 +2428,14 @@
     "item/DESK",
     "item/SHELF",
     "item/STOOL",
-    "item/CLOCK"
+    "item/CLOCK",
+    "environment/Corner_Post",
+    "environment/Platform_2m",
+    "environment/Railing_2m",
+    "environment/Stairs_1m",
+    "environment/Wall_Sign",
+    "environment/Wall_Solid",
+    "environment/Wall_Window"
    ]
   },
   {
@@ -2260,24 +2486,24 @@
   {
    "name": "wood_dark_Arcade",
    "baseColor": [
-    0.16,
-    0.095,
-    0.3,
+    0.0044,
+    0.0052,
+    0.0296,
     1
    ],
-   "metallic": 0.1,
-   "roughness": 0.45,
+   "metallic": 0.0,
+   "roughness": 0.42,
    "emissive": [
-    0,
-    0,
-    0
+    0.0194,
+    0.633,
+    0.8
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
    "baseMap": null,
    "normalMap": null,
-   "emissionMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
    "family": "wood_dark",
    "skin": "Arcade",
    "sources": [
@@ -2293,19 +2519,46 @@
     "item/CABINET",
     "item/SHELF",
     "item/CLOCK",
-    "item/PLANT"
+    "item/PLANT",
+    "letter/A",
+    "letter/B",
+    "letter/C",
+    "letter/D",
+    "letter/E",
+    "letter/F",
+    "letter/G",
+    "letter/H",
+    "letter/I",
+    "letter/J",
+    "letter/K",
+    "letter/L",
+    "letter/M",
+    "letter/N",
+    "letter/O",
+    "letter/P",
+    "letter/Q",
+    "letter/R",
+    "letter/S",
+    "letter/T",
+    "letter/U",
+    "letter/V",
+    "letter/W",
+    "letter/X",
+    "letter/Y",
+    "letter/Z",
+    "environment/Floor_Carpet_2m"
    ]
   },
   {
    "name": "wood_dark_Candy",
    "baseColor": [
-    0.085,
-    0.36,
-    0.35,
+    0.5841,
+    0.0561,
+    0.1845,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.4,
+   "metallic": 0.0,
+   "roughness": 0.26,
    "emissive": [
     0,
     0,
@@ -2314,7 +2567,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": null,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "wood_dark",
@@ -2332,7 +2585,34 @@
     "item/CABINET",
     "item/SHELF",
     "item/CLOCK",
-    "item/PLANT"
+    "item/PLANT",
+    "letter/A",
+    "letter/B",
+    "letter/C",
+    "letter/D",
+    "letter/E",
+    "letter/F",
+    "letter/G",
+    "letter/H",
+    "letter/I",
+    "letter/J",
+    "letter/K",
+    "letter/L",
+    "letter/M",
+    "letter/N",
+    "letter/O",
+    "letter/P",
+    "letter/Q",
+    "letter/R",
+    "letter/S",
+    "letter/T",
+    "letter/U",
+    "letter/V",
+    "letter/W",
+    "letter/X",
+    "letter/Y",
+    "letter/Z",
+    "environment/Floor_Carpet_2m"
    ]
   },
   {
@@ -2404,24 +2684,24 @@
   {
    "name": "wood_light_Arcade",
    "baseColor": [
-    0.8,
-    0.4,
-    0.9,
+    0.0685,
+    0.0423,
+    0.3916,
     1
    ],
-   "metallic": 0.1,
-   "roughness": 0.4,
+   "metallic": 0.0,
+   "roughness": 0.42,
    "emissive": [
-    0,
-    0,
-    0
+    0.0194,
+    0.633,
+    0.8
    ],
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
    "baseMap": null,
    "normalMap": null,
-   "emissionMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/arcade_grid.png",
    "family": "wood_light",
    "skin": "Arcade",
    "sources": [
@@ -2443,19 +2723,53 @@
     "item/CRATE",
     "item/DESK",
     "item/SHELF",
-    "item/STOOL"
+    "item/STOOL",
+    "letter/A",
+    "letter/B",
+    "letter/C",
+    "letter/D",
+    "letter/E",
+    "letter/F",
+    "letter/G",
+    "letter/H",
+    "letter/I",
+    "letter/J",
+    "letter/K",
+    "letter/L",
+    "letter/M",
+    "letter/N",
+    "letter/O",
+    "letter/P",
+    "letter/Q",
+    "letter/R",
+    "letter/S",
+    "letter/T",
+    "letter/U",
+    "letter/V",
+    "letter/W",
+    "letter/X",
+    "letter/Y",
+    "letter/Z",
+    "environment/Corner_Post",
+    "environment/Platform_2m",
+    "environment/Railing_2m",
+    "environment/Stairs_1m",
+    "environment/Wall_Door",
+    "environment/Wall_Shelf",
+    "environment/Wall_Window",
+    "vfx/Wood_Splinter"
    ]
   },
   {
    "name": "wood_light_Candy",
    "baseColor": [
-    0.98,
-    0.74,
-    0.29,
+    1.0,
+    0.3372,
+    0.5647,
     1
    ],
-   "metallic": 0,
-   "roughness": 0.42,
+   "metallic": 0.0,
+   "roughness": 0.26,
    "emissive": [
     0,
     0,
@@ -2464,7 +2778,7 @@
    "alphaMode": "OPAQUE",
    "alphaCutoff": 0.5,
    "doubleSided": false,
-   "baseMap": null,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/candy_stripes.png",
    "normalMap": null,
    "emissionMap": null,
    "family": "wood_light",
@@ -2488,7 +2802,41 @@
     "item/CRATE",
     "item/DESK",
     "item/SHELF",
-    "item/STOOL"
+    "item/STOOL",
+    "letter/A",
+    "letter/B",
+    "letter/C",
+    "letter/D",
+    "letter/E",
+    "letter/F",
+    "letter/G",
+    "letter/H",
+    "letter/I",
+    "letter/J",
+    "letter/K",
+    "letter/L",
+    "letter/M",
+    "letter/N",
+    "letter/O",
+    "letter/P",
+    "letter/Q",
+    "letter/R",
+    "letter/S",
+    "letter/T",
+    "letter/U",
+    "letter/V",
+    "letter/W",
+    "letter/X",
+    "letter/Y",
+    "letter/Z",
+    "environment/Corner_Post",
+    "environment/Platform_2m",
+    "environment/Railing_2m",
+    "environment/Stairs_1m",
+    "environment/Wall_Door",
+    "environment/Wall_Shelf",
+    "environment/Wall_Window",
+    "vfx/Wood_Splinter"
    ]
   },
   {
@@ -2771,5 +3119,300 @@
    ]
   }
  },
- "conflicts": []
+ "conflicts": [],
+ "seasonal": [
+  {
+   "name": "blue_Winter",
+   "baseColor": [
+    0.0273,
+    0.1946,
+    0.107,
+    1
+   ],
+   "metallic": 0.0,
+   "roughness": 0.62,
+   "emissive": [
+    0.4366,
+    0.5863,
+    0.7122
+   ],
+   "alphaMode": "OPAQUE",
+   "alphaCutoff": 0.5,
+   "doubleSided": false,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/winter_frost.png",
+   "normalMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/winter_glints.png",
+   "family": "blue",
+   "skin": "Winter",
+   "sources": [
+    "item/BED",
+    "item/FOAM",
+    "item/SHIELD",
+    "item/WATER",
+    "item/BOOK",
+    "item/FAN",
+    "environment/Floor_Carpet_2m",
+    "environment/Kitchen_Counter",
+    "environment/Kitchen_Fridge",
+    "environment/Round_Rug",
+    "vfx/Craft_Ring",
+    "vfx/Jump_Arrow",
+    "vfx/Speed_Trail",
+    "item/SHELF",
+    "item/VASE"
+   ],
+   "folder": "Assets/_Project/Art/Seasonal/Winter/Finishes"
+  },
+  {
+   "name": "gold_Winter",
+   "baseColor": [
+    0.855,
+    0.9047,
+    0.9387,
+    1
+   ],
+   "metallic": 0.2,
+   "roughness": 0.4,
+   "emissive": [
+    0.4366,
+    0.5863,
+    0.7122
+   ],
+   "alphaMode": "OPAQUE",
+   "alphaCutoff": 0.5,
+   "doubleSided": false,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/winter_frost.png",
+   "normalMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/winter_glints.png",
+   "family": "gold",
+   "skin": "Winter",
+   "sources": [
+    "item/BLADE",
+    "item/LAMP",
+    "item/PLATE",
+    "item/BED",
+    "item/BOMB",
+    "item/HAMMER",
+    "item/SHIELD",
+    "item/SPEAR",
+    "item/SODA",
+    "item/CABINET",
+    "item/CHEST",
+    "item/DESK",
+    "item/BOOK",
+    "item/CLOCK",
+    "item/FAN",
+    "item/VASE",
+    "environment/Arena_Rug",
+    "environment/Curtain",
+    "environment/Kitchen_Counter",
+    "environment/Kitchen_Fridge",
+    "environment/Kitchen_Stove",
+    "environment/Wall_Sconce",
+    "environment/Wall_Shelf",
+    "vfx/Impact_Star"
+   ],
+   "folder": "Assets/_Project/Art/Seasonal/Winter/Finishes"
+  },
+  {
+   "name": "ivory_Winter",
+   "baseColor": [
+    0.624,
+    0.7991,
+    0.9301,
+    1
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5,
+   "emissive": [
+    0.4366,
+    0.5863,
+    0.7122
+   ],
+   "alphaMode": "OPAQUE",
+   "alphaCutoff": 0.5,
+   "doubleSided": false,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/winter_frost.png",
+   "normalMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/winter_glints.png",
+   "family": "ivory",
+   "skin": "Winter",
+   "sources": [
+    "item/BLADE",
+    "item/LAMP",
+    "item/BALL",
+    "item/BED",
+    "item/MAT",
+    "item/SOAP",
+    "item/BOMB",
+    "item/SHIELD",
+    "item/SODA",
+    "item/WATER",
+    "item/BOOK",
+    "item/CLOCK",
+    "item/FAN",
+    "item/MUG",
+    "environment/Arena_Rug",
+    "environment/Kitchen_Fridge",
+    "environment/Kitchen_Stove",
+    "environment/Radiator",
+    "environment/Wall_Door",
+    "environment/Wall_Sign",
+    "environment/Wall_Solid",
+    "environment/Wall_Window",
+    "environment/Window_Frame"
+   ],
+   "folder": "Assets/_Project/Art/Seasonal/Winter/Finishes"
+  },
+  {
+   "name": "metal_Winter",
+   "baseColor": [
+    0.7913,
+    0.9216,
+    1.0,
+    1
+   ],
+   "metallic": 0.7,
+   "roughness": 0.15,
+   "emissive": [
+    0.1455,
+    0.1954,
+    0.2374
+   ],
+   "alphaMode": "OPAQUE",
+   "alphaCutoff": 0.5,
+   "doubleSided": false,
+   "baseMap": null,
+   "normalMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/winter_glints.png",
+   "family": "metal",
+   "skin": "Winter",
+   "sources": [
+    "item/BLADE",
+    "item/FOAM",
+    "item/BOMB",
+    "item/ARROW",
+    "item/HAMMER",
+    "item/PAN",
+    "item/SPEAR",
+    "item/PIE",
+    "item/SODA",
+    "item/BARREL",
+    "item/FAN",
+    "item/POT",
+    "environment/Doorstep",
+    "environment/Kitchen_Sink",
+    "environment/Kitchen_Stove",
+    "environment/Radiator"
+   ],
+   "folder": "Assets/_Project/Art/Seasonal/Winter/Finishes"
+  },
+  {
+   "name": "red_Winter",
+   "baseColor": [
+    0.2623,
+    0.0056,
+    0.0307,
+    1
+   ],
+   "metallic": 0.0,
+   "roughness": 0.62,
+   "emissive": [
+    0.4366,
+    0.5863,
+    0.7122
+   ],
+   "alphaMode": "OPAQUE",
+   "alphaCutoff": 0.5,
+   "doubleSided": false,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/winter_frost.png",
+   "normalMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/winter_glints.png",
+   "family": "red",
+   "skin": "Winter",
+   "sources": [
+    "item/BALL",
+    "item/ARROW",
+    "item/BROOM",
+    "item/APPLE",
+    "item/CAKE",
+    "item/SODA",
+    "item/MUG",
+    "environment/Arena_Rug",
+    "environment/Kitchen_Fridge",
+    "environment/Wall_Sign",
+    "vfx/Bomb_Warning",
+    "item/TABLE",
+    "item/SHELF"
+   ],
+   "folder": "Assets/_Project/Art/Seasonal/Winter/Finishes"
+  },
+  {
+   "name": "wood_dark_Winter",
+   "baseColor": [
+    0.0137,
+    0.0685,
+    0.0423,
+    1
+   ],
+   "metallic": 0.0,
+   "roughness": 0.62,
+   "emissive": [
+    0.4366,
+    0.5863,
+    0.7122
+   ],
+   "alphaMode": "OPAQUE",
+   "alphaCutoff": 0.5,
+   "doubleSided": false,
+   "baseMap": "Assets/_Project/Materials/Library/Patterns/winter_frost.png",
+   "normalMap": null,
+   "emissionMap": "Assets/_Project/Materials/Library/Patterns/winter_glints.png",
+   "family": "wood_dark",
+   "skin": "Winter",
+   "sources": [
+    "item/BLADE",
+    "item/SOFA",
+    "item/BOW",
+    "item/HAMMER",
+    "item/PAN",
+    "item/SHIELD",
+    "item/APPLE",
+    "item/BARREL",
+    "item/BOX",
+    "item/CABINET",
+    "item/SHELF",
+    "item/CLOCK",
+    "item/PLANT",
+    "letter/A",
+    "letter/B",
+    "letter/C",
+    "letter/D",
+    "letter/E",
+    "letter/F",
+    "letter/G",
+    "letter/H",
+    "letter/I",
+    "letter/J",
+    "letter/K",
+    "letter/L",
+    "letter/M",
+    "letter/N",
+    "letter/O",
+    "letter/P",
+    "letter/Q",
+    "letter/R",
+    "letter/S",
+    "letter/T",
+    "letter/U",
+    "letter/V",
+    "letter/W",
+    "letter/X",
+    "letter/Y",
+    "letter/Z",
+    "environment/Floor_Carpet_2m"
+   ],
+   "folder": "Assets/_Project/Art/Seasonal/Winter/Finishes"
+  }
+ ]
 }

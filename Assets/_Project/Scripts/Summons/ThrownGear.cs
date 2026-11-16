@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Wreckabulary.Audio;
 using Wreckabulary.Rules;
+using Wreckabulary.Rules.Sound;
 
 namespace Wreckabulary
 {
@@ -43,16 +45,23 @@ namespace Wreckabulary
             tracker.ring.startWidth = tracker.ring.endWidth = 0.05f;
             tracker.ring.sharedMaterial = GameAssets.I.Tinted(new Color(1f, 0.35f, 0.15f));
             tracker.beep = gear.gameObject.AddComponent<AudioSource>();
-            tracker.beep.volume = 0.2f;
-            tracker.beep.spatialBlend = 0.7f;
+            GameMix.Spatial(tracker.beep);
+            tracker.beep.volume = GameMix.TickLevel;
             if (!beepClip)
             {
-                beepClip = AudioClip.Create("Bomb fuse tick", 800, 1, 16000, false);
-                var samples = new float[800];
-                for (int i = 0; i < samples.Length; i++) samples[i] = Mathf.Sin(i * 2f * Mathf.PI * 880f / 16000f) * (1f - i / 800f);
+                var samples = ToyCueSynth.Render("Tick");
+                beepClip = AudioClip.Create("Bomb fuse tick", samples.Length, 1, ToyCueSynth.Rate, false);
                 beepClip.SetData(samples, 0);
             }
             tracker.beep.clip = beepClip;
+        }
+
+        void Tick()
+        {
+            beep.pitch = GameMix.NextPitch();
+            beep.volume = GameMix.TickLevel * GameMix.CouchGain(transform.position) * GameMix.NextGain() * GameMix.CueTrim;
+            beep.Play();
+            GameMix.Record(beepClip, beep.volume, beep.pitch);
         }
 
         void IgnoreThrower(bool ignored)
@@ -101,7 +110,7 @@ namespace Wreckabulary
             if (Time.time >= nextBeep)
             {
                 nextBeep = Time.time + Mathf.Lerp(0.6f, 0.12f, progress);
-                if (!GameFeedback.Muted) beep.Play();
+                if (!GameFeedback.Muted && GameMix.AdmitTick(beepClip)) Tick();
                 GameFeedback.Burst("Bomb_Warning", transform.position + Vector3.up * .4f, .4f, GameFeedback.SkillColor("BOMB"), .18f);
             }
             if (Time.time < explodeAt) return;

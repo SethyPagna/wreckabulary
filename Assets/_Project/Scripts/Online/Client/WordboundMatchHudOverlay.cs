@@ -42,6 +42,7 @@ namespace Wreckabulary.Online
                 actionPanel.DrawCompact(width * .5f, height - 18, available * .5f, overlayLabel, overlayBox, true, .5f);
                 menuHintPanel.DrawCompact(width - 18, height - 18, available * .23f, overlayLabel, overlayBox, true, 1);
                 DrawNotes(width);
+                DrawVoice(width);
                 DrawLookEye(width);
             }
             finally { GUI.backgroundColor = background; }
