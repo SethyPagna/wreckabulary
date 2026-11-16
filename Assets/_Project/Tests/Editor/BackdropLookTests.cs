@@ -122,12 +122,12 @@ namespace Wreckabulary.EditorTests
         }
 
         [Test]
-        public void AmbienceClipsImportAsMonoVorbisWithStreamedLoops()
+        public void AmbienceClipsImportAsMonoVorbisAndLoadInTheBackground()
         {
             string folder = BackdropLook.AmbienceFolder + "/maple_close";
             var paths = Directory.GetFiles(folder, "*.wav").Select(path => path.Replace('\\', '/')).OrderBy(path => path).ToArray();
-            Assert.AreEqual(1, paths.Count(path => BackdropAmbience.IsLoop(Path.GetFileNameWithoutExtension(path))), "One garden loop");
-            Assert.GreaterOrEqual(paths.Length, 5, "The loop plus sparse one-shots");
+            Assert.AreEqual(0, paths.Count(path => BackdropAmbience.IsLoop(Path.GetFileNameWithoutExtension(path))), "No continuous noise bed");
+            Assert.GreaterOrEqual(paths.Length, 5, "Sparse one-shots");
             foreach (string path in paths)
             {
                 var importer = AssetImporter.GetAtPath(path) as AudioImporter;
@@ -138,6 +138,8 @@ namespace Wreckabulary.EditorTests
                 bool loop = BackdropAmbience.IsLoop(clip.name);
                 Assert.IsTrue(importer.forceToMono, path + " mono");
                 Assert.AreEqual(AudioCompressionFormat.Vorbis, settings.compressionFormat, path);
+                Assert.IsTrue(importer.loadInBackground, path + " loads in the background");
+                Assert.IsFalse(settings.preloadAudioData, path + " does not block the map load");
                 Assert.AreEqual(loop ? AudioClipLoadType.Streaming : AudioClipLoadType.DecompressOnLoad, settings.loadType, path);
                 Assert.AreEqual(1, clip.channels, path);
                 Assert.AreEqual(44100, clip.frequency, path);

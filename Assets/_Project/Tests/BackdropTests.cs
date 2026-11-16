@@ -297,7 +297,7 @@ namespace Wreckabulary.Tests
                 var ambience = BackdropAmbience.Attach(root.transform, "maple_close");
                 Assert.IsNotNull(ambience, "maple_close clips load from Resources/Ambience");
                 var sources = ambience.GetComponents<AudioSource>();
-                Assert.IsTrue(sources.Any(s => s.loop && s.clip && BackdropAmbience.IsLoop(s.clip.name)), "One looping garden bed");
+                Assert.IsFalse(sources.Any(s => s.loop), "No continuous noise bed");
                 Assert.Greater(sources.Count(s => !s.loop), 0, "One-shot voices");
                 foreach (var source in sources) Assert.AreEqual(0f, source.spatialBlend, "Ambience is 2D");
 
@@ -312,8 +312,7 @@ namespace Wreckabulary.Tests
                 end = Time.unscaledTime + 4f;
                 while (Time.unscaledTime < end && ambience.Level < .4f) yield return null;
                 Assert.Greater(ambience.Level, .4f, "Unmuted ambience fades in");
-                Assert.Greater(sources.First(s => s.loop).volume, 0f);
-                Assert.LessOrEqual(sources.First(s => s.loop).volume, BackdropAmbience.BedLevel + 1e-4f, "The bed stays low");
+                foreach (var source in sources) Assert.LessOrEqual(source.volume, BackdropAmbience.CallLevel + 1e-4f, "Calls stay low");
 
                 GameFeedback.Muted = true;
                 end = Time.unscaledTime + .6f;

@@ -270,13 +270,13 @@ namespace Wreckabulary.EditorTools
             var loadType = LoadType(assetPath);
             bool bed = loadType == AudioClipLoadType.Streaming;
             importer.forceToMono = true;
-            importer.loadInBackground = bed;
+            importer.loadInBackground = true;
             var settings = importer.defaultSampleSettings;
             settings.loadType = loadType;
             settings.compressionFormat = AudioCompressionFormat.Vorbis;
             settings.quality = bed ? .45f : .6f;
             settings.sampleRateSetting = AudioSampleRateSetting.PreserveSampleRate;
-            settings.preloadAudioData = !bed;
+            settings.preloadAudioData = false;
             importer.defaultSampleSettings = settings;
         }
     }
