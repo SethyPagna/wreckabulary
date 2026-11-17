@@ -86,6 +86,7 @@ namespace Wreckabulary.Online
                 hud = matchRoot.AddComponent<WordboundMatchHud>();
                 hud.Theme = uiTheme;
                 hud.StoryProfile = storyProfile;
+                hud.VoiceRegion = expected.Settings.Region;
                 hud.Initialize(gameplay, playerView, items, mode, course, client.Credentials.PlayerId);
                 hud.ReturnRequested += RequestReturn;
                 session = new WordboundFusionSession(CreateRunner,

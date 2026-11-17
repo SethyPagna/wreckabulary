@@ -61,6 +61,7 @@ namespace Wreckabulary.Online
             var binding = controller.Authority.Match.Binding;
             seat = Enumerable.Range(0, binding.Seats.Count).Single(i => binding.Seats[i].PlayerId == actorId);
             team = binding.Seats[seat].Team;
+            voiceMatchId = binding.MatchId;
             JoinVoice(mode, binding.Seats, actorId);
             story = gameObject.AddComponent<WordboundStoryView>();
             story.Bind(controller, course, items, actorId, view.Camera, StoryProfile);

@@ -35,12 +35,36 @@ namespace Wreckabulary.EditorTests
             public void Poke() => Changed?.Invoke();
         }
 
+        sealed class MicFake : IVoiceMicTransport, IDisposable
+        {
+            public readonly List<(MicMode, MicState)> MicCalls = new();
+            public int Disposals;
+            public bool Available => true;
+            public string Status => "Connected";
+            public bool Sending { get; private set; }
+            public void SetSending(bool on) => Sending = on;
+            public void SetReceiving(bool on) { }
+            public float PlaybackVolume { get; set; }
+            public void SetMuted(string playerId, bool muted) { }
+            public void SetRoom(VoiceRoom room, string self) { }
+            public float InputLevel => 0f;
+            public IReadOnlyList<string> Devices => Array.Empty<string>();
+            public string Device { get; set; }
+            public event Action<string, bool> SpeakingChanged { add { } remove { } }
+            public event Action Changed { add { } remove { } }
+            public void SetMic(MicMode mode, MicState state) => MicCalls.Add((mode, state));
+            public void Dispose() => Disposals++;
+        }
+
         string[] saved;
         bool[] had;
+        Func<IVoiceTransport> service;
 
         [SetUp]
         public void SetUp()
         {
+            service = VoiceChat.Service;
+            VoiceChat.Service = null;
             had = VoiceSettings.Keys.Select(PlayerPrefs.HasKey).ToArray();
             saved = VoiceSettings.Keys.Select(key => PlayerPrefs.GetString(key, "")).ToArray();
             VoiceChat.Use(null);
@@ -59,6 +83,58 @@ namespace Wreckabulary.EditorTests
                 if (had[i]) PlayerPrefs.SetString(VoiceSettings.Keys[i], saved[i]); else PlayerPrefs.DeleteKey(VoiceSettings.Keys[i]);
             PlayerPrefs.Save();
             VoiceChat.Reload();
+            VoiceChat.Service = service;
+        }
+
+        static void ForgetTransport() =>
+            typeof(VoiceChat).GetField("transport", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).SetValue(null, null);
+
+        [Test]
+        public void AMicAwareTransportHearsEachModeAndStateChangeOnce()
+        {
+            var fake = new MicFake();
+            VoiceChat.Use(fake);
+            CollectionAssert.AreEqual(new[] { (MicMode.Off, MicState.Off) }, fake.MicCalls, "attaching tells the transport the current mic");
+            VoiceChat.Mic = MicMode.PushToTalk;
+            VoiceChat.Tick(false, 1);
+            VoiceChat.Tick(false, 1.1);
+            VoiceChat.Tick(true, 1.2);
+            VoiceChat.Tick(true, 1.3);
+            VoiceChat.SelfMuted = true;
+            VoiceChat.SelfMuted = false;
+            VoiceChat.Tick(false, 1.4);
+            VoiceChat.Mic = MicMode.OpenMic;
+            CollectionAssert.AreEqual(new[]
+            {
+                (MicMode.Off, MicState.Off), (MicMode.PushToTalk, MicState.Ready), (MicMode.PushToTalk, MicState.Live),
+                (MicMode.PushToTalk, MicState.Muted), (MicMode.PushToTalk, MicState.Live), (MicMode.PushToTalk, MicState.Ready),
+                (MicMode.OpenMic, MicState.Live)
+            }, fake.MicCalls, "one call per change, none per frame");
+        }
+
+        [Test]
+        public void ReplacingATransportDisposesTheOldOneOnce()
+        {
+            var fake = new MicFake();
+            VoiceChat.Use(fake);
+            VoiceChat.Use(fake);
+            Assert.AreEqual(0, fake.Disposals, "using the same transport again keeps it");
+            VoiceChat.Use(null);
+            Assert.AreEqual(1, fake.Disposals);
+            VoiceChat.Use(null);
+            Assert.AreEqual(1, fake.Disposals);
+        }
+
+        [Test]
+        public void TheInstalledServiceSuppliesTheDefaultTransport()
+        {
+            var fake = new MicFake();
+            ForgetTransport();
+            VoiceChat.Service = () => fake;
+            Assert.AreSame(fake, VoiceChat.Transport);
+            ForgetTransport();
+            VoiceChat.Service = () => null;
+            Assert.IsInstanceOf<NullVoiceTransport>(VoiceChat.Transport, "a service without an App ID falls back honestly");
         }
 
         [Test]

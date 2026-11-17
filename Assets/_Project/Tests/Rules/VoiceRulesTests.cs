@@ -63,5 +63,24 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual(90, VoiceRules.Step(85, 0), "odd saved values snap to the grid");
             Assert.AreEqual(60, VoiceRules.Step(55, 0));
         }
-    }
+
+        [Test]
+        public void TheMicStaysWarmForPushToTalkButClosesWhenMutedOffOrAlone()
+        {
+            Assert.IsTrue(VoiceRules.Records(MicState.Ready, true), "push to talk keeps the mic warm so the first word is not lost");
+            Assert.IsTrue(VoiceRules.Records(MicState.Live, true));
+            Assert.IsFalse(VoiceRules.Records(MicState.Muted, true), "self-mute closes the mic");
+            Assert.IsFalse(VoiceRules.Records(MicState.Off, true));
+            foreach (MicState state in System.Enum.GetValues(typeof(MicState)))
+                Assert.IsFalse(VoiceRules.Records(state, false), "never record outside a voice room");
+        }
+
+        [Test]
+        public void OnlyAnOpenMicWaitsForSpeechBeforeSending()
+        {
+            Assert.IsTrue(VoiceRules.DetectsVoice(MicMode.OpenMic));
+            Assert.IsFalse(VoiceRules.DetectsVoice(MicMode.PushToTalk), "holding the key sends everything, quiet starts included");
+            Assert.IsFalse(VoiceRules.DetectsVoice(MicMode.Off));
+        }
+}
 }

@@ -21,6 +21,11 @@ namespace Wreckabulary.Voice
         event Action Changed;
     }
 
+    public interface IVoiceMicTransport : IVoiceTransport
+    {
+        void SetMic(MicMode mode, MicState state);
+    }
+
     public interface IVoiceLinkTransport : IVoiceTransport
     {
         VoiceLinkStats Link(string playerId);

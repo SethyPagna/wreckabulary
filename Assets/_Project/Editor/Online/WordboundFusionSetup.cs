@@ -24,6 +24,25 @@ namespace Wreckabulary.EditorTools
             Debug.Log("[Wreckabulary] Configured explicit migration checkpoints and host-only reliable admission in " + path);
         }
 
+        public const string VoiceAppIdVariable = "WORDBOUND_PHOTON_VOICE_APP_ID";
+
+        public static void SaveVoiceAppId()
+        {
+            string id = Environment.GetEnvironmentVariable(VoiceAppIdVariable)?.Trim();
+            if (!Guid.TryParse(id, out var parsed) || parsed == Guid.Empty)
+                throw new InvalidOperationException("Set " + VoiceAppIdVariable + " to the Photon Voice App ID first.");
+            var settings = Fusion.Photon.Realtime.PhotonAppSettings.Global;
+            if (settings.AppSettings.AppIdVoice == id)
+            {
+                Debug.Log("[Wreckabulary] The Voice App ID in Photon settings already matches " + VoiceAppIdVariable + ".");
+                return;
+            }
+            settings.AppSettings.AppIdVoice = id;
+            EditorUtility.SetDirty(settings);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[Wreckabulary] Saved the Voice App ID from " + VoiceAppIdVariable + " into Photon settings.");
+        }
+
         public static void CreateSnapshotPrefab()
         {
             if (!NetworkProjectConfig.Global.AssembliesToWeave.Contains("Wreckabulary.Online.Fusion"))

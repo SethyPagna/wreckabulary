@@ -16,6 +16,10 @@ namespace Wreckabulary.Rules.Voice
             return mode is MicMode.PushToTalk or MicMode.OpenMic ? MicState.Live : MicState.Off;
         }
 
+        public static bool Records(MicState state, bool joined) => joined && (state == MicState.Ready || state == MicState.Live);
+
+        public static bool DetectsVoice(MicMode mode) => mode == MicMode.OpenMic;
+
         public static bool Plays(VoiceSettings settings, VoiceRoom room, string self, string speaker) =>
             settings != null && room != null && settings.HearTeammates && !settings.IsMuted(speaker) && room.CanHear(self, speaker);
 

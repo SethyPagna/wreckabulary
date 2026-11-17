@@ -43,6 +43,24 @@ namespace Wreckabulary.Online.Tests
         static Rect Choice(WordboundRecipeGridFixture f, int index) => (Rect)f.Call("VoiceChoiceAt", index);
 
         [Test]
+        public void MatchVoiceMeetsOnTheMatchChannelInItsRegion()
+        {
+            using var voice = new VoiceTestScope();
+            using var f = Hud(false);
+            f.Hud.VoiceRegion = "eu";
+            f.Set("voiceMatchId", "match-7");
+            f.Call("JoinVoice", TeamMode, TeamSeats, Me);
+            Assert.AreEqual("match:match-7", VoiceChat.Room.Channel.Key);
+            Assert.AreEqual("eu", VoiceChat.Room.Channel.Region);
+            Assert.AreEqual(VoiceChannel.RoomName(VoiceChat.Room, Me), VoiceChannel.RoomName(VoiceChat.Room, Mate), "teammates meet");
+            Assert.AreNotEqual(VoiceChannel.RoomName(VoiceChat.Room, Me), VoiceChannel.RoomName(VoiceChat.Room, Rival), "rivals never do");
+            f.Call("LeaveVoice");
+            f.Hud.VoiceRegion = null;
+            f.Call("JoinVoice", TeamMode, TeamSeats, Me);
+            Assert.IsFalse(VoiceChat.Room.Channel.IsSet, "Without a region nothing goes online.");
+        }
+
+        [Test]
         public void LocalAndSoloCoursesShowNoVoiceControls()
         {
             using var voice = new VoiceTestScope();
