@@ -29,6 +29,7 @@ namespace Wreckabulary.Rules.Voice
 
         public VoiceScope Scope { get; }
         public IReadOnlyList<VoiceMember> Members { get; }
+        public VoiceChannel Channel { get; private set; } = VoiceChannel.None;
 
         VoiceRoom(VoiceScope scope, IEnumerable<VoiceMember> members)
         {
@@ -55,6 +56,8 @@ namespace Wreckabulary.Rules.Voice
             if (mode == null) throw new ArgumentNullException(nameof(mode));
             return new(mode.Teams ? VoiceScope.Team : VoiceScope.Everyone, members);
         }
+
+        public VoiceRoom On(VoiceChannel channel) => new(Scope, Members) { Channel = channel ?? VoiceChannel.None };
 
         public static VoiceScope ScopeFor(ModeDefinition mode) =>
             mode.TeamCount > 1 && mode.TeamCapacity > 1 ? VoiceScope.Team : VoiceScope.Everyone;

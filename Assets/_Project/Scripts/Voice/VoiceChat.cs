@@ -26,6 +26,8 @@ namespace Wreckabulary.Voice
         static readonly VoiceLinkBoard links = new();
         static readonly VoiceQualityPolicy policy = new();
         static bool pushHeld, touchHeld, sent, hooked;
+        static MicMode micMode;
+        static MicState micState;
         static double now, linksAt = double.NegativeInfinity;
 
         public static event Action Changed;
@@ -35,7 +37,11 @@ namespace Wreckabulary.Voice
         static void ResetStatics()
         {
             Unhook();
-            if (transport != null) Detach(transport);
+            if (transport != null)
+            {
+                Detach(transport);
+                (transport as IDisposable)?.Dispose();
+            }
             transport = null;
             settings = null;
             room = VoiceRoom.Empty;
@@ -67,13 +73,19 @@ namespace Wreckabulary.Voice
 
         static VoiceSettings Current => settings ??= Load();
 
-        public static IVoiceTransport Transport => transport ??= Attach(new NullVoiceTransport());
+        public static Func<IVoiceTransport> Service { get; set; }
+
+        public static IVoiceTransport Transport => transport ??= Attach(Service?.Invoke() ?? new NullVoiceTransport());
 
         public static void Use(IVoiceTransport next)
         {
             next ??= new NullVoiceTransport();
             if (ReferenceEquals(next, transport)) return;
-            if (transport != null) Detach(transport);
+            if (transport != null)
+            {
+                Detach(transport);
+                (transport as IDisposable)?.Dispose();
+            }
             transport = null;
             sent = false;
             speaking.Clear();
@@ -97,6 +109,9 @@ namespace Wreckabulary.Voice
             if (next is IVoiceLinkTransport link) link.SetSendQuality(policy.Current);
             sent = WantsToSend;
             next.SetSending(sent);
+            micMode = s.Mic;
+            micState = MicState;
+            if (next is IVoiceMicTransport mic) mic.SetMic(micMode, micState);
             return next;
         }
 
@@ -301,11 +316,22 @@ namespace Wreckabulary.Voice
 
         static bool SyncSending()
         {
+            SyncMic();
             bool wants = WantsToSend;
             if (wants == sent) return false;
             sent = wants;
             Transport.SetSending(wants);
             return true;
+        }
+
+        static void SyncMic()
+        {
+            var mode = Current.Mic;
+            var state = MicState;
+            if (mode == micMode && state == micState) return;
+            micMode = mode;
+            micState = state;
+            if (transport is IVoiceMicTransport mic) mic.SetMic(mode, state);
         }
 
         static void Saved()

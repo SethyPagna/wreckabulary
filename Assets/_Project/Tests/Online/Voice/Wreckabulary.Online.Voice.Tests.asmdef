@@ -1,0 +1,12 @@
+{
+  "name": "Wreckabulary.Online.Voice.Tests",
+  "rootNamespace": "Wreckabulary.Online.Tests",
+  "references": ["Wreckabulary", "Wreckabulary.Rules", "Wreckabulary.Online.Voice", "PhotonVoice", "PhotonVoice.API", "Photon.Realtime", "UnityEngine.TestRunner"],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll"],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS", "WRECKABULARY_PHOTON_VOICE"],
+  "versionDefines": [
+    { "name": "com.photonengine.voice-fusion", "expression": "0.0.1", "define": "WRECKABULARY_PHOTON_VOICE" }
+  ]
+}

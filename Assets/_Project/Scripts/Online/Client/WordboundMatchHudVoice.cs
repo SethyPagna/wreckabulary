@@ -27,11 +27,14 @@ namespace Wreckabulary.Online
         Rect micRect, speakerRect, micKeyRect, voiceChoiceRect;
         float voiceUnit;
 
+        public string VoiceRegion;
+        string voiceMatchId;
+
         bool VoiceShown => voiceRoom != null && initialized && view && !view.MenuOpen;
 
         void JoinVoice(ModeDefinition definition, IEnumerable<WordboundSeat> seats, string self)
         {
-            var room = VoiceRoom.Match(definition, seats);
+            var room = VoiceRoom.Match(definition, seats).On(new VoiceChannel("match:" + voiceMatchId, VoiceRegion));
             if (!VoiceButtons.Shows(room, self)) return;
             voiceRoom = room;
             voiceMembers = VoiceButtons.Rows(room, self);

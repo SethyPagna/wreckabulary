@@ -157,6 +157,9 @@ namespace Wreckabulary.Online.Tests
             Assert.AreEqual(2, VoiceChat.Room.Members.Count, "The party lobby is one voice room.");
             Assert.AreEqual(Player, VoiceChat.Self);
             Assert.AreSame(VoiceChat.Room, voice.Fake.Room);
+            Assert.AreEqual("party:" + coordinator.Party.Id, VoiceChat.Room.Channel.Key, "Party voice meets on the party's own channel.");
+            Assert.AreEqual(coordinator.Party.Settings.Region, VoiceChat.Room.Channel.Region, "Voice uses the party's region.");
+            Assert.IsNotNull(VoiceChannel.RoomName(VoiceChat.Room, Player));
             Draw(EventType.Layout); Draw(EventType.Repaint);
             var controls = Get<List<string>>(Get<WordboundMenuFocus>(menu, "partyFocus"), "controls");
             Assert.Contains("voice-mute:" + other, controls);

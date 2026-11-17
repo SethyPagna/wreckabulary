@@ -20,11 +20,12 @@ namespace Wreckabulary.Online
             var party = coordinator?.Party;
             if (coordinator == null || coordinator.MatchActive || party == null) { LeavePartyVoice(); return; }
             string self = coordinator.PlayerId;
-            string key = party.Id + "|" + self + "|" + string.Join(",", party.Members.Select(m => m.PlayerId));
+            string region = party.Settings?.Region;
+            string key = party.Id + "|" + region + "|" + self + "|" + string.Join(",", party.Members.Select(m => m.PlayerId));
             if (key == partyVoiceKey && (partyVoice == null || VoiceChat.Room == partyVoice)) return;
             LeavePartyVoice();
             partyVoiceKey = key;
-            var room = VoiceRoom.Party(party.Members.Select(m => m.PlayerId));
+            var room = VoiceRoom.Party(party.Members.Select(m => m.PlayerId)).On(new VoiceChannel("party:" + party.Id, region));
             if (!VoiceButtons.Shows(room, self)) return;
             partyVoice = room;
             VoiceChat.Join(room, self);

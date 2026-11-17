@@ -13,7 +13,8 @@
     "Fusion.Unity.Editor",
     "Wreckabulary.Online.Physics",
     "Wreckabulary.Online.Gameplay",
-    "Fusion.Addons.Physics"
+    "Fusion.Addons.Physics",
+    "Photon.Realtime"
   ],
   "includePlatforms": [
     "Editor"
