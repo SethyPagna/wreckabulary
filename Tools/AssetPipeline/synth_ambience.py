@@ -75,16 +75,6 @@ def pink(rng, count):
     return out
 
 
-def brown(rng, count):
-    state = 0.0
-    out = array("d", bytes(8 * count))
-    uniform = rng.uniform
-    for index in range(count):
-        state = 0.998 * state + uniform(-1.0, 1.0) * 0.06
-        out[index] = state
-    return out
-
-
 def rms(values):
     return math.sqrt(sum(v * v for v in values) / max(1, len(values)))
 
@@ -114,10 +104,6 @@ def edge_fade(values, attack, release):
     for index in range(min(fall, count)):
         out[count - 1 - index] *= 0.5 - 0.5 * math.cos(math.pi * index / fall)
     return out
-
-
-def bump(t, centre, width):
-    return math.exp(-0.5 * ((t - centre) / width) ** 2)
 
 
 def reverb(values, wet, rng, decay=0.72, damping=0.35):
@@ -154,41 +140,6 @@ def reverb(values, wet, rng, decay=0.72, damping=0.35):
                 position = 0
         mixed = out
     return array("d", (d + wet * m for d, m in zip(dry, mixed)))
-
-
-def periodic_bumps(rng, count, period, bursts, widths, levels):
-    events = [(rng.uniform(0, period), rng.uniform(*widths), rng.uniform(*levels)) for _ in range(bursts)]
-    out = array("d", bytes(8 * count))
-    for centre, width, level in events:
-        reach = int(4 * width * RATE)
-        for shift in (-period, 0.0, period):
-            middle = int((centre + shift) * RATE)
-            for index in range(max(0, middle - reach), min(count, middle + reach)):
-                out[index] += level * bump(index / RATE, centre + shift, width)
-    return out
-
-
-def garden_loop(rng):
-    period = int(LOOP_SECONDS * RATE)
-    overlap = int(LOOP_CROSSFADE * RATE)
-    preroll = RATE
-    total = period + overlap + preroll
-    air = unit(highpass(highpass(lowpass(pink(rng, total), 1400, 2), 120), 120))[preroll:]
-    leaves = unit(bandpass(white(rng, total), 2300, 6200))[preroll:]
-    hum = unit(highpass(lowpass(brown(rng, total), 220, 2), 60))[preroll:]
-    count = period + overlap
-    phases = [rng.uniform(0, TAU) for _ in range(3)]
-    rustle = periodic_bumps(rng, count, LOOP_SECONDS, 46, (0.12, 0.55), (0.25, 1.0))
-    mix = array("d", bytes(8 * count))
-    for index in range(count):
-        u = index / period
-        swell = 0.6 + 0.2 * math.sin(TAU * 3 * u + phases[0]) + 0.12 * math.sin(TAU * 7 * u + phases[1]) + 0.08 * math.sin(TAU * 13 * u + phases[2])
-        mix[index] = air[index] * swell * 0.55 + leaves[index] * min(1.6, rustle[index]) * swell * swell * 0.2 + hum[index] * 0.12
-    loop = array("d", mix[:period])
-    for index in range(overlap):
-        fade = index / overlap
-        loop[index] = mix[index] * math.sin(0.5 * math.pi * fade) + mix[period + index] * math.cos(0.5 * math.pi * fade)
-    return normalise(remove_dc(loop), BED_PEAK_DB)
 
 
 def tone(duration, pitch, amplitude, harmonics=((1, 1.0),), vibrato=(0.0, 0.0), attack=0.012, release=0.03):
@@ -306,24 +257,6 @@ def car_pass(rng, seconds, closest, width, engine, speed):
     return normalise(edge_fade(remove_dc(out), 0.6, 0.9), SHOT_PEAK_DB - 2.0)
 
 
-def wind_gust(rng):
-    seconds = 6.5
-    count = int(seconds * RATE)
-    envelope = []
-    for index in range(count):
-        t = index / RATE
-        rise = 0.5 - 0.5 * math.cos(math.pi * min(1.0, t / 2.3))
-        fall = 0.5 - 0.5 * math.cos(math.pi * min(1.0, (seconds - t) / 3.4))
-        flutter = 1.0 + 0.12 * math.sin(TAU * 0.7 * t) + 0.08 * math.sin(TAU * 1.9 * t + 1.3)
-        envelope.append(rise * fall * flutter)
-    cutoffs = [280 + 950 * e for e in envelope]
-    air = unit(highpass(sweep_lowpass(pink(rng, count), cutoffs), 110))
-    leaves = unit(bandpass(white(rng, count), 2400, 6000))
-    rustle = periodic_bumps(rng, count, seconds, 24, (0.06, 0.25), (0.3, 1.0))
-    out = array("d", (air[i] * envelope[i] + leaves[i] * envelope[i] ** 2 * min(1.4, rustle[i]) * 0.12 for i in range(count)))
-    return normalise(edge_fade(remove_dc(out), 0.3, 0.6), SHOT_PEAK_DB - 1.0)
-
-
 def write(path, values, rng):
     data = array("h", bytes(2 * len(values)))
     for index, value in enumerate(values):
@@ -372,14 +305,12 @@ def main():
     parser.add_argument("--raw", action="store_true")
     args = parser.parse_args()
     sounds = (
-        ("loop_garden.wav", garden_loop, True),
         ("bird_01.wav", bird_whistles, False),
         ("bird_02.wav", bird_warble, False),
         ("bird_03.wav", dove_coo, False),
         ("bird_04.wav", sparrow_chips, False),
         ("car_pass_01.wav", lambda rng: car_pass(rng, 8.0, 0.46, 1.1, 96.0, 13.0), False),
         ("car_pass_02.wav", lambda rng: car_pass(rng, 9.5, 0.52, 1.45, 82.0, 10.0), False),
-        ("wind_gust_01.wav", wind_gust, False),
     )
     summary = []
     for offset, (name, build, loop) in enumerate(sounds):

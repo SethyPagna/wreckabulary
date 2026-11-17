@@ -28,7 +28,9 @@ namespace Wreckabulary.Rules
     {
         public static bool ShowsTag(bool human, int humans, bool shoulderView) => !human || (humans > 1 && !shoulderView);
 
-        public static bool ShowsRing(bool human, bool wrecked) => human && !wrecked;
+        public static bool ShowsRing(bool wrecked) => !wrecked;
+
+        public static bool MarksYou(bool you, bool wrecked) => you && !wrecked;
 
         public static string Name(string name, bool you, int humans) => you && humans == 1 ? "You" : name ?? "";
     }

@@ -141,7 +141,7 @@ namespace Wreckabulary.EditorTests
                     if (Math.Abs(x.Average(v => (double)v)) > 1e-4) problems.Add($"{name}: DC offset");
                 }
             }
-            Assert.AreEqual(6 + 8, count, "Winter and ambience clips");
+            Assert.AreEqual(6 + 6, count, "Winter and ambience clips");
             Assert.IsEmpty(problems, string.Join("\n", problems));
         }
 
@@ -164,16 +164,14 @@ namespace Wreckabulary.EditorTests
             double houseGain = 20 * Math.Log10(GameMix.HouseSpeaker * GameMix.CueTrim);
             double impact = HouseCueMix.ImpactLufs + houseGain;
             double feedback = HouseCueMix.FeedbackLufs + houseGain;
-            var bed = ReadWav(Directory.GetFiles(Path.Combine(Root, "Resources/Ambience"), "loop*.wav", SearchOption.AllDirectories).Single(), out int bedRate);
-            double bedLevel = Loudness.Measure(bed, 1, bedRate).IntegratedLufs + 20 * Math.Log10(BackdropAmbience.BedLevel);
+            Assert.IsEmpty(Directory.GetFiles(Path.Combine(Root, "Resources/Ambience"), "loop*.wav", SearchOption.AllDirectories), "no continuous noise bed");
             double loudestCall = Directory.GetFiles(Path.Combine(Root, "Resources/Ambience"), "*.wav", SearchOption.AllDirectories)
                 .Where(f => !Path.GetFileName(f).StartsWith("loop", StringComparison.OrdinalIgnoreCase))
                 .Max(f => Loudness.MomentaryMax(ReadWav(f, out int r), r)) + 20 * Math.Log10(BackdropAmbience.CallLevel);
             double tick = Loudness.MomentaryMax(ToyCueSynth.Render("Tick"), ToyCueSynth.Rate) + 20 * Math.Log10(GameMix.TickLevel * GameMix.CueTrim);
-            Debug.Log($"[Wreckabulary] Mix plan: impacts {impact:0.0}, feedback {feedback:0.0}, tick {tick:0.0}, calls {loudestCall:0.0} LUFS-M; bed {bedLevel:0.0} LUFS");
+            Debug.Log($"[Wreckabulary] Mix plan: impacts {impact:0.0}, feedback {feedback:0.0}, tick {tick:0.0}, calls {loudestCall:0.0} LUFS-M");
             Assert.Less(feedback, impact, "UI cues are quieter than impacts");
             Assert.Less(tick, feedback);
-            Assert.That(impact - bedLevel, Is.InRange(12.0, 17.0), "the garden bed is audible but well under play");
             Assert.Less(loudestCall, impact - 6, "ambience calls stay under the impacts");
         }
 

@@ -266,7 +266,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(.85f, scrim.GetPixel(0, 0).a, .02f, "...and darker at the edges.");
             Assert.AreEqual(1f, safe.Find("Bag panel").GetComponent<CanvasGroup>().alpha, 1e-3f, "Faded in.");
 
-            foreach (var part in new[] { "Side column", "Letter bag", "Vitals", "Desktop controls" })
+            foreach (var part in new[] { "Side column", "Letter bag", "Vitals", "Desktop controls", "Player bar" })
             {
                 var group = safe.Find(part).GetComponent<CanvasGroup>();
                 Assert.AreEqual(0f, group.alpha, part + " steps aside under the bag");
@@ -690,27 +690,202 @@ namespace Wreckabulary.Tests
             mate.Health.Eliminate();
             yield return new WaitForSecondsRealtime(0.12f);
             Assert.AreSame(you, hud.LocalPlayer);
-            var safe = hud.transform.Find("Safe HUD");
-            string Text(string path) => safe.Find(path).GetComponent<TMPro.TMP_Text>().text;
-            StringAssert.StartsWith("P1", Text("Roommate 1/Name"), "You're on the roster too, named by seat on a couch.");
-            StringAssert.StartsWith("P2", Text("Roommate 2/Name"));
-            StringAssert.Contains("WRECKED", Text("Roommate 2/Status"));
-            Assert.IsTrue(safe.Find("Roommate 3").gameObject.activeSelf, "Bots get a card.");
-            StringAssert.StartsWith("AI 3", Text("Roommate 3/Name"));
-            StringAssert.Contains("2/3", Text("Roommate 3/Name"), "Every card shows its wins.");
-            Assert.IsFalse(safe.Find("Roommate 4").gameObject.activeSelf);
-            Assert.IsNull(safe.Find("Roommate 1/Seat colour").GetComponentInChildren<TMPro.TMP_Text>(), "No seat initial next to the P1 name.");
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            string Text(string path) => safe.Find("Player bar/" + path).GetComponent<TMPro.TMP_Text>().text;
+            Assert.IsNull(safe.Find("Roommate 1"), "One roster only: the old top-left rows are gone.");
+            var bar = (RectTransform)safe.Find("Player bar");
+            Assert.IsTrue(bar.gameObject.activeSelf, "Two or more seats get the bar.");
+            Assert.AreEqual(new Vector2(.5f, 1f), bar.anchorMin, "Anchored top-centre, like CS2.");
+            Assert.AreEqual(new Vector2(.5f, 1f), bar.anchorMax);
+            Assert.AreEqual(0f, bar.anchoredPosition.x, .01f, "Horizontally centred.");
+            Assert.AreEqual(-Wreckabulary.Rules.PlayerBar.Top, bar.anchoredPosition.y, .01f, "10 px under the top of the safe area.");
+            StringAssert.StartsWith("P1", Text("Card 1/Name"), "You're on the bar too, named by seat on a couch.");
+            StringAssert.StartsWith("P2", Text("Card 2/Name"));
+            StringAssert.Contains("WRECKED", Text("Card 2/Status"));
+            Assert.IsTrue(bar.Find("Card 3").gameObject.activeSelf, "Bots get a card.");
+            StringAssert.StartsWith("AI 3", Text("Card 3/Name"));
+            Assert.AreEqual("2/3", Text("Card 3/Score"), "Every card shows its wins.");
+            Assert.AreEqual("0/3", Text("Card 1/Score"));
+            Assert.IsFalse(bar.Find("Card 4").gameObject.activeSelf);
+            var first = (RectTransform)bar.Find("Card 1");
+            var third = (RectTransform)bar.Find("Card 3");
+            Assert.AreEqual(0f, first.anchoredPosition.x + third.anchoredPosition.x, .01f, "The cards are centred as a row.");
+            Assert.Less(first.anchoredPosition.x, ((RectTransform)bar.Find("Card 2")).anchoredPosition.x, "Seat order runs left to right.");
+            Assert.AreEqual(Wreckabulary.Rules.PlayerBar.NameSize, bar.Find("Card 1/Name").GetComponent<TMPro.TMP_Text>().fontSize);
+            Assert.IsTrue((bar.Find("Card 1/Name").GetComponent<TMPro.TMP_Text>().fontStyle & TMPro.FontStyles.Bold) != 0, "Names are bold.");
+            Assert.Greater(bar.Find("Card 1/Name").GetComponent<TMPro.TMP_Text>().outlineWidth, 0f, "Names carry a dark outline over light floors.");
+            Assert.IsTrue(bar.Find("Card 1/You").GetComponent<Image>().enabled, "Your own card has a white outline.");
+            Assert.IsFalse(bar.Find("Card 3/You").GetComponent<Image>().enabled);
+            var frame = bar.Find("Card 1/Frame").GetComponent<Image>();
+            Color.RGBToHSV(frame.color, out _, out float saturation, out float value);
+            Assert.GreaterOrEqual(value, .94f, "The seat frame is a brightened seat colour.");
+            Assert.GreaterOrEqual(saturation, .55f);
+            var wreckedFrame = bar.Find("Card 2/Frame").GetComponent<Image>();
+            Color.RGBToHSV(wreckedFrame.color, out _, out float grey, out _);
+            Assert.Less(grey, .2f, "A wrecked seat's frame turns grey.");
+            Assert.IsTrue(bar.Find("Card 2/Shade").GetComponent<Image>().enabled, "...and its portrait darkens.");
+            Assert.IsFalse(bar.Find("Card 3/Shade").GetComponent<Image>().enabled);
+            Assert.AreEqual(1f, bar.Find("Card 1/Health track/Health").GetComponent<Image>().fillAmount, .01f);
+            var portrait = bar.Find("Card 1/Portrait").GetComponent<RawImage>();
+            var letter = bar.Find("Card 1/Letter").GetComponent<TMPro.TMP_Text>();
+            Assert.IsTrue(portrait.enabled && portrait.texture || letter.enabled && letter.text == you.Initial.ToString(),
+                "Each card shows the player's face, or their seat letter when nothing can be drawn.");
+            if (SeatPortrait.CanRender && you.GetComponent<PlayerAppearance>().AvatarModel)
+            {
+                yield return new WaitForSecondsRealtime(0.4f);
+                Assert.IsTrue(portrait.enabled, "The live avatar is drawn onto the card.");
+                Assert.AreEqual(SeatPortrait.Size, portrait.texture.width);
+                int renders = you.GetComponent<SeatPortrait>().Renders;
+                yield return new WaitForSecondsRealtime(0.3f);
+                Assert.AreEqual(renders, you.GetComponent<SeatPortrait>().Renders, "A portrait is drawn once, not every frame.");
+                var appearance = you.GetComponent<PlayerAppearance>();
+                string key = "wv.outfit." + you.Index;
+                string saved = PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null;
+                try
+                {
+                    appearance.ApplyOutfit(appearance.CurrentOutfit);
+                    yield return new WaitForSecondsRealtime(0.3f);
+                    Assert.AreEqual(renders + 1, you.GetComponent<SeatPortrait>().Renders, "A new outfit redraws it.");
+                }
+                finally
+                {
+                    if (saved != null) PlayerPrefs.SetString(key, saved); else PlayerPrefs.DeleteKey(key);
+                    PlayerPrefs.Save();
+                }
+            }
+            var plate = (RectTransform)bar.Find("Backing");
+            Assert.IsNotNull(plate, "One dark plate sits behind the whole bar, like CS2's strip.");
+            Assert.AreEqual(0, plate.GetSiblingIndex(), "The plate is drawn behind every card.");
+            var plateImage = plate.GetComponent<Image>();
+            Assert.Less(Mathf.Max(plateImage.color.r, plateImage.color.g, plateImage.color.b), .2f, "dark");
+            Assert.That(plateImage.color.a, Is.InRange(.6f, .85f), "translucent");
+            Assert.IsFalse(plateImage.raycastTarget);
+            for (int i = 1; i <= 3; i++)
+            {
+                var card = (RectTransform)bar.Find($"Card {i}");
+                AssertEncloses(plate, card, Wreckabulary.Rules.PlayerBar.PlatePad - 1f, "The plate pads every card");
+                foreach (var part in new[] { "You", "Name", "Score", "Health track" })
+                    AssertEncloses(plate, (RectTransform)card.Find(part), 1f, $"Card {i} {part} sits on the plate");
+            }
             var label = (RectTransform)safe.Find("Match label");
-            Assert.LessOrEqual(((RectTransform)safe.Find("Roommate 1")).anchoredPosition.y, label.anchoredPosition.y - label.sizeDelta.y, "The roster starts below the match label.");
-            Assert.AreEqual("2/3", Text("Side column/Alive/Count"));
+            AssertApart(label, plate, "The bar keeps clear of the match label.");
+            AssertApart((RectTransform)safe.Find("Side column/Minimap"), plate, "...and of the minimap.");
+            Assert.AreEqual("2/3", safe.Find("Side column/Alive/Count").GetComponent<TMPro.TMP_Text>().text);
             Assert.IsFalse(safe.Find("Side column/Objective").gameObject.activeSelf, "No filler objective when there's nothing to do.");
 
             Object.Destroy(mate.gameObject);
             hud.SetScoreboard(new[] { you, bot }, _ => 0, 3, true);
             yield return new WaitForSecondsRealtime(0.12f);
-            StringAssert.StartsWith("You", Text("Roommate 1/Name"), "The only human is You.");
+            StringAssert.StartsWith("You", Text("Card 1/Name"), "The only human is You.");
+            hud.SetScoreboard(new[] { you, bot }, _ => 0, 0, false);
+            yield return new WaitForSecondsRealtime(0.12f);
+            Assert.IsFalse(bar.Find("Card 1/Score").gameObject.activeSelf, "A mode without scores hides them.");
+            hud.SetScoreboard(new[] { you }, _ => 0, 3, true);
+            yield return new WaitForSecondsRealtime(0.12f);
+            Assert.IsFalse(bar.gameObject.activeSelf, "Alone, your stats stay bottom left.");
             Object.Destroy(hud.gameObject);
             foreach (var p in new[] { you, bot }) Object.Destroy(p.gameObject);
+        }
+
+        static Rect OnScreen(RectTransform rt)
+        {
+            var corners = new Vector3[4];
+            rt.GetWorldCorners(corners);
+            return Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+        }
+
+        static void AssertEncloses(RectTransform outer, RectTransform inner, float pad, string message)
+        {
+            float scale = outer.lossyScale.x;
+            Rect o = OnScreen(outer), i = OnScreen(inner);
+            Assert.LessOrEqual(o.xMin, i.xMin - pad * scale + .5f, $"{message}: left {o} vs {i}");
+            Assert.GreaterOrEqual(o.xMax, i.xMax + pad * scale - .5f, $"{message}: right {o} vs {i}");
+            Assert.LessOrEqual(o.yMin, i.yMin - pad * scale + .5f, $"{message}: bottom {o} vs {i}");
+            Assert.GreaterOrEqual(o.yMax, i.yMax + pad * scale - .5f, $"{message}: top {o} vs {i}");
+        }
+
+        static void AssertApart(RectTransform a, RectTransform b, string message)
+        {
+            var corners = new Vector3[4];
+            a.GetWorldCorners(corners);
+            var ra = Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+            b.GetWorldCorners(corners);
+            var rb = Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+            Assert.IsFalse(ra.Overlaps(rb), $"{message} {a.name} {ra} vs {b.name} {rb}");
+        }
+
+        [UnityTest]
+        public IEnumerator TopCentreNoticesSitBelowThePlayerBar()
+        {
+            var you = Spawn(TouchBinding.Shared);
+            var bot = Spawn(new BotBinding());
+            bot.Name = "AI 2";
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            hud.ShowTouchControls(false);
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            hud.SetScoreboard(new[] { you, bot }, _ => 0, 3, true);
+            hud.ShowCountdown(3, "ROUND 1 · LIVING ROOM");
+            hud.ShowBanner("Round 1 · Dibs!", "Last one standing wins the round · First to 3");
+            hud.Toast("Spelling BAT…");
+            hud.SetInstruction("Smash furniture", "Spell items from the letters");
+            hud.ShowModeActions(true, "START WITH AI →", () => { });
+            yield return new WaitForSecondsRealtime(0.25f);
+            var bar = (RectTransform)safe.Find("Player bar");
+            Assert.IsTrue(bar.gameObject.activeSelf);
+            Assert.AreEqual(Wreckabulary.Rules.PlayerBar.Shift, hud.TopInset, .01f, "Everything at the top centre moves down by the bar, its plate and 12 px.");
+            var corners = new Vector3[4];
+            ((RectTransform)bar.Find("Backing")).GetWorldCorners(corners);
+            float barBottom = corners[0].y;
+            foreach (var name in new[] { "Round chip", "Round banner", "Toast", "Status", "Mode actions" })
+            {
+                var part = (RectTransform)safe.Find(name);
+                Assert.IsTrue(part.gameObject.activeSelf, name);
+                part.GetWorldCorners(corners);
+                Assert.Less(corners[1].y, barBottom - 11f * hud.UiCanvas.scaleFactor, name + " sits below the player bar's plate.");
+            }
+            safe.Find("Letter bag/Bag link").GetComponent<Button>().onClick.Invoke();
+            yield return new WaitForSecondsRealtime(0.2f);
+            Assert.AreEqual(0f, bar.GetComponent<CanvasGroup>().alpha, "The bar steps aside under the bag.");
+            safe.Find("Letter bag/Bag link").GetComponent<Button>().onClick.Invoke();
+            yield return new WaitForSecondsRealtime(0.12f);
+            Assert.AreEqual(1f, bar.GetComponent<CanvasGroup>().alpha);
+            hud.SetScoreboard(new[] { you }, _ => 0, 3, true);
+            yield return new WaitForSecondsRealtime(0.12f);
+            Assert.AreEqual(0f, hud.TopInset, "Without the bar the notices go back up.");
+            Assert.AreEqual(-25f, ((RectTransform)safe.Find("Round chip")).anchoredPosition.y, .01f);
+            hud.ShowModeActions(false);
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
+            Object.Destroy(bot.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator TouchButtonsAtTheTopPushThePlayerBarUnderThem()
+        {
+            var you = Spawn(TouchBinding.Shared);
+            var bot = Spawn(new BotBinding());
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            hud.SetScoreboard(new[] { you, bot }, _ => 0, 3, true);
+            hud.ShowTouchControls(true);
+            yield return new WaitForSecondsRealtime(0.25f);
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            var bar = (RectTransform)safe.Find("Player bar");
+            var plate = (RectTransform)bar.Find("Backing");
+            var view = safe.Find("Touch controls").GetComponent<TouchLayoutView>();
+            for (var part = Wreckabulary.Rules.TouchPart.Move; part <= Wreckabulary.Rules.TouchPart.Eye; part++)
+            {
+                var rt = view.Part(part);
+                if (rt && rt.gameObject.activeInHierarchy) AssertApart(rt, plate, "Touch buttons never cover the bar or its plate.");
+            }
+            Assert.GreaterOrEqual(hud.TopInset, Wreckabulary.Rules.PlayerBar.Shift - .01f);
+            hud.ShowTouchControls(false);
+            yield return new WaitForSecondsRealtime(0.12f);
+            Assert.AreEqual(-Wreckabulary.Rules.PlayerBar.Top, bar.anchoredPosition.y, .01f, "Back at the top once the touch buttons go.");
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
+            Object.Destroy(bot.gameObject);
         }
 
         [UnityTest]

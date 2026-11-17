@@ -13,7 +13,7 @@ namespace Wreckabulary
         {
             var holder = Rect("Look around", column, new Vector2(0f, 1f), new Vector2(-EyeGap, -MinimapSide), new Vector2(EyeSize, EyeSize));
             holder.pivot = new Vector2(1f, 0f);
-            var face = Panel("Eye", holder, new Vector2(.5f, .5f), Vector2.zero, new Vector2(EyeSize, EyeSize), new Vector2(.5f, .5f), Glass, true);
+            var face = eyeRect = Panel("Eye", holder, new Vector2(.5f, .5f), Vector2.zero, new Vector2(EyeSize, EyeSize), new Vector2(.5f, .5f), Glass, true);
             var body = face.GetComponent<Image>();
             body.raycastTarget = true;
             var icon = CreateImage("Icon", face, new Vector2(.5f, .5f), Vector2.zero, new Vector2(28f, 28f), OnGame);

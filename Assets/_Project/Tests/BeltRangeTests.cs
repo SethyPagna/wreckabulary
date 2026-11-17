@@ -225,7 +225,7 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(safe.Find("Side column/Room").gameObject.activeSelf, "One room: the map's own label is enough.");
             Assert.IsNotNull(safe.Find($"Side column/Minimap/Floor/House plan/Markers/Player {player.Index + 1}"), "You are on the map.");
             Assert.IsFalse(safe.Find("Side column/Alive").gameObject.activeSelf, "No head count with one player.");
-            Assert.IsFalse(safe.Find("Roommate 1").gameObject.activeSelf, "Your own stats stay bottom left, not on a card.");
+            Assert.IsFalse(safe.Find("Player bar").gameObject.activeSelf, "Your own stats stay bottom left, not on a card.");
             Assert.IsNull(safe.Find("Match label").GetComponent<Image>(), "The mode title sits on the game, with no card.");
         }
 

@@ -41,8 +41,12 @@ namespace Wreckabulary.Tests
 
         static LineRenderer Ring(PlayerController p) => p.GetComponentInChildren<PlayerHud>(true).SeatRing;
 
+        static LineRenderer YouRing(PlayerController p) => p.GetComponentInChildren<PlayerHud>(true).YouRing;
+
+        static TextMeshPro TagText(PlayerController p) => (TextMeshPro)Letters.GetValue(p.GetComponentInChildren<PlayerHud>(true));
+
         [UnityTest]
-        public IEnumerator OnACouchEveryHumanWearsASeatTagAndARing()
+        public IEnumerator OnACouchEverySeatWearsATagAndAVividRing()
         {
             var one = Spawn(new ScriptedBinding(), 0, Vector3.zero);
             var two = Spawn(new ScriptedBinding(), 1, new Vector3(3f, 0f, 0f));
@@ -51,18 +55,58 @@ namespace Wreckabulary.Tests
             StringAssert.Contains(">P1<", Tag(one), "The first seat is tagged too.");
             StringAssert.Contains(">P2<", Tag(two));
             StringAssert.Contains(">AI 3<", Tag(bot), "Bots keep their AI tag.");
-            foreach (var human in new[] { one, two })
+            foreach (var seat in new[] { one, two, bot })
             {
-                var ring = Ring(human);
-                Assert.IsNotNull(ring, human.Name + " has a ground ring");
+                var ring = Ring(seat);
+                Assert.IsNotNull(ring, seat.Name + " has a ground ring, bots included");
                 Assert.IsTrue(ring.enabled);
-                Assert.AreSame(human.transform, ring.transform.parent, "The ring sits at the player's feet.");
+                Assert.AreSame(seat.transform, ring.transform.parent, "The ring sits at the player's feet.");
+                Assert.AreEqual(PlayerHud.RingWidth, ring.startWidth, 1e-4f, "A thick ring reads from the overhead camera.");
+                Assert.AreEqual(.13f, ring.startWidth, 1e-4f);
+                Assert.AreEqual(.78f, ring.GetPosition(0).magnitude, 1e-3f, "A wider ring clears the feet.");
+                var material = ring.sharedMaterial;
+                StringAssert.Contains("Unlit", material.shader.name, "Unlit, so the seat colour stays vivid on any floor.");
+                var colour = material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : material.color;
+                Color.RGBToHSV(colour, out _, out float saturation, out float value);
+                Assert.GreaterOrEqual(value, .94f, seat.Name + " ring is a bright seat colour");
+                Assert.GreaterOrEqual(saturation, .55f);
+                var tag = TagText(seat);
+                Assert.AreEqual(PlayerHud.TagSize, tag.fontSize, 1e-3f, "Bigger name tags.");
+                Assert.AreEqual(4.2f, tag.fontSize, 1e-3f);
+                Assert.IsTrue((tag.fontStyle & FontStyles.Bold) != 0);
+                Assert.IsTrue(tag.fontSharedMaterial.IsKeywordEnabled(ShaderUtilities.Keyword_Outline), "Tags carry a dark outline over floors.");
+                Assert.Greater(tag.fontSharedMaterial.GetFloat("_OutlineWidth"), .2f);
             }
-            Assert.IsTrue(Ring(bot) == null || !Ring(bot).enabled, "Bots get no seat ring.");
+            Assert.AreNotEqual(Ring(one).sharedMaterial.GetColor("_BaseColor"), Ring(two).sharedMaterial.GetColor("_BaseColor"), "Each seat has its own colour.");
             two.Health.Eliminate();
+            bot.Health.Eliminate();
             yield return new WaitForSeconds(.1f);
             Assert.IsFalse(Ring(two).enabled, "A wrecked player's ring goes.");
+            Assert.IsFalse(Ring(bot).enabled);
             Assert.AreEqual("", Tag(two));
+        }
+
+        [UnityTest]
+        public IEnumerator YourOwnSeatGetsAThinWhiteOuterRing()
+        {
+            var hud = new GameObject("Ring HUD", typeof(Canvas)).AddComponent<GameHud>();
+            var you = Spawn(TouchBinding.Shared, 0, Vector3.zero);
+            var bot = Spawn(new BotBinding(), 1, new Vector3(3f, 0f, 0f), "AI 2");
+            yield return new WaitForSecondsRealtime(.3f);
+            Assert.AreSame(you, hud.LocalPlayer);
+            var outer = YouRing(you);
+            Assert.IsNotNull(outer, "You get a second ring so you can find yourself.");
+            Assert.IsTrue(outer.enabled);
+            Assert.AreEqual(PlayerHud.YouWidth, outer.startWidth, 1e-4f);
+            Assert.AreEqual(.9f, outer.GetPosition(0).magnitude, 1e-3f, "just outside the seat ring");
+            Assert.Greater(outer.GetPosition(0).magnitude - PlayerHud.RingRadius, PlayerHud.RingWidth * .5f, "It never overlaps the seat ring.");
+            var white = outer.sharedMaterial.HasProperty("_BaseColor") ? outer.sharedMaterial.GetColor("_BaseColor") : outer.sharedMaterial.color;
+            Assert.Greater(Mathf.Min(white.r, white.g, white.b), .95f, "white");
+            Assert.IsTrue(YouRing(bot) == null || !YouRing(bot).enabled, "Only you wear it.");
+            you.Health.Eliminate();
+            yield return new WaitForSeconds(.1f);
+            Assert.IsFalse(outer.enabled, "It goes with your seat ring when you're wrecked.");
+            Object.Destroy(hud.gameObject);
         }
 
         [UnityTest]

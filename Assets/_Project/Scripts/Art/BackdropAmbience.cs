@@ -53,6 +53,7 @@ namespace Wreckabulary.Art
                 else if (!loop) loop = clip;
             }
             calls = oneShots.ToArray();
+            foreach (var call in calls) if (call.loadState == AudioDataLoadState.Unloaded) call.LoadAudioData();
             random = new System.Random(StableSeed(theme));
             if (loop)
             {
@@ -168,6 +169,11 @@ namespace Wreckabulary.Art
             int pick = random.Next(calls.Length);
             if (calls.Length > 1 && pick == lastCall) pick = (pick + 1 + random.Next(calls.Length - 1)) % calls.Length;
             lastCall = pick;
+            if (calls[pick].loadState != AudioDataLoadState.Loaded)
+            {
+                if (calls[pick].loadState == AudioDataLoadState.Unloaded) calls[pick].LoadAudioData();
+                return;
+            }
             int index = nextVoice;
             nextVoice = (nextVoice + 1) % voices.Length;
             var voice = voices[index];

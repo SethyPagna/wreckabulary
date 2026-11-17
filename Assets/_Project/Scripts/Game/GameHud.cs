@@ -53,8 +53,6 @@ namespace Wreckabulary
         const float Chip = 52f, ChipGap = 10f;
         const int ChipsPerRow = 6;
 
-        const int MaxCards = 8, RoomyCards = 4;
-        readonly List<PlayerCard> cards = new();
         readonly List<Sprite> ownedSprites = new();
         readonly List<Texture2D> ownedTextures = new();
         readonly List<TouchStick> sticks = new();
@@ -65,7 +63,7 @@ namespace Wreckabulary
         readonly HandView[] hands = new HandView[2], bagHands = new HandView[2];
         IReadOnlyList<PlayerController> players;
         Func<PlayerController, int> wins;
-        int roundsToWin, cardsLaidOut = RoomyCards;
+        int roundsToWin;
         bool showWins;
         string scoreUnit;
         PlayerJoinManager joins;
@@ -129,15 +127,6 @@ namespace Wreckabulary
         readonly Dictionary<PlayerController, bool> priorFrozen = new();
         bool simulationPaused;
 
-        sealed class PlayerCard
-        {
-            public GameObject root;
-            public Image badge, fill;
-            public TextMeshProUGUI name, status;
-            public string shownName;
-            public int shownWins = int.MinValue, shownTarget, shownStatus = int.MinValue;
-            public string shownUnit;
-        }
         sealed class LetterCell
         {
             public Image face, edge, ring, outline;
@@ -208,8 +197,7 @@ namespace Wreckabulary
             StyleLegacyText();
             BuildTop(); BuildSide(); BuildStatus(); BuildVitals(); BuildTray(); BuildHint();
             BuildComposer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause(); BuildCrosshair(); BuildCards();
-            foreach (var part in new[] { side, tray, vitals, hint, status, (RectTransform)craftRoot.transform, (RectTransform)touchRoot.transform, (RectTransform)typewriterControls.transform }
-                .Concat(cards.Select(c => (RectTransform)c.root.transform)))
+            foreach (var part in new[] { side, tray, vitals, hint, status, bar, (RectTransform)craftRoot.transform, (RectTransform)touchRoot.transform, (RectTransform)typewriterControls.transform })
                 bagHides.Add(part.gameObject.AddComponent<CanvasGroup>());
             ShowTouchControls(Application.isMobilePlatform);
             ApplySafeArea();
@@ -291,12 +279,12 @@ namespace Wreckabulary
 
         void BuildTop()
         {
-            var brand = Panel("Brand", safe, new Vector2(0f, 1f), new Vector2(38f, -30f), new Vector2(58f, 58f), new Vector2(0f, 1f), Hex(0xf2d295));
+            var brand = brandRect = Panel("Brand", safe, new Vector2(0f, 1f), new Vector2(BrandX, -30f), new Vector2(58f, 58f), new Vector2(0f, 1f), Hex(0xf2d295));
             brand.localRotation = Quaternion.Euler(0f, 0f, 5f);
             brand.GetComponent<Image>().raycastTarget = true;
             brand.gameObject.AddComponent<Button>().onClick.AddListener(TogglePause);
             Text("W", brand, new Vector2(.5f, .5f), new Vector2(-3f, 0f), new Vector2(50f, 50f), 34f, Ink).text = "W<size=55%><color=#B86647>!</color></size>";
-            var label = Rect("Match label", safe, new Vector2(0f, 1f), new Vector2(112f, -28f), new Vector2(460f, 100f));
+            var label = labelRect = Rect("Match label", safe, new Vector2(0f, 1f), new Vector2(LabelX, -LabelY), new Vector2(LabelWidth, LabelHeight));
             label.pivot = new Vector2(0f, 1f);
             matchTag = Text("Tag", label, new Vector2(0f, 1f), Vector2.zero, new Vector2(460f, 22f), 17f, Gold, TextAlignmentOptions.Left);
             matchTag.characterSpacing = 1f; matchTag.rectTransform.pivot = new Vector2(0f, 1f);
@@ -306,30 +294,14 @@ namespace Wreckabulary
             matchDetail.characterSpacing = 0f; matchDetail.rectTransform.pivot = new Vector2(0f, 1f);
             matchDetail.overflowMode = TextOverflowModes.Ellipsis;
             foreach (var text in new[] { matchTag, matchTitle, matchDetail }) { OnGameText(text); AddHudShadow(text); }
-
-            for (int i = 0; i < MaxCards; i++)
-            {
-                var rt = Rect($"Roommate {i + 1}", safe, new Vector2(0f, 1f), CardSpot(i, RoomyCards), new Vector2(280f, 50f));
-                rt.pivot = new Vector2(0f, 1f);
-                var badge = Panel("Seat colour", rt, new Vector2(0f, 1f), new Vector2(4f, -5f), new Vector2(20f, 20f), new Vector2(0f, 1f), Mint, true).GetComponent<Image>();
-                AddHudShadow(badge);
-                var card = new PlayerCard { root = rt.gameObject, badge = badge };
-                card.name = Text("Name", rt, new Vector2(0f, 1f), new Vector2(38f, 0f), new Vector2(240f, 26f), 20f, OnGame, TextAlignmentOptions.Left);
-                card.name.rectTransform.pivot = new Vector2(0f, 1f);
-                OnGameText(card.name); AddHudShadow(card.name);
-                card.status = Text("Status", rt, new Vector2(0f, 1f), new Vector2(38f, -34f), new Vector2(240f, 18f), 15f, LowHp, TextAlignmentOptions.Left);
-                card.status.rectTransform.pivot = new Vector2(0f, 1f);
-                OnGameText(card.status);
-                card.fill = Fill("Health", Panel("Health track", rt, new Vector2(0f, 1f), new Vector2(38f, -28f), new Vector2(150f, 3f), new Vector2(0f, 1f), Hex(0x10292b, .55f)), Health);
-                cards.Add(card); rt.gameObject.SetActive(false);
-            }
+            BuildBar();
         }
 
         void BuildSide()
         {
             side = Rect("Side column", safe, Vector2.one, new Vector2(-38f, -30f), new Vector2(252f, 560f));
             side.pivot = Vector2.one;
-            var mapFrame = Panel("Minimap", side, new Vector2(0f, 1f), Vector2.zero, new Vector2(252f, 252f), new Vector2(0f, 1f), MapEdge);
+            var mapFrame = minimapRect = Panel("Minimap", side, new Vector2(0f, 1f), Vector2.zero, new Vector2(252f, 252f), new Vector2(0f, 1f), MapEdge);
             miniMap = MakeMap(mapFrame, false, 7f);
             BuildLookEye(side);
             var alive = Rect("Alive", side, new Vector2(0f, 1f), new Vector2(0f, -264f), new Vector2(110f, 54f));
@@ -373,7 +345,7 @@ namespace Wreckabulary
 
         void BuildStatus()
         {
-            status = Rect("Status", safe, new Vector2(.5f, 1f), new Vector2(0f, -140f), new Vector2(525f, 50f));
+            status = Rect("Status", safe, new Vector2(.5f, 1f), new Vector2(0f, StatusY), new Vector2(525f, 50f));
             status.pivot = new Vector2(.5f, 1f);
             statusText = Text("Status text", status, new Vector2(.5f, .5f), Vector2.zero, new Vector2(475f, 54f), 22f, OnGame);
             statusText.textWrappingMode = TextWrappingModes.Normal;
@@ -450,7 +422,7 @@ namespace Wreckabulary
 
         void BuildHint()
         {
-            hint = Rect("Desktop controls", safe, new Vector2(.5f, 1f), new Vector2(0f, -140f), new Vector2(720f, 40f));
+            hint = Rect("Desktop controls", safe, new Vector2(.5f, 1f), new Vector2(0f, StatusY), new Vector2(720f, 40f));
             hint.pivot = new Vector2(.5f, 1f);
             hintText = Text("Keys", hint, new Vector2(.5f, .5f), Vector2.zero, new Vector2(720f, 40f), 22f, OnGame);
             OnGameText(hintText); AddHudShadow(hintText);
@@ -565,7 +537,7 @@ namespace Wreckabulary
             AddSkill(rt, TouchAction.Grab, "INTERACT", new Vector2(-384f, 161f), 89f, Cream);
             AddSkill(rt, TouchAction.Craft, "SPELL", new Vector2(-503f, 270f), 89f, Mint);
             AddSkill(rt, TouchAction.Drop, "HOLD DROP", new Vector2(-384f, 51f), 76f, Cream);
-            playRect = (RectTransform)MakeButton("Play or Ready", rt, new Vector2(.5f, 1f), new Vector2(0f, -185f), new Vector2(200f, 50f), "PLAY", JoinOrReady).transform;
+            playRect = (RectTransform)MakeButton("Play or Ready", rt, new Vector2(.5f, 1f), new Vector2(0f, PlayY), new Vector2(200f, 50f), "PLAY", JoinOrReady).transform;
             TouchLayoutView.Attach(rt, this);
         }
 
@@ -1015,50 +987,12 @@ namespace Wreckabulary
             matchTitle.text = name;
             string goal = HouseGoals.Line(mode);
             matchDetail.text = goal.Length > 0 ? goal : layoutName.ToUpperInvariant();
+            MeasureLabel();
         }
         public static (string tag, string name) MatchHeading(string mode) => HouseModes.Find(mode) is { } house ? (house.Tag, house.Name)
             : mode == "Hub" ? ("WELCOME HOME", "The house") : ("HOUSE PARTY", "Wreckabulary");
         static bool SeatHuman(PlayerController p) => p.Binding != null && p.Binding is not BotBinding;
-        void RefreshCards()
-        {
-            var current = Roster;
-            int seats = 0, humans = 0;
-            if (current != null) foreach (var p in current) if (p) { seats++; if (SeatHuman(p)) humans++; }
-            int shown = 0;
-            LayOutCards(seats);
-            for (int i = 0; seats > 1 && i < current.Count && shown < cards.Count; i++)
-            {
-                var p = current[i];
-                if (!p) continue;
-                var card = cards[shown++];
-                if (!card.root.activeSelf) card.root.SetActive(true);
-                card.badge.color = p.Color;
-                string name = SeatTags.Name(p.Name, p == LocalPlayer, humans);
-                int won = showWins && wins != null ? wins(p) : -1;
-                if (name != card.shownName || won != card.shownWins || roundsToWin != card.shownTarget || !ReferenceEquals(scoreUnit, card.shownUnit))
-                {
-                    card.shownName = name; card.shownWins = won; card.shownTarget = roundsToWin; card.shownUnit = scoreUnit;
-                    card.name.text = won >= 0 ? $"{name}  <size=75%>{SeatScore(won, roundsToWin, scoreUnit)}</size>" : name;
-                }
-                card.fill.fillAmount = p.Health.Fraction; card.fill.color = p.Health.Fraction > .35f ? Health : Low;
-                int status = p.IsEliminated ? -1 : p.IsDowned ? Mathf.CeilToInt(p.Health.BleedOutLeft) : -2;
-                if (status != card.shownStatus)
-                {
-                    card.shownStatus = status;
-                    card.status.text = status == -1 ? "WRECKED" : status >= 0 ? $"REVIVE ME {status}s" : "";
-                }
-            }
-            for (int i = shown; i < cards.Count; i++) if (cards[i].root.activeSelf) cards[i].root.SetActive(false);
-        }
         public static string SeatScore(int score, int target, string unit) => target > 0 ? $"{score}/{target}{unit}" : $"{score}{unit}";
-        static Vector2 CardSpot(int index, int seats) => new(38f, -150f - index * (seats > RoomyCards ? 52f : 58f));
-        void LayOutCards(int seats)
-        {
-            int layout = seats > RoomyCards ? MaxCards : RoomyCards;
-            if (layout == cardsLaidOut) return;
-            cardsLaidOut = layout;
-            for (int i = 0; i < cards.Count; i++) ((RectTransform)cards[i].root.transform).anchoredPosition = CardSpot(i, layout);
-        }
         HouseLayout Layout => rooms && rooms.Layout != null ? rooms.Layout : clearOut ? clearOut.Layout : practice;
         void RefreshSide()
         {
@@ -1415,10 +1349,8 @@ namespace Wreckabulary
             {
                 playRect.anchorMin = playRect.anchorMax = portrait ? Vector2.zero : new Vector2(.5f, 1f);
                 playRect.pivot = playRect.anchorMin;
-                playRect.anchoredPosition = portrait ? new Vector2(30f, 340f) : new Vector2(0f, -185f);
             }
-            if (status) status.anchoredPosition = new Vector2(0f, portrait ? -360f : -140f);
-            if (hint) hint.anchoredPosition = new Vector2(0f, portrait ? -360f : -140f);
+            PlaceTop();
             ResizeStatus();
         }
         void ResizeStatus()
