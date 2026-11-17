@@ -40,7 +40,14 @@ namespace Wreckabulary.Tests
 
         static string Card(string path) => Hud.UiCanvas.transform.Find("Safe HUD/Result/Result card/" + path).GetComponent<TMP_Text>().text;
 
-        static string Seat(int seat) => Hud.UiCanvas.transform.Find($"Safe HUD/Roommate {seat}/Name").GetComponent<TMP_Text>().text;
+        static string Score(int seat) => Hud.UiCanvas.transform.Find($"Safe HUD/Player bar/Card {seat}/Score").GetComponent<TMP_Text>().text;
+
+        static Rect OnScreen(RectTransform rt)
+        {
+            var corners = new Vector3[4];
+            rt.GetWorldCorners(corners);
+            return Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+        }
 
         [UnityTest]
         public IEnumerator EveryoneGetsTheSameListAndQOffersYourCurrentItem()
@@ -68,7 +75,12 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitUntil(() => director.View && director.View.Root && director.View.Root.gameObject.activeInHierarchy, 2f, "the list panel");
             CollectionAssert.AreEqual(race.Items.Select(i => i.Word), director.View.LineTexts);
             Assert.AreEqual("Spell it", director.View.PromptText);
-            yield return TestScenes.WaitUntil(() => Seat(1).Contains("0/4 items"), 1f, "progress on the roster cards");
+            yield return TestScenes.WaitUntil(() => Score(1) == "0/4 items", 1f, "progress on the player cards");
+            var safe = Hud.UiCanvas.transform.Find("Safe HUD");
+            var list = OnScreen(director.View.Root);
+            Assert.IsFalse(list.Overlaps(OnScreen((RectTransform)safe.Find("Player bar/Backing"))), "The list sits clear of the player bar and its plate.");
+            Assert.IsFalse(list.Overlaps(OnScreen((RectTransform)safe.Find("Match label"))), "...and below the match label.");
+            Assert.Less(list.yMax, OnScreen((RectTransform)safe.Find("Match label")).yMin, "where the old roster was");
         }
 
         [UnityTest]

@@ -47,7 +47,9 @@ namespace Wreckabulary.Tests
 
         static string Card(string path) => Hud.UiCanvas.transform.Find("Safe HUD/Result/Result card/" + path).GetComponent<TMP_Text>().text;
 
-        static string Seat(int seat) => Hud.UiCanvas.transform.Find($"Safe HUD/Roommate {seat}/Name").GetComponent<TMP_Text>().text;
+        static string Seat(int seat) => Hud.UiCanvas.transform.Find($"Safe HUD/Player bar/Card {seat}/Name").GetComponent<TMP_Text>().text;
+
+        static string Score(int seat) => Hud.UiCanvas.transform.Find($"Safe HUD/Player bar/Card {seat}/Score").GetComponent<TMP_Text>().text;
 
         static string Objective() => Hud.UiCanvas.GetComponentsInChildren<TMP_Text>(true).First(t => t.name == "Objective text").text;
 
@@ -84,7 +86,7 @@ namespace Wreckabulary.Tests
             yield return null;
             Assert.AreEqual(1, director.Race.Of(players[1].Index));
             Assert.AreEqual(Phase.Playing, RoundManager.Instance.Phase);
-            yield return TestScenes.WaitUntil(() => Seat(2).Contains("1/2 KO"), 1f, "roster cards to show knockouts against the target");
+            yield return TestScenes.WaitUntil(() => Score(2) == "1/2 KO", 1f, "player cards to show knockouts against the target");
             StringAssert.StartsWith("AI 2", Seat(2));
             yield return TestScenes.WaitUntil(() => !players[2].IsKnockedOut, 2f, "the knockout to come back");
             Knock(players[3], players[1]);
@@ -175,8 +177,37 @@ namespace Wreckabulary.Tests
             }
             Assert.IsNotNull(director.HoldRoom);
             var safe = Hud.UiCanvas.transform.Find("Safe HUD");
-            yield return TestScenes.WaitUntil(() => safe.Find("Roommate 8").gameObject.activeSelf, 1f, "a card for every seat");
-            Assert.Less(((RectTransform)safe.Find("Roommate 8")).anchoredPosition.y, ((RectTransform)safe.Find("Roommate 7")).anchoredPosition.y);
+            yield return TestScenes.WaitUntil(() => safe.Find("Player bar/Card 8").gameObject.activeSelf, 1f, "a card for every seat");
+            yield return new WaitForSecondsRealtime(.1f);
+            var bar = (RectTransform)safe.Find("Player bar");
+            var plate = (RectTransform)bar.Find("Backing");
+            var corners = new Vector3[4];
+            plate.GetWorldCorners(corners);
+            var area = new Vector3[4];
+            ((RectTransform)safe).GetWorldCorners(area);
+            Assert.GreaterOrEqual(corners[0].x, area[0].x, "Eight cards and their plate fit inside the safe area.");
+            Assert.LessOrEqual(corners[2].x, area[2].x);
+            Assert.LessOrEqual(bar.rect.width, 900f, "Eight snug cards stay within about 900 px.");
+            int humans = Joins.HumanCount;
+            var teamOf = Joins.Players.ToDictionary(p => SeatTags.Name(p.Name, p == Hud.LocalPlayer, humans), p => p.Team);
+            var cards = Enumerable.Range(1, 8).Select(i => (RectTransform)bar.Find($"Card {i}")).ToArray();
+            var teams = cards.Select(c => teamOf[c.Find("Name").GetComponent<TMP_Text>().text]).ToArray();
+            CollectionAssert.AreEqual(new[] { 0, 0, 0, 0, 1, 1, 1, 1 }, teams, "Cards sort by team: one side left, the other right.");
+            for (int i = 1; i < 8; i++) Assert.Greater(cards[i].anchoredPosition.x, cards[i - 1].anchoredPosition.x, "left to right");
+            float split = cards[4].anchoredPosition.x - cards[3].anchoredPosition.x, step = cards[1].anchoredPosition.x - cards[0].anchoredPosition.x;
+            Assert.AreEqual(PlayerBar.TeamGap - PlayerBar.SnugGap, split - step, .5f, "A 36 px gap splits the teams.");
+            Assert.AreEqual(PlayerBar.SnugCard, cards[0].rect.width, .01f);
+            Assert.AreEqual(0, plate.GetSiblingIndex(), "The plate sits behind the cards.");
+            var span = new Vector3[4];
+            foreach (var card in cards)
+            {
+                card.GetWorldCorners(span);
+                Assert.LessOrEqual(corners[0].x, span[0].x, card.name + " sits on the plate");
+                Assert.GreaterOrEqual(corners[2].x, span[2].x, card.name);
+                Assert.LessOrEqual(corners[0].y, span[0].y, card.name);
+                Assert.GreaterOrEqual(corners[2].y, span[2].y, card.name);
+            }
+            Assert.AreEqual(PlayerBar.PlateWidth(bar.rect.width), plate.rect.width, .01f, "One plate spans both teams and the gap.");
         }
 
         [Test]
@@ -229,7 +260,7 @@ namespace Wreckabulary.Tests
             var them = Joins.Players.Where(p => p.Team == 1).ToArray();
             yield return TestScenes.WaitUntil(() => Objective().Contains("Your team · 1 life"), 1f, "both teams' lives on screen");
             StringAssert.Contains("Team 2 · 1 life", Objective());
-            yield return TestScenes.WaitUntil(() => Seat(1).Contains(" KO"), 1f, "knockout counts on the cards");
+            yield return TestScenes.WaitUntil(() => Score(1).EndsWith(" KO"), 1f, "knockout counts on the cards");
             Knock(them[0], you);
             Assert.AreEqual(0, director.Score.Lives(1));
             yield return TestScenes.WaitUntil(() => !them[0].IsKnockedOut, 2f, "the spent life to bring them back");

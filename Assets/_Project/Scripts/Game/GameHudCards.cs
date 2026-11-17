@@ -282,7 +282,7 @@ namespace Wreckabulary
 
         void BuildToast()
         {
-            toast = Put(Rect("Toast", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -238f), new Vector2(300f, 50f));
+            toast = Put(Rect("Toast", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, ToastY - topInset), new Vector2(300f, 50f));
             toastFade = toast.gameObject.AddComponent<CanvasGroup>();
             toastFade.blocksRaycasts = toastFade.interactable = false;
             SoftShadow(toast, ToastDrop, 37.5f, -10f);
@@ -296,7 +296,7 @@ namespace Wreckabulary
 
         void BuildChip()
         {
-            chip = Put(Rect("Round chip", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -25f), new Vector2(300f, 56f));
+            chip = Put(Rect("Round chip", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, ChipY - topInset), new Vector2(300f, 56f));
             SoftShadow(chip, CardDrop, 30f, -8f);
             Paint(Cover("Lip", chip, 0f, -5f), LobbyIcons.RoundedSprite(28), PrimaryLip);
             Paint(Cover("Face", chip), LobbyIcons.RoundedSprite(28), Primary);
@@ -316,7 +316,7 @@ namespace Wreckabulary
 
         void BuildBanner()
         {
-            banner = Put(Rect("Round banner", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -100f), new Vector2(720f, 116f));
+            banner = Put(Rect("Round banner", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, BannerY - topInset), new Vector2(720f, 116f));
             bannerFade = banner.gameObject.AddComponent<CanvasGroup>();
             bannerFade.blocksRaycasts = bannerFade.interactable = false;
             SoftShadow(banner, ToastDrop, 37.5f, -10f);
@@ -398,7 +398,7 @@ namespace Wreckabulary
 
         void BuildModeActions()
         {
-            var row = Put(Rect("Mode actions", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -300f), new Vector2(476f, 68f));
+            var row = Put(Rect("Mode actions", safe, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, ModeActionsY - topInset), new Vector2(476f, 68f));
             modeActions = row.gameObject;
             var play = CardButton(row, "Play", "START WITH AI →", () => { if (AcceptsGameplayInput) modeAction?.Invoke(); }, true, 60f);
             Put((RectTransform)play.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, new Vector2(260f, 60f));
@@ -1216,7 +1216,7 @@ namespace Wreckabulary
                 {
                     float shown = age < .2f ? age / .2f : age < 2.7f ? 1f : 1f - (age - 2.7f) / .2f;
                     toastFade.alpha = Mathf.Clamp01(shown) * (bagHidden ? 0f : 1f);
-                    toast.anchoredPosition = new Vector2(0f, -238f + 12.5f * (1f - Mathf.Clamp01(shown)));
+                    toast.anchoredPosition = new Vector2(0f, ToastY - topInset + 12.5f * (1f - Mathf.Clamp01(shown)));
                 }
             }
             if (chip && chip.gameObject.activeSelf)
@@ -1235,6 +1235,7 @@ namespace Wreckabulary
                 else bannerFade.alpha = Mathf.Clamp01(Mathf.Min(age / .2f, (BannerSeconds - age) / .3f)) * (bagHidden ? 0f : 1f);
             }
             RefreshModeActionVisibility();
+            PulseCards();
             ReadComposerKeys();
         }
 

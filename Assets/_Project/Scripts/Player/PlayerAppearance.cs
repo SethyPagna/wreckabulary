@@ -56,6 +56,7 @@ namespace Wreckabulary
 
 
         public Outfit CurrentOutfit => outfit?.Clone();
+        public int OutfitVersion { get; private set; }
         public GameObject AuthoredAvatar => authoredAvatar;
         public GameObject AvatarModel => model;
         public Transform RightGrip => gripR;
@@ -217,6 +218,7 @@ namespace Wreckabulary
         void ApplyOutfit(Outfit next, bool save)
         {
             outfit = Dress(meshes, next, GameConfig.Current.Wardrobe, controller ? controller.Index : 0);
+            OutfitVersion++;
             if (save && controller)
             {
                 PlayerPrefs.SetString("wv.outfit." + controller.Index, outfit.Serialize());

@@ -129,9 +129,11 @@ namespace Wreckabulary.Rules.Tests
             Assert.IsTrue(SeatTags.ShowsTag(true, 2, false), "Couch: every human, the followed one too.");
             Assert.IsFalse(SeatTags.ShowsTag(true, 2, true), "The shoulder camera's player keeps the view clear.");
             Assert.IsTrue(SeatTags.ShowsTag(false, 1, false), "Bots keep their AI tag.");
-            Assert.IsTrue(SeatTags.ShowsRing(true, false));
-            Assert.IsFalse(SeatTags.ShowsRing(true, true));
-            Assert.IsFalse(SeatTags.ShowsRing(false, false));
+            Assert.IsTrue(SeatTags.ShowsRing(false), "Every seat wears a ring, bots included.");
+            Assert.IsFalse(SeatTags.ShowsRing(true), "A wrecked seat's ring goes.");
+            Assert.IsTrue(SeatTags.MarksYou(true, false), "You get the white outer ring.");
+            Assert.IsFalse(SeatTags.MarksYou(true, true));
+            Assert.IsFalse(SeatTags.MarksYou(false, false));
             Assert.AreEqual("You", SeatTags.Name("P1", true, 1));
             Assert.AreEqual("P1", SeatTags.Name("P1", true, 2));
             Assert.AreEqual("AI 3", SeatTags.Name("AI 3", false, 1));

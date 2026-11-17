@@ -8,7 +8,7 @@ namespace Wreckabulary
 {
     public sealed class ShoppingListHud : MonoBehaviour
     {
-        const float Width = 280f, Head = 30f, Row = 28f, Tile = 24f, TileStep = 28f, Gap = 8f;
+        const float Left = 38f, Width = 280f, Head = 30f, Row = 28f, Tile = 24f, TileStep = 28f, Gap = 8f;
         static readonly Color Backing = Hex(0x10292b, .62f), Band = Hex(0xffd46a, .22f), Gold = Hex(0xffe7b8), OnGame = Hex(0xfff7e8);
         static readonly Color Done = Hex(0xb7dfc8), Faded = Hex(0xfff7e8, .55f), Pending = Hex(0xfff7e8, .82f);
         static readonly Color TileGot = Hex(0xe8c48b), TileGotInk = Hex(0x3b2614), TileMissingInk = Hex(0xffffff, .65f), TileRim = Hex(0xfff4e2, .55f);
@@ -69,7 +69,7 @@ namespace Wreckabulary
             panel = Shape(0f);
             ring = Shape(4.4f);
             dot = Shape(0f, true);
-            root = Rect("Shopping list", parent, new Vector2(0f, 1f), new Vector2(38f, -390f), new Vector2(Width, 200f));
+            root = Rect("Shopping list", parent, new Vector2(0f, 1f), new Vector2(Left, -hud.LeftColumnStart), new Vector2(Width, 200f));
             root.pivot = new Vector2(0f, 1f);
             var back = root.gameObject.AddComponent<Image>();
             back.sprite = panel; back.type = Image.Type.Sliced; back.color = Backing; back.raycastTarget = false;
@@ -92,6 +92,8 @@ namespace Wreckabulary
             bool shown = you && race != null && race.Items.Count > 0 && source.ShowsList && !hud.ResultShown;
             if (root.gameObject.activeSelf != shown) root.gameObject.SetActive(shown);
             if (!shown) return;
+            var spot = new Vector2(Left, -hud.LeftColumnStart);
+            if (root.anchoredPosition != spot) root.anchoredPosition = spot;
             long key = Key(race, you);
             if (key == shownKey) return;
             shownKey = key;
@@ -115,7 +117,6 @@ namespace Wreckabulary
             int seat = you.Index, done = race.Done(seat), total = race.Items.Count;
             if (builtFor != total) BuildLines(total);
             count.text = ShoppingList.Progress(done, total);
-            root.anchoredPosition = new Vector2(38f, -150f - Mathf.Max(1, source.Players.Count) * 58f - 8f);
             for (int i = 0; i < total; i++)
             {
                 var line = lines[i];

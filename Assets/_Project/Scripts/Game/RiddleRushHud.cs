@@ -10,7 +10,7 @@ namespace Wreckabulary
     public sealed class RiddleRushHud : MonoBehaviour
     {
         const int MaxTiles = 10;
-        const float TileSize = 34f, TileGap = 6f, Width = 720f, Height = 98f;
+        const float TileSize = 34f, TileGap = 6f, Width = 720f, Height = 98f, Top = 12f;
         static readonly Color Backing = new(.07f, .16f, .16f, .86f), Ink = new(1f, .97f, .91f), Muted = new(1f, .96f, .88f, .78f);
         static readonly Color Blank = new(1f, 1f, 1f, .14f), Filled = new(.96f, .86f, .65f), Hinted = new(1f, .83f, .42f), TileInk = new(.09f, .23f, .24f);
 
@@ -61,7 +61,7 @@ namespace Wreckabulary
             var safe = canvas.Find("Safe HUD");
             var parent = safe ? safe : canvas;
             rounded = Rounded();
-            root = Box("Riddle panel", parent, new Vector2(.5f, 1f), new Vector2(0f, -12f), new Vector2(Width, Height), Backing);
+            root = Box("Riddle panel", parent, new Vector2(.5f, 1f), new Vector2(0f, -Top - hud.TopInset), new Vector2(Width, Height), Backing);
             root.pivot = new Vector2(.5f, 1f);
             clue = Label("Clue", root, new Vector2(0f, -8f), new Vector2(Width - 32f, 30f), 24f, Ink);
             clue.enableAutoSizing = true; clue.fontSizeMin = 16f; clue.fontSizeMax = 24f;
@@ -90,6 +90,8 @@ namespace Wreckabulary
                 && !hud.BagOpen && !hud.ResultShown && !hud.BannerShown && !hud.CountdownShown;
             if (root.gameObject.activeSelf != show) root.gameObject.SetActive(show);
             if (!show) return;
+            float y = -Top - hud.TopInset;
+            if (root.anchoredPosition.y != y) root.anchoredPosition = new Vector2(0f, y);
             Refresh(race);
         }
 
