@@ -231,6 +231,7 @@ namespace Wreckabulary
         public const string Caption = "Family caption";
         public float ButtonWidth = 104, ButtonHeight = 52, CaptionHeight = 22;
         public float Spacing = 6, FamilySpacing = 28, LineSpacing = 8, OneLineScale = .8f;
+        public bool Stacked;
         readonly Dictionary<Transform, float> natural = new Dictionary<Transform, float>();
         float arrangedWidth = -1f;
         int arrangedCount = -1;
@@ -269,7 +270,8 @@ namespace Wreckabulary
             if (families.Count == 0) return;
             var lines = new List<List<RectTransform>>();
             int start = 0;
-            foreach (int size in Lines(families.Select(Natural).ToList(), FamilySpacing, width, OneLineScale))
+            var sizes = Stacked ? Enumerable.Repeat(1, families.Count).ToArray() : Lines(families.Select(Natural).ToList(), FamilySpacing, width, OneLineScale);
+            foreach (int size in sizes)
             {
                 lines.Add(families.GetRange(start, size));
                 start += size;

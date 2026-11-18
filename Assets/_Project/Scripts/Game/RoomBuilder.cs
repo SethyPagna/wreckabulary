@@ -81,6 +81,7 @@ namespace Wreckabulary
             root.SetParent(world.transform, false);
             SpawnHome(root, null);
             if (previous) { previous.gameObject.SetActive(false); Destroy(previous.gameObject); }
+            RoomDetail.GiveWay(world.GeometryRoot, root);
             world.Configure(world.MapId, world.GeometryRoot, root);
         }
 

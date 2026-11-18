@@ -7,6 +7,14 @@ namespace Wreckabulary.Rules.Tests
 {
     public sealed class WorkshopModeTests
     {
+        [TestCase("TimeRun", "Time Trial", "Time Trial"), TestCase("TeamRace", "Team Race", "Team Relay"), TestCase("BrawlRace", "Brawl Race", "Brawl Relay")]
+        [TestCase("FreeForAll", "Free-for-All", "Free-for-All"), TestCase("Freestyle", "Free Roam", "Freeplay")]
+        public void PlayerFacingCourseNamesComeFromOnePlaceAndLeaveTheRulesetNameAlone(string mode, string shown, string ruleset)
+        {
+            Assert.AreEqual(shown, WorkshopModes.Name(mode));
+            Assert.AreEqual(ruleset, ModeDefinition.For(mode, RaceFormat.Solo).Name, "the hashed mode definition keeps its name");
+        }
+
         [Test]
         public void RaceTemplateOffersExplicitTimeRunWithoutChangingTheCourse()
         {
@@ -72,7 +80,7 @@ namespace Wreckabulary.Rules.Tests
             var summary = WorkshopModes.Summary(mode, format);
             Assert.AreEqual(win, summary.HowToWin); Assert.AreEqual(players, summary.Players);
             Assert.AreEqual(definition.IsRace, summary.IsRace); Assert.AreEqual(definition.HasRaceFormat, summary.HasTeamFormat);
-            Assert.AreEqual(definition.Name, summary.Name);
+            Assert.AreEqual(WorkshopModes.Name(mode), summary.Name);
             Assert.AreSame(WorkshopModes.Definition(mode, format), WorkshopModes.Definition(mode, format));
             Assert.AreEqual(definition.Hash, WorkshopModes.Definition(mode, format).Hash);
             Assert.AreSame(summary, WorkshopModes.Summary(mode, format));

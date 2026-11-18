@@ -77,9 +77,9 @@ namespace Wreckabulary.Workshop
         {
             if (History == null) throw new InvalidOperationException("Open a map first.");
             CancelGesture();
-            History.Execute("Add Freeplay", WorkshopModes.EnableFreestyleSandbox);
+            History.Execute("Add " + WorkshopModes.Name("Freestyle"), WorkshopModes.EnableFreestyleSandbox);
             SelectMode("Freestyle");
-            ShowStatus("Freeplay added to this map and chosen · undo is available.");
+            ShowStatus(WorkshopModes.Name("Freestyle") + " added to this map and chosen · undo is available.");
         }
 
         public void ShowStatus(string message)

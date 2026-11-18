@@ -443,9 +443,9 @@ namespace Wreckabulary.Tests
             yield return new WaitForSecondsRealtime(1f);
             Assert.IsFalse(hud.CountdownShown, "GO goes a moment later.");
 
-            hud.ShowBanner("Round 1 · Dibs!", "Last one standing wins the round · First to 3");
+            hud.ShowBanner("Round 1 · Last One Standing", "Knock out everyone else to win the round · First to 3");
             Assert.IsTrue(hud.BannerShown);
-            Assert.AreEqual("Round 1 · Dibs! · Last one standing wins the round · First to 3", hud.BannerText);
+            Assert.AreEqual("Round 1 · Last One Standing · Knock out everyone else to win the round · First to 3", hud.BannerText);
             var banner = (RectTransform)hud.transform.Find("Safe HUD/Round banner");
             Assert.GreaterOrEqual(banner.Find("Title").GetComponent<TMPro.TMP_Text>().fontSize, 40f, "The round banner is large.");
             Assert.IsFalse(banner.GetComponent<CanvasGroup>().blocksRaycasts, "It never blocks a click.");
@@ -548,10 +548,10 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(1, homes);
             Assert.IsFalse(hud.ResultShown);
 
-            hud.ShowResult(new HudResult { Final = true, Heading = "You're ready!", Eyebrow = "TUTORIAL COMPLETE", NextLabel = "PLAY DIBS! NOW →",
+            hud.ShowResult(new HudResult { Final = true, Heading = "You're ready!", Eyebrow = "TUTORIAL COMPLETE", NextLabel = "PLAY A MATCH NOW →",
                 HomeLabel = "Back to the lobby", Stats = false }, () => nexts++, () => homes++);
             Assert.AreEqual("TUTORIAL COMPLETE", Text("Eyebrow"));
-            Assert.AreEqual("PLAY DIBS! NOW →", Text("Next/Body/Label"));
+            Assert.AreEqual("PLAY A MATCH NOW →", Text("Next/Body/Label"));
             Assert.AreEqual("Back to the lobby", Text("Result home/Body/Label"));
             Assert.IsFalse(result.Find("Stats").gameObject.activeSelf, "Stats = false hides the stats row.");
             Assert.IsFalse(result.Find("Players").gameObject.activeSelf, "No seat lines without a roster.");
@@ -826,7 +826,7 @@ namespace Wreckabulary.Tests
             var safe = (RectTransform)hud.transform.Find("Safe HUD");
             hud.SetScoreboard(new[] { you, bot }, _ => 0, 3, true);
             hud.ShowCountdown(3, "ROUND 1 · LIVING ROOM");
-            hud.ShowBanner("Round 1 · Dibs!", "Last one standing wins the round · First to 3");
+            hud.ShowBanner("Round 1 · Last One Standing", "Knock out everyone else to win the round · First to 3");
             hud.Toast("Spelling BAT…");
             hud.SetInstruction("Smash furniture", "Spell items from the letters");
             hud.ShowModeActions(true, "START WITH AI →", () => { });
@@ -971,7 +971,7 @@ namespace Wreckabulary.Tests
             foreach (string mode in new[] { "Dibs", "Duos", "MovingOut", "MovingDay", "Escape" })
                 Assert.AreEqual(LobbyPlayModeLabels.Name(mode), GameHud.MatchHeading(mode).name, mode);
             Assert.AreEqual("Duos", GameHud.MatchHeading("Duos").name);
-            Assert.AreEqual("Moving Out", GameHud.MatchHeading("MovingOut").name);
+            Assert.AreEqual("Pack the Van", GameHud.MatchHeading("MovingOut").name);
             Assert.AreEqual("CO-OP", GameHud.MatchHeading("Escape").tag);
             Assert.AreEqual("The house", GameHud.MatchHeading("Hub").name);
         }

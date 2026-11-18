@@ -157,8 +157,8 @@ namespace Wreckabulary
             Round = 1, Final = true, Won = true, Stats = false,
             Eyebrow = "TUTORIAL COMPLETE",
             Heading = "You're ready!",
-            Flavour = "Now try a real match of Dibs! with bots.",
-            NextLabel = "PLAY DIBS! NOW →",
+            Flavour = $"Now try a real match of {HouseModes.Name(PlayNextMode)} with bots.",
+            NextLabel = "PLAY A MATCH NOW →",
             HomeLabel = "Back to the lobby",
         };
 

@@ -225,11 +225,11 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual("MATCH OVER · P3 WINS", ShoppingList.Eyebrow(5, true, "P3"));
             Assert.AreEqual("ROUND 1 · DRAW", ShoppingList.Eyebrow(1, false, null));
             Assert.AreEqual("ROUND 1 · YOU WIN", ShoppingList.Eyebrow(1, false, "You"));
-            Assert.AreEqual("You win Shopping List.", ShoppingList.Flavour("You", true, 3));
+            Assert.AreEqual("You win Spell the List.", ShoppingList.Flavour("You", true, 3));
             Assert.AreEqual("P3 got everything on the list!", ShoppingList.Heading("P3", true));
             Assert.AreEqual("Time’s up. P3 ticked off the most.", ShoppingList.Heading("P3", false));
             StringAssert.Contains("draw", ShoppingList.Heading(null, false));
-            Assert.AreEqual("P3 wins Shopping List.", ShoppingList.Flavour("P3", true, 3));
+            Assert.AreEqual("P3 wins Spell the List.", ShoppingList.Flavour("P3", true, 3));
             Assert.AreEqual("First to 3 rounds wins. Next round, new list.", ShoppingList.Flavour("P3", false, 3));
         }
     }

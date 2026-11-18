@@ -39,8 +39,15 @@ namespace Wreckabulary.Online
         }
 
         string MemberLine(WordboundPartyView party, WordboundPartyMember member) =>
-            (member.PlayerId == coordinator.PlayerId ? "You" : "Player " + member.PlayerId.Substring(0, 6)) +
+            (member.PlayerId == coordinator.PlayerId ? "You" : "Player " + MemberNumber(party, member)) +
             (member.PlayerId == party.LeaderId ? " · leader" : "") + (member.Ready ? " · ready" : " · not ready");
+
+        static int MemberNumber(WordboundPartyView party, WordboundPartyMember member)
+        {
+            for (int i = 0; i < party.Members.Count; i++)
+                if (party.Members[i].PlayerId == member.PlayerId) return i + 1;
+            return party.Members.Count + 1;
+        }
 
         string PartyVoiceKeyHint() => partyUsesPad ? ControlHints.PadPushToTalk : ControlHints.PushToTalkKey;
 

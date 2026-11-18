@@ -6,6 +6,8 @@ namespace Wreckabulary
         public static void Request()
         {
             WordboundSoloEntry.CancelRequest();
+            WordboundQuickPlayEntry.CancelRequest();
+            WordboundRoomEntry.CancelRequest();
             pending = true;
             returnToSelection = false;
         }

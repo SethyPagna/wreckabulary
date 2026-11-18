@@ -52,7 +52,7 @@ namespace Wreckabulary.Workshop
 
         static string StarterHint(WorkshopStarter starter) => starter switch
         {
-            WorkshopStarter.Blank => "One empty room with start spots · ready to test in Freeplay",
+            WorkshopStarter.Blank => "One empty room with start spots · ready to test in " + WorkshopModes.Name("Freestyle"),
             WorkshopStarter.RaceCircuit => "A small race with three laps", WorkshopStarter.Arena => "A room for knockout battles",
             WorkshopStarter.FreeplayWorld => "Two rooms to explore and spell in", WorkshopStarter.ParcelDepot => "The Parcel Depot course",
             _ => "The four-floor Lost Address course"

@@ -54,6 +54,8 @@ namespace Wreckabulary.Online
         {
             string soloMode = WordboundSoloEntry.TakeRequest();
             localWorkshopEntry = WordboundWorkshopEntry.TakeRequest();
+            bool quickPlay = WordboundQuickPlayEntry.TakeRequest();
+            var room = WordboundRoomEntry.TakeRequest();
             try
             {
                 if (!Assets) Assets = Resources.Load<WordboundLaunchAssets>(WordboundLaunchAssets.ResourcePath);
@@ -94,6 +96,8 @@ namespace Wreckabulary.Online
                 menu.CloseRequested += BackToLobby;
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
+                if (quickPlay) menu.StartMatchmaking();
+                else if (room != null) OpenRoom(room);
             }
             catch (Exception error) { failure = localWorkshopEntry ? WorkshopStartupFailure : soloMode == null ? error.Message : SoloStartupFailure; }
         }
@@ -204,8 +208,8 @@ namespace Wreckabulary.Online
                     workshop.CloseRequested += CloseWorkshop;
                     workshop.PlaytestRequested += PlaytestWorkshop;
                     if (!localWorkshopEntry) workshop.OnlinePlaytestRequested += HostWorkshopOnline;
-                    if (localWorkshopEntry) workshop.CloseLabel = "Back to lobby";
-                    workshop.CanStartOnline = () => !destroying && menu && menu.CanOpenAuthoredPrivate;
+                    if (localWorkshopEntry || friendsWorkshop) workshop.CloseLabel = "Back to lobby";
+                    workshop.CanStartOnline = () => !destroying && menu && (friendsWorkshop ? menu.CanHostAuthoredRoom : menu.CanOpenAuthoredPrivate);
                     workshop.ConfigureLocalPlaytest(true);
                     var flagship = ConfigureWorkshopSources(authored);
                     if (authored)
@@ -297,7 +301,7 @@ namespace Wreckabulary.Online
         void CloseWorkshop()
         {
             if (localClient || workshop && workshop.OnlineStarting) return;
-            if (localWorkshopEntry) { BackToLobby(); return; }
+            if (localWorkshopEntry || friendsWorkshop) { BackToLobby(); return; }
             if (workshop) workshop.Visible = false;
             if (menu) menu.Visible = true;
         }
@@ -306,9 +310,11 @@ namespace Wreckabulary.Online
         {
             if (activeLaunch != null || activeClient || localClient) return;
             if (localWorkshopEntry) WordboundWorkshopEntry.MarkReturned();
+            if (friendsWorkshop) WordboundRoomEntry.MarkReturned();
             if (!Session.GoHome())
             {
                 if (localWorkshopEntry) WordboundWorkshopEntry.CancelRequest();
+                if (friendsWorkshop) WordboundRoomEntry.CancelReturn();
                 failure = "The main lobby is unavailable in this build.";
             }
         }

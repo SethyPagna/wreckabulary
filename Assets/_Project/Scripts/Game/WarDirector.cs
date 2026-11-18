@@ -150,7 +150,7 @@ namespace Wreckabulary
             int key = Score.Lives(0) * 7919 + Score.Lives(1) * 104729 + up[0] * 31 + up[1] * 17 + (Hold?.Holder ?? -1) * 3 + held * 1299709;
             if (key == panelKey) return;
             panelKey = key;
-            var lines = new List<string> { "<b>WAR</b>" };
+            var lines = new List<string> { "<b>" + HouseModes.Name(HouseModes.War).ToUpperInvariant() + "</b>" };
             for (int s = 0; s < SideCount; s++)
                 lines.Add(Score.Lives(s) > 0 ? $"{SideName(s)} · {BattleResultText.LifeCount(Score.Lives(s))}"
                     : $"<color=#FF6B5E>{SideName(s)} · no lives · {up[s]} standing</color>");

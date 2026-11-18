@@ -88,14 +88,15 @@ namespace Wreckabulary.Tests.Editor
             try
             {
                 var page = ((GameObject)PrefabUtility.InstantiatePrefab(profile.Page.gameObject, preview)).GetComponent<LobbyHomePageView>();
-                var first = page.Bind(true, false, false, true, true, "Double trouble", "My house", () => { }, () => { }, () => { }, () => { });
+                var first = page.Bind(true, false, () => { });
                 Assert.AreSame(page.Start.Button, first);
                 Assert.AreEqual(new Vector2(-22, 19), page.Dock.anchoredPosition);
                 Assert.AreEqual(340, page.Dock.sizeDelta.x);
                 Assert.AreEqual(new Vector2(11, 12), page.TurnHint.anchoredPosition);
-                Assert.AreEqual(72, page.Start.GetComponent<LayoutElement>().preferredHeight);
-                Assert.AreEqual("PLAY", page.Start.Label.text);
-                Assert.AreEqual("Double trouble", page.Mode.Label.text); Assert.AreEqual("My house", page.House.Label.text);
+                Assert.AreEqual(72, profile.Page.Start.GetComponent<LayoutElement>().preferredHeight, "the saved prefab keeps its authored height");
+                Assert.AreEqual(Mathf.Max(72, LobbyHomePageView.PlayHeight), page.Start.GetComponent<LayoutElement>().preferredHeight, "PLAY is never smaller than the big button");
+                Assert.AreEqual(LobbyHomePageView.PlayLabel, page.Start.Label.text);
+                Assert.IsFalse(page.Mode.gameObject.activeSelf || page.House.gameObject.activeSelf, "Home shows only PLAY");
                 Assert.AreEqual(fontId, Identity(page.Mode.Label.font)); Assert.AreEqual(materialId, Identity(page.Mode.Label.fontSharedMaterial));
                 Assert.That(page.Mode.Label.fontSharedMaterial.GetColor("_FaceColor"), Is.EqualTo(color).Using(ColorEqualityComparer.Instance));
                 Assert.AreEqual(25, page.Mode.Label.fontSize);
@@ -109,26 +110,28 @@ namespace Wreckabulary.Tests.Editor
         {
             var profile = Create(out _);
             var preview = EditorSceneManager.NewPreviewScene();
-            int stale = 0, start = 0, mode = 0, house = 0, wordbound = 0;
+            int stale = 0, play = 0;
             try
             {
                 var page = ((GameObject)PrefabUtility.InstantiatePrefab(profile.Page.gameObject, preview)).GetComponent<LobbyHomePageView>();
-                page.Bind(true, false, false, true, true, "Old", "Old", () => stale++, () => stale++, () => stale++, () => stale++);
-                page.Bind(true, false, false, true, true, "Dibs!", "House", () => start++, () => mode++, () => house++, () => wordbound++);
+                page.Bind(true, false, () => stale++);
+                page.Bind(true, false, () => play++);
                 page.Start.Button.onClick.Invoke(); page.Mode.Button.onClick.Invoke(); page.House.Button.onClick.Invoke(); page.Wordbound.Button.onClick.Invoke();
                 Assert.AreEqual(0, stale);
-                Assert.AreEqual(1, start); Assert.AreEqual(1, mode); Assert.AreEqual(1, house); Assert.AreEqual(1, wordbound);
-                var first = page.Bind(false, false, true, false, false, "Tutorial", "House", () => start++, () => mode++, () => house++, () => wordbound++);
-                Assert.AreSame(page.Mode.Button, first);
-                Assert.IsFalse(page.Start.Button.interactable);
-                Assert.IsFalse(page.TurnHint.gameObject.activeSelf); Assert.IsFalse(page.House.gameObject.activeSelf);
-                Assert.IsFalse(page.Wordbound.gameObject.activeSelf); Assert.IsFalse(page.WordboundNote.gameObject.activeSelf);
-                page.Start.Button.onClick.Invoke(); page.House.Button.onClick.Invoke(); page.Wordbound.Button.onClick.Invoke();
-                Assert.AreEqual(1, start); Assert.AreEqual(1, house); Assert.AreEqual(1, wordbound);
-                Assert.IsNull(page.Bind(true, true, false, true, true, "Dibs!", "House", () => start++, () => mode++, () => house++, () => wordbound++));
+                Assert.AreEqual(1, play);
+                Assert.AreEqual(LobbyHomePageView.PlayButton, page.Start.name);
+                Assert.IsTrue(page.Start.Button.interactable);
+                foreach (var other in new[] { page.Mode, page.House, page.Wordbound })
+                { Assert.IsFalse(other.gameObject.activeSelf, other.name); Assert.IsFalse(other.Button.interactable, other.name); }
+                Assert.IsFalse(page.WordboundNote.gameObject.activeSelf);
+                var first = page.Bind(false, false, () => play++);
+                Assert.AreSame(page.Start.Button, first, "PLAY is the first control on Home");
+                Assert.IsFalse(page.TurnHint.gameObject.activeSelf);
+                Assert.IsNull(page.Bind(true, true, () => play++));
                 Assert.IsFalse(page.Dock.gameObject.activeSelf); Assert.IsTrue(page.TurnHint.gameObject.activeSelf);
-                page.Start.Button.onClick.Invoke(); page.Mode.Button.onClick.Invoke(); page.House.Button.onClick.Invoke(); page.Wordbound.Button.onClick.Invoke();
-                Assert.AreEqual(1, start); Assert.AreEqual(1, mode); Assert.AreEqual(1, house); Assert.AreEqual(1, wordbound);
+                Assert.IsFalse(page.Start.Button.interactable);
+                page.Start.Button.onClick.Invoke();
+                Assert.AreEqual(1, play);
             }
             finally { EditorSceneManager.ClosePreviewScene(preview); }
         }

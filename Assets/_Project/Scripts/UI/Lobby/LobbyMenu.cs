@@ -23,7 +23,7 @@ namespace Wreckabulary
         public const string TutorialMode = "Tutorial", WorkshopMode = "Workshop", RoomMode = "Room";
         public const string VolumeKey = "wv.volume", VsyncKey = "wv.vsync";
         public static readonly string[] Modes = HouseModes.All
-            .Where(mode => mode.Family is HouseModeFamily.Battle or HouseModeFamily.Coop or HouseModeFamily.WordGames)
+            .Where(mode => mode.Family != HouseModeFamily.Training)
             .OrderBy(mode => mode.Family).Select(mode => mode.Id).ToArray();
         public static readonly string[] PracticeModes = new[] { TutorialMode }.Concat(Modes).ToArray();
         public static string DefaultMode => TutorialDirector.Done ? Modes[0] : TutorialMode;
@@ -45,8 +45,10 @@ namespace Wreckabulary
         public string Mode { get; private set; } = HouseModes.Dibs;
         public string SavedHome { get; private set; }
         public string SavedHomeName { get; private set; }
-        public string MapLabel => SavedHome != null ? SavedHomeName : Map == Session.LobbyRandomMap ? "Random house"
-            : Map != null && GameConfig.Current.Houses.TryGetValue(Map, out var house) ? house.Name : Map ?? "";
+        public TickSet Maps => maps ??= PracticeMaps.Load(GameConfig.Current.Houses.Keys, Session.LobbyMaps);
+        public Func<int, int> Roll { get; set; } = count => UnityEngine.Random.Range(0, count);
+        public string MapLabel => SavedHome != null ? SavedHomeName
+            : Queue == Practice ? PracticeMaps.Label(Maps, HouseName) : HouseName(Map);
         public LobbyStage Stage { get; private set; }
         public string Current { get; private set; }
         public bool Starting => startAt > 0f;
@@ -77,6 +79,7 @@ namespace Wreckabulary
         bool hubSuspended, priorAllowJoining;
         Gamepad goPad;
         HomeLayout launchHome;
+        TickSet maps;
         string returnMap, reopen;
         float startAt;
         bool hidden, typedLastFrame;
@@ -100,14 +103,42 @@ namespace Wreckabulary
 
         void Awake() { LobbyInterfaceTheme.LoadSaved(); Instance = this; }
 
-        public void OpenWordbound()
+        public void OpenWordbound() => OpenWordbound(false);
+
+        public void PlayOnline() => OpenWordbound(true);
+
+        public void HostFriendsRoom(string mode, string format, int layout) => OpenRoom(WordboundRoomRequest.Host(mode, format, layout));
+
+        public void JoinFriendsRoom(string invite) => OpenRoom(WordboundRoomRequest.Join(invite));
+
+        public void HostCustomMap() => OpenRoom(WordboundRoomRequest.HostCustomMap());
+
+        public void InviteFriends() => OpenRoom(WordboundRoomRequest.StartParty());
+
+        public void JoinFriendsParty(string invite) => OpenRoom(WordboundRoomRequest.JoinParty(invite));
+
+        void OpenRoom(WordboundRoomRequest request)
+        {
+            if (Starting || !Session.CanLoad(Session.WordboundScene)) return;
+            WordboundRoomEntry.Request(request);
+            Session.LobbyQueue = Queue;
+            Session.LobbyMode = Mode;
+            try { Session.Load(Session.WordboundScene); }
+            catch { WordboundRoomEntry.CancelRequest(); throw; }
+        }
+
+        void OpenWordbound(bool search)
         {
             if (Starting || !Session.CanLoad(Session.WordboundScene)) return;
             WordboundSoloEntry.CancelRequest();
             WordboundWorkshopEntry.CancelRequest();
+            WordboundRoomEntry.CancelRequest();
+            if (search) WordboundQuickPlayEntry.Request();
+            else WordboundQuickPlayEntry.CancelRequest();
             Session.LobbyQueue = Queue;
             Session.LobbyMode = Mode;
-            Session.Load(Session.WordboundScene);
+            try { Session.Load(Session.WordboundScene); }
+            catch { WordboundQuickPlayEntry.CancelRequest(); throw; }
         }
 
         public void OpenWordboundSolo(string mode)
@@ -148,8 +179,7 @@ namespace Wreckabulary
             Career = MatchTally.LoadCareer();
             if (Career.Keep(Outfit.ItemSkins.Values.FirstOrDefault() ?? "Classic", Outfit.ColourOf("Top") ?? ""))
                 MatchTally.SaveCareer(Career);
-            Map = Session.LobbyMap == Session.LobbyRandomMap ? Session.LobbyRandomMap
-                : GameConfig.Current.Houses.ContainsKey(Session.MapId) ? Session.MapId : GameConfig.Current.Houses.Keys.First();
+            Map = GameConfig.Current.Houses.ContainsKey(Session.MapId) ? Session.MapId : GameConfig.Current.Houses.Keys.First();
             string rememberedHome = Session.LobbyHome;
             string mode = Session.LobbyMode;
             if (mode == null || (mode == TutorialMode && TutorialDirector.Done)) mode = DefaultMode;
@@ -164,7 +194,7 @@ namespace Wreckabulary
             SuspendHub();
             Stage = new GameObject("Lobby stage").AddComponent<LobbyStage>();
             LobbyThemes.Restore();
-            Stage.Show(Map == Session.LobbyRandomMap ? RealMap() : Map, Outfit);
+            Stage.Show(Map, Outfit);
             Stage.gameObject.AddComponent<LobbyCollectionDecor>();
             Stage.SetThemeEffects(PlayerPrefs.GetInt("wv.theme.effects", 1) != 0);
             BuildCanvas();
@@ -189,6 +219,17 @@ namespace Wreckabulary
             else if (WordboundSoloEntry.TakeReturn())
             {
                 ((PlayPage)pages[Play]).WordboundSolo = true;
+                Open(Play);
+            }
+            else if (WordboundQuickPlayEntry.TakeReturn())
+            {
+                ((PlayPage)pages[Play]).Online = true;
+                Open(Play);
+            }
+            else if (WordboundRoomEntry.TakeReturn())
+            {
+                var play = (PlayPage)pages[Play];
+                play.Online = true; play.Friends = true;
                 Open(Play);
             }
             else Open(Home);
@@ -756,7 +797,6 @@ namespace Wreckabulary
         public void Choose(string queue = null, string mode = null, string map = null)
         {
             if (Starting) CancelStart();
-            string before = Mode;
             if (queue != null) Queue = queue;
             if (mode != null) Mode = mode;
             if (Queue == Workshop) Mode = WorkshopMode;
@@ -766,8 +806,6 @@ namespace Wreckabulary
                 map ??= returnMap;
                 returnMap = null;
             }
-            if (Mode == HouseModes.Escape) map = Session.LobbyRandomMap;
-            else if (Queue != Workshop && map == null && Map == Session.LobbyRandomMap && before == HouseModes.Escape) map = Session.LobbyMap ?? RealMap();
             if (Mode == WorkshopMode && !HomeDesigner.Supports(map ?? Map))
             {
                 if (map == null) returnMap = Session.LobbyMap ?? Map;
@@ -779,21 +817,31 @@ namespace Wreckabulary
             Session.LobbyHome = SavedHome;
             if (map != null && map != Map)
             {
-                if (map == Session.LobbyRandomMap)
-                {
-                    Map = map;
-                }
-                else
-                {
-                    Session.SelectMap(map);
-                    Map = map;
-                    if (Stage) Stage.SetMap(map);
-                }
+                Session.SelectMap(map);
+                Map = map;
+                if (Stage) Stage.SetMap(map);
             }
-            if (Queue == Practice && Mode != HouseModes.Escape) Session.LobbyMap = Map;
+            if (Queue == Practice) Session.LobbyMap = Map;
             RefreshBar();
             if (Current == Home && pages.TryGetValue(Home, out var home)) home.Refresh();
         }
+
+        public bool ToggleMap(string house)
+        {
+            if (!PracticeMaps.Toggle(Maps, house, SavedHome != null)) return false;
+            Session.LobbyMaps = Maps.Save();
+            Choose(map: Maps.IsTicked(house) ? house : Map == house ? Maps.Ticked[0] : null);
+            return true;
+        }
+
+        public void PlayOnly(string house)
+        {
+            maps = PracticeMaps.Only(GameConfig.Current.Houses.Keys, house);
+            Session.LobbyMaps = maps.Save();
+            Choose(map: house);
+        }
+
+        public string NextMap() => SavedHome != null || Queue != Practice ? Map : PracticeMaps.Pick(Maps, Roll);
 
         public bool ChooseHome(string map)
         {
@@ -869,10 +917,13 @@ namespace Wreckabulary
             ? Session.MapId
             : GameConfig.Current.Houses.Keys.First();
 
+        static string HouseName(string id) =>
+            id != null && GameConfig.Current.Houses.TryGetValue(id, out var house) ? house.Name : id ?? "";
+
         public string Describe()
         {
-            if (Mode == TutorialMode) return "Play & learn · the tutorial room";
-            string house = SavedHome != null ? SavedHomeName : Map == Session.LobbyRandomMap ? "Random house" : GameConfig.Current.HouseFor(Map).Name;
+            if (Mode == TutorialMode) return ModeName(TutorialMode) + " · the tutorial room";
+            string house = MapLabel;
             if (Mode == WorkshopMode) return ModeName(WorkshopMode) + " · " + house;
             string online = Queue == Matchmaking ? " · online" : "";
             string seats = Seats(Mode, PartySize);
@@ -881,13 +932,7 @@ namespace Wreckabulary
                 : $"{ModeName(Mode)} · {house}{online} · {seats}";
         }
 
-        public static string ModeName(string mode) => mode switch
-        {
-            "Tutorial" => "Play & learn",
-            "Workshop" => "Creative workshop",
-            "Room" => "Private room",
-            _ => LobbyPlayModeLabels.Name(mode),
-        };
+        public static string ModeName(string mode) => mode == RoomMode ? "Private room" : LobbyPlayModeLabels.Name(mode);
 
         public static string Seats(string mode, int humans = 1)
         {
@@ -992,7 +1037,7 @@ namespace Wreckabulary
             var home = launchHome;
             launchHome = null;
             if (Mode == TutorialMode) Session.LoadMode(TutorialMode);
-            else Session.LoadMode(Mode, Map, SavedHome != null ? home : null);
+            else Session.LoadMode(Mode, NextMap(), SavedHome != null ? home : null);
         }
 
         void Seat(Gamepad pad)

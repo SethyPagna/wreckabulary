@@ -493,7 +493,7 @@ namespace Wreckabulary.Workshop
             if (Button(CloseLabel ?? "Exit", "Leave the map editor · your map is saved")) RequestClose();
             GUILayout.EndHorizontal(); GUILayout.EndArea();
         }
-        const string LocalTestNeed = "Test needs Time Trial or Freeplay";
+        static readonly string LocalTestNeed = "Test needs " + WorkshopModes.Name("TimeRun") + " or " + WorkshopModes.Name("Freestyle");
         string TestBlocker => PlaytestRequested == null ? "Testing isn't available here" :
             !SelectedModeEnabled ? "Choose a mode in Rules to test" : localPlaytest && !CanPlaytestLocally ? LocalTestNeed : "";
         void TitleField(float width)

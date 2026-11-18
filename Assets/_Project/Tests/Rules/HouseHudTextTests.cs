@@ -10,10 +10,10 @@ namespace Wreckabulary.Rules.Tests
 
         static RoundSummary Round(int round, bool final, bool timeUp, params SeatResult[] seats) => new RoundSummary(round, 3, final, timeUp, seats);
 
-        [TestCase("Dibs", "Last one standing wins the round")]
+        [TestCase("Dibs", "Knock out everyone else to win the round")]
         [TestCase("Duos", "Revive your partner · last team standing")]
         [TestCase("MovingOut", "Bring every keepsake to the van")]
-        [TestCase("MovingDay", "Furnish the marked rooms")]
+        [TestCase("MovingDay", "Set each checklist piece in its room")]
         [TestCase("Escape", "Open the doors, find the keys, get out")]
         [TestCase("Tutorial", "No pressure. Just play.")]
         [TestCase("Hub", "")]
@@ -26,8 +26,8 @@ namespace Wreckabulary.Rules.Tests
             Assert.IsTrue(HouseGoals.Rounds("Duos"));
             Assert.IsFalse(HouseGoals.Rounds("Escape"));
             Assert.AreEqual("ROUND 2 · FIRST TO 3", HouseGoals.RoundTag(2, 3));
-            Assert.AreEqual("Round 1 · Dibs!", HouseGoals.BannerTitle(1, "Dibs!"));
-            Assert.AreEqual("Last one standing wins the round · First to 3", HouseGoals.BannerLine("Dibs", 3));
+            Assert.AreEqual("Round 1 · Last One Standing", HouseGoals.BannerTitle(1, HouseModes.Name(HouseModes.Dibs)));
+            Assert.AreEqual("Knock out everyone else to win the round · First to 3", HouseGoals.BannerLine("Dibs", 3));
             StringAssert.Contains("First to three", HouseGoals.Blurb("Dibs", 3));
             StringAssert.Contains("First to three", HouseGoals.Blurb("Duos", 3));
             StringAssert.Contains("keepsake", HouseGoals.Blurb("MovingOut", 3));
@@ -148,7 +148,7 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual("Most knockouts wins", HouseGoals.Line("Deathmatch"));
             Assert.AreEqual("Most knockouts wins · First to 10", HouseGoals.Banner("Deathmatch", new GameRules { KnockoutsToWin = 10 }));
             Assert.AreEqual("Knock out the other team’s lives · 12 lives each", HouseGoals.Banner("War", new GameRules { TeamLives = 12 }));
-            Assert.AreEqual("Last one standing wins the round · First to 3", HouseGoals.Banner("Dibs", new GameRules { RoundsToWin = 3 }));
+            Assert.AreEqual("Knock out everyone else to win the round · First to 3", HouseGoals.Banner("Dibs", new GameRules { RoundsToWin = 3 }));
             Assert.AreEqual("Bring every keepsake to the van", HouseGoals.Banner("MovingOut", new GameRules()));
             var riddles = new GameRules();
             riddles.SetSetting(HouseGoals.PointsToWin, 5);

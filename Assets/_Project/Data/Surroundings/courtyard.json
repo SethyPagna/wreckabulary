@@ -1,0 +1,112 @@
+{
+  "map": "courtyard",
+  "name": "Linden Square",
+  "house": "house_courtyard.json",
+  "light": "MapleMorning",
+  "ambience": "maple_close",
+  "ground": {
+    "y": -0.35, "plinthY": -0.15, "plinthReach": 1.0, "radius": 600, "slot": "bk_grass", "tint": "#B9BC8E",
+    "fade": [
+      { "radius": 185, "tint": "#C6C99E" },
+      { "radius": 165, "tint": "#D3D6B1" },
+      { "radius": 146, "tint": "#E1E4C5" },
+      { "radius": 129, "tint": "#EFF2DB" },
+      { "radius": 114, "tint": "#FFFFFF" }
+    ]
+  },
+  "lawns": { "tones": ["#D0DEC3", "#C5D6B6", "#D8E4CB", "#C9D8BB", "#C0D2AF", "#D4E0C2", "#CBDBBE", "#C3D4B4"], "stripe": 1.6, "stripeShift": 0.06 },
+  "soil": { "under": ["hedge_2m", "hedge_end", "flowerbed_2m"], "margin": 0.2, "tint": "#9C7A5E" },
+  "zones": [
+    { "rect": [-34.3, 25.0, 34.3, 34.3], "tint": "#CCDBBE", "stripes": true },
+    { "rect": [-34.3, -34.3, 34.3, -25.0], "tint": "#CCDBBE", "stripes": true },
+    { "rect": [25.0, -25.0, 34.3, 25.0], "tint": "#CCDBBE", "stripes": true },
+    { "rect": [-34.3, -25.0, -25.0, 25.0], "tint": "#CCDBBE", "stripes": true }
+  ],
+  "palette": {
+    "plaster": ["#FFF1E0", "#E8F1E8", "#FDF5DC", "#F3E6EE", "#E6EEF8", "#FFFFFF", "#F6EBD9", "#E9F3EF"],
+    "roof": ["#FFFFFF", "#B9ABA6", "#A7AAB2", "#CDB9A0", "#8E9AA0"],
+    "paint": ["#C8564B", "#5E86B5", "#E6C25A", "#8FB59A", "#EDEDED", "#6E7B8C", "#D98C5F", "#7A6A9E"]
+  },
+  "streetFurniture": ["lamp_post", "bench_park"],
+  "edging": {
+    "default": { "piece": "hedge_2m", "end": "hedge_end", "offset": 1.0 }
+  },
+  "streets": [
+    {
+      "id": "north", "from": [-76, 40], "to": [76, 40], "width": 7,
+      "lamps": { "side": "both", "every": 16, "phase": 4 },
+      "parking": { "side": "left", "every": 9, "phase": 2, "chance": 0.5, "pieces": ["car_hatch", "car_estate", "van_small"], "reach": 3.5 }
+    },
+    {
+      "id": "east", "from": [40, -36.5], "to": [40, 36.5], "width": 7,
+      "lamps": { "side": "left", "every": 16, "phase": 6 },
+      "parking": { "side": "right", "every": 9, "phase": 3, "chance": 0.5, "pieces": ["car_hatch", "car_estate"], "reach": 3.5 }
+    },
+    {
+      "id": "west", "from": [-40, -36.5], "to": [-40, 36.5], "width": 7,
+      "lamps": { "side": "right", "every": 16, "phase": 6 },
+      "parking": { "side": "left", "every": 9, "phase": 3, "chance": 0.5, "pieces": ["car_hatch", "van_small"], "reach": 3.5 }
+    },
+    {
+      "id": "south", "from": [-76, -40], "to": [76, -40], "width": 7,
+      "lamps": { "side": "left", "every": 18, "phase": 9 }
+    }
+  ],
+  "plots": [
+    { "id": "n1", "rect": [-68, 46, -49, 70], "front": "south", "house": "house_detached_b", "setback": 6, "driveway": "right", "car": "car_estate", "trees": 2, "bushes": 2, "extras": ["swing_set"] },
+    { "id": "n2", "rect": [-49, 46, -30, 70], "front": "south", "house": "house_detached_a", "setback": 6, "driveway": "left", "garage": "garage_a", "car": "car_hatch", "trees": 2, "bushes": 2,
+      "fence": { "piece": "fence_picket_2m", "sides": ["front"], "gate": "gate_picket" } },
+    { "id": "n3", "rect": [-30, 46, -14, 70], "front": "south", "house": "house_detached_c", "setback": 6, "trees": 1, "bushes": 2, "flowers": false, "extras": ["trampoline"] },
+    { "id": "green", "rect": [-14, 46, -2, 70], "front": "south", "trees": 2, "bushes": 4, "flowers": false, "treePieces": ["tree_round_a", "tree_round_c"] },
+    { "id": "n4", "rect": [-2, 46, 17, 70], "front": "south", "house": "house_detached_a", "setback": 6, "driveway": "right", "car": "van_small", "trees": 2, "bushes": 2 },
+    { "id": "n5", "rect": [17, 46, 36, 70], "front": "south", "house": "house_detached_b", "setback": 6, "driveway": "left", "car": "car_hatch", "trees": 2, "bushes": 2, "extras": ["washing_line"] },
+    { "id": "n6", "rect": [36, 46, 53, 70], "front": "south", "house": "house_detached_c", "setback": 6, "driveway": "right", "garage": "garage_a", "car": "car_estate", "trees": 2, "bushes": 2 },
+    { "id": "n7", "rect": [53, 46, 68, 70], "front": "south", "house": "house_bungalow_a", "setback": 6, "trees": 2, "bushes": 2, "flowers": false, "extras": ["garden_table_set"] },
+    { "id": "e1", "rect": [46, -34, 68, -11.4], "front": "west", "house": "house_detached_a", "setback": 6, "driveway": "left", "car": "car_hatch", "trees": 2, "bushes": 2, "extras": ["trampoline"],
+      "fence": { "piece": "fence_picket_2m", "sides": ["front"], "gate": "gate_picket" } },
+    { "id": "e2", "rect": [46, -11.4, 68, 11.4], "front": "west", "house": "house_bungalow_a", "setback": 6, "driveway": "right", "garage": "garage_a", "car": "car_estate", "trees": 2, "bushes": 2, "flowers": false },
+    { "id": "e3", "rect": [46, 11.4, 68, 34], "front": "west", "house": "house_detached_c", "setback": 6, "driveway": "left", "car": "van_small", "trees": 2, "bushes": 2, "extras": ["swing_set"] },
+    { "id": "w1", "rect": [-68, -34, -46, -11.4], "front": "east", "house": "house_detached_b", "setback": 6, "driveway": "right", "car": "car_estate", "trees": 2, "bushes": 2, "extras": ["washing_line"] },
+    { "id": "w2", "rect": [-68, -11.4, -46, 11.4], "front": "east", "house": "house_detached_c", "setback": 6, "driveway": "left", "garage": "garage_a", "car": "car_hatch", "trees": 2, "bushes": 2,
+      "fence": { "piece": "fence_picket_2m", "sides": ["front"], "gate": "gate_picket" } },
+    { "id": "w3", "rect": [-68, 11.4, -46, 34], "front": "east", "house": "house_bungalow_a", "setback": 6, "driveway": "right", "car": "car_hatch", "trees": 2, "bushes": 2, "flowers": false, "extras": ["garden_table_set"] },
+    { "id": "s1", "rect": [-68, -70, -49, -46], "front": "north", "house": "house_detached_a", "setback": 6, "driveway": "left", "car": "car_hatch", "trees": 1, "bushes": 1, "flowers": false },
+    { "id": "s2", "rect": [-49, -70, -30, -46], "front": "north", "house": "house_detached_b", "setback": 6, "driveway": "right", "car": "car_estate", "trees": 1, "bushes": 1, "flowers": false },
+    { "id": "s3", "rect": [-30, -70, -11, -46], "front": "north", "house": "house_bungalow_a", "setback": 6, "trees": 1, "bushes": 1, "flowers": false },
+    { "id": "s4", "rect": [-11, -70, 8, -46], "front": "north", "house": "house_detached_c", "setback": 6, "driveway": "left", "car": "van_small", "trees": 1, "bushes": 1, "flowers": false },
+    { "id": "s5", "rect": [8, -70, 27, -46], "front": "north", "house": "house_detached_a", "setback": 6, "driveway": "right", "car": "car_hatch", "trees": 1, "bushes": 1, "flowers": false },
+    { "id": "s6", "rect": [27, -70, 46, -46], "front": "north", "house": "house_detached_b", "setback": 6, "driveway": "left", "car": "car_estate", "trees": 1, "bushes": 1, "flowers": false },
+    { "id": "s7", "rect": [46, -70, 68, -46], "front": "north", "house": "house_bungalow_a", "setback": 6, "driveway": "right", "car": "car_hatch", "trees": 1, "bushes": 1, "flowers": false }
+  ],
+  "props": [
+    { "piece": "bench_park", "at": [-20, 35.2], "yaw": 180 },
+    { "piece": "bench_park", "at": [20, 35.2], "yaw": 180 },
+    { "piece": "bench_park", "at": [35.2, 12], "yaw": 270 },
+    { "piece": "bench_park", "at": [-35.2, -12], "yaw": 90 }
+  ],
+  "rows": [],
+  "treeBelts": [
+    { "pieces": ["tree_round_a", "tree_round_c"], "from": [-30.9, 30.9], "to": [30.9, 30.9], "every": 6.18, "jitter": 0.3, "scale": [0.9, 1.05] },
+    { "pieces": ["tree_round_c", "tree_round_a"], "from": [30.9, -24.72], "to": [30.9, 24.72], "every": 6.18, "jitter": 0.3, "scale": [0.9, 1.05] },
+    { "pieces": ["tree_round_a", "tree_round_c"], "from": [-30.9, -24.72], "to": [-30.9, 24.72], "every": 6.18, "jitter": 0.3, "scale": [0.9, 1.05] },
+    { "pieces": ["tree_round_c"], "from": [-31, -31.5], "to": [31, -31.5], "every": 6.2, "jitter": 0.4, "scale": [0.95, 1.05] }
+  ],
+  "landmark": { "piece": "landmark_water_tower", "at": [-8, 175], "yaw": 20 },
+  "sightlines": [
+    { "from": [-8, 18], "to": "landmark", "width": 8, "eye": 1.7 }
+  ],
+  "farScatter": {
+    "from": 72, "to": 200, "cell": 24, "jitter": 9,
+    "houses": ["house_detached_a_far", "house_detached_b_far", "house_detached_c_far", "house_bungalow_a_far"], "houseChance": 0.4,
+    "trees": ["tree_far"], "treeChance": 0.4
+  },
+  "cards": [
+    { "piece": "card_roofline_a", "radius": 232, "count": 20, "phase": 3, "jitter": 6 },
+    { "piece": "card_roofline_a", "radius": 264, "count": 16, "phase": 14, "jitter": 6 },
+    { "piece": "card_hills_a", "radius": 318, "count": 12, "phase": 15, "jitter": 8 }
+  ],
+  "movers": [
+    { "piece": "car_hatch", "street": "south", "lane": 1.75, "speed": 5, "phase": 0, "paint": "#5E86B5" },
+    { "piece": "van_small", "street": "south", "lane": 1.75, "speed": 5, "phase": 0.5, "paint": "#EDEDED" }
+  ]
+}

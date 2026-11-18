@@ -119,7 +119,8 @@ namespace Wreckabulary.Workshop
             if (PlaytestRequested == null) return;
             if (!SelectedModeEnabled) { if (WideButton("Open Rules", "Choose a mode this map supports")) ShowStep(WorkshopStep.Rules); return; }
             bool race = display.SupportedModes.Contains("TimeRun"), free = display.SupportedModes.Contains("Freestyle");
-            if (WideButton(race ? "Switch to Time Trial" : free ? "Switch to Freeplay" : "Add Freeplay to this map",
+            if (WideButton(race ? "Switch to " + WorkshopModes.Name("TimeRun") : free ? "Switch to " + WorkshopModes.Name("Freestyle")
+                    : "Add " + WorkshopModes.Name("Freestyle") + " to this map",
                 "Test alone needs a mode one player can play"))
                 Attempt(() => { if (race) SelectMode("TimeRun"); else if (free) SelectMode("Freestyle"); else EnableFreestyleSandbox(); });
         }

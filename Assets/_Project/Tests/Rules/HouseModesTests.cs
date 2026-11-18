@@ -22,20 +22,49 @@ namespace Wreckabulary.Rules.Tests
             }
         }
 
-        [TestCase("Dibs", "Dibs!"), TestCase("Duos", "Duos"), TestCase("MovingOut", "Moving Out"), TestCase("MovingDay", "Moving Day")]
-        [TestCase("Escape", "Escape"), TestCase("Tutorial", "Tutorial"), TestCase("Deathmatch", "Free-for-All"), TestCase("War", "War")]
-        [TestCase("ShoppingList", "Shopping List"), TestCase("RiddleRush", "Riddle Rush")]
+        [TestCase("Dibs", "Last One Standing"), TestCase("Duos", "Duos"), TestCase("MovingOut", "Pack the Van"), TestCase("MovingDay", "Furnish the House")]
+        [TestCase("Escape", "Escape the House"), TestCase("Tutorial", "Tutorial"), TestCase("Deathmatch", "Free-for-All"), TestCase("War", "Team Battle")]
+        [TestCase("ShoppingList", "Spell the List"), TestCase("RiddleRush", "Riddles")]
         public void PlayerFacingNamesComeFromOnePlace(string id, string name) => Assert.AreEqual(name, HouseModes.Name(id));
 
         [Test]
         public void LobbyFamiliesHoldTheirModesInOrder()
         {
-            Assert.AreEqual(new[] { "Dibs", "Duos", "Deathmatch", "War" }, HouseModes.InFamily(HouseModeFamily.Battle).Select(m => m.Id).ToArray());
+            Assert.AreEqual(new[] { "Dibs", "Duos", "Deathmatch", "War" }, HouseModes.InFamily(HouseModeFamily.Classic).Select(m => m.Id).ToArray());
             Assert.AreEqual(new[] { "MovingOut", "MovingDay", "Escape" }, HouseModes.InFamily(HouseModeFamily.Coop).Select(m => m.Id).ToArray());
-            Assert.AreEqual(new[] { "ShoppingList", "RiddleRush" }, HouseModes.InFamily(HouseModeFamily.WordGames).Select(m => m.Id).ToArray());
-            Assert.AreEqual(new[] { "Tutorial" }, HouseModes.InFamily(HouseModeFamily.Learn).Select(m => m.Id).ToArray());
-            Assert.AreEqual(new[] { "Learn", "Battle", "Co-op", "Word games", "Courses" },
-                Enum.GetValues(typeof(HouseModeFamily)).Cast<HouseModeFamily>().Select(HouseModes.FamilyName).ToArray());
+            Assert.AreEqual(new[] { "ShoppingList", "RiddleRush" }, HouseModes.InFamily(HouseModeFamily.Arcade).Select(m => m.Id).ToArray());
+            Assert.AreEqual(new[] { "Tutorial" }, HouseModes.InFamily(HouseModeFamily.Training).Select(m => m.Id).ToArray());
+            Assert.AreEqual(new[] { "Classic", "Co-op", "Arcade", "Training" }, HouseModes.Families.Select(HouseModes.FamilyName).ToArray());
+            Assert.AreEqual(Enum.GetValues(typeof(HouseModeFamily)).Cast<HouseModeFamily>().ToArray(), HouseModes.Families.ToArray());
+        }
+
+        [Test]
+        public void EachPracticeGroupListsItsHouseModesThenItsSoloCourse()
+        {
+            Assert.AreEqual(new[] { "Dibs", "Duos", "Deathmatch", "War" }, HouseModes.ModesIn(HouseModeFamily.Classic));
+            Assert.AreEqual(new[] { "MovingOut", "MovingDay", "Escape" }, HouseModes.ModesIn(HouseModeFamily.Coop));
+            Assert.AreEqual(new[] { "ShoppingList", "RiddleRush", "TimeRun" }, HouseModes.ModesIn(HouseModeFamily.Arcade));
+            Assert.AreEqual(new[] { "Tutorial", "Freestyle" }, HouseModes.ModesIn(HouseModeFamily.Training));
+            var grouped = HouseModes.Families.SelectMany(HouseModes.ModesIn).ToArray();
+            Assert.AreEqual(grouped.Length, grouped.Distinct().Count(), "every mode sits in exactly one group");
+            CollectionAssert.IsSubsetOf(HouseModes.All.Select(m => m.Id), grouped, "every house mode has a group");
+            foreach (var family in HouseModes.Families)
+                foreach (string mode in HouseModes.ModesIn(family)) Assert.AreEqual(family, HouseModes.FamilyOf(mode), mode);
+            Assert.IsFalse(HouseModes.Has("TimeRun") || HouseModes.Has("Freestyle"), "courses stay Wordbound modes");
+            Assert.AreEqual(HouseModeFamily.Classic, HouseModes.FamilyOf("Nope"), "an unknown mode falls back to the first group");
+            Assert.AreEqual(HouseModeFamily.Classic, HouseModes.FamilyOf(null));
+        }
+
+        [Test]
+        public void OpeningAGroupReturnsToItsLastModeWhileItIsStillOpen()
+        {
+            Assert.AreEqual("Dibs", HouseModes.OpenModeIn(HouseModeFamily.Classic, null, true), "a first visit opens the group's first mode");
+            Assert.AreEqual("War", HouseModes.OpenModeIn(HouseModeFamily.Classic, "War", true));
+            Assert.AreEqual("MovingOut", HouseModes.OpenModeIn(HouseModeFamily.Coop, "War", true), "a mode from another group is ignored");
+            Assert.AreEqual("TimeRun", HouseModes.OpenModeIn(HouseModeFamily.Arcade, "TimeRun", true));
+            Assert.AreEqual("ShoppingList", HouseModes.OpenModeIn(HouseModeFamily.Arcade, "TimeRun", false), "a solo course is closed while extra seats are taken");
+            Assert.AreEqual("Tutorial", HouseModes.OpenModeIn(HouseModeFamily.Training, "Freestyle", false));
+            Assert.AreEqual("Freestyle", HouseModes.OpenModeIn(HouseModeFamily.Training, "Freestyle", true));
         }
 
         [Test]
