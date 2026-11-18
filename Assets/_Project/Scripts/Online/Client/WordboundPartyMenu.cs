@@ -91,6 +91,7 @@ namespace Wreckabulary.Online
                 actualItemsJson, actualRuleBookJson, mapPoolVersion, new WordboundPublicCourseRegistry(approvedPublicContentJson),
                 serverClock: serverClock);
             PhotonAppId = trust.PhotonAppId;
+            if (QuickChoices != null) region = Array.IndexOf(Regions, AutoRegion());
         }
         void Update()
         {
@@ -108,7 +109,10 @@ namespace Wreckabulary.Online
                 format = Array.IndexOf(Formats, settings.Format); fill = settings.Fill; seed = coordinator.Seed ?? "0123456789abcdef";
             }
             SyncPartyVoice();
-            if (!launching && BeginMatchRequested != null)
+            TickQuickPlay();
+            TickFriendsParty();
+            TrackMatchFound();
+            if (!launching && BeginMatchRequested != null && !LaunchHeld())
             {
                 var launch = coordinator.TakeLaunch();
                 if (launch != null) _ = Begin(launch);
@@ -130,6 +134,8 @@ namespace Wreckabulary.Online
             if (currentLaunch == null || currentLaunch.Verified.Match.MatchId != confirmedMatchId) return;
             coordinator?.NotifyReturned(confirmedMatchId);
             currentLaunch = null; localError = null; returning = false; nextPoll = 0; Visible = true; returnFailures = 0;
+            if (lobbySearch) _ = LeaveLobbySearch();
+            if (roomFlow) _ = LeaveRoom();
         }
         public void ShowFailure(string safeMessage)
         {
@@ -225,6 +231,9 @@ namespace Wreckabulary.Online
             using var themeScope = ui.Apply(Theme);
             PrepareCenteredStyles();
             DrawOnlineBackground(viewport);
+            if (LobbySearchShown) { DrawLobbySearch(viewport); return; }
+            if (RoomShown) { DrawRoom(viewport); return; }
+            if (FriendsPartyShown) { DrawFriendsParty(viewport); return; }
             Rect available = ui.MenuRect(viewport.x, viewport.y);
             if (Event.current.type == EventType.Layout || partyRect.width == 0)
             {
@@ -272,15 +281,16 @@ namespace Wreckabulary.Online
         void DrawPartyContents()
         {
             bool guest = !coordinator.Authenticated && !coordinator.RetryRequired && !coordinator.MatchActive;
-            if (guest) GUILayout.BeginHorizontal();
+            bool header = guest;
+            if (header) GUILayout.BeginHorizontal();
             GUILayout.Label("MATCHMAKING", title);
             if (compactPartyLayout && Event.current.type == EventType.Repaint) guestFirstContentRect = GUILayoutUtility.GetLastRect();
-            if (guest)
+            if (header)
             {
                 bool enabled = GUI.enabled;
                 GUI.enabled = enabled && !coordinator.Busy && !launching && !returning;
-                if (WorkshopRequested != null) PartyControl("workshop", "Workshop", () => WorkshopRequested?.Invoke());
-                if (CloseRequested != null) PartyControl("back", "Back", () => CloseRequested?.Invoke());
+                if (guest && WorkshopRequested != null) PartyControl("workshop", "Workshop", () => WorkshopRequested?.Invoke());
+                if (guest && CloseRequested != null) PartyControl("back", "Back", RequestClose);
                 GUI.enabled = enabled;
                 GUILayout.EndHorizontal();
             }
@@ -305,7 +315,7 @@ namespace Wreckabulary.Online
                 GUILayout.Space(8); GUILayout.BeginHorizontal();
                 GUILayout.Label("Name", GUILayout.Width(44), GUILayout.MinHeight(ui.RowHeight));
                 displayName = PartyText("name", displayName, 32);
-                PartyControl("connect", "Connect", () => Invoke(() => coordinator.Connect(displayName)));
+                PartyControl("connect", "Connect", () => Invoke(() => coordinator.Connect(RememberName())));
                 GUILayout.EndHorizontal();
             }
             else
@@ -344,7 +354,7 @@ namespace Wreckabulary.Online
             {
                 GUILayout.Space(12); GUILayout.BeginHorizontal();
                 if (WorkshopRequested != null) PartyControl("workshop", "Workshop", () => WorkshopRequested?.Invoke());
-                if (CloseRequested != null) PartyControl("back", "Back", () => CloseRequested?.Invoke());
+                if (CloseRequested != null) PartyControl("back", "Back", RequestClose);
                 GUILayout.EndHorizontal();
             }
         }
@@ -409,15 +419,13 @@ namespace Wreckabulary.Online
                 return;
             }
             PartyChoices("public-map", selected, mapLabels, 2, choice => seed = choices[choice].Seed);
-            if (choices.Count > 1) PartyControl("random-map", "Shuffle layout",
-                () => seed = choices[UnityEngine.Random.Range(0, choices.Count)].Seed);
         }
         void RefreshMapChoices()
         {
             if (mapChoices != null && cachedMode == mode && cachedFormat == format) return;
             mapChoices = publicCourses.Choices(Modes[mode], Formats[format]);
             mapLabels = new string[mapChoices.Count];
-            for (int i = 0; i < mapChoices.Count; i++) mapLabels[i] = "Layout " + (i + 1);
+            for (int i = 0; i < mapChoices.Count; i++) mapLabels[i] = OnlineMaps.Slot(mapChoices[i].Content.CourseId, i);
             cachedMode = mode; cachedFormat = format;
         }
         Task CreateParty()

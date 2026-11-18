@@ -166,11 +166,11 @@ namespace Wreckabulary.EditorTests
             workshop.OpenTemplate(WorkshopTemplate.CombatArena, folder);
             workshop.PlaytestRequested += _ => { };
             workshop.ConfigureLocalPlaytest(true);
-            Assert.AreEqual("Test needs Time Trial or Freeplay", Property<string>("TestBlocker"));
+            Assert.AreEqual("Test needs Time Trial or Free Roam", Property<string>("TestBlocker"));
             workshop.EnableFreestyleSandbox();
             Assert.AreEqual("", Property<string>("TestBlocker"));
             workshop.SelectMode("FreeForAll");
-            Assert.AreEqual("Test needs Time Trial or Freeplay", Property<string>("TestBlocker"));
+            Assert.AreEqual("Test needs Time Trial or Free Roam", Property<string>("TestBlocker"));
         }
 
         [Test]

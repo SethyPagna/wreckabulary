@@ -48,12 +48,12 @@ namespace Wreckabulary
             modes = new[]
             {
                 new Mode { label = "TUTORIAL", id = "Tutorial", blurb = "Learn to smash, spell and swing", scene = Session.TutorialScene },
-                new Mode { label = "DIBS!", id = "Dibs", blurb = "Last roommate standing • solo AI", scene = Session.DibsScene },
-                new Mode { label = "DUOS", id = "Duos", blurb = "Two teams • hold grab to revive • solo AI", scene = Session.DibsScene },
+                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.Dibs).ToUpperInvariant(), id = "Dibs", blurb = "Last roommate standing • solo AI", scene = Session.DibsScene },
+                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.Duos).ToUpperInvariant(), id = "Duos", blurb = "Two teams • hold grab to revive • solo AI", scene = Session.DibsScene },
                 FromRegistry(Rules.HouseModes.FreeForAll),
                 FromRegistry(Rules.HouseModes.War),
-                new Mode { label = "MOVING DAY", id = "MovingDay", blurb = "Furnish the house before time runs out", scene = Session.MovingDayScene },
-                new Mode { label = "MOVING OUT", id = "MovingOut", blurb = "Rescue keepsakes and get everyone to the van", scene = Session.DibsScene },
+                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.MovingDay).ToUpperInvariant(), id = "MovingDay", blurb = "Furnish the house before time runs out", scene = Session.MovingDayScene },
+                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.MovingOut).ToUpperInvariant(), id = "MovingOut", blurb = "Rescue keepsakes and get everyone to the van", scene = Session.DibsScene },
                 FromRegistry(Rules.HouseModes.ShoppingList),
                 FromRegistry(Rules.HouseModes.RiddleRush),
             };

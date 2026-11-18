@@ -8,6 +8,8 @@ namespace Wreckabulary
 {
     public sealed class LobbyHomePageView : MonoBehaviour
     {
+        public const string PlayButton = "Home PLAY", PlayLabel = "PLAY";
+        public const float PlayHeight = 88f, PlayText = 56f;
         public RectTransform TurnHint;
         public RectTransform Dock;
         public LobbyShopActionView Start;
@@ -35,21 +37,25 @@ namespace Wreckabulary
             }
         }
 
-        public Selectable Bind(bool showTurnHint, bool starting, bool blocked, bool showHouse, bool canOpenWordbound,
-            string mode, string house, Action start, Action chooseMode, Action chooseHouse, Action openWordbound)
+        public Selectable Bind(bool showTurnHint, bool starting, Action play)
         {
             Validate();
             TurnHint.name = "Turn hint"; TurnHint.gameObject.SetActive(showTurnHint);
             Dock.name = "Next match";
-            Start.Bind("GO", Start.Label.text, starting || blocked ? null : start, true);
-            Mode.Bind("Choose mode", mode, starting ? null : chooseMode, false);
-            House.Bind("Change house", house, starting || !showHouse ? null : chooseHouse, false);
-            Wordbound.Bind("Wordbound", Wordbound.Label.text, starting || !canOpenWordbound ? null : openWordbound, false);
-            House.gameObject.SetActive(showHouse);
-            Wordbound.gameObject.SetActive(canOpenWordbound);
-            WordboundNote.gameObject.SetActive(canOpenWordbound);
+            Start.Bind(PlayButton, PlayLabel, starting ? null : play, true);
+            var size = Start.GetComponent<LayoutElement>();
+            if (size) size.preferredHeight = size.minHeight = Mathf.Max(size.preferredHeight, PlayHeight);
+            Start.Label.fontSizeMax = Mathf.Max(Start.Label.fontSizeMax, PlayText);
+            Start.Label.fontSize = Start.Label.fontSizeMax;
+            Start.Label.Size(-1, Start.Label.fontSizeMax + 10).GetComponent<LayoutElement>().minWidth = 0;
+            foreach (var other in new[] { Mode, House, Wordbound })
+            {
+                other.Bind(other.name, other.Label.text, null, false);
+                other.gameObject.SetActive(false);
+            }
+            WordboundNote.gameObject.SetActive(false);
             Dock.gameObject.SetActive(!starting);
-            return starting ? null : blocked ? Mode.Button : Start.Button;
+            return starting ? null : Start.Button;
         }
     }
 }

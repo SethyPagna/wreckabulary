@@ -135,7 +135,7 @@ namespace Wreckabulary.Rules
             : $"Time’s up. {winner} ticked off the most.";
 
         public static string Flavour(string winner, bool final, int target) =>
-            final && !string.IsNullOrEmpty(winner) ? $"{winner} {(IsYou(winner) ? "win" : "wins")} Shopping List."
+            final && !string.IsNullOrEmpty(winner) ? $"{winner} {(IsYou(winner) ? "win" : "wins")} {HouseModes.Name(HouseModes.ShoppingList)}."
             : $"First to {target} rounds wins. Next round, new list.";
 
         sealed class Dice

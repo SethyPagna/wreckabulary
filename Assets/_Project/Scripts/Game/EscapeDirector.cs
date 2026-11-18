@@ -1204,7 +1204,7 @@ namespace Wreckabulary
                 case State.Countdown:
                     Instruct("", "");
                     hud.ShowCountdown(Mathf.Max(1, Mathf.CeilToInt(3f - (Time.time - began))),
-                        $"THE ESCAPE \u00b7 {room.Layout.Name.ToUpperInvariant()}");
+                        $"{HouseModes.Name(HouseModes.Escape).ToUpperInvariant()} \u00b7 {room.Layout.Name.ToUpperInvariant()}");
                     if (Time.time - began >= 3f)
                     {
                         Current = State.Playing; began = Time.time;
@@ -1286,7 +1286,7 @@ namespace Wreckabulary
                 : AllKeysFound ? $"\nKeys: {keysFound}/{keysNeeded} \u2014 head for the exit"
                 : $"\nKeys: {keysFound}/{keysNeeded} \u2014 look in {RoomName(room.Layout, keyRoom)}";
             string waiting = idleMask == 0 ? "" : "\n" + IdleWatch.Notice(idleMask);
-            return checklistText = "<b>THE ESCAPE</b>\n"
+            return checklistText = "<b>" + HouseModes.Name(HouseModes.Escape).ToUpperInvariant() + "</b>\n"
                  + "Goal: get the whole crew to the EXIT.\n"
                  + (left > 0 ? $"Barred doors still shut: {left}" : "No barred doors left \u2014 head for the exit.")
                  + key + waiting;

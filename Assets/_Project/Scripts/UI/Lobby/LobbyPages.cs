@@ -238,10 +238,7 @@ namespace Wreckabulary
                 view = LobbyRuntimeTypography.Instantiate(layout.Page, Root, false);
             }
             else view = LobbyHomeDefaultLayout.Create(Root);
-            First = view.Bind(!PlayerPrefs.HasKey(LobbyMenu.TurnHintKey), Menu.Starting, Menu.Blocked != null,
-                Menu.Mode != LobbyMenu.TutorialMode, Session.CanLoad(Session.WordboundScene),
-                LobbyMenu.ModeName(Menu.Mode), Menu.MapLabel, Menu.Go, () => Menu.OpenPlay("Mode " + Menu.Mode),
-                () => Menu.OpenPlay(Menu.SavedHome != null ? PlayPage.SavedHomeCard + Menu.SavedHome : "Map " + Menu.Map), Menu.OpenWordbound);
+            First = view.Bind(!PlayerPrefs.HasKey(LobbyMenu.TurnHintKey), Menu.Starting, () => Menu.Open(LobbyMenu.Play));
         }
     }
 

@@ -331,28 +331,30 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator TheMatchDockSitsBottomRightWithABigGo()
+        public IEnumerator TheHomeDockIsOneBigPlayButtonBottomRight()
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
             Canvas.ForceUpdateCanvases();
             var dock = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Next match");
-            var go = Find("GO");
-            Assert.IsTrue(go.transform.IsChildOf(dock), "GO is in the dock");
-            Assert.IsFalse(dock.GetComponentsInChildren<Button>().Any(button => button.name == "CHANGE"), "mode selection now lives in PLAY");
-            Assert.IsTrue(Find("Change house").transform.IsChildOf(dock), "and the house");
+            var play = Find(LobbyHomePageView.PlayButton);
+            Assert.IsTrue(play.transform.IsChildOf(dock), "PLAY is in the dock");
+            CollectionAssert.AreEqual(new[] { LobbyHomePageView.PlayButton }, dock.GetComponentsInChildren<Button>().Select(button => button.name).ToArray(),
+                "mode, house and online choices live in the Play section");
+            Assert.AreEqual(LobbyHomePageView.PlayLabel, play.GetComponentInChildren<TMPro.TMP_Text>().text);
+            Assert.IsFalse(dock.GetComponentsInChildren<TMPro.TMP_Text>().Any(text => text.text.Contains("LOCAL") || text.text.Contains("ONLINE")));
             Assert.Greater(ScreenX(dock), Screen.width * .6f, "bottom right, as on the web");
             var corners = new Vector3[4];
             dock.GetWorldCorners(corners);
             Assert.Less(corners[0].y, Screen.height * .1f, "down at the bottom");
-            Assert.AreEqual(64f, ((RectTransform)go.transform).rect.height, 1f, "a compact START");
-            Assert.AreEqual("LOCAL PLAY", go.GetComponentInChildren<TMPro.TMP_Text>().text);
-            Assert.Less(Find("Choose mode").transform.position.y, go.transform.position.y);
-            Assert.Less(Find("Change house").transform.position.y, Find("Choose mode").transform.position.y);
+            Assert.GreaterOrEqual(((RectTransform)play.transform).rect.height, LobbyHomePageView.PlayHeight - 1f, "a big PLAY");
             Assert.AreEqual(300f, dock.rect.width, 1f);
-            Click("Change house");
+            Assert.AreSame(play.gameObject, Selected, "a controller starts on PLAY");
+            AssertNoEllipsis(dock, "the Home dock");
+            Click(LobbyHomePageView.PlayButton);
             yield return null;
-            Assert.AreEqual(LobbyMenu.Play, menu.Current, "a pick opens PLAY to change it");
+            Assert.AreEqual(LobbyMenu.Play, menu.Current, "PLAY opens the Play section");
+            Assert.IsFalse(menu.Starting, "PLAY never starts a match by itself");
         }
 
         [UnityTest]
@@ -365,10 +367,12 @@ namespace Wreckabulary.Tests
             Click("Queue " + LobbyMenu.Practice);
             yield return null;
             var page = menu.Page<PlayPage>().Root;
+            CollectionAssert.AreEqual(HouseModes.Families.Select(family => PlayPage.GroupTab + family).ToArray(),
+                page.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith(PlayPage.GroupTab)).Select(b => b.name).ToArray(),
+                "Classic, Co-op, Arcade and Training tabs come first");
             var posters = page.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("Mode ")).Select(b => b.name.Substring(5)).ToArray();
-            CollectionAssert.AreEqual(new[] { "Tutorial", "Dibs", "Duos", Wreckabulary.Rules.HouseModes.FreeForAll, "War", "MovingOut", "MovingDay", "Escape", "ShoppingList", "RiddleRush" },
-                posters, "the tutorial comes first, then battle, co-op and word games");
-            Assert.AreEqual(GameConfig.Current.Houses.Count + 1, page.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("Map ")), "every house, then Random");
+            CollectionAssert.AreEqual(new[] { "Dibs", "Duos", HouseModes.FreeForAll, "War" }, posters, "only the chosen group's modes show");
+            Assert.AreEqual(GameConfig.Current.Houses.Count, page.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("Map ")), "every house, without a Random card");
             Assert.IsFalse(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Rays"), "decorative rays are excluded from the redesigned choices");
             Assert.IsFalse(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Start" || r.name == "Fitted plan"), "map cards show pictures, not floor-plan skeletons");
             Assert.IsTrue(page.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("Map ")).All(b => b.GetComponentsInChildren<RectTransform>().Count(r => r.name == "Map picture") == 1),
@@ -376,13 +380,13 @@ namespace Wreckabulary.Tests
             AssertNoEllipsis(page, "PLAY");
             Assert.AreEqual("Duos", LobbyMenu.ModeName("Duos"), "Use the same display name as the direct Play mode choice.");
 
-            Click("Mode " + LobbyMenu.TutorialMode);
+            Click(PlayPage.GroupTab + HouseModeFamily.Training);
             yield return null;
             Assert.AreEqual(LobbyMenu.TutorialMode, menu.Mode);
-            Assert.AreEqual(LobbyMenu.Practice, menu.Queue, "the tutorial is the first practice choice");
+            Assert.AreEqual(LobbyMenu.Practice, menu.Queue, "the tutorial is the first Training choice");
             Assert.IsFalse(page.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Map ")), "the tutorial has its own room");
             Assert.IsTrue(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Tutorial room"), "and says so");
-            StringAssert.Contains("Play & learn", menu.Describe());
+            StringAssert.StartsWith(HouseModes.Name(LobbyMenu.TutorialMode) + " · ", menu.Describe());
             AssertNoEllipsis(page, "PLAY with the tutorial");
         }
 
@@ -405,19 +409,30 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator TheDockOpensPlayOnWhatItChanges()
+        public IEnumerator HomePlayOpensThePlaySectionOnTheLastUsedTab()
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
-            Click("PLAY");
+            Click(LobbyHomePageView.PlayButton);
             yield return null;
             Assert.AreEqual(LobbyMenu.Play, menu.Current);
             Assert.AreSame(Find("Mode " + menu.Mode).gameObject, Selected, "a keyboard or controller lands on the mode");
+            Click("Queue " + LobbyMenu.Workshop);
+            yield return null;
             menu.Close();
             yield return null;
-            Click("Change house");
+            Click(LobbyHomePageView.PlayButton);
             yield return null;
-            Assert.AreSame(Find("Map " + menu.Map).gameObject, Selected, "and on the house");
+            Assert.AreEqual(LobbyMenu.Workshop, menu.Queue, "PLAY reopens the tab you used last");
+            Assert.IsTrue(Find("Queue " + LobbyMenu.Workshop).GetComponentsInChildren<Image>().Single(image => image.name == "Underline").enabled);
+            Click("Queue " + LobbyMenu.Matchmaking);
+            yield return null;
+            menu.Close();
+            yield return null;
+            Click(LobbyHomePageView.PlayButton);
+            yield return null;
+            Assert.IsTrue(menu.Page<PlayPage>().Online, "and Matchmaking too");
+            Assert.AreEqual(Session.HubScene, SceneManager.GetActiveScene().name, "opening a tab never leaves the lobby");
         }
 
         [UnityTest]
@@ -831,9 +846,9 @@ namespace Wreckabulary.Tests
             yield return null;
             var modes = LobbyMenu.Instance.Page<PlayPage>().Root.GetComponentsInChildren<LobbyPlayModeFamilies>().Single(row => row.name == "Modes");
             var modeButtons = modes.GetComponentsInChildren<Button>();
-            CollectionAssert.AreEquivalent(LobbyMenu.PracticeModes.Select(mode => "Mode " + mode)
-                .Concat(new[] { "Solo TimeRun", "Solo Freestyle" }), modeButtons.Select(button => button.name),
-                "The tutorial, every house mode and both courses are directly available.");
+            CollectionAssert.AreEquivalent(HouseModes.Families.Select(family => PlayPage.GroupTab + family)
+                .Concat(HouseModes.ModesIn(HouseModes.FamilyOf(LobbyMenu.Instance.Mode)).Select(PlayPage.ModeButton)), modeButtons.Select(button => button.name),
+                "The four group tabs and the chosen group's modes are directly available.");
             float modeHeight = 0f;
             foreach (var button in modeButtons)
             {
@@ -890,8 +905,13 @@ namespace Wreckabulary.Tests
             Click("Mode Duos");
             yield return null;
             Assert.AreEqual("Duos", menu.Mode);
-            Click("Map " + other);
-            yield return null;
+            Assert.IsTrue(menu.Maps.All, "every house starts ticked, so each match picks one at random");
+            foreach (string id in GameConfig.Current.Houses.Keys.Where(id => id != other))
+            {
+                Click("Map " + id);
+                yield return null;
+            }
+            CollectionAssert.AreEqual(new[] { other }, menu.Maps.Ticked, "untick the others to play one house");
             Assert.AreEqual(other, menu.Map);
             Assert.AreEqual(other, Session.MapId);
             Assert.AreEqual(other, menu.Stage.Map, "the backdrop follows the map");
@@ -917,13 +937,19 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(LobbyMenu.Practice, LobbyMenu.Instance.Queue);
             Assert.AreEqual("Duos", LobbyMenu.Instance.Mode, "the lobby remembers the mode");
             Assert.AreEqual(other, LobbyMenu.Instance.Map);
+            CollectionAssert.AreEqual(new[] { other }, LobbyMenu.Instance.Maps.Ticked, "and the ticked houses");
         }
 
         [UnityTest]
         public IEnumerator TheControllerThatPressesGoPlaysTheMatch()
         {
             yield return OpenLobby();
-            Assert.AreSame(Find("GO").gameObject, Selected, "a controller starts on GO");
+            Assert.AreSame(Find(LobbyHomePageView.PlayButton).gameObject, Selected, "a controller starts on PLAY");
+            yield return Press(GamepadButton.South);
+            Assert.AreEqual(LobbyMenu.Play, LobbyMenu.Instance.Current, "A on PLAY opens the Play section");
+            Assert.IsFalse(LobbyMenu.Instance.Starting);
+            Assert.AreSame(Find("Mode " + LobbyMenu.Instance.Mode).gameObject, Selected, "and lands on the chosen mode");
+            EventSystem.current.SetSelectedGameObject(Find("GO").gameObject);
             yield return Press(GamepadButton.South);
             Assert.IsTrue(LobbyMenu.Instance.Starting, "A presses GO");
             yield return TestScenes.WaitForActive(Session.DibsScene);
@@ -948,6 +974,8 @@ namespace Wreckabulary.Tests
             yield return Press(GamepadButton.Start);
             Assert.AreEqual(2, menu.PartySize, "pressing Start again doesn't take a second seat");
 
+            Click(LobbyHomePageView.PlayButton);
+            yield return null;
             Click("GO");
             yield return TestScenes.WaitForActive(Session.DibsScene);
             yield return null;
@@ -996,11 +1024,14 @@ namespace Wreckabulary.Tests
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
             yield return Press(GamepadButton.South);
+            Assert.AreEqual(LobbyMenu.Play, menu.Current, "A on PLAY opens the Play section");
+            EventSystem.current.SetSelectedGameObject(Find("GO").gameObject);
+            yield return Press(GamepadButton.South);
             Assert.IsTrue(menu.Starting);
             Assert.AreSame(Find("CANCEL").gameObject, Selected, "GO hides, so the controller lands on CANCEL");
             yield return Press(GamepadButton.East);
             Assert.IsFalse(menu.Starting, "B cancels");
-            Assert.AreSame(Find("GO").gameObject, Selected, "and the controller is back on GO");
+            Assert.AreSame(Find(LobbyHomePageView.PlayButton).gameObject, Selected, "and the controller is back on PLAY");
 
             Click("Settings");
             yield return null;
@@ -1040,16 +1071,18 @@ namespace Wreckabulary.Tests
             LobbyMenu.StartDelay = .5f;
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
+            Click(LobbyHomePageView.PlayButton);
+            yield return null;
             Click("GO");
             Assert.IsTrue(menu.Starting);
             Assert.AreSame(Find("CANCEL").gameObject, Selected, "a keyboard lands on CANCEL");
             Click("CANCEL");
             Assert.IsFalse(menu.Starting);
-            Assert.AreSame(Find("GO").gameObject, Selected, "and back on GO after");
+            Assert.AreSame(Find(LobbyHomePageView.PlayButton).gameObject, Selected, "and back on PLAY after");
             yield return new WaitForSeconds(.8f);
             Assert.AreEqual(Session.HubScene, SceneManager.GetActiveScene().name);
             Assert.AreSame(menu, LobbyMenu.Instance);
-            Find("GO");
+            Find(LobbyHomePageView.PlayButton);
         }
 
         [UnityTest]
@@ -1072,7 +1105,7 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(menu.Messages[0].Contains("Online Play"), "the message names the control that exists");
             Click("Home");
             yield return null;
-            Assert.IsFalse(Find("GO").interactable);
+            Assert.IsTrue(Find(LobbyHomePageView.PlayButton).interactable, "Home PLAY only opens the Play section, so it never blocks");
             Assert.IsTrue(Find("PLAY").interactable, "you can still change the queue from the primary navigation");
             Click("PLAY");
             yield return null;
@@ -1271,7 +1304,7 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(menuVisibility.interactable || menuVisibility.blocksRaycasts,
                 "the hidden lobby cannot intercept workshop controls");
             Assert.IsTrue(menu.gameObject.activeInHierarchy, "the lobby stays available for the return transition");
-            Assert.IsFalse(Find("GO").IsInteractable(), "the hidden lobby button cannot receive workshop input");
+            Assert.IsFalse(Find(LobbyHomePageView.PlayButton).IsInteractable(), "the hidden lobby button cannot receive workshop input");
             Assert.AreSame(daylight, Wreckabulary.Art.EnvironmentLighting.Active, "workshop suspension preserves the scene's daylight controller");
             Assert.AreEqual(sunIntensity, daylight.Sun.intensity);
             Assert.LessOrEqual(daylight.SelectedLightCount, daylight.LightBudget);
@@ -1288,7 +1321,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(1f, menuVisibility.alpha, "the lobby comes back");
             Assert.IsTrue(menuVisibility.interactable && menuVisibility.blocksRaycasts,
                 "the restored lobby accepts pointer and controller input");
-            Assert.IsTrue(Find("GO").IsInteractable(), "the lobby button works again after the workshop closes");
+            Assert.IsTrue(Find(LobbyHomePageView.PlayButton).IsInteractable(), "the lobby button works again after the workshop closes");
             Assert.AreEqual(LobbyMenu.Home, menu.Current);
             AssertFramed(menu.Stage, "the camera is yours again");
             Assert.AreEqual(lobbyLook, menu.Stage.Camera.backgroundColor, "with the lobby's sky");
@@ -1296,7 +1329,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(sunIntensity, daylight.Sun.intensity);
             Assert.IsTrue(sky.enabled, "which comes back");
             Find("PLAY");
-            Assert.AreSame(Find("GO").gameObject, Selected, "GO is back, with a controller on it");
+            Assert.AreSame(Find(LobbyHomePageView.PlayButton).gameObject, Selected, "PLAY is back, with a controller on it");
         }
 
         [UnityTest]
@@ -1331,6 +1364,8 @@ namespace Wreckabulary.Tests
             Click("Mode Duos");
             yield return null;
             Assert.AreEqual(map, menu.SavedHome, "and Duos plays it too");
+            Click(PlayPage.GroupTab + HouseModeFamily.Coop);
+            yield return null;
             Click("Mode MovingOut");
             yield return null;
             Assert.IsNull(menu.SavedHome, "objective modes keep the original house");

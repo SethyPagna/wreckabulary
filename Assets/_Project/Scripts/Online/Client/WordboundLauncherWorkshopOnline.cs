@@ -23,7 +23,7 @@ namespace Wreckabulary.Online
             try
             {
                 if (destroying || !sourceWorkshop || localClient || activeClient || activeLaunch != null ||
-                    !menu || !menu.CanOpenAuthoredPrivate)
+                    !menu || !(friendsWorkshop ? menu.CanHostAuthoredRoom : menu.CanOpenAuthoredPrivate))
                     throw new InvalidOperationException("Return to the party screen, connect as a guest and leave the current party before hosting this map.");
                 var inputs = InputsForWorkshop();
                 var content = WordboundWorkshopOnlineContent.Create(draft, resolved, sourceWorkshop.Catalogue,
@@ -31,7 +31,8 @@ namespace Wreckabulary.Online
                 authoredProfileBundleId = content.WorkshopBundle.Descriptor.BundleId;
                 authoredOnlineCamera = inputs.Camera;
                 authoredOnlineVisual = inputs.Visual;
-                await menu.OpenAuthoredPrivate(content, menu.SelectedRegion, menu.SelectedFill);
+                if (friendsWorkshop) await menu.HostAuthoredRoom(content, BackToWorkshop);
+                else await menu.OpenAuthoredPrivate(content, menu.SelectedRegion, menu.SelectedFill);
                 if (destroying || sourceWorkshop != workshop || !sourceWorkshop) return;
                 sourceWorkshop.Visible = false;
                 menu.Visible = true;
@@ -39,8 +40,9 @@ namespace Wreckabulary.Online
             catch (Exception error)
             {
                 if (!destroying && sourceWorkshop && sourceWorkshop == workshop)
-                    sourceWorkshop.ShowStatus("Online preparation could not finish: " + error.Message +
-                        " Close the workshop to return to the party screen and retry or leave the pending party.");
+                    sourceWorkshop.ShowStatus("Online preparation could not finish: " + error.Message + (friendsWorkshop
+                        ? " Try again, or close the Map editor to go back to the lobby."
+                        : " Close the workshop to return to the party screen and retry or leave the pending party."));
             }
             finally { if (sourceWorkshop) sourceWorkshop.FinishOnlinePreparation(); }
         }

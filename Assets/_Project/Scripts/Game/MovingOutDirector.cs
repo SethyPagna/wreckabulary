@@ -104,7 +104,7 @@ namespace Wreckabulary
                     break;
                 case State.Countdown:
                     Instruct("", "");
-                    hud.ShowCountdown(Mathf.Max(1, Mathf.CeilToInt(3f - (Time.time - began))), $"MOVING OUT · {room.Layout.Name.ToUpperInvariant()}");
+                    hud.ShowCountdown(Mathf.Max(1, Mathf.CeilToInt(3f - (Time.time - began))), $"{HouseModes.Name(HouseModes.MovingOut).ToUpperInvariant()} · {room.Layout.Name.ToUpperInvariant()}");
                     if (Time.time - began >= 3f)
                     {
                         Current = State.Playing; began = Time.time;

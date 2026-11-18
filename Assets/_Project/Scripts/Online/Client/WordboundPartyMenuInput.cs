@@ -17,7 +17,7 @@ namespace Wreckabulary.Online
         string PartyContext => coordinator == null ? "" : string.Join("|", Visible, launching, returning,
             coordinator.Authenticated, coordinator.Busy, coordinator.RetryRequired, coordinator.MatchActive,
             coordinator.Party?.Id, coordinator.Party?.Revision, mode, region, format, customSeedMode, seed,
-            entryPage, showCreateSettings, showPartySettings, showPrivateActions);
+            entryPage, showCreateSettings, showPartySettings, showPrivateActions, lobbySearch, quickPlayArmed, roomFlow, roomHost, friendsParty);
 
         void SuspendPartyInput()
         {
@@ -72,6 +72,24 @@ namespace Wreckabulary.Online
         void PartyBack()
         {
             partyFocus.CancelConfirmation();
+            if (LobbySearchShown)
+            {
+                if (coordinator.RetryRequired) { partyFocus.Reset("lobby-retry"); revealPartySelection = true; }
+                else if (CanLeaveLobbySearch) _ = LeaveLobbySearch();
+                return;
+            }
+            if (RoomShown)
+            {
+                if (coordinator.RetryRequired) { partyFocus.Reset("room-retry"); revealPartySelection = true; }
+                else if (CanLeaveRoom) _ = LeaveRoom();
+                return;
+            }
+            if (FriendsPartyShown)
+            {
+                if (coordinator.RetryRequired) { partyFocus.Reset("party-retry"); revealPartySelection = true; }
+                else if (CanLeaveFriendsParty) _ = LeaveFriendsParty();
+                return;
+            }
             if (coordinator.Busy || launching || returning) return;
             if (coordinator.RetryRequired) { partyFocus.Reset("retry"); revealPartySelection = true; return; }
             if (coordinator.MatchActive) { _ = Return(); return; }
@@ -85,7 +103,7 @@ namespace Wreckabulary.Online
             if (coordinator.Party == null && entryPage != 0)
             { entryPage = 0; scroll = Vector2.zero; partyFocus.Reset("entry:0"); revealPartySelection = true; return; }
             if (coordinator.Party != null) { Invoke(() => coordinator.LeaveParty()); return; }
-            CloseRequested?.Invoke();
+            RequestClose();
         }
 
         void QueuePartyAction(Action action, bool fromPad)
@@ -96,7 +114,7 @@ namespace Wreckabulary.Online
             GUI.FocusControl(null); partyTyping = false;
         }
 
-        void PartyControl(string id, string label, Action action, bool toggle = false, bool value = false)
+        void PartyControl(string id, string label, Action action, bool toggle = false, bool value = false, float height = 0)
         {
             bool enabled = GUI.enabled;
             if (Event.current.type == EventType.Layout && enabled) partyFocus.Register(id);
@@ -104,10 +122,10 @@ namespace Wreckabulary.Online
             GUI.SetNextControlName("party:" + id);
             string text = (focused ? "› " : "") + (toggle ? value ? "● " : "○ " : "") + label;
             GUIStyle style = focused || toggle && value ? ui.Selected :
-                id == "connect" || id == "create-party" || id == "quick-play" ? ui.Primary : GUI.skin.button;
+                id == "connect" || id == "create-party" || id == "quick-play" || id == "room-start" || id == "party-find" ? ui.Primary : GUI.skin.button;
             var content = new GUIContent(text);
-            bool clicked = toggle ? ui.Toggle(value, content, style, GUILayout.MinHeight(ui.RowHeight)) != value :
-                ui.Button(content, style, GUILayout.MinHeight(ui.RowHeight));
+            var size = GUILayout.MinHeight(Mathf.Max(ui.RowHeight, height));
+            bool clicked = toggle ? ui.Toggle(value, content, style, size) != value : ui.Button(content, style, size);
             if (focused && Event.current.type == EventType.Repaint)
             {
                 GUI.FocusControl("party:" + id);

@@ -124,7 +124,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(winner, RoundManager.Instance.LastWinner);
             yield return TestScenes.WaitUntil(() => hud.ResultShown, 5f, "the result card");
             var card = hud.transform.Find("Safe HUD/Result/Result card");
-            Assert.AreEqual($"{winner.Name} wins Riddle Rush!", card.Find("Heading").GetComponent<TMPro.TMP_Text>().text);
+            Assert.AreEqual($"{winner.Name} wins {Wreckabulary.Rules.HouseModes.Name(Wreckabulary.Rules.HouseModes.RiddleRush)}!", card.Find("Heading").GetComponent<TMPro.TMP_Text>().text);
             var lines = card.Find("Players").GetComponent<TMPro.TMP_Text>().text.Split('\n');
             Assert.AreEqual(joins.Players.Count, lines.Length, "one line per player");
             Assert.AreEqual($"<b>{winner.Name} · 2 points</b>", lines[0], "the winner leads the list");

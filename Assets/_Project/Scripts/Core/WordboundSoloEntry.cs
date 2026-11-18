@@ -27,6 +27,8 @@ namespace Wreckabulary
         {
             Select(mode);
             WordboundWorkshopEntry.CancelRequest();
+            WordboundQuickPlayEntry.CancelRequest();
+            WordboundRoomEntry.CancelRequest();
             pending = mode;
             returnToSelection = false;
         }

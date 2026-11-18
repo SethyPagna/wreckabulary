@@ -34,6 +34,7 @@ namespace Wreckabulary.EditorTools
                     if (!world || !world.IsCurrent) throw new InvalidOperationException("Migrate the authored world first: " + path);
                     bool changed = RepairImportedModelAnchors(root);
                     changed |= ApplyMissing(world);
+                    changed |= RoomDetailAuthoring.ApplyMissing(world) > 0;
                     if (!changed) continue;
                     Persist(root, map);
                     if (!PrefabUtility.SaveAsPrefabAsset(root, path)) throw new InvalidOperationException("Could not save dressing: " + path);

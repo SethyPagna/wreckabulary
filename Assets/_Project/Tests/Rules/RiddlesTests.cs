@@ -366,8 +366,8 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual("P2 spelled TABLE!", RiddleText.Spelled("P2", "TABLE"));
             Assert.AreEqual("1 point", RiddleText.Points(1));
             Assert.AreEqual("0 points", RiddleText.Points(0));
-            Assert.AreEqual("P3 wins Riddle Rush!", RiddleText.Heading("P3", false));
-            Assert.AreEqual("You win Riddle Rush!", RiddleText.Heading("You", true));
+            Assert.AreEqual("P3 wins Riddles!", RiddleText.Heading("P3", false));
+            Assert.AreEqual("You win Riddles!", RiddleText.Heading("You", true));
             Assert.AreEqual(RiddleText.Tie, RiddleText.Heading("", false));
             Assert.AreEqual("MATCH OVER · P3 WINS", RiddleText.Eyebrow("P3", false));
             Assert.AreEqual("MATCH OVER · YOU WIN", RiddleText.Eyebrow("You", true));

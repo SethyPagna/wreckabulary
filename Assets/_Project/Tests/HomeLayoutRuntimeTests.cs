@@ -47,7 +47,7 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator SavedHomePreservesPickerNavigationPartyFocusAndAuthoredStyle()
+        public IEnumerator SavedHomeShowsOneBigPlayButtonInItsAuthoredStyleAndKeepsPartyFocus()
         {
             var menu = LobbyMenu.Instance;
             var profile = Resources.Load<LobbyHomeLayout>(LobbyHomeLayout.ResourcePath);
@@ -57,45 +57,51 @@ namespace Wreckabulary.Tests
             int coins = menu.Career.Coins;
             var page = View(menu);
             Assert.AreSame(page.Start.Button, menu.Page<HomePage>().First);
+            Assert.AreEqual(LobbyHomePageView.PlayButton, page.Start.Button.name);
+            Assert.AreEqual(LobbyHomePageView.PlayLabel, page.Start.Label.text);
+            AssertOnlyPlay(page);
             Assert.AreEqual(profile.Page.Dock.anchoredPosition, page.Dock.anchoredPosition);
             Assert.AreEqual(profile.Page.Dock.sizeDelta.x, page.Dock.sizeDelta.x);
-            Assert.AreEqual(profile.Page.Start.GetComponent<LayoutElement>().preferredHeight, page.Start.GetComponent<LayoutElement>().preferredHeight);
+            Assert.AreEqual(Mathf.Max(profile.Page.Start.GetComponent<LayoutElement>().preferredHeight, LobbyHomePageView.PlayHeight),
+                page.Start.GetComponent<LayoutElement>().preferredHeight, "the saved button grows to the big PLAY height");
             Assert.AreSame(LobbyRuntimeTypography.ResolveFont(profile.Page.Start.Label.font), page.Start.Label.font);
             Assert.AreSame(LobbyRuntimeTypography.ResolveMaterial(profile.Page.Start.Label.font, profile.Page.Start.Label.fontSharedMaterial), page.Start.Label.fontSharedMaterial);
-            page.Mode.Button.onClick.Invoke();
+            page.Start.Button.onClick.Invoke();
             yield return null;
-            Assert.AreEqual(LobbyMenu.Play, menu.Current);
+            Assert.AreEqual(LobbyMenu.Play, menu.Current, "PLAY opens the Play section");
+            Assert.IsFalse(menu.Starting, "and never starts a match by itself");
             Assert.AreEqual("Mode " + menu.Mode, EventSystem.current.currentSelectedGameObject.name);
-            menu.Open(LobbyMenu.Home);
-            View(menu).House.Button.onClick.Invoke();
-            yield return null;
-            Assert.AreEqual(LobbyMenu.Play, menu.Current);
-            Assert.AreEqual("Map " + menu.Map, EventSystem.current.currentSelectedGameObject.name);
             menu.Open(LobbyMenu.Home);
             var partner = new KeyboardBinding(KeyboardBinding.Side.Right);
             Assert.AreEqual(1, menu.PartySize);
-            EventSystem.current.SetSelectedGameObject(View(menu).House.Button.gameObject);
+            EventSystem.current.SetSelectedGameObject(View(menu).Start.Button.gameObject);
             menu.Join(partner);
             Assert.AreEqual(2, menu.PartySize);
-            Assert.AreEqual("Change house", EventSystem.current.currentSelectedGameObject.name);
+            Assert.AreEqual(LobbyHomePageView.PlayButton, EventSystem.current.currentSelectedGameObject.name);
             menu.Leave(partner);
             yield return null;
             Assert.AreEqual(1, menu.PartySize);
-            Assert.AreEqual("Change house", EventSystem.current.currentSelectedGameObject.name);
+            Assert.AreEqual(LobbyHomePageView.PlayButton, EventSystem.current.currentSelectedGameObject.name);
             View(menu);
             menu.Choose(LobbyMenu.Matchmaking, "Dibs"); menu.Open(LobbyMenu.Home);
             page = View(menu);
-            Assert.IsFalse(page.Start.Button.interactable);
-            Assert.AreSame(page.Mode.Button, menu.Page<HomePage>().First);
-            page.Start.Button.onClick.Invoke(); menu.Go();
+            Assert.IsTrue(page.Start.Button.interactable, "PLAY only opens the Play section, so it stays pressable");
+            Assert.AreSame(page.Start.Button, menu.Page<HomePage>().First);
+            menu.Go();
             Assert.IsFalse(menu.Starting);
             menu.Choose(LobbyMenu.Practice, LobbyMenu.TutorialMode); menu.Open(LobbyMenu.Home);
             page = View(menu);
-            Assert.IsFalse(page.House.gameObject.activeSelf);
-            Assert.AreEqual(Session.CanLoad(Session.WordboundScene), page.Wordbound.gameObject.activeSelf);
-            Assert.AreEqual(page.Wordbound.gameObject.activeSelf, page.WordboundNote.gameObject.activeSelf);
+            AssertOnlyPlay(page);
             Assert.AreEqual(outfit, menu.Outfit.Serialize()); Assert.AreEqual(savedOutfit, PlayerPrefs.GetString(LobbyMenu.OutfitKey));
             Assert.AreEqual(coins, menu.Career.Coins);
+        }
+
+        static void AssertOnlyPlay(LobbyHomePageView page)
+        {
+            Assert.IsTrue(page.Start.gameObject.activeSelf);
+            Assert.IsFalse(page.Mode.gameObject.activeSelf || page.House.gameObject.activeSelf || page.Wordbound.gameObject.activeSelf || page.WordboundNote.gameObject.activeSelf,
+                "Home shows only PLAY");
+            CollectionAssert.AreEqual(new[] { LobbyHomePageView.PlayButton }, page.Dock.GetComponentsInChildren<Button>().Select(button => button.name).ToArray());
         }
 
         [UnityTest]
@@ -117,7 +123,7 @@ namespace Wreckabulary.Tests
             LobbyMenu.StartDelay = 3600f;
             try
             {
-                page.Start.Button.onClick.Invoke();
+                menu.Go();
                 Assert.IsTrue(menu.Starting);
                 Assert.IsFalse(View(menu).Dock.gameObject.activeSelf);
                 Assert.IsNull(menu.Page<HomePage>().First);
@@ -130,7 +136,7 @@ namespace Wreckabulary.Tests
             yield return null;
             Assert.IsFalse(menu.Starting);
             Assert.IsTrue(View(menu).Dock.gameObject.activeSelf);
-            Assert.AreEqual("GO", EventSystem.current.currentSelectedGameObject.name);
+            Assert.AreEqual(LobbyHomePageView.PlayButton, EventSystem.current.currentSelectedGameObject.name);
             Assert.AreEqual(Session.HubScene, SceneManager.GetActiveScene().name);
         }
     }

@@ -108,18 +108,21 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator StartDockShowsChosenModeAndTextLeaderboardKeepsCareerPositionAndReturnFocus()
+        public IEnumerator PlayModeButtonsShowEveryModeNameAndTextLeaderboardKeepsCareerPositionAndReturnFocus()
         {
             var menu = LobbyMenu.Instance;
             var play = Nav("PLAY");
             foreach (string mode in LobbyMenu.Modes.Concat(new[] { LobbyMenu.TutorialMode, LobbyMenu.WorkshopMode }))
             {
                 menu.Choose(mode == LobbyMenu.WorkshopMode ? LobbyMenu.Workshop : LobbyMenu.Practice, mode);
-                var modeButton = menu.Page<HomePage>().Root.GetComponentsInChildren<Button>().Single(button => button.name == "Choose mode");
+                menu.Open(LobbyMenu.Play);
+                yield return null;
+                string id = mode == LobbyMenu.WorkshopMode ? "Create house" : PlayPage.ModeButton(mode);
+                var modeButton = menu.Page<PlayPage>().Root.GetComponentsInChildren<Button>().Single(button => button.name == id);
                 var title = modeButton.GetComponentInChildren<TMP_Text>();
                 Canvas.ForceUpdateCanvases(); title.ForceMeshUpdate();
                 Assert.AreEqual(LobbyMenu.ModeName(mode), title.text);
-                Assert.GreaterOrEqual(title.fontSize, 18f);
+                Assert.GreaterOrEqual(title.fontSize, 15f);
                 Assert.IsFalse(title.isTextOverflowing, "the selected mode stays readable: " + mode);
                 var glyphs = title.textInfo.characterInfo.Take(title.textInfo.characterCount).Where(character => character.isVisible).ToArray();
                 Assert.AreEqual(title.text.Count(character => !char.IsWhiteSpace(character)), glyphs.Length,
@@ -138,6 +141,8 @@ namespace Wreckabulary.Tests
                     }
                 }
             }
+            menu.Open(LobbyMenu.Home);
+            yield return null;
             var trophy = Nav("Leaderboard");
             var career = Nav("CAREER");
             Assert.AreSame(career.transform.parent, trophy.transform.parent);

@@ -242,7 +242,7 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitUntil(() => director.EndCardShown && hud.ResultShown, 3f, "the end card");
             Assert.AreEqual(Session.TutorialScene, SceneManager.GetActiveScene().name, "the tutorial waits for the player instead of leaving");
             var labels = hud.GetComponentsInChildren<TMPro.TMP_Text>().Select(t => t.text).ToArray();
-            CollectionAssert.Contains(labels, "PLAY DIBS! NOW →");
+            CollectionAssert.Contains(labels, TutorialDirector.EndCard().NextLabel);
             CollectionAssert.Contains(labels, "Back to the lobby");
             hud.ConfirmResult();
             yield return TestScenes.WaitForActive(Session.DibsScene);

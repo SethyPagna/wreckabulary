@@ -118,10 +118,12 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(cachedGuest.gameObject.activeSelf);
             menu.Stage.TakeCamera(); yield return null; AssertParty(menu, 2);
             menu.Choose(queue: LobbyMenu.Practice, mode: "MovingDay");
-            var mode = menu.Page<HomePage>().Root.GetComponentsInChildren<Button>().Single(b => b.name == "Choose mode");
-            Assert.AreEqual(LobbyMenu.ModeName("MovingDay"), mode.GetComponentInChildren<TMP_Text>().text);
-            mode.onClick.Invoke(); yield return null;
+            var play = menu.Page<HomePage>().Root.GetComponentsInChildren<Button>().Single(b => b.name == LobbyHomePageView.PlayButton);
+            Assert.AreEqual(LobbyHomePageView.PlayLabel, play.GetComponentInChildren<TMP_Text>().text);
+            play.onClick.Invoke(); yield return null;
             Assert.AreEqual(LobbyMenu.Play, menu.Current);
+            Assert.AreEqual(LobbyMenu.ModeName("MovingDay"), menu.Page<PlayPage>().Root.GetComponentsInChildren<Button>()
+                .Single(b => b.name == PlayPage.ModeButton("MovingDay")).GetComponentInChildren<TMP_Text>().text);
             menu.Close();
             yield return Capture("winter-selected-mode");
             completed = true;

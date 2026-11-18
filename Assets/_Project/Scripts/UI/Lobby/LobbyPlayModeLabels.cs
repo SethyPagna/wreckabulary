@@ -8,6 +8,7 @@ namespace Wreckabulary
         public static string Name(string id) => id switch
         {
             "TimeRun" or "TeamRace" or "BrawlRace" or "FreeForAll" or "Freestyle" => WorkshopModes.Name(id),
+            LobbyMenu.WorkshopMode => "Home builder",
             _ when HouseModes.Has(id) => HouseModes.Name(id),
             _ => id
         };
@@ -16,7 +17,8 @@ namespace Wreckabulary
         {
             "TimeRun" => "Solve the delivery circuit",
             "Freestyle" => "Explore, spell items and try the puzzles",
-            LobbyMenu.WorkshopMode => "Build your home, then play it in Battle or Word games",
+            LobbyMenu.WorkshopMode => "Build your home, then play it in " + HouseModes.FamilyName(HouseModeFamily.Classic) +
+                " or " + HouseModes.FamilyName(HouseModeFamily.Arcade),
             _ => HouseModes.Goal(id)
         };
 

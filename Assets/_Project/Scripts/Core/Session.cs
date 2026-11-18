@@ -17,7 +17,7 @@ namespace Wreckabulary
 
         public static readonly List<InputBinding> Bindings = new();
         public static string MapId { get; private set; } = "pinwheel";
-        public static string LobbyQueue, LobbyMode, LobbyHome, LobbyMap;
+        public static string LobbyQueue, LobbyMode, LobbyHome, LobbyMap, LobbyMaps;
         public static Rules.HomeLayout Home { get; private set; }
 
         public const string StarsKey = "wv.movingDay.stars";
@@ -32,7 +32,7 @@ namespace Wreckabulary
             WordboundWorkshopEntry.Clear();
             movingDayStars = null;
             MapId = "pinwheel";
-            LobbyQueue = LobbyMode = LobbyHome = LobbyMap = null;
+            LobbyQueue = LobbyMode = LobbyHome = LobbyMap = LobbyMaps = null;
             Home = null;
             Match.Reset();
         }

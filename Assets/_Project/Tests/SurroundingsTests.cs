@@ -143,20 +143,23 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator TheOtherHousesAreUnchanged()
+        public IEnumerator TheOtherHousesHaveTheirOwnNeighbourhoods()
         {
             foreach (string map in OtherHouses)
             {
                 yield return TestScenes.Reset();
-                Assert.IsNull(Resources.Load<GameObject>(MapSurroundings.PrefabPath(map, false)), map + " gets its backdrop in phase 2");
+                Assert.IsNotNull(Resources.Load<GameObject>(MapSurroundings.PrefabPath(map, false)), map + " has a High backdrop");
+                Assert.IsNotNull(Resources.Load<GameObject>(MapSurroundings.PrefabPath(map, true)), map + " has a Low backdrop");
                 yield return Play(map);
                 var builder = Object.FindAnyObjectByType<RoomBuilder>();
-                Assert.IsNull(MapSurroundings.Current, map);
-                Assert.IsNull(Object.FindAnyObjectByType<MapSurroundings>(), map);
-                Assert.IsTrue(Lawn(builder).enabled, map + " keeps its lawn");
+                var backdrop = MapSurroundings.Current;
+                Assert.IsNotNull(backdrop, map);
+                Assert.AreEqual(map, backdrop.MapId);
+                Assert.IsFalse(Lawn(builder).enabled, map + " lawn gives way to its neighbourhood");
                 var ring = RingPlants(builder);
                 Assert.Greater(ring.Count, 0, map);
-                Assert.IsTrue(ring.All(Shown), map + " keeps its potted ring");
+                Assert.IsTrue(ring.All(plant => !Shown(plant)), map + " potted ring gives way to the street");
+                CollectionAssert.AreEquivalent(ring, backdrop.HiddenPlants, map);
             }
         }
 
@@ -228,10 +231,10 @@ namespace Wreckabulary.Tests
         {
             var builder = Build("terrace");
             yield return null;
-            Assert.IsNull(MapSurroundings.Current, "the terrace has no backdrop of its own yet");
+            var backdrop = MapSurroundings.Current;
+            Assert.IsNotNull(backdrop, "the terrace's own neighbourhood");
+            Assert.AreEqual("terrace", backdrop.MapId);
             Assert.Greater(builder.Layout.StoreyFloors().Count, 1, "the terrace has upper storeys to cut");
-            var backdrop = MapSurroundings.Attach(builder.transform, builder.Layout, "pinwheel", House(builder));
-            Assert.IsNotNull(backdrop, "Maple Close's prefab, borrowed for a multi-storey house");
             var cutaway = builder.GetComponent<StoreyCutaway>();
             var lifted = backdrop.GetComponentsInChildren<MeshRenderer>(true).First(r => !r.GetComponent<BackdropMover>());
             lifted.transform.position += Vector3.up * 40f;

@@ -24,6 +24,8 @@ namespace Wreckabulary.Online.Tests
     {
         const string Player = "10000000-0000-4000-8000-000000000001", PartyId = "20000000-0000-4000-8000-000000000001";
         const string Seed = "0123456789abcdef", Code = "1234567890abcdef";
+        const string Host = "10000000-0000-4000-8000-000000000009";
+        const string FreeplayOnly = "v2;lists=freeplay";
         GameObject root;
         WordboundPartyMenu menu;
         WordboundPartyCoordinator coordinator;
@@ -35,7 +37,8 @@ namespace Wreckabulary.Online.Tests
         WordboundNativeInputScope input;
         OnlineSettings settings;
         bool ready;
-        string channel;
+        string channel, savedChoices, leader;
+        Dictionary<string, object> assignment;
         int revision, closed, humans;
 
         [SetUp]
@@ -44,7 +47,8 @@ namespace Wreckabulary.Online.Tests
             previousPad = Gamepad.current; previousTyping = DesktopBinding.Typing;
             try
             {
-                settings = null; ready = false; channel = null; revision = closed = 0; humans = 1;
+                settings = null; ready = false; channel = null; assignment = null; savedChoices = FreeplayOnly; revision = closed = 0; humans = 1;
+                leader = Player;
                 input = new WordboundNativeInputScope();
                 DesktopBinding.Typing = false;
                 pad = InputSystem.AddDevice<Gamepad>();
@@ -64,6 +68,10 @@ namespace Wreckabulary.Online.Tests
                 root = new GameObject("Party input native test"); menu = root.AddComponent<WordboundPartyMenu>(); menu.enabled = false;
                 Set(menu, "coordinator", coordinator); Set(menu, "publicCourses", catalogue);
                 Set(menu, "itemSource", items); Set(menu, "ruleSource", rules);
+                Set(menu, "loadQuickChoices", (Func<string>)(() => savedChoices));
+                Set(menu, "saveQuickChoices", (Action<string>)(value => savedChoices = value));
+                Set(menu, "utcOffsetMinutes", (Func<int>)(() => 420));
+                Set(menu, "quickPlayClock", (Func<long>)(() => 0L));
                 menu.CloseRequested += () => closed++;
                 window = ScriptableObject.CreateInstance<MenuWindow>(); window.Menu = menu;
                 window.position = new Rect(100, 100, 700, 900); window.ShowUtility();
@@ -88,6 +96,8 @@ namespace Wreckabulary.Online.Tests
                 if (root) Object.DestroyImmediate(root);
                 coordinator?.Dispose(); rsa?.Dispose();
                 if (pad != null && pad.added) InputSystem.RemoveDevice(pad);
+                WordboundQuickPlayEntry.CancelRequest(); WordboundQuickPlayEntry.CancelReturn();
+                WordboundRoomEntry.CancelRequest(); WordboundRoomEntry.CancelReturn();
                 if (previousPad != null && previousPad.added) previousPad.MakeCurrent();
             }
             finally
@@ -100,6 +110,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator PublicCoopDefaultsFindHumansWhilePrivateAndFfaChoicesRemainExplicit()
         {
+            yield return Classic();
             yield return Activate("mode:4");
             Assert.IsTrue(Get<bool>(menu, "fill"));
             Assert.IsFalse(coordinator.Authenticated); Assert.IsEmpty(http.Requests);
@@ -119,6 +130,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator PublicCoopPreflightBlocksOneHumanWithoutFillAndReenablesForFillOrTwoHumans()
         {
+            yield return Classic();
             yield return Activate("connect"); yield return Activate("mode:4");
             yield return Activate("fill"); yield return Activate("create-party");
             Assert.AreEqual(1, coordinator.Party.Members.Count); Assert.IsFalse(coordinator.Party.Settings.Fill);
@@ -148,6 +160,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator PartyMembersGetPerPlayerMutesSpeakingMarksAndYourRowShowsYourMic()
         {
+            yield return Classic();
             using var voice = new VoiceTestScope();
             const string other = "10000000-0000-4000-8000-000000000002";
             humans = 2;
@@ -196,6 +209,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator ASoloPartyHasNoVoiceRows()
         {
+            yield return Classic();
             using var voice = new VoiceTestScope();
             yield return Activate("connect"); yield return Activate("mode:4"); yield return Activate("create-party");
             Invoke(menu, "SyncPartyVoice");
@@ -203,6 +217,453 @@ namespace Wreckabulary.Online.Tests
             Draw(EventType.Layout); Draw(EventType.Repaint);
             var controls = Get<List<string>>(Get<WordboundMenuFocus>(menu, "partyFocus"), "controls");
             Assert.IsFalse(controls.Any(id => id.StartsWith("voice-", StringComparison.Ordinal)));
+        }
+
+        [UnityTest]
+        public IEnumerator FindMatchFromTheLobbyShowsOnlyTheCountAndCancel()
+        {
+            menu.StartMatchmaking();
+            Assert.IsTrue(coordinator.Authenticated); Assert.IsTrue(menu.Searching);
+            var chosen = coordinator.Party.Settings;
+            Assert.AreEqual("Freestyle", chosen.Mode, "The only ticked playlist with a public map.");
+            Assert.AreEqual("asia", chosen.Region, "The region comes from the UTC+7 clock.");
+            Assert.IsTrue(chosen.Fill); Assert.AreEqual(Seed, coordinator.Seed);
+            Assert.AreEqual(4, http.Requests.Count, string.Join(", ", http.Requests.Select(r => r.Path)));
+            Assert.AreEqual("/v1/guests", http.Requests[0].Path); Assert.AreEqual("/v1/parties", http.Requests[1].Path);
+            Assert.IsTrue(http.Requests[2].Path.EndsWith("/ready")); Assert.IsTrue(http.Requests[3].Path.EndsWith("/queue"));
+            StringAssert.StartsWith("v2;lists=freeplay;", savedChoices, "Find match remembers the playlists it used.");
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "lobby-cancel" }, Controls(), "Only Cancel shows while searching.");
+            StringAssert.StartsWith("Searching 0:", (string)Call(menu, "LobbySearchTitle"));
+            Assert.IsNull(Call(menu, "LobbySearchProblem"));
+            yield return Activate("lobby-cancel");
+            Assert.IsTrue(http.Requests.Last().Path.EndsWith("/leave"), "Cancel cancels the search, then leaves the solo party.");
+            Assert.IsNull(coordinator.Party); Assert.AreEqual(1, closed, "Cancel returns to the lobby.");
+            Assert.IsTrue(WordboundQuickPlayEntry.TakeReturn(), "The lobby reopens on the Matchmaking tab.");
+        }
+
+        [UnityTest]
+        public IEnumerator BackDuringTheSearchIsTheSameAsCancel()
+        {
+            menu.StartMatchmaking();
+            Assert.IsTrue(menu.Searching);
+            Invoke(menu, "PartyBack");
+            yield return null;
+            Assert.IsNull(coordinator.Party); Assert.AreEqual(1, closed);
+        }
+
+        [Test]
+        public void TheRememberedNameReachesTheServiceAndTheRegionIsAlwaysAutomatic()
+        {
+            savedChoices = "v2;lists=freeplay;region=us;team=Duo;name=Ana";
+            Set(menu, "quickChoices", null);
+            menu.StartMatchmaking();
+            Assert.AreEqual("asia", coordinator.Party.Settings.Region, "No region choice: the UTC+7 clock picks Asia.");
+            Assert.AreEqual("Ana", OnlineJson.Parse(http.Requests[0].JsonBody)["displayName"].String());
+            StringAssert.DoesNotContain("region", savedChoices);
+        }
+
+        [Test]
+        public void AnOldServiceMessageDoesNotStopANewSearch()
+        {
+            typeof(WordboundPartyCoordinator).GetProperty("Error").SetValue(coordinator, "The party changed. Refresh and try again.");
+            menu.StartMatchmaking();
+            Assert.IsTrue(menu.Searching);
+            Assert.IsNull(coordinator.Error);
+        }
+
+        [UnityTest]
+        public IEnumerator AFailedStepShowsWhyAndBackReturnsToTheLobby()
+        {
+            http.FailNext = true;
+            menu.StartMatchmaking();
+            Assert.IsFalse(coordinator.Authenticated); Assert.IsFalse(Get<bool>(menu, "quickPlayArmed"));
+            Assert.IsFalse(string.IsNullOrEmpty(coordinator.Error));
+            Assert.AreEqual(1, http.Requests.Count, "Nothing more is sent after the failed step.");
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "lobby-cancel" }, Controls());
+            Assert.AreEqual("Matchmaking stopped", Call(menu, "LobbySearchTitle"));
+            Assert.AreEqual(coordinator.Error, Call(menu, "LobbySearchProblem"));
+            yield return Activate("lobby-cancel");
+            Assert.AreEqual(1, http.Requests.Count, "With no party there is nothing to cancel or leave.");
+            Assert.AreEqual(1, closed); Assert.IsTrue(WordboundQuickPlayEntry.TakeReturn());
+        }
+
+        [UnityTest]
+        public IEnumerator APlaylistWithNoPublicMapExplainsWhyWithoutTalkingToTheService()
+        {
+            savedChoices = "v2;lists=relay-2v2";
+            Set(menu, "quickChoices", null);
+            menu.StartMatchmaking();
+            Assert.IsEmpty(http.Requests);
+            StringAssert.Contains("No public map is open", (string)Call(menu, "LobbySearchProblem"));
+            yield return Activate("lobby-cancel");
+            Assert.AreEqual(1, closed); Assert.IsEmpty(http.Requests);
+        }
+
+        [UnityTest]
+        public IEnumerator TheOnlinePageIsThePrivateRoomPageAndBackReturnsToTheLobby()
+        {
+            Draw(EventType.Layout);
+            var controls = Controls();
+            Assert.Contains("connect", controls); Assert.Contains("back", controls);
+            Assert.IsFalse(controls.Any(id => id == "play" || id == "play-options" || id == "more-options" || id == "lobby-cancel" ||
+                id.StartsWith("qp-", StringComparison.Ordinal)), "The old Find match panel is gone.");
+            yield return Activate("mode:4"); yield return Activate("create-settings");
+            Draw(EventType.Layout);
+            Assert.Contains("public-map:0", controls); Assert.IsFalse(controls.Contains("random-map"), "Shuffle stays gone.");
+            Invoke(menu, "PartyBack"); Invoke(menu, "PartyBack");
+            Assert.AreEqual(1, closed, "Back on the private room page returns to the lobby.");
+            Assert.IsTrue(WordboundQuickPlayEntry.TakeReturn(), "The lobby reopens on the Matchmaking tab.");
+            Assert.IsEmpty(http.Requests);
+        }
+
+        [Test]
+        public void TheHomePlayRequestIsTakenOnceAndOtherEntriesCancelIt()
+        {
+            try
+            {
+                WordboundQuickPlayEntry.Request();
+                Assert.IsTrue(WordboundQuickPlayEntry.TakeRequest()); Assert.IsFalse(WordboundQuickPlayEntry.TakeRequest());
+                WordboundQuickPlayEntry.Request(); WordboundWorkshopEntry.Request();
+                Assert.IsFalse(WordboundQuickPlayEntry.TakeRequest(), "Opening the Map editor cancels a pending search.");
+                WordboundQuickPlayEntry.Request();
+                Assert.IsFalse(WordboundWorkshopEntry.TakeRequest(), "Play cancels a pending Map editor entry.");
+                WordboundQuickPlayEntry.Request(); WordboundSoloEntry.Request(WordboundSoloEntry.SelectedMode);
+                Assert.IsFalse(WordboundQuickPlayEntry.TakeRequest(), "A solo course cancels a pending search.");
+                WordboundQuickPlayEntry.MarkReturned();
+                Assert.IsTrue(WordboundQuickPlayEntry.TakeReturn()); Assert.IsFalse(WordboundQuickPlayEntry.TakeReturn());
+                WordboundQuickPlayEntry.MarkReturned(); WordboundQuickPlayEntry.CancelReturn();
+                Assert.IsFalse(WordboundQuickPlayEntry.TakeReturn());
+            }
+            finally
+            {
+                WordboundQuickPlayEntry.CancelRequest(); WordboundQuickPlayEntry.CancelReturn();
+                WordboundWorkshopEntry.CancelRequest(); WordboundSoloEntry.CancelRequest();
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator HostingARoomMakesAPrivateRoomAndShowsTheCodeMembersAndStart()
+        {
+            menu.HostRoom("Freestyle", "Solo", 0);
+            Assert.IsTrue(menu.InRoom); Assert.IsTrue(coordinator.Authenticated);
+            Assert.AreEqual(4, http.Requests.Count, string.Join(", ", http.Requests.Select(r => r.Path)));
+            Assert.AreEqual("/v1/guests", http.Requests[0].Path); Assert.AreEqual("/v1/parties", http.Requests[1].Path);
+            Assert.IsTrue(http.Requests[2].Path.EndsWith("/ready"));
+            var queued = OnlineJson.Parse(http.Requests[3].JsonBody);
+            Assert.AreEqual("PrivateCreate", queued["channel"].String()); Assert.IsFalse(queued.Has("code"));
+            var chosen = coordinator.Party.Settings;
+            Assert.AreEqual("Freestyle", chosen.Mode); Assert.AreEqual("asia", chosen.Region, "The region comes from the UTC+7 clock.");
+            Assert.IsFalse(chosen.Fill); Assert.AreEqual(Seed, coordinator.Seed);
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "room-leave" }, Controls(), "Start waits for the room code.");
+            Assert.AreEqual("Making your room…", Call(menu, "RoomStatus", new object[] { null }));
+            Assert.IsNull(Call(menu, "RoomProblem"));
+            assignment = Room(Player);
+            coordinator.Poll().GetAwaiter().GetResult();
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "room-copy", "room-leave", "room-start" }, Controls());
+            Assert.AreEqual("room-copy", Get<WordboundMenuFocus>(menu, "partyFocus").Selected, "The pad lands on Copy code, never on Leave.");
+            Assert.AreEqual("Free Roam · The Lost Address", Call(menu, "RoomTitle"), "The room names its course, not a layout number.");
+            Assert.AreEqual("1 / 8 players · ready to start", Call(menu, "RoomStatus", Code));
+            CollectionAssert.AreEqual(new[] { "You" }, (IEnumerable)Call(menu, "RoomMembers"));
+            Assert.IsTrue((bool)Call(menu, "CanStartRoom", Code));
+            string before = GUIUtility.systemCopyBuffer;
+            try
+            {
+                yield return Activate("room-copy");
+                string copied = GUIUtility.systemCopyBuffer;
+                Assert.IsTrue(FriendRooms.LooksLikeInvite(copied), copied);
+                var invite = new WordboundRoomInvite(copied);
+                Assert.AreEqual(Code, invite.Code); Assert.AreEqual("Freestyle", invite.Mode); Assert.AreEqual(Seed, invite.Seed);
+            }
+            finally { GUIUtility.systemCopyBuffer = before; }
+            yield return Activate("room-leave");
+            Assert.IsTrue(http.Requests[http.Requests.Count - 2].Path.EndsWith("/cancel"));
+            Assert.IsTrue(http.Requests.Last().Path.EndsWith("/leave"), "Leave gives up the room, then the solo party.");
+            Assert.IsNull(coordinator.Party); Assert.IsFalse(menu.InRoom); Assert.AreEqual(1, closed);
+            Assert.IsTrue(WordboundRoomEntry.TakeReturn(), "The lobby reopens on Custom match.");
+            Assert.IsFalse(WordboundQuickPlayEntry.TakeReturn());
+        }
+
+        [UnityTest]
+        public IEnumerator JoiningWithARoomCodeTakesTheRoomSettingsAndWaitsForTheHost()
+        {
+            string invite = WordboundRoomInvite.Encode(Code, coordinator.Settings("Freestyle", "Solo", false, "us"), Seed);
+            menu.JoinFriendRoom(invite);
+            Assert.IsTrue(menu.InRoom);
+            var queued = OnlineJson.Parse(http.Requests.Last().JsonBody);
+            Assert.AreEqual("PrivateJoin", queued["channel"].String()); Assert.AreEqual(Code, queued["code"].String());
+            Assert.AreEqual("us", coordinator.Party.Settings.Region, "A guest uses the host's region, not their own clock.");
+            Assert.IsFalse(coordinator.Party.Settings.Fill); Assert.AreEqual(Seed, coordinator.Seed);
+            assignment = Room(Host, Player);
+            coordinator.Poll().GetAwaiter().GetResult();
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "room-copy", "room-leave" }, Controls(), "Guests never see Start.");
+            CollectionAssert.AreEqual(new[] { "Host, You" }, (IEnumerable)Call(menu, "RoomMembers"));
+            StringAssert.EndsWith("you're ready, the host starts", (string)Call(menu, "RoomStatus", Code));
+            Assert.IsFalse((bool)Call(menu, "CanStartRoom", Code));
+            Invoke(menu, "PartyBack");
+            yield return null;
+            Assert.IsNull(coordinator.Party); Assert.AreEqual(1, closed, "Back leaves the room like Leave.");
+            Assert.IsTrue(WordboundRoomEntry.TakeReturn());
+        }
+
+        [UnityTest]
+        public IEnumerator ABrokenRoomCodeExplainsItselfWithoutTalkingToTheService()
+        {
+            menu.JoinFriendRoom("wb-room:" + Code + ":NoSuchMode:Solo:asia:p1:" + Seed + ":pad-tests");
+            Assert.IsTrue(menu.InRoom); Assert.IsEmpty(http.Requests);
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "room-leave" }, Controls());
+            Assert.AreEqual(WordboundPartyMenu.BadRoomCode, Call(menu, "RoomProblem"));
+            yield return Activate("room-leave");
+            Assert.IsEmpty(http.Requests, "With no party there is nothing to cancel or leave.");
+            Assert.AreEqual(1, closed); Assert.IsTrue(WordboundRoomEntry.TakeReturn()); Assert.IsFalse(WordboundQuickPlayEntry.TakeReturn());
+        }
+
+        [UnityTest]
+        public IEnumerator InviteFriendsMakesAPartyWithACodeAndOnlyTheLeaderFindsAMatch()
+        {
+            menu.InviteFriends();
+            Assert.IsTrue(menu.InFriendsParty); Assert.IsFalse(menu.InRoom); Assert.IsTrue(coordinator.Authenticated);
+            Assert.AreEqual(3, http.Requests.Count, string.Join(", ", http.Requests.Select(r => r.Path)));
+            Assert.AreEqual("/v1/guests", http.Requests[0].Path); Assert.AreEqual("/v1/parties", http.Requests[1].Path);
+            Assert.IsTrue(http.Requests[2].Path.EndsWith("/ready"));
+            Assert.IsTrue(ready); Assert.IsNull(channel, "Nothing is queued until the leader presses Find match.");
+            var chosen = coordinator.Party.Settings;
+            Assert.AreEqual("Freestyle", chosen.Mode, "Free Roam has room for four friends."); Assert.AreEqual("Solo", chosen.Format);
+            Assert.AreEqual("asia", chosen.Region); Assert.AreEqual(Seed, coordinator.Seed);
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "party-copy", "party-leave", "party-find" }, Controls());
+            Assert.AreEqual("party-copy", Get<WordboundMenuFocus>(menu, "partyFocus").Selected, "The pad lands on Copy code.");
+            Assert.AreEqual("Searches Free Roam · 8", Call(menu, "FriendsPartyStatus"), "The party says what Find match will search.");
+            Assert.IsNull(Call(menu, "FriendsPartyProblem"));
+            string before = GUIUtility.systemCopyBuffer;
+            try
+            {
+                yield return Activate("party-copy");
+                string copied = GUIUtility.systemCopyBuffer;
+                Assert.IsTrue(FriendRooms.LooksLikePartyInvite(copied), copied);
+                Assert.IsFalse(FriendRooms.LooksLikeInvite(copied), "A party code is not a room code.");
+                var invite = new WordboundPartyInvite(copied);
+                Assert.AreEqual(PartyId, invite.PartyId); Assert.AreEqual(Code, invite.Invite); Assert.AreEqual(Seed, invite.Seed);
+            }
+            finally { GUIUtility.systemCopyBuffer = before; }
+            yield return Activate("party-find");
+            Assert.IsTrue(menu.Searching); Assert.AreEqual("QuickPlay", channel);
+            Assert.IsTrue(http.Requests.Last().Path.EndsWith("/queue"));
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "lobby-cancel" }, Controls(), "The leader's search uses the normal search bar.");
+            yield return Activate("lobby-cancel");
+            Assert.IsTrue(http.Requests.Last().Path.EndsWith("/cancel"), "Cancel stops the search and keeps the party.");
+            Assert.IsNotNull(coordinator.Party); Assert.IsTrue(menu.InFriendsParty); Assert.IsFalse(menu.Searching);
+            Assert.AreEqual(0, closed, "Cancel goes back to the party, not the lobby.");
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "party-copy", "party-leave", "party-find" }, Controls());
+            Assert.AreEqual("party-find", Get<WordboundMenuFocus>(menu, "partyFocus").Selected);
+            yield return Activate("party-leave");
+            Assert.IsTrue(http.Requests.Last().Path.EndsWith("/leave"));
+            Assert.IsNull(coordinator.Party); Assert.IsFalse(menu.InFriendsParty); Assert.AreEqual(1, closed);
+            Assert.IsTrue(WordboundQuickPlayEntry.TakeReturn(), "Leave reopens the lobby on the Matchmaking tab.");
+            Assert.IsFalse(WordboundRoomEntry.TakeReturn());
+        }
+
+        [UnityTest]
+        public IEnumerator JoiningAPartyReadiesYouAndWaitsForTheLeader()
+        {
+            leader = "10000000-0000-4000-8000-000000000002"; humans = 2;
+            settings = coordinator.Settings("Freestyle", "Solo", true, "asia");
+            menu.JoinFriendsParty("  " + WordboundPartyInvite.Encode(PartyId, Code, Seed) + " ");
+            Assert.IsTrue(menu.InFriendsParty);
+            Assert.AreEqual("/v1/party-joins", http.Requests.Last().Path);
+            Assert.IsFalse(coordinator.IsLeader); Assert.IsNotNull(coordinator.Content); Assert.IsFalse(ready);
+            Invoke(menu, "TickFriendsParty");
+            Assert.IsTrue(ready, "A member is ready as soon as they join.");
+            Assert.IsTrue(http.Requests.Last().Path.EndsWith("/ready"));
+            int count = http.Requests.Count;
+            Invoke(menu, "TickFriendsParty");
+            Assert.AreEqual(count, http.Requests.Count, "Ready is sent once, not every frame.");
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "party-copy", "party-leave" }, Controls(), "Only the leader sees Find match.");
+            Assert.AreEqual(WordboundPartyMenu.WaitingForLeader, Call(menu, "FriendsPartyStatus"));
+            Invoke(menu, "PartyBack");
+            yield return null;
+            Assert.IsNull(coordinator.Party); Assert.AreEqual(1, closed);
+            Assert.IsTrue(WordboundQuickPlayEntry.TakeReturn()); Assert.IsFalse(WordboundRoomEntry.TakeReturn());
+        }
+
+        [Test]
+        public void PartyMembersAreNumberedInJoinOrder()
+        {
+            leader = "10000000-0000-4000-8000-000000000002"; humans = 3;
+            settings = coordinator.Settings("Freestyle", "Solo", true, "asia");
+            menu.JoinFriendsParty(WordboundPartyInvite.Encode(PartyId, Code, Seed));
+            var party = coordinator.Party;
+            CollectionAssert.AreEqual(new[] { "You · not ready", "Player 2 · leader · not ready", "Player 3 · not ready" },
+                party.Members.Select(member => (string)Call(menu, "MemberLine", party, member)).ToArray());
+        }
+
+        [UnityTest]
+        public IEnumerator ABrokenPartyCodeExplainsItselfWithoutTalkingToTheService()
+        {
+            menu.JoinFriendsParty("wb-party:" + PartyId + ":short:" + Seed);
+            Assert.IsTrue(menu.InFriendsParty); Assert.IsEmpty(http.Requests);
+            Assert.AreEqual(WordboundPartyMenu.BadPartyCode, Call(menu, "FriendsPartyProblem"));
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "party-leave" }, Controls());
+            yield return Activate("party-leave");
+            Assert.IsEmpty(http.Requests, "With no party there is nothing to leave.");
+            Assert.AreEqual(1, closed); Assert.IsTrue(WordboundQuickPlayEntry.TakeReturn()); Assert.IsFalse(WordboundRoomEntry.TakeReturn());
+        }
+
+        [Test]
+        public void APartyCountsDownFiveSecondsWhenTheLeadersSearchFindsAMatch()
+        {
+            float now = 30f;
+            Set(menu, "searchClock", (Func<float>)(() => now));
+            menu.InviteFriends();
+            assignment = new Dictionary<string, object> { ["matchId"] = "30000000-0000-4000-8000-000000000002", ["state"] = "ADMITTING" };
+            menu.StartMatchmaking();
+            Assert.AreEqual("Match found · starting in 5", Call(menu, "LobbySearchTitle"));
+            Assert.IsTrue((bool)Call(menu, "LaunchHeld"));
+            now += 5f;
+            Assert.IsFalse((bool)Call(menu, "LaunchHeld"));
+        }
+
+        [Test]
+        public void PartyRequestsNeitherHostNorJoinARoom()
+        {
+            var start = WordboundRoomRequest.StartParty();
+            Assert.IsTrue(start.InviteFriends); Assert.IsTrue(start.Party); Assert.IsFalse(start.Hosting); Assert.IsNull(start.Invite);
+            var join = WordboundRoomRequest.JoinParty("  wb-party:x  ");
+            Assert.AreEqual("wb-party:x", join.PartyInvite); Assert.IsTrue(join.Party); Assert.IsFalse(join.Hosting); Assert.IsNull(join.Invite);
+            Assert.IsFalse(WordboundRoomRequest.Join("wb-room:x").Party);
+        }
+
+        [Test]
+        public void AModeWithNoOpenMapSaysSoBeforeConnecting()
+        {
+            menu.HostRoom("TeamRace", "Duo", 2);
+            Assert.IsEmpty(http.Requests);
+            StringAssert.StartsWith("No map is open", (string)Call(menu, "RoomProblem"));
+        }
+
+        [Test]
+        public void TheRoomRequestIsTakenOnceAndOtherEntriesCancelIt()
+        {
+            try
+            {
+                WordboundRoomEntry.Request(WordboundRoomRequest.Host("TeamRace", "Duo", 1));
+                var taken = WordboundRoomEntry.TakeRequest();
+                Assert.IsTrue(taken.Hosting); Assert.AreEqual("TeamRace", taken.Mode); Assert.AreEqual("Duo", taken.Format); Assert.AreEqual(1, taken.Layout);
+                Assert.IsNull(WordboundRoomEntry.TakeRequest());
+                WordboundRoomEntry.Request(WordboundRoomRequest.Join("  wb-room:x  "));
+                Assert.AreEqual("wb-room:x", WordboundRoomEntry.TakeRequest().Invite);
+                WordboundRoomEntry.Request(WordboundRoomRequest.HostCustomMap()); WordboundQuickPlayEntry.Request();
+                Assert.IsNull(WordboundRoomEntry.TakeRequest(), "Find match cancels a pending room.");
+                WordboundRoomEntry.Request(WordboundRoomRequest.HostCustomMap());
+                Assert.IsFalse(WordboundQuickPlayEntry.TakeRequest(), "A room cancels a pending search.");
+                Assert.IsTrue(WordboundRoomEntry.TakeRequest().CustomMap);
+                WordboundRoomEntry.Request(WordboundRoomRequest.Host("Freestyle", "Solo", 0)); WordboundWorkshopEntry.Request();
+                Assert.IsNull(WordboundRoomEntry.TakeRequest(), "The Map editor cancels a pending room.");
+                WordboundRoomEntry.Request(WordboundRoomRequest.Host("Freestyle", "Solo", 0)); WordboundSoloEntry.Request(WordboundSoloEntry.SelectedMode);
+                Assert.IsNull(WordboundRoomEntry.TakeRequest(), "A solo course cancels a pending room.");
+                WordboundRoomEntry.MarkReturned();
+                Assert.IsTrue(WordboundRoomEntry.TakeReturn()); Assert.IsFalse(WordboundRoomEntry.TakeReturn());
+            }
+            finally
+            {
+                WordboundRoomEntry.CancelRequest(); WordboundRoomEntry.CancelReturn();
+                WordboundQuickPlayEntry.CancelRequest(); WordboundWorkshopEntry.CancelRequest(); WordboundSoloEntry.CancelRequest();
+            }
+        }
+
+        [Test]
+        public void TheSearchTimerCountsFromFindMatch()
+        {
+            float now = 100f;
+            Set(menu, "searchClock", (Func<float>)(() => now));
+            menu.StartMatchmaking();
+            Assert.IsTrue(menu.Searching);
+            now += 42.4f;
+            Assert.AreEqual("Searching 0:42", Call(menu, "LobbySearchTitle"));
+            Assert.IsTrue((bool)Call(menu, "LaunchHeld"), "Nothing launches before a match is found.");
+        }
+
+        [Test]
+        public void AFoundMatchCountsDownFiveSecondsBeforeItStarts()
+        {
+            float now = 100f;
+            Set(menu, "searchClock", (Func<float>)(() => now));
+            assignment = new Dictionary<string, object> { ["matchId"] = "30000000-0000-4000-8000-000000000002", ["state"] = "ADMITTING" };
+            menu.StartMatchmaking();
+            Assert.IsTrue(menu.Searching);
+            Assert.AreEqual(5, WordboundPartyMenu.StartCountdownSeconds);
+            Assert.AreEqual("Match found · starting in 5", Call(menu, "LobbySearchTitle"));
+            Assert.IsTrue((bool)Call(menu, "LaunchHeld"), "The launch waits for the countdown.");
+            now += 2.2f;
+            Assert.AreEqual("Match found · starting in 3", Call(menu, "LobbySearchTitle"));
+            Assert.IsTrue((bool)Call(menu, "LaunchHeld"));
+            now += 2.9f;
+            Assert.IsFalse((bool)Call(menu, "LaunchHeld"));
+            Assert.AreEqual("Joining match…", Call(menu, "LobbySearchTitle"));
+            Draw(EventType.Layout); Draw(EventType.Repaint);
+            CollectionAssert.AreEqual(new[] { "lobby-cancel" }, Controls(), "Cancel stays until the match has started.");
+        }
+
+        [Test]
+        public void ARoomCountsDownAfterTheHostStarts()
+        {
+            float now = 50f;
+            Set(menu, "searchClock", (Func<float>)(() => now));
+            var room = Room(Player, Host);
+            room["state"] = "ADMITTING";
+            assignment = room;
+            menu.HostRoom("Freestyle", "Solo", 0);
+            Assert.AreEqual("Everyone's in · starting in 5", Call(menu, "RoomStatus", Code));
+            Assert.IsFalse((bool)Call(menu, "CanStartRoom", Code), "Start is pressed once.");
+            now += 5f;
+            Assert.AreEqual("Joining match…", Call(menu, "RoomStatus", Code));
+            Assert.IsFalse((bool)Call(menu, "LaunchHeld"));
+        }
+
+        [Test]
+        public void ANewRoomCountsDownFromFiveAfterAnEarlierFoundMatch()
+        {
+            float now = 80f;
+            Set(menu, "searchClock", (Func<float>)(() => now));
+            Set(menu, "matchFoundAt", 10f);
+            var room = Room(Player, Host);
+            room["state"] = "ADMITTING";
+            assignment = room;
+            menu.HostRoom("Freestyle", "Solo", 0);
+            Assert.AreEqual("Everyone's in · starting in 5", Call(menu, "RoomStatus", Code));
+        }
+
+        [Test]
+        public void ANewSearchCountsDownFromFiveAfterAnEarlierFoundMatch()
+        {
+            float now = 80f;
+            Set(menu, "searchClock", (Func<float>)(() => now));
+            Set(menu, "matchFoundAt", 10f);
+            assignment = new Dictionary<string, object> { ["matchId"] = "30000000-0000-4000-8000-000000000002", ["state"] = "ADMITTING" };
+            menu.StartMatchmaking();
+            Assert.AreEqual("Match found · starting in 5", Call(menu, "LobbySearchTitle"));
+        }
+
+        static Dictionary<string, object> Room(params string[] players) => new Dictionary<string, object> {
+            ["matchId"] = "30000000-0000-4000-8000-000000000001", ["state"] = "FORMING", ["privateCode"] = Code,
+            ["roster"] = players.Select((player, seat) => new Dictionary<string, object> {
+                ["playerId"] = player, ["teamId"] = 0, ["seat"] = seat }).ToArray() };
+
+        List<string> Controls() => Get<List<string>>(Get<WordboundMenuFocus>(menu, "partyFocus"), "controls");
+
+        IEnumerator Classic()
+        {
+            Draw(EventType.Layout);
+            yield break;
         }
 
         static object Call(object target, string name, params object[] args)
@@ -214,6 +675,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator RealPadButtonsConnectSelectCreateReadyAndQuickPlayOnlyAfterRepaint()
         {
+            yield return Classic();
             yield return Activate("connect"); Assert.IsTrue(coordinator.Authenticated);
             yield return Activate("mode:4"); Assert.AreEqual(4, Get<int>(menu, "mode"));
             yield return Activate("create-settings");
@@ -231,6 +693,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator RetryReusesPendingCreateAndPrivateQueueThenBackLeavesParty()
         {
+            yield return Classic();
             yield return Activate("connect"); yield return Activate("mode:4");
             http.FailNext = true; yield return Activate("create-party");
             Assert.IsTrue(coordinator.RetryRequired);
@@ -244,12 +707,14 @@ namespace Wreckabulary.Online.Tests
             Sample(default); Sample(default); Sample(new GamepadState().WithButton(GamepadButton.East));
             Assert.IsNull(coordinator.Party); Assert.IsTrue(http.Requests.Last().Path.EndsWith("/leave"));
             Sample(default); Sample(new GamepadState().WithButton(GamepadButton.East));
-            Assert.AreEqual(1, closed);
+            Assert.AreEqual(1, closed, "With no party, Back returns to the lobby.");
+            Assert.IsTrue(WordboundQuickPlayEntry.TakeReturn());
         }
 
         [UnityTest]
         public IEnumerator EntryTabsRegisterOnlyVisibleActionsAndRoomSettingsReturnToCreate()
         {
+            yield return Classic();
             yield return Activate("connect"); yield return Activate("mode:4");
             Draw(EventType.Layout);
             var controls = Get<List<string>>(Get<WordboundMenuFocus>(menu, "partyFocus"), "controls");
@@ -278,6 +743,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator CompactCreateResolvesPublicDefaultsAndPreservesFoldedPrivateSettings()
         {
+            yield return Classic();
             yield return Activate("connect"); Draw(EventType.Layout);
             var controls = Get<List<string>>(Get<WordboundMenuFocus>(menu, "partyFocus"), "controls");
             Assert.Contains("create-settings", controls); Assert.IsFalse(controls.Contains("create-party"));
@@ -308,6 +774,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator HiddenCreateSettingCannotDispatchAfterItsSectionCloses()
         {
+            yield return Classic();
             yield return Activate("connect"); yield return Activate("mode:4"); yield return Activate("create-settings");
             int requests = http.Requests.Count;
             yield return QueueControl("region:1");
@@ -322,6 +789,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator HiddenPrivateActionCannotDispatchAfterItsPanelContextChanges()
         {
+            yield return Classic();
             yield return Activate("connect"); yield return Activate("mode:4");
             yield return Activate("create-party"); yield return Activate("ready");
             Draw(EventType.Layout);
@@ -343,6 +811,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator BackClosesOptionalPanelsBeforeLeavingIdlePartyAndCancelRemainsVisible()
         {
+            yield return Classic();
             yield return Activate("connect"); yield return Activate("mode:4");
             yield return Activate("create-settings"); Assert.IsTrue(Get<bool>(menu, "fill"));
             yield return Activate("create-party");
@@ -374,6 +843,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator FailedQueueKeepsRetryVisibleWithoutReopeningPrivateForms()
         {
+            yield return Classic();
             yield return Activate("connect"); yield return Activate("mode:4");
             yield return Activate("create-settings"); Assert.IsTrue(Get<bool>(menu, "fill"));
             yield return Activate("create-party"); yield return Activate("ready");
@@ -474,6 +944,7 @@ namespace Wreckabulary.Online.Tests
         [UnityTest]
         public IEnumerator FocusLossDiscardsActualQueuedConnectAndHeldConfirmNeedsNeutral()
         {
+            yield return Classic();
             yield return QueueControl("connect");
             Invoke(menu, "ProcessPartyInput", false);
             Sample(new GamepadState().WithButton(GamepadButton.South));
@@ -631,6 +1102,7 @@ namespace Wreckabulary.Online.Tests
             IDisposable lease = null;
             try
             {
+                yield return Classic();
                 yield return QueueControl("connect");
                 if (gameplayLease) lease = KeyBindings.BlockGameplay();
                 else DesktopBinding.Typing = true;
@@ -717,13 +1189,14 @@ namespace Wreckabulary.Online.Tests
             if (request.Path.EndsWith("/cancel")) channel = null;
             if (request.Path.EndsWith("/leave")) return Json(new Dictionary<string, object>());
             var response = new Dictionary<string, object> {
-                ["id"] = PartyId, ["revision"] = (++revision).ToString(), ["leaderId"] = Player, ["invite"] = Code,
+                ["id"] = PartyId, ["revision"] = (++revision).ToString(), ["leaderId"] = leader, ["invite"] = Code,
                 ["members"] = Enumerable.Range(0, humans).Select(index => new Dictionary<string, object> {
                     ["playerId"] = index == 0 ? Player : "10000000-0000-4000-8000-" + (index + 1).ToString("D12"),
                     ["ready"] = ready }).ToArray(),
                 ["settings"] = settings.ToValue(), ["state"] = channel == null ? "OPEN" : "QUEUED"
             };
             if (channel != null) response["activeAttempt"] = new Dictionary<string, object> { ["channel"] = channel };
+            if (channel != null && assignment != null) response["assignment"] = assignment;
             return Json(response);
         }
         static OnlineResponse Json(object value) => new OnlineResponse(200, OnlineJson.Encode(value));
