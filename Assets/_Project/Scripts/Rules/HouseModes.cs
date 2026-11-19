@@ -106,12 +106,6 @@ namespace Wreckabulary.Rules
         public static HouseModeFamily FamilyOf(string id) =>
             Find(id)?.Family ?? Courses.FirstOrDefault(course => course.id == id).family;
 
-        public static string OpenModeIn(HouseModeFamily family, string last, bool coursesOpen)
-        {
-            var open = ModesIn(family).Where(id => Has(id) || coursesOpen).ToArray();
-            return last != null && open.Contains(last) ? last : open[0];
-        }
-
         public static bool Has(string id) => id != null && ById.ContainsKey(id);
 
         public static HouseMode Find(string id) => id != null && ById.TryGetValue(id, out var mode) ? mode : null;

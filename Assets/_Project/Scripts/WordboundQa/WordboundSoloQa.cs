@@ -119,11 +119,6 @@ namespace Wreckabulary.Qa
             yield return Settle();
             Submit(menu.Page<PlayPage>().Root, "Queue " + LobbyMenu.Practice);
             yield return Settle();
-            if (!menu.Page<PlayPage>().Root.GetComponentsInChildren<Button>().Any(item => item.name == "Solo " + mode))
-            {
-                Submit(menu.Page<PlayPage>().Root, PlayPage.GroupTab + Wreckabulary.Rules.HouseModes.FamilyOf(mode));
-                yield return Settle();
-            }
             Submit(menu.Page<PlayPage>().Root, "Solo " + mode);
             yield return Settle();
             Submit(menu.Page<PlayPage>().Root, "Solo map " + soloMap);

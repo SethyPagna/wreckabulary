@@ -21,16 +21,28 @@ namespace Wreckabulary.Rules.Tests
 
         static QuickPlayChoices Only(params string[] ids) => Choices("v2;lists=" + string.Join("+", ids));
 
+        static QuickPlayChoices Squads()
+        {
+            var choices = Choices();
+            Assert.IsTrue(choices.ChooseTeamSize(QuickPlayCards.Squad));
+            return choices;
+        }
+
+        static string[] Searched(QuickPlayChoices choices, int party = 1) => choices.Searched(party).Select(list => list.Id).ToArray();
+
         static QuickPlayPick Pick(QuickPlayChoices choices, int party, long slot, string region = "asia",
             QuickPlayPick keep = null, string partySeed = null) =>
             QuickPlayPicker.Pick(choices, Seeds, Everything, party, slot, region, keep, partySeed);
 
         [Test]
-        public void FirstLaunchTicksEveryPlaylistButFreeplay()
+        public void FirstLaunchTicksEveryCardButFreeRoamAtTwoVTwo()
         {
             var choices = Choices();
-            CollectionAssert.AreEqual(QuickPlaylists.StartTicked, choices.Playlists.Ticked);
-            Assert.IsFalse(choices.Playlists.IsTicked("freeplay"), "A first Find match should land in a real match.");
+            CollectionAssert.AreEqual(new[] { "relay", "brawl", "ffa", "coop" }, choices.Cards.Ticked);
+            CollectionAssert.AreEqual(QuickPlayCards.StartTicked, choices.Cards.Ticked);
+            Assert.IsFalse(choices.Cards.IsTicked("freeplay"), "A first Find match should land in a real match.");
+            Assert.AreEqual(QuickPlayCards.Duo, choices.TeamSize);
+            CollectionAssert.AreEqual(new[] { "relay-2v2", "brawl-2v2", "ffa", "coop" }, Searched(choices));
             Assert.AreEqual("Player", choices.Name);
         }
 
@@ -38,11 +50,14 @@ namespace Wreckabulary.Rules.Tests
         public void RememberedPlaylistsAndNameSurviveASaveAndLoad()
         {
             var choices = Choices();
-            choices.Playlists.Toggle("ffa"); choices.Playlists.Toggle("freeplay"); choices.ChooseName("  Ana; =+%  ");
+            choices.Cards.Toggle("ffa"); choices.Cards.Toggle("freeplay"); choices.ChooseName("  Ana; =+%  ");
+            Assert.IsTrue(choices.ChooseTeamSize(QuickPlayCards.Squad));
             string saved = choices.Save();
-            StringAssert.StartsWith("v2;lists=", saved);
+            StringAssert.StartsWith("v2;lists=relay-4v4+brawl-4v4+coop+freeplay;", saved, "The list names only the playlists the switch searches.");
+            StringAssert.EndsWith(";size=Squad", saved);
             var loaded = Choices(saved);
-            Assert.AreEqual(new[] { "relay-2v2", "relay-4v4", "brawl-2v2", "brawl-4v4", "coop", "freeplay" }, loaded.Playlists.Ticked);
+            Assert.AreEqual(new[] { "relay", "brawl", "coop", "freeplay" }, loaded.Cards.Ticked);
+            Assert.AreEqual(QuickPlayCards.Squad, loaded.TeamSize);
             Assert.AreEqual("Ana; =+%", loaded.Name);
         }
 
@@ -56,16 +71,52 @@ namespace Wreckabulary.Rules.Tests
         public void BrokenOrForeignSavesFallBackToDefaults(string saved)
         {
             var choices = Choices(saved);
-            CollectionAssert.AreEqual(QuickPlaylists.StartTicked, choices.Playlists.Ticked);
+            CollectionAssert.AreEqual(QuickPlayCards.StartTicked, choices.Cards.Ticked);
+            Assert.AreEqual(QuickPlayCards.Duo, choices.TeamSize);
             Assert.AreEqual("Player", choices.Name);
+        }
+
+        [TestCase("v2;lists=relay-2v2+relay-4v4+brawl-2v2+brawl-4v4+ffa+coop;name=Ana", "relay+brawl+ffa+coop", "Duo")]
+        [TestCase("v2;lists=relay-4v4+brawl-4v4", "relay+brawl", "Squad")]
+        [TestCase("v2;lists=relay-4v4+ffa", "relay+ffa", "Squad")]
+        [TestCase("v2;lists=relay-2v2+brawl-4v4", "relay+brawl", "Duo")]
+        [TestCase("v2;lists=brawl-4v4+relay-2v2", "relay+brawl", "Duo")]
+        [TestCase("v2;lists=coop+freeplay", "coop+freeplay", "Duo")]
+        [TestCase("v2;lists=freeplay;region=us;team=Squad;name=Ana", "freeplay", "Duo")]
+        [TestCase("v2;lists=relay-2v2;size=Squad", "relay", "Squad")]
+        [TestCase("v2;lists=relay-4v4;size=8v8", "relay", "Squad")]
+        [TestCase("v2;lists=relay-4v4;size=Solo", "relay", "Squad")]
+        [TestCase("v2;size=Squad", "relay+brawl+ffa+coop", "Squad")]
+        public void OldSavesMapTheirTickedPlaylistsToCardsAndTheSwitch(string saved, string cards, string size)
+        {
+            var choices = Choices(saved);
+            CollectionAssert.AreEqual(cards.Split('+'), choices.Cards.Ticked, "A card is ticked when either of its sizes was ticked.");
+            Assert.AreEqual(size, choices.TeamSize, "A saved switch wins; otherwise 2v2 when any 2v2 was ticked, else 4v4 when any 4v4 was, else 2v2.");
+            var again = Choices(choices.Save());
+            CollectionAssert.AreEqual(choices.Cards.Ticked, again.Cards.Ticked);
+            Assert.AreEqual(choices.TeamSize, again.TeamSize);
+            Assert.AreEqual(choices.Name, again.Name);
+        }
+
+        [Test]
+        public void AnOlderBuildReadsTheNewSaveAsThePlaylistsTheSwitchSearches()
+        {
+            var choices = Squads();
+            choices.ChooseName("Ana");
+            string saved = choices.Save();
+            Assert.AreEqual("v2;lists=relay-4v4+brawl-4v4+ffa+coop;name=Ana;size=Squad", saved);
+            string lists = saved.Split(';').Single(part => part.StartsWith("lists=")).Substring(6);
+            CollectionAssert.AreEqual(Searched(choices), lists.Split('+'), "lists= keeps its old meaning, so an older build searches the same playlists.");
+            CollectionAssert.IsSubsetOf(lists.Split('+'), QuickPlaylists.Ids, "Playlist ids never change.");
         }
 
         [Test]
         public void AnOlderSaveKeepsOnlyTheName()
         {
-            var choices = Choices("v1;modes=Freestyle;region=eu;team=Duo;name=Ana");
+            var choices = Choices("v1;modes=Freestyle;region=eu;team=Squad;name=Ana");
             Assert.AreEqual("Ana", choices.Name);
-            CollectionAssert.AreEqual(QuickPlaylists.StartTicked, choices.Playlists.Ticked);
+            CollectionAssert.AreEqual(QuickPlayCards.StartTicked, choices.Cards.Ticked);
+            Assert.AreEqual(QuickPlayCards.Duo, choices.TeamSize, "The old team key is not the switch.");
             StringAssert.DoesNotContain("region", choices.Save());
         }
 
@@ -98,25 +149,92 @@ namespace Wreckabulary.Rules.Tests
         public void TheSummaryNamesTheTickedPlaylistsBriefly()
         {
             Assert.AreEqual("wb.online.quickplay", QuickPlayChoices.StorageKey, "The lobby and the online menu share one saved choice.");
-            Assert.AreEqual("Team Race 2v2, Team Race 4v4 + 4 more", Choices().Summary());
-            var all = Choices(); all.Playlists.TickAll();
-            Assert.AreEqual("All playlists", all.Summary());
+            Assert.AreEqual("Team Race 2v2, Brawl Race 2v2 + 2 more", Choices().Summary());
+            Assert.AreEqual("Team Race 4v4, Brawl Race 4v4 + 2 more", Squads().Summary());
+            Assert.AreEqual("Team Race 4v4, Brawl Race 4v4 + 2 more", Choices().Summary(partySize: 3), "A party of 3 reads the 4v4 it searches.");
+            var all = Choices(); all.Cards.TickAll();
+            Assert.AreEqual("All playlists · 2v2", all.Summary());
+            Assert.AreEqual("All playlists · 4v4", all.Summary(partySize: 4));
             Assert.AreEqual("Brawl Race 4v4", Only("brawl-4v4").Summary());
             Assert.AreEqual("Team Race 2v2, Free-for-All · 8, Time Trial · 4", Only("relay-2v2", "ffa", "coop").Summary());
-            Assert.AreEqual("Team Race 2v2, Team Race 4v4 + 2 more", Only("relay-2v2", "relay-4v4", "ffa", "coop").Summary());
+            Assert.AreEqual("Team Race 2v2, Free-for-All · 8, Time Trial · 4", Only("relay-2v2", "relay-4v4", "ffa", "coop").Summary());
         }
 
         [Test]
         public void ThePartyLineSaysWhatFindMatchSearchesAndWhatItSkips()
         {
-            Assert.AreEqual("Searches Team Race 2v2, Team Race 4v4 + 4 more", Choices().PartyLine(1));
-            Assert.AreEqual("Searches Team Race 2v2, Team Race 4v4 + 3 more · skips Free-for-All · 8 for a party of 2", Choices().PartyLine(2));
-            Assert.AreEqual("Searches Team Race 4v4, Brawl Race 4v4, Time Trial · 4 · skips Team Race 2v2 + 2 more for a party of 3",
-                Choices().PartyLine(3));
-            Assert.AreEqual("Searches Free Roam · 8", Only("freeplay").PartyLine(4));
+            Assert.AreEqual("Searches Team Race 2v2, Brawl Race 2v2 + 2 more", Choices().PartyLine(1));
+            Assert.AreEqual("Searches Team Race 2v2, Brawl Race 2v2, Time Trial · 4 · skips Free-for-All · 8 for a party of 2", Choices().PartyLine(2));
+            Assert.AreEqual("4v4 for a party of 3 · Searches Team Race 4v4, Brawl Race 4v4, Time Trial · 4 · skips Free-for-All · 8",
+                Choices().PartyLine(3), "A party of 3 cannot play 2v2, and the line says so first.");
+            Assert.AreEqual("4v4 for a party of 4 · Searches Team Race 4v4, Brawl Race 4v4, Time Trial · 4 · skips Free-for-All · 8",
+                Squads().PartyLine(4), "The why stays while 2v2 is out of reach, whichever size is saved.");
+            Assert.AreEqual("Searches Team Race 4v4, Brawl Race 4v4, Time Trial · 4 · skips Free-for-All · 8 for a party of 2", Squads().PartyLine(2));
+            Assert.AreEqual("Searches Free Roam · 8", Only("freeplay").PartyLine(4), "Without a team card the switch does not matter.");
             Assert.AreEqual(QuickPlayPicker.Blocked(Only("ffa"), 2, false), Only("ffa").PartyLine(2), "Nothing fits, so it says why.");
             Assert.AreEqual(QuickPlayPicker.Blocked(Choices(), 5, false), Choices().PartyLine(5));
             StringAssert.StartsWith("A party has room for 4", Choices().PartyLine(5));
+        }
+
+        [Test]
+        public void OneCardPerModeAndTheSwitchPicksDuoOrSquad()
+        {
+            CollectionAssert.AreEqual(new[] { "relay", "brawl", "ffa", "coop", "freeplay" }, QuickPlayCards.Ids);
+            CollectionAssert.AreEqual(new[] { "Team Race", "Brawl Race", "Free-for-All · 8", "Time Trial · 4", "Free Roam · 8" },
+                QuickPlayCards.All.Select(card => card.Label));
+            CollectionAssert.AreEqual(new[] { "Classic", "Classic", "Classic", "Arcade", "Arcade" }, QuickPlayCards.All.Select(card => card.Group));
+            CollectionAssert.AreEqual(new[] { "Duo", "Squad" }, QuickPlayCards.TeamSizes, "No 8v8 until it is approved.");
+            CollectionAssert.AreEqual(new[] { "2v2", "4v4" }, QuickPlayCards.TeamSizes.Select(QuickPlayCards.TeamLabel));
+            CollectionAssert.AreEquivalent(QuickPlaylists.Ids, QuickPlayCards.All.SelectMany(card => card.Playlists).Select(list => list.Id),
+                "Every playlist belongs to exactly one card.");
+            foreach (var list in QuickPlaylists.All)
+            {
+                var card = QuickPlayCards.For(list);
+                Assert.AreEqual(list.Group, card.Group, list.Id);
+                Assert.AreSame(list, card.PlaylistFor(card.Sized ? list.Format : QuickPlayCards.Squad), list.Id);
+            }
+            var relay = QuickPlayCards.Find("relay");
+            Assert.AreEqual("relay-2v2", relay.PlaylistFor(QuickPlayCards.Duo).Id);
+            Assert.AreEqual("relay-4v4", relay.PlaylistFor(QuickPlayCards.Squad).Id);
+            Assert.AreEqual("relay-2v2", relay.PlaylistFor("8v8").Id, "An unknown size falls back to 2v2.");
+            Assert.AreEqual("Teams of 2 race to the delivery", relay.Detail(QuickPlayCards.Duo));
+            Assert.AreEqual("Teams of 4 race to the delivery", relay.Detail(QuickPlayCards.Squad));
+            Assert.AreEqual("Teams of 4 race, and fighting is on", QuickPlayCards.Find("brawl").Detail(QuickPlayCards.Squad));
+            Assert.AreEqual("Up to 8 fight, most knockouts wins", QuickPlayCards.Find("ffa").Detail(QuickPlayCards.Squad), "Solo cards ignore the switch.");
+            var choices = Choices();
+            Assert.IsFalse(choices.ChooseTeamSize("Solo")); Assert.IsFalse(choices.ChooseTeamSize("8v8")); Assert.IsFalse(choices.ChooseTeamSize(null));
+            Assert.AreEqual(QuickPlayCards.Duo, choices.TeamSize);
+            Assert.IsTrue(choices.ChooseTeamSize(QuickPlayCards.Squad));
+            CollectionAssert.AreEqual(new[] { "relay-4v4", "brawl-4v4", "ffa", "coop" }, Searched(choices));
+            Assert.IsTrue(choices.Cards.Toggle("relay"));
+            CollectionAssert.AreEqual(new[] { "brawl-4v4", "ffa", "coop" }, Searched(choices), "Unticking the card drops it at either size.");
+        }
+
+        [TestCase("Duo", 1, true)]
+        [TestCase("Duo", 2, true)]
+        [TestCase("Duo", 3, false)]
+        [TestCase("Duo", 4, false)]
+        [TestCase("Squad", 1, true)]
+        [TestCase("Squad", 4, true)]
+        [TestCase("Squad", 5, false)]
+        [TestCase("Duo", 0, false)]
+        [TestCase("8v8", 1, false)]
+        public void APartyOfThreeOrFourCannotPlayTwoVTwo(string size, int party, bool fits) =>
+            Assert.AreEqual(fits, QuickPlayCards.CanPlay(size, party));
+
+        [Test]
+        public void APartyOfThreeOrFourSearchesTheFourVFourWithoutChangingTheSavedSwitch()
+        {
+            var choices = Choices();
+            Assert.AreEqual(QuickPlayCards.Duo, choices.SizeFor(2));
+            Assert.AreEqual(QuickPlayCards.Squad, choices.SizeFor(3));
+            Assert.AreEqual(QuickPlayCards.Squad, choices.SizeFor(4));
+            CollectionAssert.AreEqual(new[] { "relay-4v4", "brawl-4v4", "ffa", "coop" }, Searched(choices, 3));
+            Assert.IsTrue(choices.SquadOnlyFor(3)); Assert.IsFalse(choices.SquadOnlyFor(2)); Assert.IsFalse(choices.SquadOnlyFor(5));
+            Assert.IsFalse(Only("coop", "freeplay").SquadOnlyFor(3), "No team card, nothing to explain.");
+            Assert.AreEqual(QuickPlayCards.Duo, choices.TeamSize, "The saved 2v2 comes back when the party is small again.");
+            StringAssert.Contains("lists=relay-2v2+brawl-2v2+ffa+coop", choices.Save());
+            Assert.AreEqual(QuickPlayCards.Squad, Squads().SizeFor(1));
         }
 
         [Test]
@@ -166,7 +284,7 @@ namespace Wreckabulary.Rules.Tests
             CollectionAssert.AreEquivalent(new[] { "Duo", "Squad" },
                 QuickPlaylists.All.Where(list => QuickPlaylists.IsTeamMode(list.Mode)).Select(list => list.Format).Distinct());
             Assert.IsNull(QuickPlaylists.For("TeamRace", "Solo"), "1v1 relays stay in the private room and custom match page.");
-            var choices = Choices(); choices.Playlists.TickAll();
+            var choices = Choices(); choices.Cards.TickAll();
             for (int party = 1; party <= 4; party++)
                 for (long slot = 0; slot < 14; slot++)
                 {
@@ -192,14 +310,19 @@ namespace Wreckabulary.Rules.Tests
         [Test]
         public void WithEverythingTickedTheRotationFeaturesOnePlaylistAndMapPerSlot()
         {
-            var choices = Choices(); choices.Playlists.TickAll();
-            for (long slot = 0; slot < 28; slot++)
+            foreach (string size in QuickPlayCards.TeamSizes)
             {
-                var pick = Pick(choices, 1, slot);
-                var featured = QuickPlaylists.All[(int)(slot % QuickPlaylists.All.Count)];
-                Assert.AreEqual(featured.Mode, pick.Mode, "slot " + slot); Assert.AreEqual(featured.Format, pick.Format, "slot " + slot);
-                Assert.AreEqual(Seeds[slot % 4], pick.Seed, "slot " + slot);
-                Assert.AreEqual("asia", pick.Region); Assert.AreEqual(pick.Mode != "FreeForAll", pick.Fill);
+                var choices = Choices(); choices.Cards.TickAll(); choices.ChooseTeamSize(size);
+                for (long slot = 0; slot < 28; slot++)
+                {
+                    var pick = Pick(choices, 1, slot);
+                    var featured = QuickPlaylists.All[(int)(slot % QuickPlaylists.All.Count)];
+                    var expected = choices.Searches(featured) ? featured : QuickPlaylists.All[(int)((slot + 1) % QuickPlaylists.All.Count)];
+                    Assert.AreEqual(expected.Mode, pick.Mode, size + " slot " + slot); Assert.AreEqual(expected.Format, pick.Format, size + " slot " + slot);
+                    Assert.IsTrue(choices.Searches(pick.Playlist), "The other size is skipped for the next playlist.");
+                    Assert.AreEqual(Seeds[slot % 4], pick.Seed, "slot " + slot);
+                    Assert.AreEqual("asia", pick.Region); Assert.AreEqual(pick.Mode != "FreeForAll", pick.Fill);
+                }
             }
         }
 
@@ -213,8 +336,9 @@ namespace Wreckabulary.Rules.Tests
         [Test]
         public void PlayersWhoTickTheFeaturedPlaylistLandInTheSameQueue()
         {
-            var everything = Choices();
+            var everything = Squads();
             var fours = Only("relay-4v4", "brawl-4v4");
+            Assert.AreEqual(QuickPlayCards.Squad, fours.TeamSize);
             const long featuredRelayFours = 8;
             var a = Pick(everything, 1, featuredRelayFours, "eu");
             var b = Pick(fours, 1, featuredRelayFours, "eu");
@@ -230,7 +354,7 @@ namespace Wreckabulary.Rules.Tests
             for (long slot = -40; slot < 40; slot++)
             {
                 var pick = Pick(choices, 1, slot, "us");
-                Assert.IsTrue(choices.Playlists.IsTicked(pick.Playlist.Id), pick.Playlist.Id);
+                Assert.IsTrue(choices.Searches(pick.Playlist), pick.Playlist.Id);
                 seen.Add(pick.Playlist.Id + "/" + pick.Seed);
             }
             Assert.AreEqual(8, seen.Count, "Both playlists on all four approved maps.");
@@ -247,7 +371,12 @@ namespace Wreckabulary.Rules.Tests
                 CollectionAssert.Contains(new[] { "relay-4v4", "brawl-4v4", "coop" }, three.Playlist.Id);
             }
             Assert.IsNull(Pick(Only("ffa"), 2, 0));
-            Assert.IsNull(Pick(Only("relay-2v2", "brawl-2v2"), 3, 0), "A party is never split across teams.");
+            for (long slot = 0; slot < 14; slot++)
+            {
+                var three = Pick(Only("relay-2v2", "brawl-2v2"), 3, slot);
+                Assert.AreEqual(QuickPlayCards.Squad, three.Format, "A party of 3 plays the 4v4 of its ticked races and is never split.");
+                Assert.IsTrue(three.Playlist.Fits(3));
+            }
         }
 
         [Test]
@@ -263,13 +392,13 @@ namespace Wreckabulary.Rules.Tests
         [Test]
         public void ACurrentPartyPlaylistIsKeptWhileItStaysTicked()
         {
-            var choices = Choices();
+            var choices = Squads();
             var keep = new QuickPlayPick("TeamRace", "Squad", Seeds[1], "eu");
             var kept = Pick(choices, 2, 0, "asia", keep, Seeds[1]);
             Assert.AreEqual("relay-4v4", kept.Playlist.Id); Assert.AreEqual("asia", kept.Region, "The region is always the automatic one.");
-            choices.Playlists.Toggle("relay-4v4");
+            choices.ChooseTeamSize(QuickPlayCards.Duo);
             var moved = Pick(choices, 2, 0, "asia", keep, Seeds[1]);
-            Assert.AreEqual("relay-2v2", moved.Playlist.Id); Assert.AreEqual(Seeds[1], moved.Seed);
+            Assert.AreEqual("relay-2v2", moved.Playlist.Id, "Switching to 2v2 moves the party to the 2v2 race."); Assert.AreEqual(Seeds[1], moved.Seed);
             var custom = new QuickPlayPick("TeamRace", "Solo", Seeds[1], "asia");
             Assert.IsNotNull(Pick(choices, 1, 0, "asia", custom, Seeds[1]).Playlist, "A custom match setting is not a playlist and is replaced.");
         }
@@ -283,8 +412,9 @@ namespace Wreckabulary.Rules.Tests
             StringAssert.Contains("No public map is open", QuickPlayPicker.Blocked(choices, 1, false));
             StringAssert.Contains("Your party's map", QuickPlayPicker.Blocked(choices, 1, true));
             StringAssert.StartsWith("Free-for-All is solo, and a party always plays on one team", QuickPlayPicker.Blocked(Only("ffa"), 2, false));
-            Assert.AreEqual("A party of 3 needs bigger teams. Tick Team Race 4v4, Brawl Race 4v4, Time Trial · 4 or Free Roam · 8.",
-                QuickPlayPicker.Blocked(Only("relay-2v2", "brawl-2v2"), 3, false));
+            StringAssert.StartsWith("Free-for-All is solo", QuickPlayPicker.Blocked(Only("ffa"), 3, false));
+            StringAssert.Contains("No public map is open", QuickPlayPicker.Blocked(Only("relay-2v2", "brawl-2v2"), 3, false),
+                "A party of 3 searches the 4v4 races, so team size never blocks it.");
             Assert.AreEqual("A party has room for 4 players.", QuickPlayPicker.Blocked(choices, 5, false));
         }
 

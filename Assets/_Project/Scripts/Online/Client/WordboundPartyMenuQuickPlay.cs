@@ -16,6 +16,7 @@ namespace Wreckabulary.Online
         Func<long> quickPlayClock;
         Func<int> utcOffsetMinutes = QuickPlayRegions.LocalOffsetMinutes;
         QuickPlayChoices quickChoices;
+        string quickChoicesSource;
         QuickPlayPick quickPick;
         string[] quickMapSeeds;
         bool lobbySearch, lobbyLeaving, quickPlayArmed, quickPlayRunning, quickPlayLeft;
@@ -26,10 +27,14 @@ namespace Wreckabulary.Online
         {
             get
             {
-                if (quickChoices != null || publicCourses == null || publicCourses.IsClosed) return quickChoices;
-                quickMapSeeds = publicCourses.Courses.Select(course => course.Seed).Distinct(StringComparer.Ordinal)
-                    .OrderBy(seed => seed, StringComparer.Ordinal).ToArray();
-                quickChoices = new QuickPlayChoices(loadQuickChoices?.Invoke());
+                if (publicCourses == null || publicCourses.IsClosed) return quickChoices;
+                string saved = loadQuickChoices?.Invoke();
+                if (quickChoices != null && saved == quickChoicesSource) return quickChoices;
+                if (quickChoices == null)
+                    quickMapSeeds = publicCourses.Courses.Select(course => course.Seed).Distinct(StringComparer.Ordinal)
+                        .OrderBy(seed => seed, StringComparer.Ordinal).ToArray();
+                quickChoices = new QuickPlayChoices(saved);
+                quickChoicesSource = saved;
                 displayName = quickChoices.Name;
                 return quickChoices;
             }
@@ -79,7 +84,10 @@ namespace Wreckabulary.Online
 
         void SaveQuickChoices()
         {
-            if (quickChoices != null) saveQuickChoices?.Invoke(quickChoices.Save());
+            if (quickChoices == null) return;
+            string saved = quickChoices.Save();
+            saveQuickChoices?.Invoke(saved);
+            quickChoicesSource = saved;
         }
 
         string RememberName()

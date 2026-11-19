@@ -1,6 +1,8 @@
+using System;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Wreckabulary.Rules;
 using Wreckabulary.Rules.Wordbound;
@@ -16,23 +18,37 @@ namespace Wreckabulary
         public const string PartySolo = "Party solo", PartyGroup = "Party group", PartyHeading = "Party heading", PartyMembers = "Party members";
         public const string CopyPartyCode = "Copy party code", LeaveParty = "Leave party";
         public const string NotAPartyCode = "That isn't a party code. Ask your friend to copy it again.";
+        public const string TeamSizeWord = "Team size", TeamSizeSwitch = "Team size", TeamSizeRow = "Team size row";
+        public const string TeamSizeTitle = "Team size label", TeamSizeNote = "Team size note";
+        public const string PlaylistBand = "Playlist band", PlaylistSection = "Playlists ";
         public bool Online;
         string partyCodeDraft = "";
 
         void MatchmakingChoices(RectTransform column, RectTransform body)
         {
             var choices = new QuickPlayChoices(PlayerPrefs.GetString(QuickPlayChoices.StorageKey, ""));
-            var strip = PartyStripFor(column, Session.CanLoad(Session.WordboundScene));
+            bool available = Session.CanLoad(Session.WordboundScene);
+            int partySize = OnlinePartySize();
+            string size = choices.SizeFor(partySize);
+            TeamSizeRowFor(column, TeamSizeSwitch,
+                QuickPlayCards.TeamSizes.Select(each => (TeamSizeSwitch + " " + each, QuickPlayCards.TeamLabel(each))).ToArray(), TeamSizeSwitch + " " + size,
+                id => ChooseTeamSize(id.Substring(TeamSizeSwitch.Length + 1), id),
+                QuickPlayCards.TeamSizes.Where(each => !QuickPlayCards.CanPlay(each, partySize)).Select(each => TeamSizeSwitch + " " + each).ToArray(),
+                QuickPlayCards.CanPlay(QuickPlayCards.Duo, partySize) || partySize > QuickPlaylists.MaximumParty ? null : PartyPlaysSquad(partySize));
+            var strip = PartyStripFor(column, available);
+            var band = LobbyKit.Rect(column, PlaylistBand);
+            band.gameObject.AddComponent<LobbyPlayCardBand>();
+            band.Size(-1, LobbyPlayCardGrid.HeightFor(LobbyPlayCardGrid.PreferredWidth) + 34);
             foreach (string group in QuickPlaylists.Groups)
             {
-                LobbyKit.SectionLabel(column, group);
-                var cards = MapCards(column, "Playlists " + group);
-                foreach (var list in QuickPlaylists.All.Where(list => list.Group == group)) PlaylistCardFor(cards, choices, list);
+                var section = LobbyKit.Rect(band, PlaylistSection + group);
+                LobbyKit.SectionLabel(section, group).name = LobbyPlayCardBand.Caption;
+                foreach (var card in QuickPlayCards.All.Where(card => card.Group == group)) PlaylistCardFor(section, choices, card, size);
             }
-            bool available = Session.CanLoad(Session.WordboundScene);
             var bar = SummaryFrame(body, MatchmakingSummary);
             SummaryLine(bar);
-            var heading = LobbyKit.Text(bar, choices.Summary(), 26, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
+            string summary = choices.Summary(partySize: partySize);
+            var heading = LobbyKit.Text(bar, summary, 26, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
             heading.name = "Matchmaking playlists";
             heading.enableAutoSizing = true; heading.fontSizeMin = 18; heading.fontSizeMax = 26;
             heading.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(8, 44), new Vector2(-560, -8));
@@ -48,7 +64,8 @@ namespace Wreckabulary
             var go = LobbyKit.Primary(bar, FindMatch, "Find match", Menu.PlayOnline, 42, 26);
             ((RectTransform)go.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-316, -30), new Vector2(-8, 30));
             go.interactable = available;
-            strip.BindFooter(heading, detail, go, friends, choices.Summary(), onlineDetail, available);
+            strip.BindFooter(heading, detail, go, friends, summary, onlineDetail, available);
+            strip.WatchPartySize(partySize, KeepSelectionAndRefresh);
             if (Aim != null)
             {
                 var aimed = Root.GetComponentsInChildren<Selectable>().FirstOrDefault(s => s.name == Aim && s.IsInteractable());
@@ -56,6 +73,59 @@ namespace Wreckabulary
                 Aim = null;
             }
             else if (available) First = go;
+        }
+
+        public static string PartyPlaysSquad(int partySize) =>
+            "A party of " + partySize + " plays " + QuickPlayCards.TeamLabel(QuickPlayCards.Squad);
+
+        static int OnlinePartySize()
+        {
+            var party = WordboundLobbyParty.Current;
+            return party != null && party.Active ? Mathf.Max(1, party.Members.Count) : 1;
+        }
+
+        void KeepSelectionAndRefresh()
+        {
+            var selected = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+            string name = selected && selected.transform.IsChildOf(Root) ? selected.name : null;
+            Refresh();
+            if (name == null) return;
+            var target = Root.GetComponentsInChildren<Selectable>().FirstOrDefault(s => s.name == name && s.IsInteractable()) ??
+                Root.GetComponentsInChildren<Selectable>().FirstOrDefault(s => s.name.StartsWith(TeamSizeSwitch + " ") && s.IsInteractable());
+            if (target) EventSystem.current.SetSelectedGameObject(target.gameObject);
+        }
+
+        RectTransform TeamSizeRowFor(RectTransform column, string name, (string id, string label)[] sizes, string picked, Action<string> pick,
+            string[] disabled, string note)
+        {
+            var row = LobbyKit.Row(column, name + " row", 16);
+            row.Size(-1, 52);
+            var title = LobbyKit.Text(row, TeamSizeWord, 20, LobbyKit.Cyan, TextAlignmentOptions.MidlineLeft);
+            title.name = TeamSizeTitle;
+            title.Size(130, 48);
+            var track = LobbyKit.Segmented(row, name, sizes, picked, pick, 48, 20);
+            track.Size(110 * sizes.Length + 8, 48);
+            foreach (var button in track.GetComponentsInChildren<Button>().Where(button => disabled.Contains(button.name)))
+            {
+                button.interactable = false;
+                button.gameObject.AddComponent<CanvasGroup>().alpha = .45f;
+            }
+            if (note == null) return row;
+            var line = LobbyKit.Text(row, note, 17, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
+            line.name = TeamSizeNote;
+            line.enableAutoSizing = true; line.fontSizeMin = 13; line.fontSizeMax = 17;
+            line.Size(-1, 48, 1);
+            return row;
+        }
+
+        void ChooseTeamSize(string size, string id)
+        {
+            var choices = new QuickPlayChoices(PlayerPrefs.GetString(QuickPlayChoices.StorageKey, ""));
+            if (!QuickPlayCards.CanPlay(size, OnlinePartySize()) || !choices.ChooseTeamSize(size)) return;
+            PlayerPrefs.SetString(QuickPlayChoices.StorageKey, choices.Save());
+            PlayerPrefs.Save();
+            Refresh();
+            Reselect(id);
         }
 
         LobbyPartyStrip PartyStripFor(RectTransform column, bool available)
@@ -116,21 +186,21 @@ namespace Wreckabulary
             else Menu.Post(NotAPartyCode);
         }
 
-        void PlaylistCardFor(Transform cards, QuickPlayChoices choices, QuickPlaylist list)
+        void PlaylistCardFor(Transform section, QuickPlayChoices choices, QuickPlayCard card, string size)
         {
-            string name = PlaylistCard + list.Id;
-            var card = MapCard(cards, name, choices.Playlists.IsTicked(list.Id), () => TogglePlaylist(list.Id, name));
-            MapWords(card, CardPicture(card, PlaylistPicture(list), LobbyIcons.Layers), list.Label, list.Detail);
+            string name = PlaylistCard + card.Id;
+            var button = MapCard(section, name, choices.Cards.IsTicked(card.Id), () => ToggleCard(card.Id, name));
+            MapWords(button, CardPicture(button, PlaylistPicture(card.Mode), LobbyIcons.Layers), card.Label, card.Detail(size));
         }
 
-        Sprite PlaylistPicture(QuickPlaylist list) => list.Mode == "FreeForAll"
+        Sprite PlaylistPicture(string mode) => mode == "FreeForAll"
             ? playLayout ? playLayout.CombatArenaPreview : null
             : LobbyMapSnapshots.For(WordboundSoloEntry.LostAddressMap) ?? CoursePreview(WordboundSoloEntry.LostAddressMap);
 
-        void TogglePlaylist(string id, string name)
+        void ToggleCard(string id, string name)
         {
             var choices = new QuickPlayChoices(PlayerPrefs.GetString(QuickPlayChoices.StorageKey, ""));
-            if (!choices.Playlists.Toggle(id))
+            if (!choices.Cards.Toggle(id))
             {
                 Menu.Post(KeepOnePlaylist);
                 return;
