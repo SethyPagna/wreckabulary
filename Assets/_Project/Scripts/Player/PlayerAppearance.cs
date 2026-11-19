@@ -74,8 +74,8 @@ namespace Wreckabulary
             look.Pieces["Top"] = "Hoodie";
             look.Pieces["Headwear"] = "Hood";
             look.Pieces["Back"] = "Satchel";
-            look.Colours["Gloves"] = "charcoal";
-            look.Colours["Bottoms"] = "charcoal";
+            look.Colours["Gloves"] = "putty";
+            look.Colours["Bottoms"] = "denim";
             return catalogue.Sanitize(look);
         }
 

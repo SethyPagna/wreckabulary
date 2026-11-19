@@ -44,20 +44,28 @@ namespace Wreckabulary
                 cacheForPlay = Application.isPlaying;
             }
             if (display || failed) return;
+            // The rounded Lilita One / Nunito pair is the house look; the saved profile (Roboto) is only a fallback.
+            if (TryRounded()) return;
             var profile = Resources.Load<LobbyTypographyProfile>(LobbyTypographyProfile.ResourcePath);
             if (profile)
             {
                 if (TryUseProfile(profile)) return;
             }
+            if (!TryRounded()) failed = true;
+        }
+
+        static bool TryRounded()
+        {
             display = Make("LilitaOne-Regular", 96, 12);
             body = Make("Nunito-ExtraBold", 80, 10);
             black = Make("Nunito-Black", 80, 10);
-            if (!display || !body || !black) { failed = true; display = body = black = null; return; }
+            if (!display || !body || !black) { display = body = black = null; return false; }
             display.fontWeightTable[7].regularTypeface = display;
             body.fontWeightTable[7].regularTypeface = black;
             black.fontWeightTable[7].regularTypeface = black;
             stroke = Preset(display, false);
             drop = Preset(display, true);
+            return true;
         }
 
         static bool TryUseProfile(LobbyTypographyProfile profile)

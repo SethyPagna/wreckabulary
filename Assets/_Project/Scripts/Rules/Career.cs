@@ -32,7 +32,10 @@ namespace Wreckabulary.Rules
         public const int NameLength = 16;
         public const long LatestTime = 253402300799;
         public static readonly IReadOnlyList<string> FreeColours = new[] { "pool", "tomato", "tangerine", "sunflower", "mint" };
-        public static readonly IReadOnlyList<string> FreePieces = new[] { "Crewneck", "Hoodie", "Joggers", "Mittens", "Boots", "Cap", "Hood", "Glasses", "Satchel", "TBadge" };
+        public static readonly IReadOnlyList<string> FreePieces = new[] { "Crewneck", "Hoodie", "Joggers", "Mittens", "Boots", "Cap", "Hood", "Glasses", "Satchel", "TBadge",
+            "CatEars", "BearEars", "BunnyEars", "Bow", "FlowerClip", "Sprout", "HeartShades", "StarShades",
+            "HairSwept", "HairBob", "HairWavy", "HairBuns",
+            "EyesSparkle", "EyesButton", "EyesDot", "EyesHappy", "EyesStarry", "EyesLashes", "EyesJelly" };
         public static readonly IReadOnlyList<ShopOffer> Shop = new[]
         {
             new ShopOffer("skin", "Candy", "Candy gear", 250),

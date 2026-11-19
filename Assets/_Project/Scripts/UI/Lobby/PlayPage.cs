@@ -357,12 +357,17 @@ namespace Wreckabulary
                 selected ? LobbyKit.Selection : LobbyKit.Line, selected ? 3 : 1, 0);
             var press = card.GetComponent<LobbyPress>();
             press.Lift = 0; press.Tilt = 0; press.Sink = 1;
+            // Postcards: a perforated edge round every card; the chosen one is franked with a red stamp.
+            var ink = selected ? LobbyParcel.Stamp : LobbyKit.Line;
+            LobbyParcel.Dashes(card.Body(), new Color(ink.r, ink.g, ink.b, selected ? .9f : .7f), 5f);
             if (selected)
             {
-                var mark = LobbyKit.Rect(card.Body(), "Selected").Pin(Vector2.one, new Vector2(-14, -14), new Vector2(28, 28));
-                mark.Paint(LobbyKit.Selection, 14).raycastTarget = false;
-                LobbyKit.Icon(mark, LobbyIcons.Check, LobbyKit.OnSelection).rectTransform.Fill().offsetMin = new Vector2(6, 6);
-                mark.GetChild(0).GetComponent<RectTransform>().offsetMax = new Vector2(-6, -6);
+                var mark = LobbyKit.Rect(card.Body(), "Selected").Pin(Vector2.one, new Vector2(-16, -16), new Vector2(34, 38));
+                mark.localRotation = Quaternion.Euler(0f, 0f, -6f);
+                mark.Paint(LobbyKit.Hex(0xFFF6E8), 2).raycastTarget = false;
+                LobbyParcel.Dashes(mark, LobbyParcel.Stamp, 2f);
+                var tick = LobbyKit.Icon(mark, LobbyIcons.Check, LobbyParcel.Stamp).rectTransform.Fill();
+                tick.offsetMin = new Vector2(7, 9); tick.offsetMax = new Vector2(-7, -9);
             }
             return card;
         }
