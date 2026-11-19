@@ -65,7 +65,7 @@ namespace Wreckabulary
         readonly List<(CanvasGroup card, float posted)> notices = new List<(CanvasGroup, float)>();
         Canvas canvas;
         RectTransform safe, pageHost, feed, rail, partyList, status, quitDialog;
-        RectTransform topBar, systemBar, pageBar, walletBar;
+        RectTransform topBar, systemBar, pageBar, walletBar, partySearch;
         TextMeshProUGUI coins, initial, partyHeading, partyCount, statusTitle, statusDetail, statusCount;
         Button power, cancelButton, shopButton, trophyButton;
         Image shopUnderline, trophyUnderline;
@@ -105,7 +105,17 @@ namespace Wreckabulary
 
         public void OpenWordbound() => OpenWordbound(false);
 
-        public void PlayOnline() => OpenWordbound(true);
+        public void PlayOnline()
+        {
+            var lobbyParty = WordboundLobbyParty.Current;
+            if (lobbyParty != null && lobbyParty.Active)
+            {
+                if (lobbyParty.Searching) lobbyParty.Cancel();
+                else lobbyParty.FindMatch();
+                return;
+            }
+            OpenWordbound(true);
+        }
 
         public void HostFriendsRoom(string mode, string format, int layout) => OpenRoom(WordboundRoomRequest.Host(mode, format, layout));
 
@@ -113,9 +123,21 @@ namespace Wreckabulary
 
         public void HostCustomMap() => OpenRoom(WordboundRoomRequest.HostCustomMap());
 
-        public void InviteFriends() => OpenRoom(WordboundRoomRequest.StartParty());
+        public void InviteFriends()
+        {
+            if (Starting) return;
+            var lobbyParty = WordboundLobbyParty.Open();
+            if (lobbyParty != null) lobbyParty.Invite();
+            else OpenRoom(WordboundRoomRequest.StartParty());
+        }
 
-        public void JoinFriendsParty(string invite) => OpenRoom(WordboundRoomRequest.JoinParty(invite));
+        public void JoinFriendsParty(string invite)
+        {
+            if (Starting) return;
+            var lobbyParty = WordboundLobbyParty.Open();
+            if (lobbyParty != null) lobbyParty.Join(invite);
+            else OpenRoom(WordboundRoomRequest.JoinParty(invite));
+        }
 
         void OpenRoom(WordboundRoomRequest request)
         {
@@ -202,6 +224,7 @@ namespace Wreckabulary
             BuildParty();
             BuildFeed();
             BuildStatus();
+            partySearch = LobbyPartySearch.Build(safe, this, -(BarHeight + 12));
             BuildThemeBadge();
             LayoutBar();
             LobbyThemes.Changed += RefreshThemeBadge;
@@ -448,6 +471,7 @@ namespace Wreckabulary
             if (rail) rail.anchoredPosition = new Vector2(-Gutter, -(height + 6));
             if (feed) feed.anchoredPosition = new Vector2(Gutter, -(height + 10));
             if (status) status.anchoredPosition = new Vector2(0, -(height + 12));
+            if (partySearch) partySearch.anchoredPosition = new Vector2(0, -(height + 12));
         }
 
         void LayoutPageHost()

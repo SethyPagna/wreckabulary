@@ -94,8 +94,11 @@ namespace Wreckabulary.Online
 
         void RequestClose()
         {
-            if (returnToFriends) WordboundRoomEntry.MarkReturned();
-            else WordboundQuickPlayEntry.MarkReturned();
+            if (!HeldByLobby)
+            {
+                if (returnToFriends) WordboundRoomEntry.MarkReturned();
+                else WordboundQuickPlayEntry.MarkReturned();
+            }
             CloseRequested?.Invoke();
         }
 

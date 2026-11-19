@@ -900,6 +900,87 @@ namespace Wreckabulary.Qa
                 ["rows"] = rows.ToArray(), ["listening"] = panel.IsListening, ["input_lease_active"] = KeyBindings.GameplayBlocked };
         }
 
+        IEnumerator LobbyPartyStates(QaContext context)
+        {
+            var party = new QaLobbyParty();
+            var previous = WordboundLobbyParty.Register(() => party);
+            try
+            {
+                Require(ReferenceEquals(WordboundLobbyParty.Open(), party), "The lobby party strip could not be shown.");
+                yield return Settle();
+                var heading = Page().GetComponentsInChildren<TMP_Text>().SingleOrDefault(text => text.name == PlayPage.PartyHeading);
+                var members = Page().GetComponentsInChildren<TMP_Text>().SingleOrDefault(text => text.name == PlayPage.PartyMembers);
+                var copy = Find(Page(), PlayPage.CopyPartyCode);
+                var leave = Find(Page(), PlayPage.LeaveParty);
+                var go = Find(Page(), PlayPage.FindMatch);
+                var title = Page().GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Matchmaking playlists");
+                Require(heading && heading.text == party.Heading && members && members.text.Contains("Player 4") &&
+                    copy.IsInteractable() && leave.IsInteractable() && go.IsInteractable(),
+                    "The party strip must show the party, its four members, Copy code and Leave, with Find match ready.");
+                foreach (var text in new[] { copy, leave, go }.SelectMany(button => button.GetComponentsInChildren<TMP_Text>())) TextFits(text);
+                var scroll = copy.GetComponentInParent<ScrollRect>();
+                var view = scroll ? ScreenRect(scroll.viewport) : Screen.safeArea;
+                foreach (var shown in new[] { heading.rectTransform, members.rectTransform, (RectTransform)copy.transform, (RectTransform)leave.transform })
+                {
+                    var area = ScreenRect(shown);
+                    Require(area.yMin >= view.yMin - 2 && area.yMax <= view.yMax + 2, "The party strip hides " + shown.name + " below the fold.");
+                }
+                yield return Capture(context, "lobby_party");
+                party.Searching = true; party.CanCancel = true; party.SearchTitle = "Searching 0:42";
+                yield return Settle();
+                Require(title.text == party.SearchTitle && Label(go) == LobbyKit.Upper(LobbyPartyStrip.CancelWord) && go.IsInteractable(),
+                    "The search bar must show the timer and Cancel.");
+                TextFits(title);
+                var goArea = ScreenRect((RectTransform)go.transform);
+                var titleArea = ScreenRect(title.rectTransform);
+                Require(goArea.yMin >= Screen.safeArea.yMin - 2 && goArea.yMax <= Screen.safeArea.yMax + 2 &&
+                    titleArea.yMin >= Screen.safeArea.yMin - 2 && titleArea.yMax <= Screen.safeArea.yMax + 2, "The search bar is off screen.");
+                yield return Capture(context, "lobby_party_search");
+                party.Found = true; party.SearchTitle = "Match found · starting in 4";
+                yield return Settle();
+                Require(title.text == party.SearchTitle, "The search bar must show the match-found countdown.");
+                TextFits(title);
+                yield return Capture(context, "lobby_party_found");
+                context.Note("lobby_party", new Dictionary<string, object> {
+                    ["heading"] = heading.text, ["members"] = members.text, ["copy"] = Label(copy), ["leave"] = Label(leave),
+                    ["search_bar"] = new[] { "Searching 0:42", party.SearchTitle }, ["cancel"] = Label(go),
+                    ["source"] = "QA stub party, no service calls" });
+            }
+            finally
+            {
+                WordboundLobbyParty.Closed(party);
+                WordboundLobbyParty.Register(previous);
+            }
+            yield return Settle();
+            Require(Page().GetComponentsInChildren<TMP_Text>().Any(text => text.name == PlayPage.PartyLabel), "The strip must return to Party · You.");
+        }
+
+        sealed class QaLobbyParty : IWordboundLobbyParty
+        {
+            public bool Active { get; set; } = true;
+            public bool Leader { get; set; } = true;
+            public bool Searching { get; set; }
+            public bool Found { get; set; }
+            public string Heading { get; set; } = "Party · 4 of 4";
+            public string Status { get; set; } = "Searches Team Race 4v4, Brawl Race 4v4, Time Trial · 4 · skips Team Race 2v2 + 2 more for a party of 4";
+            public string Problem { get; set; }
+            public string SearchTitle { get; set; } = "";
+            public IReadOnlyList<string> Members { get; set; } = new[] { "You · leader · ready", "Player 2 · ready", "Player 3 · ready", "Player 4 · not ready" };
+            public bool Copied { get; set; }
+            public bool CanCopy { get; set; } = true;
+            public bool CanLeave { get; set; } = true;
+            public bool CanFind { get; set; } = true;
+            public bool CanCancel { get; set; }
+            public bool CanRetry { get; set; }
+            public void Invite() { }
+            public void Join(string code) { }
+            public void Copy() { }
+            public void Leave() { }
+            public void FindMatch() { }
+            public void Cancel() { }
+            public void Retry() { }
+        }
+
         IEnumerator Online(QaContext context)
         {
             WordboundPartyFrameObservation observation = null;
@@ -937,6 +1018,8 @@ namespace Wreckabulary.Qa
                     ["cards"] = cards.Select(card => card.name.Substring(PlayPage.PlaylistCard.Length)).ToArray(),
                     ["find_match"] = Label(findMatch), ["custom_match"] = Label(friends), ["invite_friends"] = Label(invite),
                     ["join_party"] = Label(joinParty), ["scene"] = SceneManager.GetActiveScene().name });
+                yield return LobbyPartyStates(context);
+                friends = Find(Page(), PlayPage.CustomMatch);
                 Submit(friends);
                 yield return Settle();
                 var rooms = Page().GetComponentsInChildren<Button>().Where(button => button.name.StartsWith(PlayPage.RoomModeCard)).ToArray();
