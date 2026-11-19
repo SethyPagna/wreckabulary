@@ -1,0 +1,302 @@
+{
+  "kit": "buildings",
+  "fbx": "Assets/_Project/Art/Surroundings/Kit/Buildings.fbx",
+  "pieces": [
+    {
+      "id": "house_detached_a",
+      "family": "house",
+      "width": 9.78,
+      "depth": 9.25,
+      "height": 9.15,
+      "slots": [
+        "bk_plaster",
+        "bk_roof",
+        "bk_paint",
+        "bk_brick",
+        "bk_glass_dark"
+      ],
+      "tris": 1112,
+      "far": "house_detached_a_far",
+      "fbxObject": "house_detached_a",
+      "slotTris": {
+        "bk_plaster": 30,
+        "bk_roof": 98,
+        "bk_paint": 886,
+        "bk_brick": 66,
+        "bk_glass_dark": 32
+      },
+      "verts": 2032
+    },
+    {
+      "id": "house_detached_a_far",
+      "family": "far",
+      "width": 9.7,
+      "depth": 9.25,
+      "height": 8.91,
+      "slots": [
+        "bk_plaster",
+        "bk_roof",
+        "bk_paint",
+        "bk_brick",
+        "bk_glass_dark"
+      ],
+      "tris": 100,
+      "fbxObject": "house_detached_a_far",
+      "slotTris": {
+        "bk_plaster": 18,
+        "bk_roof": 14,
+        "bk_paint": 16,
+        "bk_brick": 22,
+        "bk_glass_dark": 30
+      },
+      "verts": 200
+    },
+    {
+      "id": "house_detached_b",
+      "family": "house",
+      "width": 11.0,
+      "depth": 8.32,
+      "height": 8.8,
+      "slots": [
+        "bk_brick",
+        "bk_plaster",
+        "bk_paint",
+        "bk_roof",
+        "bk_glass_dark"
+      ],
+      "tris": 1290,
+      "far": "house_detached_b_far",
+      "fbxObject": "house_detached_b",
+      "slotTris": {
+        "bk_brick": 110,
+        "bk_plaster": 22,
+        "bk_paint": 984,
+        "bk_roof": 140,
+        "bk_glass_dark": 34
+      },
+      "verts": 2394
+    },
+    {
+      "id": "house_detached_b_far",
+      "family": "far",
+      "width": 11.0,
+      "depth": 8.32,
+      "height": 8.56,
+      "slots": [
+        "bk_brick",
+        "bk_plaster",
+        "bk_paint",
+        "bk_roof",
+        "bk_glass_dark"
+      ],
+      "tris": 138,
+      "fbxObject": "house_detached_b_far",
+      "slotTris": {
+        "bk_brick": 66,
+        "bk_plaster": 10,
+        "bk_paint": 24,
+        "bk_roof": 10,
+        "bk_glass_dark": 28
+      },
+      "verts": 278
+    },
+    {
+      "id": "house_detached_c",
+      "family": "house",
+      "width": 8.99,
+      "depth": 9.82,
+      "height": 8.15,
+      "slots": [
+        "bk_plaster",
+        "bk_roof",
+        "bk_paint",
+        "bk_glass_dark",
+        "bk_wood"
+      ],
+      "tris": 1076,
+      "far": "house_detached_c_far",
+      "fbxObject": "house_detached_c",
+      "slotTris": {
+        "bk_plaster": 176,
+        "bk_roof": 118,
+        "bk_paint": 698,
+        "bk_glass_dark": 22,
+        "bk_wood": 62
+      },
+      "verts": 1964
+    },
+    {
+      "id": "house_detached_c_far",
+      "family": "far",
+      "width": 8.95,
+      "depth": 9.82,
+      "height": 7.91,
+      "slots": [
+        "bk_plaster",
+        "bk_roof",
+        "bk_paint",
+        "bk_glass_dark",
+        "bk_wood"
+      ],
+      "tris": 138,
+      "fbxObject": "house_detached_c_far",
+      "slotTris": {
+        "bk_plaster": 58,
+        "bk_roof": 28,
+        "bk_paint": 28,
+        "bk_glass_dark": 22,
+        "bk_wood": 2
+      },
+      "verts": 280
+    },
+    {
+      "id": "house_bungalow_a",
+      "family": "house",
+      "width": 11.68,
+      "depth": 8.35,
+      "height": 6.04,
+      "slots": [
+        "bk_brick",
+        "bk_roof",
+        "bk_paint",
+        "bk_wood",
+        "bk_glass_dark"
+      ],
+      "tris": 848,
+      "far": "house_bungalow_a_far",
+      "fbxObject": "house_bungalow_a",
+      "slotTris": {
+        "bk_brick": 94,
+        "bk_roof": 88,
+        "bk_paint": 558,
+        "bk_wood": 88,
+        "bk_glass_dark": 20
+      },
+      "verts": 1548
+    },
+    {
+      "id": "house_bungalow_a_far",
+      "family": "far",
+      "width": 11.6,
+      "depth": 8.35,
+      "height": 5.83,
+      "slots": [
+        "bk_brick",
+        "bk_roof",
+        "bk_paint",
+        "bk_wood",
+        "bk_glass_dark"
+      ],
+      "tris": 130,
+      "fbxObject": "house_bungalow_a_far",
+      "slotTris": {
+        "bk_brick": 58,
+        "bk_roof": 20,
+        "bk_paint": 32,
+        "bk_wood": 2,
+        "bk_glass_dark": 18
+      },
+      "verts": 256
+    },
+    {
+      "id": "garage_a",
+      "family": "garage",
+      "width": 4.07,
+      "depth": 6.0,
+      "height": 3.0,
+      "slots": [
+        "bk_plaster",
+        "bk_roof",
+        "bk_paint",
+        "bk_glass_dark"
+      ],
+      "tris": 150,
+      "fbxObject": "garage_a",
+      "slotTris": {
+        "bk_plaster": 30,
+        "bk_roof": 12,
+        "bk_paint": 106,
+        "bk_glass_dark": 2
+      },
+      "verts": 278
+    },
+    {
+      "id": "shed_a",
+      "family": "shed",
+      "width": 2.4,
+      "depth": 2.0,
+      "height": 2.4,
+      "slots": [
+        "bk_wood",
+        "bk_roof",
+        "bk_paint",
+        "bk_glass_dark"
+      ],
+      "tris": 202,
+      "fbxObject": "shed_a",
+      "slotTris": {
+        "bk_wood": 120,
+        "bk_roof": 4,
+        "bk_paint": 76,
+        "bk_glass_dark": 2
+      },
+      "verts": 394
+    },
+    {
+      "id": "landmark_water_tower",
+      "family": "landmark",
+      "width": 8.0,
+      "depth": 7.98,
+      "height": 23.6,
+      "slots": [
+        "bk_stone",
+        "bk_metal",
+        "bk_paint",
+        "bk_roof"
+      ],
+      "tris": 1108,
+      "fbxObject": "landmark_water_tower",
+      "slotTris": {
+        "bk_stone": 88,
+        "bk_metal": 704,
+        "bk_paint": 210,
+        "bk_roof": 106
+      },
+      "verts": 1726
+    },
+    {
+      "id": "card_roofline_a",
+      "family": "card",
+      "width": 80.0,
+      "depth": 1.34,
+      "height": 14.0,
+      "slots": [
+        "bk_card"
+      ],
+      "tris": 98,
+      "fbxObject": "card_roofline_a",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Cards.fbx",
+      "slotTris": {
+        "bk_card": 98
+      },
+      "verts": 158
+    },
+    {
+      "id": "card_hills_a",
+      "family": "card",
+      "width": 160.0,
+      "depth": 0.8,
+      "height": 30.0,
+      "slots": [
+        "bk_card"
+      ],
+      "tris": 74,
+      "fbxObject": "card_hills_a",
+      "fbx": "Assets/_Project/Art/Surroundings/Kit/Cards.fbx",
+      "slotTris": {
+        "bk_card": 74
+      },
+      "verts": 98
+    }
+  ]
+}

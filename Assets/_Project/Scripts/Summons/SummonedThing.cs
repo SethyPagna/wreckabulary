@@ -4,10 +4,7 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// A summon that lasts a while (SHIELD, SKATES, MAGNET…). When it wears out it falls apart
-    /// into the letters it was spelled from, so anyone can grab them and spell again.
-    /// </summary>
+    public enum SummonEndReason { Consumed, Expired, OwnerGone, ConditionEnded, Reset, Destroyed }
     public class SummonedThing : MonoBehaviour
     {
         static readonly List<SummonedThing> All = new();
@@ -18,10 +15,12 @@ namespace Wreckabulary
         public string Word;
         public PlayerController Owner;
         public float Expires = float.MaxValue;
-        /// <summary>Returns false to end early (e.g. armor used up).</summary>
         public Func<bool> KeepAlive;
         public Action Tick;
         public Action Ended;
+        public Action<SummonEndReason> EndedWithReason;
+        public bool ReturnsLetters = true;
+        public SummonEndReason? EndReason { get; private set; }
 
         bool ended;
 
@@ -40,24 +39,26 @@ namespace Wreckabulary
         void Update()
         {
             if (ended) return;
-            bool ownerGone = Owner && Owner.IsKnockedOut;
-            if (Time.time >= Expires || ownerGone || (KeepAlive != null && !KeepAlive()))
-            {
-                FallApart();
-                return;
-            }
+            if (Owner && Owner.IsKnockedOut) { Finish(SummonEndReason.OwnerGone); return; }
+            if (Time.time >= Expires) { Finish(SummonEndReason.Expired); return; }
+            if (KeepAlive != null && !KeepAlive()) { Finish(SummonEndReason.ConditionEnded); return; }
             Tick?.Invoke();
         }
 
-        public void FallApart()
+        public void FallApart() => Finish(SummonEndReason.Consumed);
+
+        public void Finish(SummonEndReason reason)
         {
             if (ended) return;
             ended = true;
+            EndReason = reason;
+            EndedWithReason?.Invoke(reason);
             Ended?.Invoke();
-            if (TryGetComponent(out Smashable smash)) { smash.Break(); return; }
+            bool returnLetters = ReturnsLetters && reason != SummonEndReason.Reset && reason != SummonEndReason.Destroyed;
+            if (returnLetters && TryGetComponent(out Smashable smash)) { smash.Break(); return; }
 
             var pool = TilePool.Instance;
-            if (pool)
+            if (pool && returnLetters)
             {
                 var built = GetComponent<LetterBuilt>();
                 if (built && built.Blocks.Count == Word.Length) pool.BurstFrom(built.Blocks, Word, transform.position, 3f);
@@ -66,14 +67,20 @@ namespace Wreckabulary
             Destroy(gameObject);
         }
 
-        /// <summary>Removes every summon without dropping letters (round reset).</summary>
         public static void ClearAll()
         {
-            for (int i = All.Count - 1; i >= 0; i--)
-            {
-                All[i].ended = true;
-                Destroy(All[i].gameObject);
-            }
+            foreach (var thing in All.ToArray())
+                if (thing) thing.Finish(SummonEndReason.Reset);
+        }
+
+        void OnDestroy()
+        {
+            All.Remove(this);
+            if (ended) return;
+            ended = true;
+            EndReason = SummonEndReason.Destroyed;
+            EndedWithReason?.Invoke(SummonEndReason.Destroyed);
+            Ended?.Invoke();
         }
     }
 }

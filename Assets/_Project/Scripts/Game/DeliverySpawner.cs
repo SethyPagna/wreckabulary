@@ -1,11 +1,10 @@
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// Moving day: when the room runs low on letters, labelled boxes drop in. Smash one and it
-    /// bursts into the letters on its label. During the collapse, boxes rain down and hurt.
-    /// </summary>
     public class DeliverySpawner : MonoBehaviour
     {
         [SerializeField] string[] words =
@@ -16,7 +15,8 @@ namespace Wreckabulary
         [SerializeField] Vector2 areaX = new(-6.5f, 6.5f);
         [SerializeField] Vector2 areaZ = new(-4.2f, 3.2f);
         [SerializeField] float dropHeight = 6f;
-        [Tooltip("Boxes only arrive while fewer letters than this are in play.")]
+        const float StairClearance = .85f;
+        [Tooltip("Boxes only arrive while fewer letters than this are in play. The House tuning scales it with the house's floor area.")]
         [SerializeField] int minLettersInPlay = 26;
         [SerializeField] float interval = 4f;
         [SerializeField] float collapseInterval = 1.1f;
@@ -38,17 +38,69 @@ namespace Wreckabulary
         {
             if (!Running || Time.time < next) return;
             next = Time.time + (Collapsing ? collapseInterval : interval);
-            if (!Collapsing && LettersInPlay() >= minLettersInPlay) return;
+            if (!Collapsing && LettersInPlay() >= LettersWanted) return;
             Drop(Collapsing);
         }
+
+        public int LettersWanted => GameConfig.Current.Tuning?.LettersInPlay(Layout, minLettersInPlay) ?? minLettersInPlay;
+
+        public HouseLayout Layout { get; set; }
+        public System.Func<string, bool> RoomOpen { get; set; }
 
         public Smashable Drop(bool hazard)
         {
             var word = words[Random.Range(0, words.Length)];
-            var pos = new Vector3(Random.Range(areaX.x, areaX.y), dropHeight, Random.Range(areaZ.x, areaZ.y));
-            var box = CreateBox(word, pos);
-            if (hazard) ThrowTracker.Attach(box.gameObject, null, 4f, 7f);
+            var box = CreateBox(word, DropPoint());
+            if (hazard) ThrowTracker.Attach(box.gameObject, null, 4f, 3.5f);
             return box;
+        }
+
+        public static List<RoomBox> DropRooms(HouseLayout layout, System.Func<string, bool> open)
+        {
+            if (layout == null) return new List<RoomBox>();
+            bool Roomy(RoomBox r) => r.MaxX - r.MinX > 2.5f && r.MaxZ - r.MinZ > 2.5f;
+            var rooms = layout.Rooms.Where(r => Roomy(r) && (open == null || open(r.Name))).ToList();
+            if (rooms.Count == 0) rooms = layout.Rooms.Where(Roomy).ToList();
+            if (rooms.Count == 0) rooms = layout.Rooms.ToList();
+            return rooms;
+        }
+
+        public Vector3 DropPoint()
+        {
+            var rooms = DropRooms(Layout, RoomOpen);
+            if (rooms.Count == 0)
+                return new Vector3(Random.Range(areaX.x, areaX.y), dropHeight, Random.Range(areaZ.x, areaZ.y));
+            var floors = Layout.StoreyFloors();
+            float total = rooms.Sum(r => (r.MaxX - r.MinX) * (r.MaxZ - r.MinZ));
+            bool NearStairs(float px, float pz) => Layout.Stairs.Any(s =>
+                px > s.MinX - StairClearance && px < s.MaxX + StairClearance && pz > s.MinZ - StairClearance && pz < s.MaxZ + StairClearance);
+            RoomBox room = rooms[0];
+            float x = 0f, z = 0f;
+            bool clear = false;
+            for (int attempt = 0; attempt < 12 && !clear; attempt++)
+            {
+                float pick = Random.Range(0f, total);
+                room = rooms.FirstOrDefault(r => (pick -= (r.MaxX - r.MinX) * (r.MaxZ - r.MinZ)) <= 0f) ?? rooms[rooms.Count - 1];
+                float inset = Mathf.Min(1f, (room.MaxX - room.MinX) * .4f), insetZ = Mathf.Min(1f, (room.MaxZ - room.MinZ) * .4f);
+                x = Random.Range(room.MinX + inset, room.MaxX - inset);
+                z = Random.Range(room.MinZ + insetZ, room.MaxZ - insetZ);
+                clear = !NearStairs(x, z);
+            }
+            if (!clear)
+            {
+                var spots = new List<(RoomBox room, float x, float z)>();
+                foreach (var r in rooms)
+                {
+                    float inset = Mathf.Min(1f, (r.MaxX - r.MinX) * .4f), insetZ = Mathf.Min(1f, (r.MaxZ - r.MinZ) * .4f);
+                    for (float gx = r.MinX + inset; gx <= r.MaxX - inset; gx += .5f)
+                        for (float gz = r.MinZ + insetZ; gz <= r.MaxZ - insetZ; gz += .5f)
+                            if (!NearStairs(gx, gz)) spots.Add((r, gx, gz));
+                }
+                if (spots.Count > 0) (room, x, z) = spots[Random.Range(0, spots.Count)];
+            }
+            int storey = Layout.StoreyOf(room);
+            float ceiling = storey + 1 < floors.Count ? floors[storey + 1] - .24f : float.PositiveInfinity;
+            return new Vector3(x, Mathf.Min(room.FloorY + dropHeight, ceiling - 1f), z);
         }
 
         public static Smashable CreateBox(string word, Vector3 position)

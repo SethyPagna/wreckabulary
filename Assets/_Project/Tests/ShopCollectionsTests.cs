@@ -1,0 +1,568 @@
+using System.Collections;
+using System.Linq;
+using NUnit.Framework;
+using TMPro;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.TestTools;
+using UnityEngine.UI;
+using Wreckabulary.Rules;
+
+namespace Wreckabulary.Tests
+{
+    public class ShopCollectionsTests
+    {
+        static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, LobbyThemes.PreferenceKey };
+        string[] saved;
+
+        [UnitySetUp]
+        public IEnumerator SetUp()
+        {
+            saved = Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray();
+            yield return TestScenes.Reset();
+            foreach (string key in Keys) PlayerPrefs.DeleteKey(key);
+            PlayerPrefs.SetString(MatchTally.CareerKey, new Career { Coins = 1000 }.Serialize());
+            LobbyThemes.Restore();
+            MatchTally.LastResult = null;
+            yield return TestScenes.Load(Session.HubScene);
+            yield return TestScenes.WaitUntil(() => LobbyMenu.Instance && !GameHud.Active.StateController.IsTransitioning, 2f, "lobby ready");
+            LobbyMenu.Instance.Open(LobbyMenu.Shop);
+            yield return null;
+        }
+
+        [UnityTearDown]
+        public IEnumerator TearDown()
+        {
+            yield return TestScenes.Reset();
+            for (int i = 0; i < Keys.Length; i++)
+            {
+                if (saved[i] == null) PlayerPrefs.DeleteKey(Keys[i]);
+                else PlayerPrefs.SetString(Keys[i], saved[i]);
+            }
+            PlayerPrefs.Save();
+            LobbyThemes.Restore();
+        }
+
+        static void Click(string name)
+        {
+            var button = LobbyMenu.Instance.GetComponentsInChildren<Button>().FirstOrDefault(candidate => candidate.name == name);
+            Assert.IsNotNull(button, name);
+            Assert.IsTrue(button.interactable, name);
+            button.onClick.Invoke();
+        }
+
+        static string SelectedText(string name) => LobbyMenu.Instance.Page<ShopPage>().Root
+            .GetComponentsInChildren<TMP_Text>().Single(text => text.name == name).text;
+
+        static string AvatarPresentation()
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (var renderer in LobbyMenu.Instance.Stage.Avatar.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                parts.Add(renderer.name + ":" + renderer.enabled);
+                for (int i = 0; i < renderer.sharedMaterials.Length; i++)
+                {
+                    var block = new MaterialPropertyBlock();
+                    renderer.GetPropertyBlock(block, i);
+                    parts.Add(block.GetColor("_BaseColor").ToString("F6") + ":" + block.GetColor("_Color").ToString("F6"));
+                }
+            }
+            Assert.IsNotEmpty(parts, "The stage must contain the actual imported avatar renderers.");
+            return string.Join("|", parts);
+        }
+
+        [UnityTest]
+        public IEnumerator ShelfTransitionsRestoreActualAvatarThemeAndItemPreview()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            menu.Close();
+            string appearance = AvatarPresentation();
+            string outfit = menu.Outfit.Serialize();
+            string[] before = Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray();
+            menu.OpenShop("look:candy");
+            Assert.AreNotEqual(appearance, AvatarPresentation(), "The selected look actually changes the temporary stage visual.");
+            shop.ShowCategory(ShopPage.Gear);
+            Assert.AreEqual(appearance, AvatarPresentation(), "Look colours/mesh visibility must not leak into Gear.");
+            Assert.IsNotNull(menu.Stage.ItemPreview);
+            shop.SelectRecipe("SHIELD");
+            menu.OpenShop("skin:Arcade");
+            Assert.AreEqual("SHIELD", shop.SelectedRecipe);
+            Assert.IsNotNull(menu.Stage.ItemPreview);
+            shop.ShowCategory(ShopPage.Rooms);
+            Assert.IsNull(menu.Stage.ItemPreview, "The Gear miniature must not leak into Rooms.");
+            Assert.AreEqual(appearance, AvatarPresentation());
+            Click("Offer theme:candy");
+            Assert.AreEqual("candy", LobbyThemes.Current.Id);
+            shop.ShowCategory(ShopPage.Extras);
+            yield return null;
+            Assert.AreEqual("sunroom", LobbyThemes.Current.Id, "Extras restores the committed theme.");
+            Assert.IsNull(menu.Stage.ItemPreview);
+            Assert.AreEqual(appearance, AvatarPresentation());
+            Assert.AreEqual("SHIELD", shop.SelectedRecipe);
+            Assert.AreEqual(outfit, menu.Outfit.Serialize());
+            Assert.AreEqual(1000, menu.Career.Coins);
+            CollectionAssert.AreEqual(before, Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray());
+        }
+
+        [UnityTest]
+        public IEnumerator DefaultSelectionAndCategoryPreviewNeverSpendOrSave()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            string outfit = menu.Outfit.Serialize();
+            string[] before = Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray();
+            Assert.AreEqual("look:sunroom", shop.Spotlit, "A custom outfit selects the first owned look for preview only.");
+            Assert.AreEqual("Sunny-side Club", SelectedText("Selected shop name"));
+            Assert.AreEqual("Looks · Owned · Preview", SelectedText("Selected shop state"));
+            Assert.AreEqual(1000, menu.Career.Coins);
+            Assert.AreEqual(outfit, menu.Outfit.Serialize());
+            CollectionAssert.AreEqual(before, Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray());
+
+            shop.SelectRecipe("SHIELD");
+            yield return null;
+            Assert.AreEqual("skin:Classic", shop.Spotlit);
+            Assert.AreEqual("SHIELD finish · Equipped", SelectedText("Selected shop state"));
+            Assert.IsNotNull(menu.Stage.ItemPreview);
+            Assert.IsFalse(shop.Root.GetComponentsInChildren<Button>().Single(button => button.name == "Selected shop action").interactable);
+            shop.ShowCategory(ShopPage.Rooms);
+            yield return null;
+            Assert.IsNull(menu.Stage.ItemPreview, "The prior shelf's miniature is released.");
+            Assert.AreEqual("theme:sunroom", shop.Spotlit);
+            Assert.AreEqual("Rooms · Equipped", SelectedText("Selected shop state"));
+            Assert.AreEqual(outfit, menu.Outfit.Serialize());
+            CollectionAssert.AreEqual(before, Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray());
+            menu.Close();
+            Assert.AreEqual("sunroom", LobbyThemes.Current.Id);
+            Assert.IsNull(menu.Stage.ItemPreview);
+        }
+
+        [UnityTest]
+        public IEnumerator SelectedContextPreservesSpotlightThroughPurchaseThenExplicitEquip()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            string outfit = menu.Outfit.Serialize();
+            menu.OpenShop("look:candy");
+            yield return null;
+            Assert.AreEqual("look:candy", shop.Spotlit);
+            Assert.AreEqual("Sugar Rush", SelectedText("Selected shop name"));
+            Assert.AreEqual("Looks · Not owned · Preview", SelectedText("Selected shop state"));
+            Assert.AreEqual(outfit, menu.Outfit.Serialize());
+            Click("Selected shop action");
+            yield return null;
+            Assert.AreEqual(600, menu.Career.Coins);
+            Assert.IsTrue(menu.Career.Owns("look", "candy"));
+            Assert.AreEqual(outfit, menu.Outfit.Serialize(), "Buying does not automatically equip.");
+            Assert.AreEqual("look:candy", shop.Spotlit);
+            Assert.AreEqual("Looks · Owned · Preview", SelectedText("Selected shop state"));
+            Click("Selected shop action");
+            yield return null;
+            Assert.AreEqual(600, menu.Career.Coins);
+            Assert.AreEqual("bubblegum", menu.Outfit.ColourOf("Top"));
+            Assert.AreEqual("Looks · Equipped", SelectedText("Selected shop state"));
+            Assert.IsFalse(shop.Root.GetComponentsInChildren<Button>().Single(button => button.name == "Selected shop action").interactable);
+            menu.Close(); menu.Open(LobbyMenu.Shop);
+            yield return null;
+            Assert.AreEqual("look:candy", shop.Spotlit, "A matching equipped look takes priority over the first owned look.");
+            Assert.AreEqual("Looks · Equipped", SelectedText("Selected shop state"));
+        }
+
+        [UnityTest]
+        public IEnumerator SelectedFooterStaysOutsideTheOfferViewportAndUsesSavedSizeControls()
+        {
+            var shop = LobbyMenu.Instance.Page<ShopPage>();
+            foreach (var size in new[] { new Vector2(860, 970), new Vector2(620, 650) })
+            {
+                    shop.Refresh();
+                    yield return null;
+                    var page = shop.Root.GetComponentInChildren<LobbyShopPageView>();
+                    page.Panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size.x);
+                    page.Panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size.y);
+                    Canvas.ForceUpdateCanvases();
+                    var footer = shop.Root.GetComponentsInChildren<RectTransform>().Single(rect => rect.name == "Selected shop offer");
+                    var action = (RectTransform)shop.Root.GetComponentsInChildren<Button>().Single(button => button.name == "Selected shop action").transform;
+                    var a = new Vector3[4]; var b = new Vector3[4]; var c = new Vector3[4]; var d = new Vector3[4];
+                    footer.GetWorldCorners(a); page.Scroll.viewport.GetWorldCorners(b); action.GetWorldCorners(c); page.Panel.GetWorldCorners(d);
+                    Assert.Greater(page.Scroll.viewport.rect.height, 80f, "Compact layouts keep a usable scroll viewport.");
+                    Assert.That(a[1].y, Is.LessThanOrEqualTo(b[0].y), "Footer must not overlap scrolling offers.");
+                    Assert.That(a[0].y, Is.GreaterThan(d[0].y));
+                    Assert.That(a[2].y, Is.LessThan(d[2].y));
+                    Assert.That(c[0].x, Is.GreaterThanOrEqualTo(a[0].x - .01f));
+                    Assert.That(c[2].x, Is.LessThanOrEqualTo(a[2].x + .01f));
+                    Assert.That(c[0].y, Is.GreaterThanOrEqualTo(a[0].y - .01f));
+                    Assert.That(c[2].y, Is.LessThanOrEqualTo(a[2].y + .01f));
+                    Assert.AreEqual(page.SelectionHeight, footer.rect.height, .01f);
+                    Assert.AreEqual(page.SelectionActionWidth, action.rect.width, .01f);
+                    foreach (var text in footer.GetComponentsInChildren<TMP_Text>())
+                    { text.ForceMeshUpdate(); Assert.IsFalse(text.isTextTruncated, text.name + " at " + size); }
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator FailedSelectedPurchaseKeepsCoinsOutfitAndUnownedPreview()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            menu.Career.Coins = 0;
+            string outfit = menu.Outfit.Serialize();
+            string careerSave = PlayerPrefs.GetString(MatchTally.CareerKey);
+            menu.OpenShop("look:candy");
+            Click("Selected shop action");
+            yield return null;
+            Assert.AreEqual(0, menu.Career.Coins);
+            Assert.IsFalse(menu.Career.Owns("look", "candy"));
+            Assert.AreEqual(outfit, menu.Outfit.Serialize());
+            Assert.AreEqual(careerSave, PlayerPrefs.GetString(MatchTally.CareerKey));
+            Assert.AreEqual("look:candy", shop.Spotlit);
+            Assert.AreEqual("Looks · Not owned · Preview", SelectedText("Selected shop state"));
+            Assert.IsNotEmpty(shop.Root.GetComponentInChildren<LobbyShopPageView>().Footnote.text);
+            Click("Offer look:lantern");
+            Assert.IsEmpty(shop.Root.GetComponentInChildren<LobbyShopPageView>().Footnote.text, "Selecting another offer clears stale checkout feedback.");
+        }
+
+        [UnityTest]
+        public IEnumerator GearCardsShowOnlyTheSelectedOriginalShapeAndASeparateFinishSwatch()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            string outfit = menu.Outfit.Serialize();
+            string[] before = Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray();
+            foreach (string recipe in new[] { "SHIELD", "FAN" })
+            {
+                Assert.IsTrue(shop.SelectRecipe(recipe));
+                yield return null;
+                Canvas.ForceUpdateCanvases();
+                var cards = shop.Root.GetComponentsInChildren<LobbyShopOfferView>();
+                Assert.AreEqual(GameConfig.Current.Items.Get(recipe).Skins.Count, cards.Length);
+                foreach (var card in cards)
+                {
+                    var images = card.Art.GetComponentsInChildren<RawImage>().Where(image => image.name.StartsWith("Art ")).ToArray();
+                    Assert.AreEqual(1, images.Length, card.name + " must not contain the old unrelated BAT illustration.");
+                    Assert.AreEqual("Art " + recipe, images[0].name);
+                    string skin = card.name.Substring("Offer skin:".Length);
+                    Assert.AreSame(Wreckabulary.UI.ItemArt.FinishIcon(recipe, skin) ?? Wreckabulary.UI.OriginalItemArt.Find(recipe), images[0].texture,
+                        card.name + " shows the item in that finish");
+                    Assert.AreEqual(Color.white, images[0].color, "Keep original material colours untinted.");
+                    Assert.IsFalse(images[0].raycastTarget);
+                    Assert.Greater(images[0].rectTransform.rect.height, 84f, "The saved offer artwork must use more than the previous tiny thumbnail area.");
+                    Assert.AreEqual((float)images[0].texture.width / images[0].texture.height,
+                        images[0].rectTransform.rect.width / images[0].rectTransform.rect.height, .001f);
+                    var imageCorners = new Vector3[4]; var artCorners = new Vector3[4];
+                    images[0].rectTransform.GetWorldCorners(imageCorners); card.Art.GetWorldCorners(artCorners);
+                    Assert.GreaterOrEqual(imageCorners[0].x, artCorners[0].x);
+                    Assert.GreaterOrEqual(imageCorners[0].y, artCorners[0].y);
+                    Assert.LessOrEqual(imageCorners[2].x, artCorners[2].x);
+                    Assert.LessOrEqual(imageCorners[2].y, artCorners[2].y);
+                    Assert.IsNotNull(card.Art.Find("Finish swatch"));
+                    Assert.IsFalse(card.Art.Find("Finish swatch").GetComponent<Image>().raycastTarget);
+                    StringAssert.Contains("Select to preview", card.Hint.Text);
+                }
+                Assert.IsNotNull(menu.Stage.ItemPreview, "Actual finish preview remains available.");
+                Assert.AreEqual(recipe, shop.SelectedRecipe);
+            }
+            Assert.AreEqual(outfit, menu.Outfit.Serialize());
+            Assert.AreEqual(1000, menu.Career.Coins);
+            CollectionAssert.AreEqual(before, Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray());
+        }
+
+        [UnityTest]
+        public IEnumerator CategoriesIsolateShelvesAndRestoreUncommittedPreviews()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            string savedOutfit = menu.Outfit.Serialize();
+            Assert.AreEqual(ShopPage.Looks, shop.Category);
+            Assert.IsTrue(shop.Root.GetComponentsInChildren<Button>()
+                .Where(button => button.name.StartsWith("Offer "))
+                .All(button => button.name.StartsWith("Offer look:")));
+            Click("Offer look:candy");
+            Assert.AreEqual(savedOutfit, menu.Outfit.Serialize());
+            Assert.AreEqual(1000, menu.Career.Coins);
+
+            Click("Shop category gear");
+            Assert.AreEqual(ShopPage.Gear, shop.Category);
+            Assert.IsTrue(shop.Root.GetComponentsInChildren<Button>()
+                .Where(button => button.name.StartsWith("Offer "))
+                .All(button => button.name.StartsWith("Offer skin:")));
+            Click("Offer skin:Candy");
+            Assert.IsNotNull(menu.Stage.ItemPreview);
+            Click("Shop category colours");
+            Assert.IsNull(menu.Stage.ItemPreview, "Leaving the shelf releases the uncommitted miniature.");
+            Assert.AreEqual(savedOutfit, menu.Outfit.Serialize());
+            Assert.AreEqual(1000, menu.Career.Coins);
+            Assert.IsFalse(menu.Career.Owns("skin", "Candy"));
+            Assert.AreEqual("Shop category colours", EventSystem.current.currentSelectedGameObject.name);
+            Assert.IsFalse(shop.ShowCategory("missing"));
+            Assert.AreEqual(ShopPage.Colours, shop.Category);
+            menu.Open(LobbyMenu.Home);
+            menu.Open(LobbyMenu.Shop);
+            yield return null;
+            Assert.AreEqual(ShopPage.Colours, shop.Category, "Returning keeps the browsing category.");
+            Assert.AreEqual(savedOutfit, menu.Outfit.Serialize());
+        }
+
+        [UnityTest]
+        public IEnumerator GearSpotlightKeepsTheChosenRecipeAndTargetsThePurchase()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            Assert.IsTrue(shop.SelectRecipe("SHIELD"));
+            Click("Shop category looks");
+            menu.OpenShop("skin:Arcade");
+            yield return null;
+            Assert.AreEqual(ShopPage.Gear, shop.Category);
+            Assert.AreEqual("SHIELD", shop.SelectedRecipe);
+            Assert.AreEqual("Buy skin:Arcade", EventSystem.current.currentSelectedGameObject.name);
+            Assert.AreEqual(1000, menu.Career.Coins);
+            Assert.IsFalse(menu.Career.Owns("skin", "Arcade"));
+        }
+
+        static IEnumerator WaitForParty(LobbyMenu menu, System.Func<bool> ready, string action, System.Func<string> diagnostics = null)
+        {
+            float until = Time.realtimeSinceStartup + 2f;
+            while (!ready() && Time.realtimeSinceStartup < until) yield return null;
+            Assert.IsTrue(ready(), action + "; seats=" + string.Join(",", menu.Party.Select(binding => binding.Id)) +
+                "; page=" + menu.Current + "; blocked=" + KeyBindings.GameplayBlocked + "; starting=" + menu.Starting +
+                "; keyboard=" + Keyboard.current?.deviceId + "; state=" + GameHud.Active.StateController.CurrentState +
+                (diagnostics == null ? "" : "\n" + diagnostics()));
+        }
+
+        [UnityTest]
+        public IEnumerator LobbyControlsBlockDirectPartyPollingAndReleaseJoiningAfterClose()
+        {
+            var route = InputSystem.settings.editorInputBehaviorInPlayMode;
+            var focus = InputSystem.settings.backgroundBehavior;
+            Keyboard keyboard = null;
+            Gamepad seatedPad = null, joiningPad = null;
+            var observations = new System.Collections.Generic.List<string>();
+            bool observeKeyboard = false;
+            System.Action observeInput = () =>
+            {
+                if (!observeKeyboard || observations.Count >= 8 || InputState.currentUpdateType != InputUpdateType.Dynamic) return;
+                var lobby = LobbyMenu.Instance;
+                observations.Add("frame=" + Time.frameCount + ", enabled=" + keyboard.enabled + ", held=" + keyboard.periodKey.isPressed +
+                    ", press=" + keyboard.periodKey.wasPressedThisFrame + ", join=" + new KeyboardBinding(KeyboardBinding.Side.Right).JoinPressed() +
+                    ", blocked=" + KeyBindings.GameplayBlocked + ", listening=" + KeyBindings.Listening +
+                    ", current=" + Keyboard.current?.deviceId + ", menuActive=" + (lobby && lobby.isActiveAndEnabled) +
+                    ", seats=" + string.Join(",", lobby.Party.Select(binding => binding.Id)));
+            };
+            InputSystem.onAfterUpdate += observeInput;
+            try
+            {
+                InputSystem.settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+                InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+                keyboard = InputSystem.AddDevice<Keyboard>();
+                seatedPad = InputSystem.AddDevice<Gamepad>();
+                joiningPad = InputSystem.AddDevice<Gamepad>();
+                Assert.IsTrue(keyboard.enabled, "synthetic keyboard accepts game input before events are queued");
+                keyboard.MakeCurrent();
+                var menu = LobbyMenu.Instance;
+                menu.Open(LobbyMenu.Home);
+                InputSystem.QueueStateEvent(seatedPad, new GamepadState().WithButton(GamepadButton.Start));
+                yield return TestScenes.WaitUntil(() => menu.Party.Count == 1, 1f, "initial controller joins through LobbyMenu.PollParty");
+                string seatedId = new GamepadBinding(seatedPad).Id;
+                Assert.AreEqual(seatedId, menu.Party[0].Id);
+                InputSystem.QueueStateEvent(seatedPad, new GamepadState());
+                yield return null;
+
+                menu.Open(LobbyMenu.Settings);
+                menu.Page<SettingsPage>().ShowTab("controls");
+                yield return null;
+                Assert.IsTrue(KeyBindings.GameplayBlocked);
+                var before = menu.Party.Select(binding => binding.Id).ToArray();
+                InputSystem.QueueStateEvent(seatedPad, new GamepadState().WithButton(GamepadButton.Select));
+                InputSystem.QueueStateEvent(joiningPad, new GamepadState().WithButton(GamepadButton.Start).WithButton(GamepadButton.RightShoulder));
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Period));
+                yield return null; yield return null;
+                CollectionAssert.AreEqual(before, menu.Party.Select(binding => binding.Id).ToArray(),
+                    "Start cannot join, Select cannot leave, and the second keyboard cannot join while Controls owns input");
+                Assert.AreEqual(LobbyMenu.Settings, menu.Current, "shoulders cannot switch the page under the controls editor");
+                Assert.IsTrue(menu.GetComponentInChildren<ControlsPanel>().isActiveAndEnabled);
+
+                InputSystem.QueueStateEvent(seatedPad, new GamepadState());
+                InputSystem.QueueStateEvent(joiningPad, new GamepadState());
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                yield return null;
+                Assert.IsFalse(seatedPad.selectButton.isPressed);
+                Assert.IsFalse(joiningPad.startButton.isPressed);
+                Assert.IsFalse(keyboard.periodKey.isPressed);
+                menu.Close();
+                yield return null; yield return null; yield return null;
+                Assert.IsFalse(KeyBindings.GameplayBlocked);
+                CollectionAssert.AreEqual(before, menu.Party.Select(binding => binding.Id).ToArray(), "closing Controls preserves the existing seat");
+                string joiningId = new GamepadBinding(joiningPad).Id;
+                InputSystem.QueueStateEvent(joiningPad, new GamepadState().WithButton(GamepadButton.Start));
+                yield return WaitForParty(menu, () => menu.Party.Any(binding => binding.Id == joiningId), "controller joins after Controls closes");
+                InputSystem.QueueStateEvent(joiningPad, new GamepadState());
+                yield return null;
+                observeKeyboard = true;
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Period));
+                yield return null;
+                Assert.IsTrue(keyboard.periodKey.isPressed, "the queued physical Period key reaches the game keyboard\n" + string.Join("\n", observations));
+                yield return WaitForParty(menu, () => menu.Party.Count == 3, "right keyboard joins after Controls closes",
+                    () => string.Join("\n", observations));
+                CollectionAssert.AreEquivalent(new[] { seatedId, joiningId,
+                    new KeyboardBinding(KeyboardBinding.Side.Right).Id }, menu.Party.Select(binding => binding.Id).ToArray());
+                InputSystem.QueueStateEvent(seatedPad, new GamepadState().WithButton(GamepadButton.Select));
+                yield return TestScenes.WaitUntil(() => menu.Party.All(binding => binding.Id != seatedId), 1f,
+                    "the existing controller can leave after Controls closes");
+            }
+            finally
+            {
+                InputSystem.onAfterUpdate -= observeInput;
+                if (keyboard != null && keyboard.added) InputSystem.RemoveDevice(keyboard);
+                if (seatedPad != null && seatedPad.added) InputSystem.RemoveDevice(seatedPad);
+                if (joiningPad != null && joiningPad.added) InputSystem.RemoveDevice(joiningPad);
+                InputSystem.settings.editorInputBehaviorInPlayMode = route;
+                InputSystem.settings.backgroundBehavior = focus;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ThemePreviewDoesNotPurchaseAndEquipPersistsAcrossLobbyReload()
+        {
+            var menu = LobbyMenu.Instance;
+            string outfit = menu.Outfit.Serialize();
+            Click("Shop category rooms");
+            Click("Offer theme:candy");
+            Assert.AreEqual("candy", LobbyThemes.Current.Id);
+            Assert.IsFalse(PlayerPrefs.HasKey(LobbyThemes.PreferenceKey));
+            Assert.AreEqual(1000, menu.Career.Coins);
+            Assert.AreEqual(outfit, menu.Outfit.Serialize());
+            menu.Open(LobbyMenu.Home);
+            Assert.AreEqual("sunroom", LobbyThemes.Current.Id, "leaving restores the equipped theme");
+            menu.Open(LobbyMenu.Shop);
+            Click("Buy theme:candy");
+            yield return null;
+            Click("Wear theme:candy");
+            Assert.AreEqual(700, menu.Career.Coins);
+            Assert.AreEqual("candy", PlayerPrefs.GetString(LobbyThemes.PreferenceKey));
+            Click("Offer theme:lantern");
+            Assert.AreEqual("lantern", LobbyThemes.Current.Id);
+            menu.Open(LobbyMenu.Home);
+            Assert.AreEqual("candy", LobbyThemes.Current.Id);
+            yield return TestScenes.Load(Session.HubScene);
+            yield return null;
+            Assert.AreEqual("candy", LobbyThemes.Current.Id);
+            Assert.IsTrue(LobbyMenu.Instance.Career.Owns("theme", "candy"));
+            Assert.AreEqual(700, LobbyMenu.Instance.Career.Coins);
+        }
+
+        [UnityTest]
+        public IEnumerator RecipeSkinUsesNativePreviewRequiresOwnershipAndChangesOnlySelectedGear()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            var outfit = menu.Outfit.Clone();
+            outfit.ItemSkins["BAT"] = "Classic";
+            menu.Wear(outfit);
+            Assert.IsTrue(shop.SelectRecipe("SHIELD"));
+            Click("Offer skin:Arcade");
+            Assert.IsNotNull(menu.Stage.ItemPreview, "real native item preview exists");
+            Assert.IsTrue(menu.Stage.ItemPreview.GetComponentsInChildren<Renderer>().Any(renderer => renderer.enabled));
+            var offer = Career.Shop.First(item => item.Id == "skin:Arcade");
+            shop.Wear(offer);
+            Assert.IsNull(menu.Outfit.SkinFor("SHIELD"), "locked preview is not an equip bypass");
+            Click("Buy skin:Arcade");
+            yield return null;
+            Click("Wear skin:Arcade");
+            Assert.AreEqual("Arcade", menu.Outfit.SkinFor("SHIELD"));
+            Assert.AreEqual("Classic", menu.Outfit.SkinFor("BAT"));
+            var savedOutfit = Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey));
+            Assert.AreEqual("Arcade", savedOutfit.SkinFor("SHIELD"));
+            Assert.AreEqual("Classic", savedOutfit.SkinFor("BAT"));
+            menu.Open(LobbyMenu.Home);
+            Assert.IsNull(menu.Stage.ItemPreview, "page exit releases the miniature");
+        }
+
+        [UnityTest]
+        public IEnumerator LockerRecipeFinishOpensTheSelectedGearWithoutChangingTheOutfit()
+        {
+            var menu = LobbyMenu.Instance;
+            menu.Open(LobbyMenu.Loadout);
+            yield return null;
+            string outfit = menu.Outfit.Serialize();
+            string savedOutfit = PlayerPrefs.GetString(LobbyMenu.OutfitKey);
+            int coins = menu.Career.Coins;
+            Click("Per-recipe finishes");
+            yield return null;
+            Click("Recipe SHIELD");
+            yield return null;
+            var finish = menu.GetComponentsInChildren<Button>().Single(button => button.name == "Recipe finish");
+            StringAssert.Contains(menu.Outfit.SkinFor("SHIELD") ?? "Classic", finish.GetComponentInChildren<TMP_Text>().text);
+            EventSystem.current.SetSelectedGameObject(finish.gameObject);
+            yield return null;
+            Assert.IsTrue(finish, "focusing the finish action must not replace the control with the recipe preview");
+            Click("Recipe finish");
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Shop, menu.Current);
+            Assert.AreEqual(ShopPage.Gear, menu.Page<ShopPage>().Category);
+            Assert.AreEqual("SHIELD", menu.Page<ShopPage>().SelectedRecipe);
+            Assert.AreEqual("Choose recipe", EventSystem.current.currentSelectedGameObject.name);
+            Assert.AreEqual(outfit, menu.Outfit.Serialize());
+            Assert.AreEqual(savedOutfit, PlayerPrefs.GetString(LobbyMenu.OutfitKey));
+            Assert.AreEqual(coins, menu.Career.Coins);
+        }
+
+        [UnityTest]
+        public IEnumerator LockerShowsMixedRecipesUntilApplyToAllIsExplicitlyChosen()
+        {
+            var menu = LobbyMenu.Instance;
+            Click("Shop category gear");
+            Click("Buy skin:Candy");
+            yield return null;
+            var mixed = menu.Outfit.Clone();
+            mixed.ItemSkins.Clear();
+            mixed.ItemSkins["BAT"] = "Candy";
+            menu.Wear(mixed);
+            string before = mixed.Serialize();
+            menu.Open(LobbyMenu.Loadout);
+            yield return null;
+            var locker = menu.Page<LoadoutPage>();
+            var state = locker.Root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Gear finish state");
+            Assert.IsTrue(state.text.StartsWith("Mixed recipe finishes"));
+            foreach (var card in locker.Root.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Finish ")))
+                Assert.IsFalse(card.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "WEARING"), card.name + " is not the uniform finish");
+            Assert.AreEqual(before, menu.Outfit.Serialize(), "opening the locker preserves per-recipe choices");
+            Click("Finish Candy");
+            yield return null;
+            Assert.IsTrue(GameConfig.Current.Items.Enabled.Where(item => item.HasSkin("Candy")).All(item => menu.Outfit.SkinFor(item.Id) == "Candy"));
+            Assert.AreEqual(menu.Outfit.Serialize(), Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).Serialize());
+            var selected = locker.Root.GetComponentsInChildren<Button>().Single(button => button.name == "Finish Candy");
+            Assert.IsTrue(selected.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "WEARING"));
+            Assert.AreEqual("All recipes: Candy", locker.Root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Gear finish state").text);
+        }
+
+        [UnityTest]
+        public IEnumerator CollectionCheckoutCreditsOwnedPartsAndAccessoriesStayFree()
+        {
+            var menu = LobbyMenu.Instance;
+            Click("Shop category colours");
+            Click("Buy colour:bubblegum");
+            yield return null;
+            Click("Shop category looks");
+            Click("Buy look:candy");
+            yield return null;
+            Assert.AreEqual(600, menu.Career.Coins, "150 owned colour + 250 remaining finish");
+            Click("Wear look:candy");
+            yield return null;
+            Assert.AreEqual("bubblegum", menu.Outfit.ColourOf("Top"));
+            Assert.AreEqual("Candy", menu.Outfit.SkinFor("BAT"));
+            Assert.IsTrue(GameConfig.Current.Wardrobe.Fits(menu.Outfit));
+            Click("Shop category extras");
+            Click("Accessory toggle Hood");
+            yield return null;
+            Assert.AreEqual("Hood", menu.Outfit.PieceIn("Headwear"));
+            Assert.AreEqual("Hoodie", menu.Outfit.PieceIn("Top"));
+            Assert.AreEqual(600, menu.Career.Coins);
+            Click("Accessory toggle Glasses");
+            yield return null;
+            Assert.IsNull(menu.Outfit.PieceIn("Face"));
+            Assert.AreEqual(menu.Outfit.Serialize(), Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).Serialize());
+            Assert.IsTrue(MatchTally.LoadCareer().Owns("look", "candy"));
+        }
+    }
+}

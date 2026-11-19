@@ -1,0 +1,14 @@
+{
+    "name": "Wreckabulary.Rules",
+    "rootNamespace": "Wreckabulary.Rules",
+    "references": ["GameStudioKit.Determinism"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

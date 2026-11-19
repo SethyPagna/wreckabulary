@@ -3,13 +3,15 @@
     "rootNamespace": "Wreckabulary.Tests",
     "references": [
         "Wreckabulary",
+        "Wreckabulary.Rules",
+        "Wreckabulary.Online.Client",
+        "Unity.InputSystem",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Unity.TextMeshPro",
+        "UnityEngine.UI",
         "Unity.RenderPipelines.Universal.Runtime",
-        "Unity.RenderPipelines.Core.Runtime",
-        "Unity.InputSystem",
-        "Unity.InputSystem.TestFramework"
+        "Unity.RenderPipelines.Core.Runtime"
     ],
     "overrideReferences": true,
     "precompiledReferences": [

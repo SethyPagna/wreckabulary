@@ -1,170 +1,98 @@
 # Wreckabulary
 
-**Wreck the room, build the word!**
+**Wreck the room, build the word.**
 
-Wreckabulary is a 2–4 player couch party game for COMP4122 where everything is made of letters. Smash furniture into letter tiles, grab them, and spell them into new things. Everything you summon can be smashed and re-spelled too.
+A toy-like third-person party game for 1–4 players. Smash furniture and it breaks into the letters of its name (a TABLE drops T, A, B, L, E). Spell a word to build it: a BAT swings, a SHIELD blocks, a BED springs. Then use it to win.
 
-| | |
-|---|---|
-| Genre | Party, brawler, word game |
-| Theme | Moving day in a cozy world where everything is made of words |
-| Art style | Toybox Workshop: warm wooden letter tiles, blobby ragdoll characters, objects built from their own letters |
+## How to play
 
-## Core loop
+1. Break furniture; pick up its letters.
+2. Spell a word (Q, type, Enter) or tap a ready card in the recipe book (hold Tab).
+3. Use what you built: swing, throw, block, place.
 
-**Smash → Scavenge → Spell → Summon**
+Harder words make better items. A plain word like BAT is an honest hit; harder words carry effects:
 
-1. **Smash** furniture and it bursts into the letters that spell it.
-2. **Scavenge** letters. You carry up to 6, and getting hit knocks some loose.
-3. **Spell** the word yourself, letter by letter, from the letters you carry.
-4. **Summon** the object instantly, like a BLADE, WINGS or BEES.
+| Effect | How it lands | Examples |
+|---|---|---|
+| None | — | BAT, PAN, POT, BALL |
+| Heavy | every hit pushes further | LAMP, BROOM, BARREL |
+| Daze | by chance, or on every 3rd hit | SPEAR, TOASTER, PILLOW, RACK |
+| Bleed | over time; repeated cuts deepen | ARROW, BLADE |
+| Crush | every 3rd hit lands extra hard | HAMMER |
+| Guard / Swift | constant while held | MIRROR, SHIELD / PLATE |
+
+Bare hands barely hurt. The recipe book says what each item does when you point at it.
 
 ## Modes
 
-Everything starts in the **hub**, your own customisable house. Friends join by picking up a controller and walking in the door, and you choose a mode at the typewriter.
-
-| Mode | Players | Summary |
+| Family | Modes | Players |
 |---|---|---|
-| Tutorial | 1–4 | Learn to smash, grab and spell. |
-| **Versus: "Dibs!"** | 2–4 | Fight your roommates for the best stuff. Letters are your health. Last roommate standing wins the round, first to 3 wins. |
-| **Co-op: "Moving Day"** | 1–4 | Furnish the house together: unpack boxes, spell the checklist items and place them in the right rooms against the clock. 1–3 stars per level. |
-| **Creative: "Home Sweet Home"** | 1–4 | The typewriter prints endless letters to build and decorate. Hit Play to turn your room into a Dibs! arena with custom rules. Save and load rooms. |
+| Learn | Tutorial (selected until you finish it) | 1–4 on one PC |
+| Battle | Dibs! (last one standing), Duos (2v2 with revives), Free-for-All (respawns; first to 10 knockouts), War (two teams of up to 4 share 12 lives; hold the middle room for more) | 1–4 on one PC, bots fill seats (War plays 4v4) |
+| Co-op | Moving Out (escape with the keepsakes), Moving Day (finish the checklist), Escape | 1–4 on one PC |
+| Word games | Shopping List (everyone builds the same items in a new random order each round), Riddle Rush (solve the riddle, spell the answer first) | 1–4 on one PC, bots fill seats |
+| Courses | Time Trial, Freeplay on Parcel Depot, The Lost Address or Parcel Hall | 1 on one PC |
+| Online courses | Time Trial, Team Relay, Brawl Relay (teams of 1, 2 or 4), Free-for-All (first to 10 knockouts), Freeplay | Matchmaking or a private party |
 
-Maps: living room, bedroom, kitchen, garden, and more.
+The ⓘ beside the selected mode, and **How to play** in the pause menu, show a picture guide for every mode.
 
-## Tech
+Five houses (Pinwheel, Garden Courtyard, City Flat, Terrace, Walk-up) with gardens, yards and roofs, or **Random**; each map card shows a picture of the real map. The camera frames every player on the couch. **Parcel Depot** is a two-level warehouse whose laps take different routes.
 
-| | |
-|---|---|
-| Engine | Unity 6 (6000.6.3f1) |
-| Render pipeline | URP |
-| Input | Unity Input System: up to 4 gamepads, or 2 players sharing a keyboard |
-| Physics | Rigidbody roommates with a wobbly visual rig, pooled rigidbody letter tiles |
-| Platform | Windows PC, local multiplayer |
+Course races carry a keepsake through three laps of checkpoints; each checkpoint is a word puzzle. **The Lost Address** is the story course: four floors, three chapters (find the address, the wrong delivery, restore the home), clues earned at checkpoints and an ending for each result.
 
-## Getting started
+Create: **Map editor** (build a course in four steps: Build, Fill, Rules, Test & Share; save, open and share maps, or play one online with friends) and **Home builder** (furnish a house, then play it in any Battle or Word game mode).
 
-1. Install **Git LFS** once: `git lfs install`
-2. Clone the repo: `git clone <repo-url>`
-3. Open the folder with **Unity Hub → Add project from disk**, using the Unity version above.
-4. Open `Assets/_Project/Scenes/Hub.unity` and press Play.
-5. Press a button to walk in through the front door (Space, `.`, or A on a gamepad). Walk up to the typewriter, press grab, and pick a mode.
+## Online
 
-You can also open `LivingRoom.unity` or `Tutorial.unity` directly. Players join there by pressing a button.
+House party modes are offline only. Course modes go online through Photon Fusion (host and clients):
 
-## What's playable
+1. Each player signs in as a guest; the coordinator service matches parties and signs the roster.
+2. The first player on the roster hosts; everyone joins with a one-use Photon ticket the coordinator issued.
+3. The host referees the match and saves checkpoints to the coordinator; if the host leaves, another player takes over from the last checkpoint.
 
-**The house (hub):** roommates join by walking in through the front door. Pick a mode at the typewriter: Tutorial, Dibs!, Furnish First, Moving Day or Home Sweet Home. Whoever is in the house comes along into the mode, and everyone heads home after a match or on Esc / Select.
-
-**Tutorial:** 7 steps covering walk, smash the BAT box, pick up the letters, spell BAT, whack the dummy, throw the chair, and knock the dummy out. Any roommate can complete a step.
-
-**Moving Day** (co-op, 1–4 players) in a house split into a living room and a bedroom. Boxes labelled with the checklist arrive at the front door. Smash them for the letters, spell each item (only checklist words work here) to build it, and carry it into the right room. Placed furniture locks in with a tick. Stars (1–3) depend on time left. Run out of time and the level restarts. There are 3 levels: *Moving In*, *Housewarming* (with slippery spills) and *Cozy Corner* (SHELF, TEDDY, MIRROR, PIANO, STOOL, FAN). Lost letters are resent in a new box.
-
-**Furnish First** (versus, 2–4 players): everyone gets a colour-coded corner and the same checklist of 3 objects. Boxes of those words drop in the middle, so you all fight over the same letters. Spell the items and get them into *your* corner, at rest. The first to have the whole list wins the round, and first to 2 rounds wins. Anything in your corner counts, so stealing, smashing and shoving are all fair. Knocked-out roommates get back up in their corner.
-
-**Home Sweet Home** (Creative, 1–4 players): build your own room. Press spell and the typewriter gives you endless letters. Pick any letter from A to Z (repeats allowed) and any of the 43 objects is built for free. Grab to arrange things, punch to remove them (the letters tidy themselves away), and nobody gets knocked out. At the room menu desk you can:
-- **Play Dibs! here:** a match in your room with your rules (rounds to win: 1, 2, 3 or 5, and starting letters: 0–6). Afterwards you're back in your room, still built.
-- **Save or load the room** in one of three slots. Rooms are saved as JSON in Unity's `persistentDataPath/rooms`.
-- **Clear the room.**
-
-**Dibs!** in four arenas, chosen at the typewriter with left/right: **Living Room**, **Bedroom**, **Kitchen** and **Garden** (outdoors, with hedges and a garden path). First to 3 rounds:
-
-- Smash furniture (SOFA, TABLE, LAMP, CHAIR…) with punches or by throwing things. It bursts into its own letters.
-- Walk over letters to pick them up. You carry up to 6, and you start each round with 3.
-- Press spell and your letters appear over your head. Move the highlight left/right, add letters one at a time (undo if you slip), and press spell again to cast. Hints show which words you could still finish. Non-words fizzle and you keep your letters. You stand still while spelling.
-- Objects are built Word World-style from 3D copies of their own letters: the SOFA has S and A armrests, an O backrest and an F cushion, and the BED is a B headboard, a flat E mattress and a D footboard. Loose letters are 3D letters too.
-- Grab anything. Light things are carried in front with both hands, and heavy things (and roommates) are lifted overhead. Heavy loads slow you down. Grab again to put it down neatly in front of you (on the floor, or on top of whatever is there), or punch to throw it.
-- Hands full of letters? While spelling, drop the highlighted letter to make room for a better one.
-- Action words do something: weapons (AXE, BAT, BLADE, SWORD, SPEAR, BOW, CANNON), WALL, SHIELD, ARMOR, WINGS, SPRING, SKATES, ROPE, BEES, FLOOD, MAGNET, DUCK, QUAKE, ZAP.
-- 43 object words build the object in front of you, letter-shaped, and every one has its own Word World design:
-  - Living room: BED, SOFA, TABLE, DESK, LAMP, CHAIR, RUG, TV, PLANT, CLOCK, VASE, MUG, BOOKS, PLATE, PILLOW, RADIO, BOX, PIANO, STOOL, FAN.
-  - Kitchen: STOVE, FRIDGE, SINK, PAN, POT, KETTLE, CUP, BOWL.
-  - Bedroom: SHELF, MIRROR, TEDDY, CLOSET.
-  - Garden: TREE, BUSH, FLOWER, ROSE, BENCH, FENCE, SWING, GNOME, ROCK, HOSE, POND.
-  Smash a TABLE and you can spell it right back, or build a SOFA to hide behind (or throw). The weapons have shapes too: the SWORD has an S pommel and a W crossguard, and the AXE an X head.
-- Summons fall apart back into their letters when they're used up, so they can be grabbed and re-spelled.
-- A hit knocks 2 letters loose. A hit with no letters is a knockout.
-- Delivery boxes drop in when the room runs low on letters. After 90 seconds the room collapses and boxes rain down.
-
-**Audio:** every sound and the music are synthesised in code at startup (`Scripts/Audio`), so there are no audio files or licences to track. You get wooden clacks, smashes, punches, typewriter keys while spelling, cast chimes, fizzles, bees, booms, quacks, countdowns and fanfares. Each mode has its own looping track (cozy for the house and tutorial, upbeat for Dibs!, bouncy for Moving Day) that crossfades between scenes. Sounds pan left and right by where they happen. **M** mutes. To use a recorded sound instead, return its clip from `Sfx.ClipFor`.
-
-Not in yet: final art and fonts, character customisation, and the letter cat.
+Every player must have identical item and rule files or the match does not start. Shared maps are checked for size, format and fingerprints before loading. House items never reach online play. Sign-in and two-player sessions have passed live; a full public match has not been verified end to end.
 
 ## Controls
 
-| Action | Gamepad | Keyboard (left) | Keyboard (right) |
-|---|---|---|---|
-| Join | A / X / Start | Space or J | `.` or `/` |
-| Move | Left stick / d-pad | WASD | Arrow keys |
-| Grab / put down | A or RT | Space | `.` or Numpad 1 |
-| Punch, use weapon, throw what you hold | X | J | `/` or Numpad 2 |
-| Start spelling / cast | Y | K | Right Shift or Numpad 3 |
-| Choose a letter (while spelling) | Stick or d-pad left/right | A / D | Left / Right |
-| Jump 5 letters (Creative spelling) | Stick or d-pad up/down | W / S | Up / Down |
-| Add the letter (while spelling) | A | Space | `.` |
-| Undo a letter, or stop spelling if empty | B | J or Backspace | `/` |
-| Drop the highlighted letter (while spelling) | Stick or d-pad down | S | Down |
-| Use typewriter | A / RT (grab) | Space | `.` |
-| Pick the Dibs! arena (at the typewriter) | Left / right | A / D | Left / Right |
-| Start match (Dibs! lobby) | Start | Enter | Numpad Enter |
-| Back to the house | Select / View | Esc | Esc |
-| Mute sound | | M | M |
+| Action | Keyboard and mouse |
+|---|---|
+| Move / look | WASD / mouse |
+| Look around the room | Hold Left Ctrl and move the mouse, or drag the eye button |
+| Attack, throw, place, use; hold with a shield to block | Left click |
+| Aim | Hold right click |
+| Pick up, interact / revive | E / hold E |
+| Spell | Q |
+| Bag, map, recipe book | Hold Tab |
+| Switch hand / drop | 1, 2 / hold R |
+| Jump / dodge | Space / Left Shift |
+| Menu | Esc |
 
-## Project structure
+Every binding is in Settings → Controls. Gamepads (hold L3 and move the right stick to look around), keyboard halves and touch work too. On touch screens, Settings → Gameplay → Touch layout moves, resizes and fades every button: start from Classic or Claw, keep three layouts of your own and share them as codes.
 
-```
-Assets/_Project/
-  Scripts/
-    Core/      GameAssets (shared art/data), World, Popup, Session
-    Input/     InputBinding: keyboard halves, gamepads, scripted input for tests
-    Letters/   LetterTile, TilePool, LetterBuilt + LetterShapes (Word World recipes), FurnitureCatalog,
-               Furniture, LetterBlocks (labelled boxes), Smashable, LetterScores
-    Words/     WordDatabase (reads word_list.csv), WordSolver
-    Player/    PlayerController, PlayerHealth, LetterInventory, PlayerCombat, Summoner, PlayerHud
-    Summons/   SummonEffects (what each word does), HeldWeapon, Projectile, BeeSwarm, DuckWalker, ...
-    Game/      RoundManager (Dibs!), HubDirector + Typewriter (house), TutorialDirector, MovingDayDirector, FurnishFirstDirector,
-               CreativeDirector + CreativeDesk + RoomLayout (Home Sweet Home),
-               PlayerJoinManager, RoomBuilder, DeliverySpawner, GameHud, CameraRig, BackToHub
-  Editor/      PrototypeBuilder: generates the scenes, prefabs and materials
-               LetterMeshBuilder: generates 3D letters A–Z from the font's distance field
-  Tests/       Play mode tests for the core loop
-  Data/        word_list.csv
-  Prefabs/  Scenes/  Resources/  Materials/  Art/  Audio/
-docs/          design doc, roadmap, workflow, asset log, contribution table
-```
+Settings → Gameplay turns damage numbers, effect words, furniture names (off by default, always on in the Tutorial), control tips and screen shake on or off.
 
-**Adding a Moving Day item or level:** levels and checklists live on the MovingDayDirector (set in `PrototypeBuilder.BuildMovingDay`). Any word works as a checklist item. To give it a custom look, add it to `FurnitureCatalog.cs`.
+## Unity project
 
-**Shaping an object:** add a recipe to `LetterShapes.cs`. Each letter gets a centre, a size, whether it stands up or lies flat, and optionally its own colour (a brown trunk under green leaves). Give it a weight and colour in `FurnitureCatalog.cs`, and add the word to `word_list.csv` as `Furniture`. Tests check that every object word has a design that builds at a sensible size and stays standing.
+Unity **6000.6.4f1** (URP). Run `git lfs install && git lfs pull`, open the folder in Unity Hub, choose **Wreckabulary → Set Up Art and Data**, then open `Assets/_Project/Scenes/Hub.unity` and press Play.
 
-**Adding a Dibs! arena:** add a `Build...` method next to `BuildKitchen` in `PrototypeBuilder.cs` with a room style, a furniture list and themed delivery words. Then add the scene to the build list and to the DIBS! entry's `maps` in `Typewriter.cs`.
+| Scene | Purpose |
+|---|---|
+| `Hub` | Lobby: play, create, shop, settings |
+| `LivingRoom` | House party matches |
+| `MovingDay` | Moving Day |
+| `Tutorial` | Guided first match |
+| `WordboundLobby` / `WordboundGameplay` | Courses: party, matchmaking, play |
+| `Authoring/`, `Testing/` | Editing and test scenes |
 
-**Adding a word:** add a row to `word_list.csv`. It works straight away with a default effect for its category. For a custom effect, add a `case` in `SummonEffects.cs`.
+| Folder (`Assets/_Project/`) | Holds |
+|---|---|
+| `Data/Config` | Rules, items, houses (JSON) |
+| `Scripts` | Game code by area: Core, Game, Player, Letters, Rules, UI, Online, Workshop |
+| `Prefabs`, `Worlds`, `Resources` | Characters, items, houses |
+| `Art`, `Audio`, `Materials`, `Shaders`, `UI` | Assets |
+| `Editor` | Setup and authoring tools |
+| `Tests` | Rules, EditMode and PlayMode tests |
 
-**Regenerating the prototype:** **Wreckabulary → Rebuild Prototype** recreates the materials, prefabs and the `Hub`, `LivingRoom`, `Tutorial` and `MovingDay` scenes from `PrototypeBuilder.cs`. It overwrites those scenes, so once someone starts editing a scene by hand, change the builder or stop using it.
+Checks run through `node Tools/kit/gate/game_gate.mjs` (`compile`, `core`, `test editmode|playmode`, `build`, `smoke`).
 
-**Adding a mode:** add an entry to the typewriter's mode list (`Typewriter.cs`, or in the Inspector on the Typewriter in `Hub.unity`) with its scene name, and add the scene to the build settings.
-
-## Tests
-
-**Window → General → Test Runner → PlayMode → Run All.** Or, from the command line:
-
-```
-Unity.exe -batchmode -projectPath . -runTests -testPlatform PlayMode -testResults results.xml
-```
-
-`CaptureTests` is explicit, so it only runs when selected. It saves screenshots of the living room to `Temp/Captures`.
-
-## Documents
-
-- [Game design document](docs/GDD.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Team workflow](docs/CONTRIBUTING.md)
-- [Third-party assets](docs/ASSETS.md) (required in the final report)
-- [Contribution table](docs/CONTRIBUTIONS.md) (required in the final report)
-
-## Team
-
-| Name | Student ID | Role |
-|---|---|---|
-| | | |
+A browser prototype lives in `Web` (`npm ci && npm run build`).

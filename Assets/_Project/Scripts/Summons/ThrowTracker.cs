@@ -1,18 +1,17 @@
 using UnityEngine;
+using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// Marks something as flying: a thrown chair, a thrown player, or a falling box during the collapse.
-    /// If it slams into a player (other than the thrower) it counts as a hit.
-    /// </summary>
     public class ThrowTracker : MonoBehaviour
     {
         PlayerController thrower;
         float until;
         float knockback;
 
-        public static void Attach(GameObject go, PlayerController thrower, float seconds, float knockback = 8f)
+        const float DamagePerMomentum = 0.6f, MinDamage = 5f, MaxDamage = 20f;
+
+        public static void Attach(GameObject go, PlayerController thrower, float seconds, float knockback = 4f)
         {
             if (!go.TryGetComponent(out ThrowTracker t)) t = go.AddComponent<ThrowTracker>();
             t.thrower = thrower;
@@ -33,7 +32,9 @@ namespace Wreckabulary
             if (thrower && victim.gameObject == thrower.gameObject) return;
             if (victim.gameObject == gameObject) return;
 
-            victim.TakeHit(rb.position - transform.position, knockback, -1, thrower);
+            float mass = TryGetComponent(out Rigidbody self) ? self.mass : 1f;
+            float damage = Mathf.Clamp(DamagePerMomentum * mass * c.relativeVelocity.magnitude, MinDamage, MaxDamage);
+            victim.ApplyDamage(Hits.Of(thrower, rb.position - transform.position, HitSource.Thrown, damage, knockback, 0.3f));
             Destroy(this);
         }
     }

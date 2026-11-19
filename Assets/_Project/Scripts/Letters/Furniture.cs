@@ -2,7 +2,6 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>Creates smashable letter-built furniture, at edit time (scene builder) or at runtime (tutorial).</summary>
     public static class Furniture
     {
         public static Smashable Create(Transform parent, string word, Vector3 position, float yaw, Vector3 blockSize,
@@ -13,14 +12,11 @@ namespace Wreckabulary
             var rb = built.gameObject.AddComponent<Rigidbody>();
             rb.mass = mass;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
-            // Stacked letters are top-heavy; a low centre of mass keeps lamps and plants standing.
-            rb.centerOfMass = Vector3.up * 0.12f;
             var smash = built.gameObject.AddComponent<Smashable>();
             smash.Init(word, health);
             return smash;
         }
 
-        /// <summary>A static letter-built prop (desk, sign) that can't be moved or smashed.</summary>
         public static LetterBuilt Prop(Transform parent, string word, Vector3 position, float yaw, Vector3 blockSize,
                                        int perRow, Color color)
         {

@@ -6,11 +6,7 @@ using UnityEngine;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// The mode select in the house. Walk up and press grab to sit at it, step through the modes
-    /// with up/down, press grab or attack to pick one, or spell to get up again.
-    /// </summary>
-    [DefaultExecutionOrder(-40)] // after input is read, before combat sees the grab press
+    [DefaultExecutionOrder(-40)]
     public class Typewriter : MonoBehaviour
     {
         [Serializable]
@@ -19,31 +15,25 @@ namespace Wreckabulary
             public string label;
             public string blurb;
             public string scene;
+            public string id;
             public int minPlayers = 1;
             public bool comingSoon;
-            [Tooltip("Optional choice of arenas (scene names), picked with left/right. Empty uses Scene.")]
-            public string[] maps = { };
-            public string[] mapNames = { };
-            public string SceneFor(int map) => maps.Length > 0 ? maps[Mathf.Clamp(map, 0, maps.Length - 1)] : scene;
         }
 
         [SerializeField] Mode[] modes =
         {
-            new() { label = "TUTORIAL", blurb = "Learn to smash, spell and summon", scene = Session.TutorialScene },
-            new()
-            {
-                label = "DIBS!", blurb = "Versus: last roommate standing", scene = Session.DibsScene, minPlayers = 2,
-                maps = new[] { Session.DibsScene, Session.BedroomScene, Session.KitchenScene, Session.GardenScene },
-                mapNames = new[] { "Living Room", "Bedroom", "Kitchen", "Garden" },
-            },
-            new() { label = "FURNISH FIRST", blurb = "Versus: race to furnish your corner", scene = Session.FurnishFirstScene, minPlayers = 2 },
+            new() { label = "TUTORIAL", blurb = "Learn to smash, spell and swing", scene = Session.TutorialScene },
+            new() { label = "DIBS!", id = "Dibs", blurb = "Last roommate standing • solo AI", scene = Session.DibsScene },
+            new() { label = "DUOS", id = "Duos", blurb = "Two teams • revive your teammate • solo AI", scene = Session.DibsScene },
             new() { label = "MOVING DAY", blurb = "Co-op: furnish the house together", scene = Session.MovingDayScene },
-            new() { label = "HOME SWEET HOME", blurb = "Creative: build your own room", scene = Session.CreativeScene },
+            new() { label = "MOVING OUT", id = "MovingOut", blurb = "Rescue keepsakes and reach the van", scene = Session.DibsScene },
         };
         [SerializeField] PlayerJoinManager joins;
         [SerializeField] TextMeshPro menuText;
         [SerializeField] TextMeshPro paperText;
         [SerializeField] float useRange = 2.2f;
+
+        const int MenuRows = 5;
 
         readonly StringBuilder sb = new();
         string message;
@@ -52,8 +42,27 @@ namespace Wreckabulary
         public IReadOnlyList<Mode> Modes => modes;
         public PlayerController User { get; private set; }
         public int Selected { get; private set; } = 1;
-        /// <summary>The arena picked for modes that have a choice of maps.</summary>
-        public int Map { get; private set; }
+
+        void Awake()
+        {
+            modes = new[]
+            {
+                new Mode { label = "TUTORIAL", id = "Tutorial", blurb = "Learn to smash, spell and swing", scene = Session.TutorialScene },
+                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.Dibs).ToUpperInvariant(), id = "Dibs", blurb = "Last roommate standing • solo AI", scene = Session.DibsScene },
+                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.Duos).ToUpperInvariant(), id = "Duos", blurb = "Two teams • hold grab to revive • solo AI", scene = Session.DibsScene },
+                FromRegistry(Rules.HouseModes.FreeForAll),
+                FromRegistry(Rules.HouseModes.War),
+                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.MovingDay).ToUpperInvariant(), id = "MovingDay", blurb = "Furnish the house before time runs out", scene = Session.MovingDayScene },
+                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.MovingOut).ToUpperInvariant(), id = "MovingOut", blurb = "Rescue keepsakes and get everyone to the van", scene = Session.DibsScene },
+                FromRegistry(Rules.HouseModes.ShoppingList),
+                FromRegistry(Rules.HouseModes.RiddleRush),
+            };
+        }
+
+        static Mode FromRegistry(string id) => new Mode
+        {
+            label = Rules.HouseModes.Name(id).ToUpperInvariant(), id = id, blurb = Rules.HouseModes.Goal(id), scene = Session.SceneForMode(id),
+        };
 
         void Update()
         {
@@ -63,8 +72,6 @@ namespace Wreckabulary
                 var c = User.Commands;
                 if (c.up) Step(-1);
                 if (c.down) Step(1);
-                if (c.left) StepMap(-1);
-                if (c.right) StepMap(1);
                 if (c.grab || c.attack) Confirm();
                 else if (c.spellDown) Close();
             }
@@ -86,7 +93,7 @@ namespace Wreckabulary
                 Popup.Billboard(menuText.transform);
                 menuText.text = MenuLines();
             }
-            if (paperText) paperText.text = modes[Selected].label + MapLabel(modes[Selected], "\n");
+            if (paperText) paperText.text = modes[Selected].label;
         }
 
         public bool InRange(PlayerController p) =>
@@ -98,7 +105,6 @@ namespace Wreckabulary
             User = p;
             p.Frozen = true;
             p.FaceTowards(transform.position - p.transform.position);
-            Sfx.Play(Sound.SpellOpen, transform.position);
         }
 
         public void Close()
@@ -107,21 +113,8 @@ namespace Wreckabulary
             User = null;
         }
 
-        void Step(int delta)
-        {
-            Selected = (Selected + delta + modes.Length) % modes.Length;
-            Sfx.Play(Sound.SpellAdd, transform.position);
-        }
+        void Step(int delta) => Selected = (Selected + delta + modes.Length) % modes.Length;
 
-        public void StepMap(int delta)
-        {
-            var maps = modes[Selected].maps;
-            if (maps.Length < 2) return;
-            Map = (Map + delta + maps.Length) % maps.Length;
-            Sfx.Play(Sound.SpellAdd, transform.position, 1f, 1.2f);
-        }
-
-        /// <summary>Picks a mode by index. Returns true if its scene is loading.</summary>
         public bool Choose(int index)
         {
             Selected = Mathf.Clamp(index, 0, modes.Length - 1);
@@ -132,14 +125,11 @@ namespace Wreckabulary
         {
             var m = modes[Selected];
             int players = joins ? joins.Players.Count : World.Players.Count;
-            string scene = m.SceneFor(Map);
-            if (m.comingSoon || !Session.CanLoad(scene)) return Say("COMING SOON");
+            if (m.comingSoon || !Session.CanLoad(m.scene)) return Say("COMING SOON");
             if (players < m.minPlayers) return Say($"NEEDS {m.minPlayers} ROOMMATES");
 
             Close();
-            Sfx.Play(Sound.Cast, transform.position);
-            Session.ReturnScene = Session.HubScene;
-            Session.Load(scene);
+            Session.LoadMode(m.id);
             return true;
         }
 
@@ -147,14 +137,7 @@ namespace Wreckabulary
         {
             message = text;
             messageUntil = Time.time + 1.5f;
-            Sfx.Play(Sound.Fizzle, transform.position, 0.6f);
             return false;
-        }
-
-        string MapLabel(Mode m, string before, string open = "", string close = "")
-        {
-            if (m.mapNames.Length == 0) return "";
-            return before + open + m.mapNames[Mathf.Clamp(Map, 0, m.mapNames.Length - 1)] + close;
         }
 
         static string StarsFor(Mode m)
@@ -177,13 +160,15 @@ namespace Wreckabulary
                 return sb.ToString();
             }
 
-            for (int i = 0; i < modes.Length; i++)
+            int first = Mathf.Clamp(Selected - MenuRows / 2, 0, Mathf.Max(0, modes.Length - MenuRows));
+            int last = Mathf.Min(modes.Length, first + MenuRows);
+            for (int i = first; i < last; i++)
             {
                 var m = modes[i];
-                string colour = m.comingSoon ? "#FFFFFF66" : "#FFF4E0";
+                bool more = (i == first && first > 0) || (i == last - 1 && last < modes.Length);
+                string colour = m.comingSoon || more ? "#FFFFFF66" : "#FFF4E0";
                 if (i == Selected)
                     sb.Append("<size=125%><color=#FFD24A>> ").Append(m.label).Append(" <</color></size>\n")
-                      .Append(MapLabel(m, "", "<size=85%><color=#8FD6FF>< ", " ></color></size>\n"))
                       .Append("<size=70%><color=#FFF4E0CC>").Append(m.comingSoon ? "coming soon" : m.blurb).Append(StarsFor(m)).Append("</color></size>\n");
                 else
                     sb.Append("<color=").Append(colour).Append('>').Append(m.label).Append("</color>\n");
