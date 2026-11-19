@@ -367,11 +367,12 @@ namespace Wreckabulary.Tests
             Click("Queue " + LobbyMenu.Practice);
             yield return null;
             var page = menu.Page<PlayPage>().Root;
-            CollectionAssert.AreEqual(HouseModes.Families.Select(family => PlayPage.GroupTab + family).ToArray(),
-                page.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith(PlayPage.GroupTab)).Select(b => b.name).ToArray(),
-                "Classic, Co-op, Arcade and Training tabs come first");
+            CollectionAssert.AreEqual(HouseModes.Families.Select(HouseModes.FamilyName).ToArray(),
+                page.GetComponentsInChildren<RectTransform>().Single(r => r.name == PlayPage.ModeSections).Cast<Transform>().Select(r => r.name).ToArray(),
+                "Classic, Co-op, Arcade and Training sections run left to right");
             var posters = page.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("Mode ")).Select(b => b.name.Substring(5)).ToArray();
-            CollectionAssert.AreEqual(new[] { "Dibs", "Duos", HouseModes.FreeForAll, "War" }, posters, "only the chosen group's modes show");
+            CollectionAssert.AreEqual(HouseModes.Families.SelectMany(HouseModes.ModesIn).Where(HouseModes.Has).ToArray(), posters,
+                "every house mode is one press away");
             Assert.AreEqual(GameConfig.Current.Houses.Count, page.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("Map ")), "every house, without a Random card");
             Assert.IsFalse(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Rays"), "decorative rays are excluded from the redesigned choices");
             Assert.IsFalse(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Start" || r.name == "Fitted plan"), "map cards show pictures, not floor-plan skeletons");
@@ -380,7 +381,7 @@ namespace Wreckabulary.Tests
             AssertNoEllipsis(page, "PLAY");
             Assert.AreEqual("Duos", LobbyMenu.ModeName("Duos"), "Use the same display name as the direct Play mode choice.");
 
-            Click(PlayPage.GroupTab + HouseModeFamily.Training);
+            Click("Mode " + LobbyMenu.TutorialMode);
             yield return null;
             Assert.AreEqual(LobbyMenu.TutorialMode, menu.Mode);
             Assert.AreEqual(LobbyMenu.Practice, menu.Queue, "the tutorial is the first Training choice");
@@ -844,11 +845,10 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(74f, Height("You", typeof(HorizontalLayoutGroup)), 1f, "your party card");
             Click("PLAY");
             yield return null;
-            var modes = LobbyMenu.Instance.Page<PlayPage>().Root.GetComponentsInChildren<LobbyPlayModeFamilies>().Single(row => row.name == "Modes");
+            var modes = LobbyMenu.Instance.Page<PlayPage>().Root.GetComponentsInChildren<LobbyPlayModeFamilies>().Single(row => row.name == PlayPage.ModeSections);
             var modeButtons = modes.GetComponentsInChildren<Button>();
-            CollectionAssert.AreEquivalent(HouseModes.Families.Select(family => PlayPage.GroupTab + family)
-                .Concat(HouseModes.ModesIn(HouseModes.FamilyOf(LobbyMenu.Instance.Mode)).Select(PlayPage.ModeButton)), modeButtons.Select(button => button.name),
-                "The four group tabs and the chosen group's modes are directly available.");
+            CollectionAssert.AreEquivalent(HouseModes.Families.SelectMany(HouseModes.ModesIn).Select(PlayPage.ModeButton), modeButtons.Select(button => button.name),
+                "Every section's modes are directly available.");
             float modeHeight = 0f;
             foreach (var button in modeButtons)
             {
@@ -1364,8 +1364,6 @@ namespace Wreckabulary.Tests
             Click("Mode Duos");
             yield return null;
             Assert.AreEqual(map, menu.SavedHome, "and Duos plays it too");
-            Click(PlayPage.GroupTab + HouseModeFamily.Coop);
-            yield return null;
             Click("Mode MovingOut");
             yield return null;
             Assert.IsNull(menu.SavedHome, "objective modes keep the original house");

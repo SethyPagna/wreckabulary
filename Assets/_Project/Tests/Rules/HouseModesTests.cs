@@ -56,18 +56,6 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
-        public void OpeningAGroupReturnsToItsLastModeWhileItIsStillOpen()
-        {
-            Assert.AreEqual("Dibs", HouseModes.OpenModeIn(HouseModeFamily.Classic, null, true), "a first visit opens the group's first mode");
-            Assert.AreEqual("War", HouseModes.OpenModeIn(HouseModeFamily.Classic, "War", true));
-            Assert.AreEqual("MovingOut", HouseModes.OpenModeIn(HouseModeFamily.Coop, "War", true), "a mode from another group is ignored");
-            Assert.AreEqual("TimeRun", HouseModes.OpenModeIn(HouseModeFamily.Arcade, "TimeRun", true));
-            Assert.AreEqual("ShoppingList", HouseModes.OpenModeIn(HouseModeFamily.Arcade, "TimeRun", false), "a solo course is closed while extra seats are taken");
-            Assert.AreEqual("Tutorial", HouseModes.OpenModeIn(HouseModeFamily.Training, "Freestyle", false));
-            Assert.AreEqual("Freestyle", HouseModes.OpenModeIn(HouseModeFamily.Training, "Freestyle", true));
-        }
-
-        [Test]
         public void FreeForAllUsesItsOwnIdBesideTheOnlineMode()
         {
             Assert.AreEqual("Deathmatch", HouseModes.FreeForAll);
