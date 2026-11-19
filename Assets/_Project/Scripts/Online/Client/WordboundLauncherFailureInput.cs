@@ -17,6 +17,7 @@ namespace Wreckabulary.Online
 
         void Update()
         {
+            TickLobbyParty();
             if (ReadStartupFailureBack(Application.isFocused)) BackToLobby();
         }
 

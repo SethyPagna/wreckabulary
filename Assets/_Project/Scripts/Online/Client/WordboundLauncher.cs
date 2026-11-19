@@ -56,6 +56,7 @@ namespace Wreckabulary.Online
             localWorkshopEntry = WordboundWorkshopEntry.TakeRequest();
             bool quickPlay = WordboundQuickPlayEntry.TakeRequest();
             var room = WordboundRoomEntry.TakeRequest();
+            var hub = LobbyPartyFor(soloMode, localWorkshopEntry, quickPlay, room);
             try
             {
                 if (!Assets) Assets = Resources.Load<WordboundLaunchAssets>(WordboundLaunchAssets.ResourcePath);
@@ -84,6 +85,13 @@ namespace Wreckabulary.Online
                     throw new InvalidOperationException("Wordbound online launch data is missing.");
                 if (!Assets.SnapshotChunk.IsValid)
                     throw new InvalidOperationException("The network snapshot prefab is missing.");
+                if (hub)
+                {
+                    AdoptLobbyParty(hub);
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                    return;
+                }
                 menu = gameObject.AddComponent<WordboundPartyMenu>();
                 menu.Theme = Assets.UiTheme;
                 menu.Initialize(Assets.PublicTrust.text, data.items.text, data.rules.text,
@@ -99,7 +107,11 @@ namespace Wreckabulary.Online
                 if (quickPlay) menu.StartMatchmaking();
                 else if (room != null) OpenRoom(room);
             }
-            catch (Exception error) { failure = localWorkshopEntry ? WorkshopStartupFailure : soloMode == null ? error.Message : SoloStartupFailure; }
+            catch (Exception error)
+            {
+                failure = localWorkshopEntry ? WorkshopStartupFailure : soloMode == null ? error.Message : SoloStartupFailure;
+                if (hub && !lobbyParty) hub.LeaveAndClose(WordboundPartyHost.MatchUnavailable);
+            }
         }
 
         async Task BeginMatch(WordboundPartyLaunchContext launch, CancellationToken cancellation)
@@ -343,6 +355,7 @@ namespace Wreckabulary.Online
             DisposeFailureInput();
             localGeneration++;
             if (menu) { menu.WorkshopRequested -= OpenWorkshop; menu.CloseRequested -= BackToLobby; }
+            ReleaseLobbyParty();
             if (workshop)
             {
                 workshop.CloseRequested -= CloseWorkshop;
