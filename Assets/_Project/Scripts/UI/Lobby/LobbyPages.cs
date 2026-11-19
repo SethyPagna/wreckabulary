@@ -52,6 +52,7 @@ namespace Wreckabulary
                 shade.gameObject.AddComponent<LobbyShade>().Clicked = Menu.Close;
             }
             Build();
+            LobbyParcel.DressPage(Root);
         }
 
         protected abstract void Build();
@@ -68,6 +69,7 @@ namespace Wreckabulary
             var panel = LobbyKit.Rect(Root, "Panel").Place(min, max);
             LobbyKit.PanelFace(panel, 28, 5, 8).raycastTarget = true;
             var head = LobbyKit.Display(panel, LobbyKit.Upper(title), 43, LobbyKit.Sun, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Drop);
+            head.name = "Title";
             head.characterSpacing = 2;
             head.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(34, -84), new Vector2(-88, -20));
             var close = LobbyKit.IconButton(panel, LobbyIcons.Close, "Close page", Menu.Close);
@@ -315,20 +317,25 @@ namespace Wreckabulary
             lockerList.anchoredPosition = new Vector2(0, scrolled);
             AddLockerScrollbar(view, lockerList.GetComponentInParent<ScrollRect>());
 
+            // One card per slot, grouped so the face comes first, then things worn on top, then clothes.
             var slots = wardrobe.Slots.Where(s => wardrobe.PiecesFor(s).Count() > 1).ToList();
-            var paired = slots.Where(s => Choices(s).Count <= 3).ToList();
-            for (int i = 0; i < paired.Count; i += 2)
+            var shown = new HashSet<string>();
+            foreach (var (group, members) in LockerGroups)
             {
-                var pickers = LobbyKit.Row(lockerList, "Outfit", 16);
-                pickers.Size(-1, 84);
-                pickers.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-                foreach (string slot in paired.Skip(i).Take(2)) PiecePicker(LobbyKit.Column(pickers, slot, 8), slot);
+                var inGroup = members.Where(slots.Contains).ToList();
+                if (inGroup.Count == 0) continue;
+                GroupHeading(lockerList, group);
+                foreach (string slot in inGroup) { PiecePicker(lockerList, slot); shown.Add(slot); }
             }
-            foreach (string slot in slots.Except(paired)) PiecePicker(LobbyKit.Column(lockerList, slot, 8), slot);
+            var rest = slots.Where(s => !shown.Contains(s)).ToList();
+            if (rest.Count > 0) GroupHeading(lockerList, "More");
+            foreach (string slot in rest) PiecePicker(lockerList, slot);
             if (outfit.Pieces.Values.Any(id => wardrobe.Piece(id)?.Letter == true)) LetterPicker(lockerList);
 
-            var colour = LobbyKit.Column(lockerList, "Colour", 8);
-            LobbyKit.SectionLabel(colour, "Colour");
+            GroupHeading(lockerList, "Colours");
+            var colour = LobbyKit.Column(lockerList, "Colour", 10, 14);
+            LobbyKit.Face(colour, LobbyKit.Card, 14, LobbyKit.Line, 2);
+            LobbyKit.Display(colour, "Pick a part, then a colour", 18, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft).Size(-1, 26);
             var parts = Parts(outfit);
             if (!parts.Contains(Part)) Part = parts.Contains("Top") ? "Top" : parts.FirstOrDefault();
             var chips = LobbyKit.Grid(colour, "Parts", new Vector2(140, 40), 8);
@@ -352,7 +359,9 @@ namespace Wreckabulary
                 }
             }
 
-            var gear = LobbyKit.Column(lockerList, "Gear", 8);
+            GroupHeading(lockerList, "Equipment");
+            var gear = LobbyKit.Column(lockerList, "Gear", 8, 14);
+            LobbyKit.Face(gear, LobbyKit.Card, 14, LobbyKit.Line, 2);
             var gearHeading = LobbyKit.Row(gear, "Gear heading", 8);
             gearHeading.Size(-1, 40);
             gearHeading.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
@@ -397,7 +406,9 @@ namespace Wreckabulary
             }).ToList();
         }
 
-        string PartName(string slot) => Menu.Outfit.PieceIn(slot) is string piece ? GameConfig.Current.Wardrobe.NameOf(piece) : slot;
+        // Hair and eye pieces are named after their style, so the colour chip says "Hair" instead.
+        string PartName(string slot) => slot == "Hair" || slot == "Eyes" ? slot :
+            Menu.Outfit.PieceIn(slot) is string piece ? GameConfig.Current.Wardrobe.NameOf(piece) : slot;
 
         static List<(string id, string label, bool locked)> Choices(string slot, Career career = null)
         {
@@ -407,35 +418,88 @@ namespace Wreckabulary
             return choices;
         }
 
-        void PiecePicker(RectTransform column, string slot)
+        static readonly (string group, string[] slots)[] LockerGroups =
         {
-            column.Size(-1, -1, 1);
-            LobbyKit.SectionLabel(column, slot);
+            ("Your look", new[] { "Hair", "Eyes" }),
+            ("Accessories", new[] { "Headwear", "Face" }),
+            ("Clothes", new[] { "Top", "Bottoms", "Gloves", "Footwear", "Back", "Badge" }),
+        };
+
+        static string SlotTitle(string slot) => slot switch
+        {
+            "Headwear" => "Hats & ears",
+            "Face" => "Glasses",
+            "Back" => "Bag",
+            _ => slot,
+        };
+
+        static void GroupHeading(Transform parent, string text)
+        {
+            var label = LobbyKit.Caps(parent, text, 14);
+            label.alignment = TextAlignmentOptions.BottomLeft;
+            label.margin = new Vector4(6, 0, 0, 0);
+            label.Size(-1, 30);
+        }
+
+        // A white card per slot: the slot name with what's worn now, then every choice as a chip in an
+        // even three-column grid. The worn chip is filled pink with a tick; locked ones show a padlock.
+        void PiecePicker(Transform parent, string slot)
+        {
+            const int PerRow = 3;
+            var card = LobbyKit.Column(parent, slot, 10, 14);
+            LobbyKit.Face(card, LobbyKit.Card, 14, LobbyKit.Line, 2);
             var choices = Choices(slot, Menu.Career);
             string worn = Menu.Outfit.PieceIn(slot) ?? "No " + slot;
-            RectTransform track;
-            if (choices.Count > 5)
+            var heading = LobbyKit.Row(card, "Heading", 8);
+            heading.Size(-1, 28);
+            heading.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            LobbyKit.Display(heading, SlotTitle(slot), 20, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft).Size(-1, 28, 1);
+            string wornLabel = choices.Where(c => c.id == worn).Select(c => c.label).FirstOrDefault() ?? "None";
+            var now = LobbyKit.Text(heading, wornLabel, 16, LobbyKit.Muted, TextAlignmentOptions.MidlineRight);
+            now.name = "Worn";
+            now.Size(-1, 28, 1);
+            for (int i = 0; i < choices.Count; i += PerRow)
             {
-                track = LobbyKit.Grid(column, "Pick " + slot, new Vector2(194, 46), 8);
-                track.GetComponent<GridLayoutGroup>().padding = new RectOffset(2, 2, 2, 2);
+                var row = LobbyKit.Row(card, "Pick " + slot, 8);
+                row.Size(-1, 44);
+                row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+                var chunk = choices.Skip(i).Take(PerRow).ToList();
+                foreach (var (id, label, locked) in chunk)
+                {
+                    var button = ChoiceChip(row, id, label, id == worn, locked, () => Choose(slot, id));
+                    button.Size(-1, -1, 1);
+                    if (locked && CosmeticBundles.GrantedBy(id) is CosmeticBundle look)
+                        button.gameObject.AddComponent<LobbyHint>().Text = label + " comes with " + look.Name;
+                    if (!First && id == worn) First = button;
+                }
+                for (int pad = chunk.Count; pad < PerRow; pad++) LobbyKit.Rect(row, "Gap").Size(-1, -1, 1);
             }
-            else
+        }
+
+        static Button ChoiceChip(Transform parent, string id, string label, bool on, bool locked, Action click)
+        {
+            var fill = on ? LobbyKit.Selection : LobbyKit.Panel;
+            var button = LobbyKit.Button(parent, id, fill, click, 12, on ? LobbyKit.Selection : LobbyKit.Line, 2);
+            var press = button.GetComponent<LobbyPress>();
+            var content = LobbyKit.Row(button.Body(), "Content", 6);
+            content.Fill();
+            var layout = content.GetComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childForceExpandHeight = false;
+            layout.padding = new RectOffset(8, 8, 0, 0);
+            var ink = on ? LobbyKit.OnSelection : locked ? LobbyKit.Faded : LobbyKit.Navy;
+            if (on) LobbyKit.Icon(content, LobbyIcons.Check, ink).Size(16, 16);
+            else if (locked) LobbyKit.Icon(content, LobbyIcons.Lock, ink).Size(16, 16);
+            var text = LobbyKit.Text(content, label, 17, ink, TextAlignmentOptions.Center, FontStyles.Bold);
+            text.enableAutoSizing = true; text.fontSizeMin = 12; text.fontSizeMax = 17;
+            text.Size(-1, 26);
+            text.GetComponent<LayoutElement>().minWidth = 0;
+            if (!on)
             {
-                track = LobbyKit.Row(column, "Pick " + slot, 4, 4);
-                track.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-                track.Size(-1, 48);
+                var face = button.FaceOf();
+                press.Hot = hot => face.color = hot ? LobbyKit.Raised : fill;
             }
-            foreach (var (id, label, locked) in choices)
-            {
-                var button = LobbyKit.TextAction(track, id, label, 18, () => Choose(slot, id), id == worn, locked ? LobbyIcons.Lock : null,
-                    locked ? LobbyKit.Faded : (Color?)null);
-                button.Body().Find("Content").GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(5, 5, 4, 6);
-                if (choices.Count <= 5)
-                    button.Size(-1, -1, Mathf.Max(1f, button.GetComponentInChildren<TMP_Text>().GetPreferredValues(label).x + 16f + (locked ? 28f : 0f)));
-                if (locked && CosmeticBundles.GrantedBy(id) is CosmeticBundle look)
-                    button.gameObject.AddComponent<LobbyHint>().Text = label + " comes with " + look.Name;
-                if (!First && id == worn) First = button;
-            }
+            return button;
         }
 
         void Choose(string slot, string id)
@@ -453,7 +517,9 @@ namespace Wreckabulary
         void LetterPicker(Transform parent)
         {
             var row = LobbyKit.Row(parent, "Letter", 10);
-            row.Size(-1, 56);
+            row.Size(-1, 68);
+            row.GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(14, 14, 6, 6);
+            LobbyKit.Face(row, LobbyKit.Card, 14, LobbyKit.Line, 2);
             var layout = row.GetComponent<HorizontalLayoutGroup>();
             layout.childForceExpandHeight = false; layout.childAlignment = TextAnchor.MiddleLeft;
             LobbyKit.SectionLabel(row, "Letter").Size(86, 28);
@@ -816,6 +882,8 @@ namespace Wreckabulary
             if (item.Deploy?.Effect == DeployEffect.WindField) return "Forward gust · pushes everyone";
             if (item.Deploy?.Effect == DeployEffect.SlowField) return "Slowing field · affects everyone";
             if (item.Thrown?.FuseSeconds > 0f) return "Delayed blast · clear the room";
+            if (item.Ranged != null) return $"Hold to draw · {item.Ranged.Damage:0}-{item.Ranged.FullDamage:0} damage";
+            if (item.Deploy?.Effect == DeployEffect.Stash) return "Bank letters for your team";
             if (item.Consumable && item.Thrown != null) return "One throw · one splat";
             return Blurb(item.Family);
         }

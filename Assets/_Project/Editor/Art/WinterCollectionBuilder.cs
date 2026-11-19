@@ -18,7 +18,6 @@ namespace Wreckabulary.EditorTools
             WinterPropsBuilder.Build();
             WinterEmoteImporter.Build();
             WinterAudioImporter.Build();
-            LobbyThemeImporter.ImportAll();
             MaterialLibraryBuilder.EnsureFolder(MaterialFolder);
             MaterialLibraryBuilder.EnsureFolder("Assets/_Project/Resources/Collections");
             var collection = AssetDatabase.LoadAssetAtPath<SeasonalCollection>(Path);

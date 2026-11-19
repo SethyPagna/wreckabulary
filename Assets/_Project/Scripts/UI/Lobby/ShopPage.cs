@@ -284,18 +284,8 @@ namespace Wreckabulary
         {
             var offer = Career.Shop.FirstOrDefault(o => o.Id == "theme:" + theme.Id) ?? new ShopOffer("theme", theme.Id, theme.Name, 0);
             bool worn = PlayerPrefs.GetString("wv.theme", "sunroom") == theme.Id;
-            ArtCard(parent, offer, theme.Name, "Lobby art + matching colours", worn, out var art);
-            if (theme.Background)
-            {
-                var image = LobbyKit.Rect(art, "Theme picture").Fill().gameObject.AddComponent<RawImage>();
-                image.texture = theme.Background; image.raycastTarget = false;
-                if (authoredPage) image.gameObject.AddComponent<LobbyShopPictureCrop>();
-                else
-                {
-                    float crop = Mathf.Min(1f, (Card.x - 20f) / 156f / ((float)theme.Background.width / theme.Background.height));
-                    image.uvRect = new Rect((1f - crop) * .5f, 0, crop, 1);
-                }
-            }
+            ArtCard(parent, offer, theme.Name, "Re-dresses the lobby room", worn, out var art);
+            LobbyRoom.Swatch(art, theme.Id).Fill();
         }
 
         void LookCard(Transform parent, CosmeticBundle bundle)

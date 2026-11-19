@@ -192,6 +192,15 @@ namespace Wreckabulary.Rules
         public Outfit Sanitize(Outfit outfit)
         {
             if (outfit != null && Fits(outfit)) return outfit;
+            if (outfit != null)
+            {
+                // Outfits saved before a required slot existed (e.g. Hair, Eyes) keep everything
+                // else and take the default piece for the new slot.
+                var filled = outfit.Clone();
+                foreach (string slot in RequiredSlots)
+                    if (filled.PieceIn(slot) == null && Default.PieceIn(slot) is string piece) filled.Pieces[slot] = piece;
+                if (Fits(filled)) return filled;
+            }
             var fixedUp = Default.Clone();
             if (outfit == null) return fixedUp;
             fixedUp.Letter = LetterBadge.IsLetter(outfit.Letter) ? outfit.Letter : null;

@@ -14,8 +14,6 @@ namespace Wreckabulary
         public Color Secondary { get; }
         public Color Ink { get; }
         public Color Surface { get; }
-        Texture2D background;
-        public Texture2D Background => background ? background : background = Resources.Load<Texture2D>("UI/Themes/" + Id + "-v1");
 
         internal LobbyTheme(string id, string name, int price, uint accent, uint secondary, uint ink, uint surface)
         {

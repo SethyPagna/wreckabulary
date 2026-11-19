@@ -140,13 +140,6 @@ namespace Wreckabulary.Tests
         static Transform Backdrop(LobbyStage stage) =>
             stage.GetComponentsInChildren<Transform>().FirstOrDefault(t => t.name.StartsWith("Lobby backdrop"));
 
-        static float DistanceToSegment(Vector3 point, Vector3 from, Vector3 to)
-        {
-            Vector2 p = new Vector2(point.x, point.z), a = new Vector2(from.x, from.z), b = new Vector2(to.x, to.z);
-            float t = Mathf.Clamp01(Vector2.Dot(p - a, b - a) / Mathf.Max(1e-6f, (b - a).sqrMagnitude));
-            return (p - (a + (b - a) * t)).magnitude;
-        }
-
         static float Height(string name, System.Type layout)
         {
             Canvas.ForceUpdateCanvases();
@@ -213,16 +206,17 @@ namespace Wreckabulary.Tests
             var menu = LobbyMenu.Instance;
             var stage = menu.Stage;
             Assert.AreEqual(LobbyMenu.Home, menu.Current);
-            Assert.AreEqual(Session.MapId, stage.Map, "the backdrop is the selected map");
-            Assert.IsNotNull(Backdrop(stage), "the map is built behind you");
+            Assert.AreEqual(Session.MapId, stage.Map, "the stage still records the selected map");
+            Assert.IsNotNull(Backdrop(stage), "the moving-day room is built behind you");
+            StringAssert.Contains(LobbyRoom.RoomName, Backdrop(stage).name, "one dedicated lobby room, whatever the map");
+            Assert.AreSame(stage.Room, Backdrop(stage).GetComponentInChildren<LobbyRoom>());
+            Assert.IsNotEmpty(stage.Room.Wreckable, "some furniture can wreck into its letters");
+            Assert.IsNotNull(stage.Wreck, "the wreck loop runs in the room");
             Assert.IsNotNull(stage.Avatar, "your avatar stands in it");
             Assert.Greater(stage.Spot.magnitude, 100f, "built well away from the hub room");
             Assert.AreSame(Camera.main, stage.Camera);
             Assert.IsFalse(stage.Camera.orthographic);
             AssertFramed(stage, "the camera looks at you");
-            var eye = stage.Camera.transform.position;
-            foreach (var rug in Backdrop(stage).GetComponentsInChildren<Transform>().Where(t => t.name is "RUG" or "Rug" || t.name.EndsWith("_Rug")))
-                Assert.Greater(DistanceToSegment(rug.position, eye, stage.Spot), 2f, $"{rug.name} at {rug.position} is clear of the view");
             Assert.IsFalse(Object.FindAnyObjectByType<PlayerJoinManager>().AllowJoining, "clicking the hub no longer joins players");
             Assert.IsEmpty(Object.FindAnyObjectByType<PlayerJoinManager>().Players, "bots never stand in the lobby");
 
@@ -914,9 +908,8 @@ namespace Wreckabulary.Tests
             CollectionAssert.AreEqual(new[] { other }, menu.Maps.Ticked, "untick the others to play one house");
             Assert.AreEqual(other, menu.Map);
             Assert.AreEqual(other, Session.MapId);
-            Assert.AreEqual(other, menu.Stage.Map, "the backdrop follows the map");
-            Assert.IsTrue(!oldBackdrop, "the old map is taken down");
-            StringAssert.Contains(GameConfig.Current.HouseFor(other).Name, Backdrop(menu.Stage).name);
+            Assert.AreEqual(other, menu.Stage.Map, "the stage records the new map");
+            Assert.AreSame(oldBackdrop, Backdrop(menu.Stage), "the lobby room stays the same; maps no longer rebuild it");
             StringAssert.Contains(GameConfig.Current.HouseFor(other).Name, menu.Describe(), "the selected match shows the current house");
             AssertFramed(menu.Stage, "you stand in the new map");
 

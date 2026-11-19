@@ -42,12 +42,17 @@ namespace Wreckabulary
             Validate();
             TurnHint.name = "Turn hint"; TurnHint.gameObject.SetActive(showTurnHint);
             Dock.name = "Next match";
+            Start.IdleInk = Start.ActiveInk = LobbyKit.PrimaryInk;
+            Start.Underline.color = Color.clear;
+            if (!Start.Press.Body.GetComponent<Image>())
+                LobbyKit.Face(Start.Press.Body, LobbyKit.PrimaryFill, 16, drop: 5, dropColour: LobbyKit.Hex(0xe8a93a));
             Start.Bind(PlayButton, PlayLabel, starting ? null : play, true);
             var size = Start.GetComponent<LayoutElement>();
             if (size) size.preferredHeight = size.minHeight = Mathf.Max(size.preferredHeight, PlayHeight);
             Start.Label.fontSizeMax = Mathf.Max(Start.Label.fontSizeMax, PlayText);
             Start.Label.fontSize = Start.Label.fontSizeMax;
             Start.Label.Size(-1, Start.Label.fontSizeMax + 10).GetComponent<LayoutElement>().minWidth = 0;
+            LobbyParcel.ShippingLabel(Start.Press.Body);
             foreach (var other in new[] { Mode, House, Wordbound })
             {
                 other.Bind(other.name, other.Label.text, null, false);

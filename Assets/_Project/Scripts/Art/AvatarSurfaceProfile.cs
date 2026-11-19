@@ -31,7 +31,9 @@ namespace Wreckabulary.Art
         {
             if (key != "Avatar/Avatar") return false;
             var profile = Load();
-            return profile && profile.TryApply(source, instance);
+            bool applied = profile && profile.TryApply(source, instance);
+            if (instance && instance != source && instance.scene.IsValid()) CuteFace.Attach(instance);
+            return applied;
         }
 
         public void Initialize(GameObject avatar, Mesh original, Mesh corrected, string path, string fingerprint)
