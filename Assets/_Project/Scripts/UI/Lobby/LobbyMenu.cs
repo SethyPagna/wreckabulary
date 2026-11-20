@@ -26,6 +26,7 @@ namespace Wreckabulary
             .Where(mode => mode.Family != HouseModeFamily.Training)
             .OrderBy(mode => mode.Family).Select(mode => mode.Id).ToArray();
         public static readonly string[] PracticeModes = new[] { TutorialMode }.Concat(Modes).ToArray();
+        public static readonly string[] Courses = HouseModes.Families.SelectMany(HouseModes.ModesIn).Where(WordboundSoloEntry.Supports).ToArray();
         public static string DefaultMode => TutorialDirector.Done ? Modes[0] : TutorialMode;
         public static float StartDelay = 3f;
         public const int PartyMax = 4;
@@ -35,6 +36,12 @@ namespace Wreckabulary
         public const int MessagesShown = 3;
         public const string TurnHintKey = "lobby.turnHint";
         public static readonly string[] PageOrder = { Home, Loadout, Play, CareerPage, Shop, Trophy, Settings };
+        public static readonly string[] CourseMaps =
+            { WordboundSoloEntry.ParcelServiceMap, WordboundSoloEntry.LostAddressMap, WordboundSoloEntry.ParcelHallMap };
+        public static bool RememberChoices;
+        public static bool WarmupBeforeMatches;
+        const string QaScenarioArgument = "-qa-scenario";
+        static LastPlayChoice remembered;
 
         public static LobbyMenu Instance { get; private set; }
 
@@ -84,6 +91,16 @@ namespace Wreckabulary
         float startAt;
         bool hidden, typedLastFrame;
         bool barLayoutReady, compactBar;
+        string launchCourse;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ForgetOnLaunch()
+        {
+            bool playerSession = !Application.isEditor && Array.IndexOf(Environment.GetCommandLineArgs(), QaScenarioArgument) < 0;
+            RememberChoices = playerSession;
+            WarmupBeforeMatches = playerSession;
+            remembered = null;
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Register()
@@ -166,12 +183,18 @@ namespace Wreckabulary
         public void OpenWordboundSolo(string mode)
         {
             if (!WordboundSoloEntry.Supports(mode)) throw new ArgumentException("Choose a solo Wordbound mode.", nameof(mode));
-            if (Starting || PartySize != 1 || !Session.CanLoad(Session.WordboundScene)) return;
-            var pad = Gamepad.all.FirstOrDefault(p => p.buttonSouth.wasPressedThisFrame || p.startButton.wasPressedThisFrame);
+            if (Starting) return;
+            LoadCourse(mode, Gamepad.all.FirstOrDefault(p => p.buttonSouth.wasPressedThisFrame || p.startButton.wasPressedThisFrame));
+        }
+
+        void LoadCourse(string mode, Gamepad pad)
+        {
+            if (PartySize != 1 || !Session.CanLoad(Session.WordboundScene)) return;
             Seat(pad);
             Session.LobbyQueue = Queue;
             Session.LobbyMode = Mode;
             WordboundSoloEntry.Request(mode);
+            Note(LastPlayChoice.Practice, true, true);
             try { Session.Load(Session.WordboundScene); }
             catch { WordboundSoloEntry.CancelRequest(); throw; }
         }
@@ -183,6 +206,7 @@ namespace Wreckabulary
             Seat(pad);
             Session.LobbyQueue = Queue;
             Session.LobbyMode = Mode;
+            NoteChoice();
             WordboundWorkshopEntry.Request();
             try { Session.Load(Session.WordboundScene); }
             catch { WordboundWorkshopEntry.CancelRequest(); throw; }
@@ -201,11 +225,13 @@ namespace Wreckabulary
             Career = MatchTally.LoadCareer();
             if (Career.Keep(Outfit.ItemSkins.Values.FirstOrDefault() ?? "Classic", Outfit.ColourOf("Top") ?? ""))
                 MatchTally.SaveCareer(Career);
+            var restored = RestoreLastChoice();
             Map = GameConfig.Current.Houses.ContainsKey(Session.MapId) ? Session.MapId : GameConfig.Current.Houses.Keys.First();
             string rememberedHome = Session.LobbyHome;
             string mode = Session.LobbyMode;
             if (mode == null || (mode == TutorialMode && TutorialDirector.Done)) mode = DefaultMode;
             Choose(Session.LobbyQueue, mode);
+            if (restored != null && Queue == Practice && !Maps.IsTicked(Map)) Choose(map: Maps.Ticked[0]);
             if (rememberedHome != null && rememberedHome == Map && Queue == Practice && HomeDesigner.Playable(Mode) &&
                 HomeStorage.ForGame().TryLoad(rememberedHome, out var home, out _))
                 SelectHome(home);
@@ -234,6 +260,7 @@ namespace Wreckabulary
                 page.Create(this, pageHost);
                 pages[page.Id] = page;
             }
+            if (restored != null) ShowRestored(restored);
             if (WordboundWorkshopEntry.TakeReturn())
             {
                 ((PlayPage)pages[Play]).WordboundMaps = true;
@@ -917,20 +944,95 @@ namespace Wreckabulary
                 Post(error ?? "That home is no longer saved.");
                 return;
             }
+            launchCourse = null;
+            Countdown();
+        }
+
+        void GoCourse()
+        {
+            if (Starting || !CourseShown || !Session.CanLoad(Session.WordboundScene)) return;
+            launchCourse = WordboundSoloEntry.SelectedMode;
+            Countdown();
+        }
+
+        void Countdown()
+        {
             goPad = Gamepad.all.FirstOrDefault(p => p.buttonSouth.wasPressedThisFrame || p.startButton.wasPressedThisFrame);
             if (goPad != null)
             {
                 int seat = party.FindIndex(b => b is GamepadBinding g && g.Pad == goPad);
                 if (seat >= 0) { party.RemoveAt(seat); RefreshParty(); }
             }
+            NoteChoice(Queue == Practice);
+            string match = launchCourse != null ? PlayPage.CourseTitle : Describe();
             startAt = Time.unscaledTime + StartDelay;
             status.gameObject.SetActive(true);
             statusTitle.text = Queue == Workshop ? "OPENING" : "STARTING LOCAL GAME";
-            statusDetail.text = Describe();
+            statusDetail.text = match;
             Open(Home);
             if (EventSystem.current) EventSystem.current.SetSelectedGameObject(cancelButton.gameObject);
-            Post("Starting " + Describe() + ".");
+            Post("Starting " + match + ".");
             RefreshBar();
+        }
+
+        public string MatchTitle => ModeName(Mode) + MapCardText.Separator + (Mode == TutorialMode ? "The tutorial room" : MapLabel);
+
+        bool CourseShown => PartySize == 1 && Page<PlayPage>() is { WordboundSolo: true };
+
+        public string LastMatch
+        {
+            get
+            {
+                if (remembered is not { Chosen: true } || Starting || Queue != Practice || Page<PlayPage>() is not { Online: false }) return null;
+                if (!CourseShown) return MatchTitle;
+                return Session.CanLoad(Session.WordboundScene) ? PlayPage.CourseTitle : null;
+            }
+        }
+
+        public void PlayLast()
+        {
+            if (LastMatch == null) Open(Play);
+            else if (CourseShown) GoCourse();
+            else Go();
+        }
+
+        public void NoteChoice(bool match = false)
+        {
+            var play = Page<PlayPage>();
+            string tab = play != null && play.Online ? LastPlayChoice.Matchmaking
+                : Queue == Practice ? LastPlayChoice.Practice : Queue == Workshop ? LastPlayChoice.Workshop : LastPlayChoice.Matchmaking;
+            Note(tab, play != null && play.WordboundSolo, match);
+        }
+
+        void Note(string tab, bool onCourse, bool match)
+        {
+            string mode = Queue == Practice && PracticeModes.Contains(Mode) ? Mode : remembered?.Mode ?? Modes[0];
+            remembered = new LastPlayChoice(tab, mode, Maps.All ? null : Maps.Ticked,
+                WordboundSoloEntry.SelectedMode, WordboundSoloEntry.SelectedMap, onCourse, match || remembered is { Chosen: true });
+            if (!RememberChoices) return;
+            PlayerPrefs.SetString(LastPlayChoice.StorageKey, remembered.Save());
+            PlayerPrefs.Save();
+        }
+
+        static LastPlayChoice RestoreLastChoice()
+        {
+            if (Session.LobbyQueue != null || Session.LobbyMode != null) return null;
+            remembered = RememberChoices ? LastPlayChoice.Load(PlayerPrefs.GetString(LastPlayChoice.StorageKey, ""), PracticeModes,
+                GameConfig.Current.Houses.Keys, Courses, CourseMaps) : null;
+            if (remembered == null) return null;
+            Session.LobbyQueue = remembered.Tab == LastPlayChoice.Workshop ? Workshop : Practice;
+            Session.LobbyMode = remembered.Mode;
+            Session.LobbyMaps = remembered.Maps;
+            WordboundSoloEntry.Select(remembered.Course);
+            WordboundSoloEntry.SelectMap(remembered.CourseMap);
+            return remembered;
+        }
+
+        void ShowRestored(LastPlayChoice last)
+        {
+            var play = (PlayPage)pages[Play];
+            play.Online = last.Tab == LastPlayChoice.Matchmaking;
+            play.WordboundSolo = last.OnCourse && PartySize == 1;
         }
 
         public void CancelStart()
@@ -938,6 +1040,7 @@ namespace Wreckabulary
             if (!Starting) return;
             startAt = 0f;
             goPad = null;
+            launchCourse = null;
             status.gameObject.SetActive(false);
             Post("Cancelled.");
             if (Current != null) Open(Current);
@@ -1057,6 +1160,9 @@ namespace Wreckabulary
             Open(Current ?? Home);
             var pad = goPad;
             goPad = null;
+            string course = launchCourse;
+            launchCourse = null;
+            if (course != null) { LoadCourse(course, pad); return; }
             if (Mode == WorkshopMode)
             {
                 SetWorkshopHidden(true);
@@ -1065,6 +1171,7 @@ namespace Wreckabulary
                 return;
             }
             Seat(pad);
+            RoundManager.WarmupRequested = WarmupBeforeMatches && Warmup.Applies(Mode);
             var home = launchHome;
             launchHome = null;
             if (Mode == TutorialMode) Session.LoadMode(TutorialMode);

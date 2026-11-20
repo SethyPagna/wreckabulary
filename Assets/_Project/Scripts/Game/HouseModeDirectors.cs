@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using Wreckabulary.Rules;
 
 namespace Wreckabulary
@@ -141,9 +142,102 @@ namespace Wreckabulary
         }
     }
 
+    public sealed class HouseWarmup
+    {
+        const float ReadyPopupSize = 3.5f;
+        readonly PlayerJoinManager joins;
+        readonly GameHud hud;
+        readonly string modeId;
+        string startKey;
+        int keyVersion = -1;
+
+        public Warmup State { get; } = new Warmup();
+        public WarmupGuideStrip Strip { get; private set; }
+        public bool Running { get; private set; }
+
+        public HouseWarmup(PlayerJoinManager joins, GameHud hud, string modeId)
+        {
+            this.joins = joins; this.hud = hud; this.modeId = modeId;
+        }
+
+        public void Begin()
+        {
+            if (Running) return;
+            Running = true;
+            LetterInventory.FreeSpelling = true;
+            joins.RespawnKnockedOut = false;
+            foreach (var p in joins.Players)
+            {
+                if (!p) continue;
+                State.Join(p.Index, Votes(p));
+                p.Frozen = false;
+            }
+            if (!hud) return;
+            hud.HideCountdown();
+            hud.SetInstruction("", "");
+            hud.SetTimer("");
+            Strip = WarmupGuideStrip.Attach(joins.gameObject, hud, modeId);
+        }
+
+        public bool Tick(float seconds)
+        {
+            if (!Running) return false;
+            State.Tick(seconds);
+            foreach (var p in joins.Players)
+            {
+                if (!p) continue;
+                if (State.Down(p.Index, p.IsKnockedOut, seconds)) joins.Place(p);
+                bool was = State.IsReady(p.Index);
+                if (State.Hold(p.Index, StartHeld(p), seconds) && !was) Popup.Show(Warmup.ReadyWord, p.OverheadPosition, p.Color, ReadyPopupSize);
+            }
+            if (Strip) Strip.Show(State, StartKey());
+            return State.Ends;
+        }
+
+        public void End()
+        {
+            LetterInventory.FreeSpelling = false;
+            Running = false;
+            if (Strip) Strip.Close();
+            Strip = null;
+        }
+
+        static bool Votes(PlayerController p) =>
+            p.Binding != null && p.Binding is not BotBinding && ControlHints.Device(p.Binding) != ControlDevice.Touch;
+
+        static bool StartHeld(PlayerController p)
+        {
+            if (p.Commands.start) return true;
+            if (KeyBindings.GameplayBlocked) return false;
+            var keys = Keyboard.current;
+            return p.Binding switch
+            {
+                GamepadBinding seat => seat.Pad != null && seat.Pad.added && seat.Pad.startButton.isPressed,
+                KeyboardBinding side => keys != null && (ControlHints.Device(side) == ControlDevice.KeysRight ? keys.numpadEnterKey : keys.enterKey).isPressed,
+                DesktopBinding desk => !DesktopBinding.Typing && desk.Start.IsPressed(),
+                _ => false,
+            };
+        }
+
+        string StartKey()
+        {
+            if (keyVersion == KeyBindings.Version) return startKey;
+            keyVersion = KeyBindings.Version;
+            startKey = null;
+            foreach (var p in joins.Players)
+            {
+                if (!p || !Votes(p)) continue;
+                string key = ControlHints.For(p.Binding, PlayerControl.Start);
+                if (startKey == null) startKey = key;
+                else if (startKey != key) { startKey = ""; break; }
+            }
+            return startKey;
+        }
+    }
+
     public abstract class HouseRoundDirector : MonoBehaviour
     {
-        public enum Stage { Lobby, Countdown, Playing, Over }
+        public enum Stage { Lobby, Countdown, Playing, Over, Warmup }
 
         string joinLine;
         int joinVersion = -1, clockSeconds = -1;
@@ -194,8 +288,36 @@ namespace Wreckabulary
         {
             if (Time.timeScale <= 0f || Joins.HumanCount == 0) return;
             Round = 0;
+            Context.Rounds.CloseWarmup();
+            if (Context.Rounds.TakeWarmup()) EnterWarmup();
+            else BeginMatch();
+        }
+
+        void BeginMatch()
+        {
             MatchTally.BeginMatch();
             StartRound();
+        }
+
+        void EnterWarmup()
+        {
+            StopAllCoroutines();
+            Joins.EnsureOpponents();
+            Joins.AllowJoining = false;
+            Hud.ShowModeActions(false);
+            Hud.HideResult();
+            Deliveries.Running = true;
+            Deliveries.ResetDrops();
+            Current = Stage.Warmup;
+            Context.Phase = Phase.Warmup;
+            stageAt = Time.time;
+            Context.Rounds.OpenWarmup();
+        }
+
+        void EndWarmup()
+        {
+            Context.Rounds.CloseWarmup();
+            BeginMatch();
         }
 
         protected void StartRound()
@@ -247,6 +369,9 @@ namespace Wreckabulary
                     Hud.SetTimer("");
                     Hud.ShowModeActions(Joins.HumanCount > 0, "START WITH AI →", StartMatch);
                     if (AcceptsStart && Joins.HumanCount > 0 && Joins.AnyStartPressed()) StartMatch();
+                    break;
+                case Stage.Warmup:
+                    if (Context.Rounds.TickWarmup(RoundManager.FrameStep)) EndWarmup();
                     break;
                 case Stage.Countdown:
                     float since = Time.time - stageAt;

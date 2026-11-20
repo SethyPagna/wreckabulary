@@ -54,7 +54,19 @@ namespace Wreckabulary
             if (current == panel) current = null;
         }
 
-        static ControlDevice Fallback()
+        internal static string Line(ModeGuideStep step, ControlDevice device) =>
+            ModeGuideBook.Fill(step.Line, device, control => ControlHints.For(device, control));
+
+        internal static void Art(RectTransform slot, string mode, string art, float size)
+        {
+            LobbyKit.Clear(slot);
+            var image = LobbyKit.ItemImage(slot, art, size) ?? LobbyKit.ItemImage(slot, LobbyKit.ModeArt(mode), size);
+            if (image) return;
+            var word = LobbyKit.Display(slot, art, 120, LobbyKit.Cream);
+            word.rectTransform.Fill();
+        }
+
+        internal static ControlDevice Fallback()
         {
             var hud = GameHud.Active;
             if (hud && hud.LocalPlayer && SceneManager.GetActiveScene().name != Session.HubScene) return ControlHints.Device(hud.LocalPlayer.Binding);
@@ -229,7 +241,7 @@ namespace Wreckabulary
             page = Mathf.Clamp(index, 0, PageCount - 1);
             var step = guide.Steps[page];
             title.text = step.Title;
-            line.text = ModeGuideBook.Fill(step.Line, device, control => ControlHints.For(device, control));
+            line.text = ModeGuides.Line(step, device);
             var sprite = ModeGuides.Picture(step.Image);
             photo.sprite = sprite;
             photo.enabled = sprite;
@@ -248,13 +260,8 @@ namespace Wreckabulary
         void ShowArt(string art)
         {
             if (fallbackArt == art && fallback.childCount > 0) return;
-            LobbyKit.Clear(fallback);
             fallbackArt = art;
-            float size = Mathf.Min(picture.sizeDelta.y * .6f, 300f);
-            var image = LobbyKit.ItemImage(fallback, art, size) ?? LobbyKit.ItemImage(fallback, LobbyKit.ModeArt(guide.Mode), size);
-            if (image) return;
-            var word = LobbyKit.Display(fallback, art, 120, LobbyKit.Cream);
-            word.rectTransform.Fill();
+            ModeGuides.Art(fallback, guide.Mode, art, Mathf.Min(picture.sizeDelta.y * .6f, 300f));
         }
 
         void Focus()

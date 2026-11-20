@@ -14,6 +14,7 @@ namespace Wreckabulary
         LetterInventory inventory;
         PlayerController controller;
         WordEntry crafting;
+        bool craftFree;
         float craftStarted, craftReady;
         public bool IsSpelling { get; private set; }
         public bool IsCrafting => crafting != null;
@@ -73,7 +74,11 @@ namespace Wreckabulary
             guarded |= role == SpellRole.Shield;
         }
 
-        public List<WordEntry> Options() => WordSolver.Spellable(Words, inventory.Letters, Needs, Objectives);
+        public List<WordEntry> Options() => Spellable(Needs, Objectives);
+
+        List<WordEntry> Spellable(SpellNeeds needs, IReadOnlyCollection<string> wanted) => inventory.SpellsFree
+            ? SpellChoice.Order(Words, w => w.word, w => WordSolver.RoleOf(w, wanted), needs)
+            : WordSolver.Spellable(Words, inventory.Letters, needs, wanted);
 
         void Awake()
         {
@@ -108,11 +113,13 @@ namespace Wreckabulary
                 if (Time.time >= craftReady)
                 {
                     var entry = crafting;
+                    bool free = craftFree;
                     crafting = null;
+                    craftFree = false;
                     inventory.ReservedCount = 0;
                     controller.MoveScale = 1f;
                     if (SummonEffects.Apply(controller, entry)) Summoned?.Invoke(entry.word);
-                    else Refund(entry.word);
+                    else Refund(entry.word, free);
                 }
                 return;
             }
@@ -145,8 +152,9 @@ namespace Wreckabulary
             var keep = SelectedWord;
             var needs = Needs;
             var wanted = Objectives;
-            Ready = WordSolver.Spellable(Words, inventory.Letters, needs, wanted);
-            var hints = WordSolver.Hints(Words, inventory.Letters, inventory.Capacity, needs, wanted);
+            Ready = Spellable(needs, wanted);
+            var hints = inventory.SpellsFree ? new List<(WordEntry entry, string missing)>()
+                : WordSolver.Hints(Words, inventory.Letters, inventory.Capacity, needs, wanted);
             Hints = hints.GetRange(0, Mathf.Min(maxHints, hints.Count));
             Selected = keep != null && Ready.Contains(keep) ? Ready.IndexOf(keep) : 0;
         }
@@ -184,10 +192,13 @@ namespace Wreckabulary
         public bool BeginCraft(WordEntry entry)
         {
             entry = ResolveRecipe(entry);
-            if (IsCrafting || entry == null || !SummonEffects.CanApply(controller, entry) || !inventory.TrySpend(entry.word)) return false;
+            if (IsCrafting || entry == null || !SummonEffects.CanApply(controller, entry)) return false;
+            bool free = inventory.SpellsFree;
+            if (!inventory.TrySpend(entry.word)) return false;
             Close();
             crafting = entry;
-            inventory.ReservedCount = entry.word.Length;
+            craftFree = free;
+            inventory.ReservedCount = free ? 0 : entry.word.Length;
             craftStarted = Time.time;
             var rules = controller.Health.Rules;
             craftReady = craftStarted + rules.CraftBaseSeconds + rules.CraftPerLetterSeconds * entry.word.Length;
@@ -199,12 +210,18 @@ namespace Wreckabulary
         {
             if (!IsCrafting) return;
             var word = crafting.word;
+            bool free = craftFree;
             crafting = null;
+            craftFree = false;
             inventory.ReservedCount = 0;
             controller.MoveScale = 1f;
-            Refund(word);
+            Refund(word, free);
         }
-        void Refund(string word) { foreach (char letter in word) inventory.TryAdd(letter); }
+        void Refund(string word, bool free)
+        {
+            if (free) return;
+            foreach (char letter in word) inventory.TryAdd(letter);
+        }
 
         public bool Summon(string word)
         {
@@ -215,8 +232,10 @@ namespace Wreckabulary
         public bool Summon(WordEntry entry)
         {
             entry = ResolveRecipe(entry);
-            if (IsCrafting || entry == null || !SummonEffects.CanApply(controller, entry) || !inventory.TrySpend(entry.word)) return false;
-            if (!SummonEffects.Apply(controller, entry)) { Refund(entry.word); return false; }
+            if (IsCrafting || entry == null || !SummonEffects.CanApply(controller, entry)) return false;
+            bool free = inventory.SpellsFree;
+            if (!inventory.TrySpend(entry.word)) return false;
+            if (!SummonEffects.Apply(controller, entry)) { Refund(entry.word, free); return false; }
             Summoned?.Invoke(entry.word);
             return true;
         }

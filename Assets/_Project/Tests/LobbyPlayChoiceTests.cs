@@ -15,11 +15,14 @@ namespace Wreckabulary.Tests
 {
     public sealed class LobbyPlayChoiceTests
     {
-        static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, QuickPlayChoices.StorageKey, FriendRooms.StorageKey };
+        const string LastKey = Wreckabulary.Rules.LastPlayChoice.StorageKey;
+        static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, QuickPlayChoices.StorageKey, FriendRooms.StorageKey, LastKey };
+        static readonly Vector2 Wide = new Vector2(1868, 968), Short = new Vector2(900, 580);
+        const float SmallestLabel = 15f, SmallestTarget = 44f;
         string[] saved;
         float volume, delay;
         int vsync, tutorial;
-        bool hadTutorial;
+        bool hadTutorial, remember;
         string homes, priorHomes;
 
         [UnitySetUp]
@@ -27,6 +30,7 @@ namespace Wreckabulary.Tests
         {
             saved = Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray();
             volume = AudioListener.volume; vsync = QualitySettings.vSyncCount; delay = LobbyMenu.StartDelay;
+            remember = LobbyMenu.RememberChoices;
             hadTutorial = PlayerPrefs.HasKey(TutorialDirector.DoneKey); tutorial = PlayerPrefs.GetInt(TutorialDirector.DoneKey, 0);
             priorHomes = HomeStorage.DefaultFolder;
             homes = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wreckabulary-lobby-homes-" + System.Guid.NewGuid().ToString("N"));
@@ -56,6 +60,7 @@ namespace Wreckabulary.Tests
             if (hadTutorial) PlayerPrefs.SetInt(TutorialDirector.DoneKey, tutorial); else PlayerPrefs.DeleteKey(TutorialDirector.DoneKey);
             PlayerPrefs.Save();
             AudioListener.volume = volume; QualitySettings.vSyncCount = vsync; LobbyMenu.StartDelay = delay;
+            LobbyMenu.RememberChoices = remember;
             HomeStorage.DefaultFolder = priorHomes;
             if (System.IO.Directory.Exists(homes)) System.IO.Directory.Delete(homes, true);
         }
@@ -115,37 +120,37 @@ namespace Wreckabulary.Tests
         static bool Marked(string name) => Find(name).GetComponentsInChildren<RectTransform>(true).Any(rect => rect.name == "Selected");
 
         [UnityTest]
-        public IEnumerator CenteredDirectModesStayVisibleWhenTheSharedMapGalleryScrolls()
+        public IEnumerator ModeColumnsLeadTheChoicesAndEveryModeStaysOnePressAway()
         {
             var menu = LobbyMenu.Instance;
             menu.Choose(LobbyMenu.Practice, "Duos", "flat"); menu.Open(LobbyMenu.Play);
-            foreach (var size in new[] { new Vector2(1868, 968), new Vector2(900, 580) })
+            foreach (var size in new[] { Wide, Short })
             {
                 Page.anchorMin = Page.anchorMax = Vector2.zero; Page.sizeDelta = size;
                 Pick("TimeRun"); yield return null; yield return null;
                 Canvas.ForceUpdateCanvases();
                 var frame = Page.GetComponentInChildren<LobbyPlayPageView>();
-                var row = frame.Body.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Modes");
-                var queueBounds = InPage(frame.Queues); var modeBounds = InPage(row);
+                var board = Strip;
+                var queueBounds = InPage(frame.Queues); var modeBounds = InPage(board);
                 var scroll = frame.Choices.GetComponentInChildren<ScrollRect>();
+                var view = InPage(scroll.viewport);
                 Assert.That(queueBounds.center.x, Is.EqualTo(InPage(frame.Panel).center.x).Within(.5f));
-                Assert.That(modeBounds.center.x, Is.EqualTo(InPage(frame.Panel).center.x).Within(.5f));
+                Assert.AreSame(scroll.content, board.parent, "the mode columns are the first row of the page's own scroll");
+                Assert.AreEqual(0, board.GetSiblingIndex());
                 Assert.LessOrEqual(modeBounds.yMax, queueBounds.yMin);
-                Assert.GreaterOrEqual(modeBounds.yMin, InPage(scroll.viewport).yMax);
+                Assert.That(modeBounds.yMax, Is.EqualTo(view.yMax).Within(.5f), "with the page at its top the columns start the choices");
                 Assert.IsFalse(Page.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Family ")));
                 var targets = AllModeButtons;
-                CollectionAssert.AreEqual(targets, row.GetComponentsInChildren<Button>().Select(b => b.name).ToArray(), "every section's modes, left to right");
+                CollectionAssert.AreEqual(targets, ModeTargets.Select(b => b.name).ToArray(), "every section's modes, column by column");
                 foreach (string id in targets)
                 {
                     var button = Find(id); var bounds = InPage((RectTransform)button.transform);
-                    Assert.IsTrue(button.IsInteractable()); Assert.IsTrue(button.transform.IsChildOf(row));
+                    Assert.IsTrue(button.IsInteractable()); Assert.IsTrue(button.transform.IsChildOf(board));
                     Assert.GreaterOrEqual(bounds.yMin, modeBounds.yMin - .5f); Assert.LessOrEqual(bounds.yMax, modeBounds.yMax + .5f);
-                    Assert.That(bounds.yMin, Is.EqualTo(InPage((RectTransform)Find("Mode Dibs").transform).yMin).Within(.5f), "one row: " + id);
                 }
+                if (size == Wide) AssertNoScrollingNeeded();
                 Submit("Solo map ParcelService"); yield return null; yield return null;
                 frame = Page.GetComponentInChildren<LobbyPlayPageView>();
-                row = frame.Body.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Modes");
-                AssertSameBounds(modeBounds, InPage(row), "Selecting/revealing a map cannot scroll the mode selector.");
                 AssertSameBounds(queueBounds, InPage(frame.Queues), "The category selector remains fixed.");
                 Pick("Freestyle"); yield return null;
                 Assert.AreEqual(WordboundSoloEntry.ParcelServiceMap, WordboundSoloEntry.SelectedMap);
@@ -311,13 +316,13 @@ namespace Wreckabulary.Tests
             yield return null;
             Canvas.ForceUpdateCanvases();
             Assert.IsFalse(menu.Page<PlayPage>().WordboundSolo, "a second seat leaves the solo-only courses");
-            foreach (var size in new[] { new Vector2(1868, 968), new Vector2(900, 580) })
+            foreach (var size in new[] { Wide, Short })
             {
                 Page.sizeDelta = size;
                 yield return null;
                 Canvas.ForceUpdateCanvases();
                 AssertFullHousePanel();
-                AssertStripFits();
+                AssertColumnsFit(size == Wide);
             }
             CollectionAssert.AreEqual(AllHouseModes, Modes);
             CollectionAssert.AreEqual(new[] { PlayPage.SoloOnly("TimeRun"), PlayPage.SoloOnly("Freestyle") },
@@ -439,31 +444,38 @@ namespace Wreckabulary.Tests
         static RectTransform Strip => Page.GetComponentInChildren<LobbyPlayPageView>().Body.GetComponentsInChildren<RectTransform>()
             .Single(rect => rect.name == "Modes");
 
-        static void AssertStripFits()
+        static RectTransform Columns => (RectTransform)Strip.Find(PlayPage.ModeSections);
+
+        static Button[] ModeTargets => Columns.GetComponentsInChildren<Button>();
+
+        static ScrollRect PageScroll => Page.GetComponentInChildren<LobbyPlayPageView>().Choices.GetComponentInChildren<ScrollRect>();
+
+        static void AssertColumnsFit(bool wide)
         {
             var strip = Strip;
             var bounds = InPage(strip);
             var panel = InPage(Page.GetComponentInChildren<LobbyPlayPageView>().Panel);
-            Assert.That(bounds.center.x, Is.EqualTo(panel.center.x).Within(.5f));
             Assert.GreaterOrEqual(bounds.xMin, panel.xMin - .5f); Assert.LessOrEqual(bounds.xMax, panel.xMax + .5f);
-            var scroll = strip.GetComponent<ScrollRect>();
-            Assert.IsTrue(scroll.horizontal, "the sections scroll sideways"); Assert.IsFalse(scroll.vertical, "and never up and down");
-            Assert.AreSame(strip, scroll.viewport);
-            float row = float.NaN, right = float.NegativeInfinity;
-            foreach (Transform section in strip.Find(PlayPage.ModeSections))
+            Assert.IsEmpty(strip.GetComponentsInChildren<ScrollRect>(true), "the modes have no band of their own to scroll");
+            Assert.IsEmpty(strip.GetComponentsInChildren<Scrollbar>(true), "and no sideways scrollbar");
+            var scroll = strip.GetComponentInParent<ScrollRect>();
+            Assert.AreSame(PageScroll, scroll, "the modes ride the page's own scroll");
+            Assert.IsTrue(scroll.vertical, "which moves up and down"); Assert.IsFalse(scroll.horizontal, "and never sideways");
+            Rect? before = null;
+            foreach (var family in HouseModes.Families)
             {
-                var area = InPage((RectTransform)section);
-                Assert.Greater(area.xMin, right, section.name + " sits right of the section before it");
-                right = area.xMax;
-            }
-            foreach (var button in strip.GetComponentsInChildren<Button>())
-            {
-                var at = InPage((RectTransform)button.transform);
-                Assert.GreaterOrEqual(at.yMin, bounds.yMin - .5f, button.name);
-                Assert.LessOrEqual(at.yMax, bounds.yMax + .5f, button.name);
-                Assert.GreaterOrEqual(at.height, 44f, button.name);
-                if (float.IsNaN(row)) row = at.yMin;
-                Assert.That(at.yMin, Is.EqualTo(row).Within(.5f), button.name + " shares the one row");
+                var section = (RectTransform)Section(family);
+                var area = InPage(section);
+                Assert.GreaterOrEqual(area.xMin, bounds.xMin - .5f, section.name); Assert.LessOrEqual(area.xMax, bounds.xMax + .5f, section.name);
+                Assert.GreaterOrEqual(area.yMin, bounds.yMin - .5f, section.name); Assert.LessOrEqual(area.yMax, bounds.yMax + .5f, section.name);
+                if (before is Rect last)
+                {
+                    bool beside = area.xMin > last.xMax && Mathf.Abs(area.yMax - last.yMax) <= .5f;
+                    if (wide) Assert.IsTrue(beside, section.name + " is the next column to the right, level with the one before it");
+                    else Assert.IsTrue(beside || area.yMax <= last.yMin + .5f, section.name + " sits right of or under the section before it");
+                }
+                before = area;
+                AssertStacked(section, area);
             }
             foreach (var text in strip.GetComponentsInChildren<TMP_Text>())
             {
@@ -472,40 +484,68 @@ namespace Wreckabulary.Tests
             }
         }
 
+        static void AssertStacked(RectTransform section, Rect area)
+        {
+            float above = float.NaN;
+            foreach (Transform child in section)
+            {
+                var at = InPage((RectTransform)child);
+                Assert.That(at.xMin, Is.EqualTo(area.xMin).Within(.5f), child.name + " starts at its column's left edge");
+                Assert.That(at.xMax, Is.EqualTo(area.xMax).Within(.5f), child.name + " is as wide as its column");
+                if (child.GetSiblingIndex() == 0) Assert.AreEqual(LobbyPlayModeFamilies.Caption, child.name, "the caption leads its column");
+                else Assert.LessOrEqual(at.yMax, above + .5f, child.name + " sits under the row before it");
+                above = at.yMin;
+                if (!child.TryGetComponent(out Button button)) continue;
+                Assert.GreaterOrEqual(at.height, SmallestTarget - .01f, button.name);
+                var label = button.GetComponentInChildren<TMP_Text>();
+                label.ForceMeshUpdate();
+                Assert.GreaterOrEqual(label.fontSize, SmallestLabel, button.name + " keeps a readable label");
+            }
+        }
+
+        static void AssertNoScrollingNeeded()
+        {
+            var scroll = PageScroll;
+            var view = InPage(scroll.viewport);
+            Assert.That(scroll.content.anchoredPosition.y, Is.EqualTo(0f).Within(.5f), "the page is at its top");
+            foreach (var button in ModeTargets)
+            {
+                var at = InPage((RectTransform)button.transform);
+                Assert.GreaterOrEqual(at.xMin, view.xMin - .5f, button.name); Assert.LessOrEqual(at.xMax, view.xMax + .5f, button.name);
+                Assert.GreaterOrEqual(at.yMin, view.yMin - .5f, button.name + " shows without scrolling");
+                Assert.LessOrEqual(at.yMax, view.yMax + .5f, button.name + " shows without scrolling");
+            }
+        }
+
         static IEnumerator RevealEveryMode()
         {
-            foreach (var button in Strip.GetComponentsInChildren<Button>())
+            foreach (var button in ModeTargets)
             {
                 EventSystem.current.SetSelectedGameObject(button.gameObject);
                 yield return null; yield return null;
                 Canvas.ForceUpdateCanvases();
-                var view = InPage(Strip); var at = InPage((RectTransform)button.transform);
-                Assert.GreaterOrEqual(at.xMin, view.xMin - .5f, button.name + " slides into view when focused");
-                Assert.LessOrEqual(at.xMax, view.xMax + .5f, button.name + " slides into view when focused");
+                var view = InPage(PageScroll.viewport); var at = InPage((RectTransform)button.transform);
+                Assert.GreaterOrEqual(at.yMin, view.yMin - .5f, button.name + " is in view when focused");
+                Assert.LessOrEqual(at.yMax, view.yMax + .5f, button.name + " is in view when focused");
+                Assert.GreaterOrEqual(at.xMin, view.xMin - .5f, button.name); Assert.LessOrEqual(at.xMax, view.xMax + .5f, button.name);
             }
         }
 
-        static IEnumerator BandScrollsSideways()
+        static void AssertColumnNavigation()
         {
-            var strip = Strip; var scroll = strip.GetComponent<ScrollRect>();
-            Assert.Greater(scroll.content.rect.width, scroll.viewport.rect.width + 1f, "the narrow page overflows the band");
-            Assert.IsTrue(scroll.horizontalScrollbar.gameObject.activeSelf, "an overflowing band shows where it is");
-            scroll.horizontalNormalizedPosition = 0f;
-            yield return null;
-            float start = scroll.content.anchoredPosition.x;
-            ExecuteEvents.Execute(strip.gameObject, new PointerEventData(EventSystem.current) { scrollDelta = new Vector2(0, -1) }, ExecuteEvents.scrollHandler);
-            Assert.Less(scroll.content.anchoredPosition.x, start - 1f, "the wheel moves the band sideways");
-            scroll.horizontalNormalizedPosition = 0f;
-            yield return null;
-            start = scroll.content.anchoredPosition.x;
-            var centre = RectTransformUtility.WorldToScreenPoint(null, strip.TransformPoint(strip.rect.center));
-            var drag = new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left, position = centre };
-            ExecuteEvents.Execute(strip.gameObject, drag, ExecuteEvents.beginDragHandler);
-            drag.position = centre - new Vector2(120, 0);
-            ExecuteEvents.Execute(strip.gameObject, drag, ExecuteEvents.dragHandler);
-            ExecuteEvents.Execute(strip.gameObject, drag, ExecuteEvents.endDragHandler);
-            Assert.Less(scroll.content.anchoredPosition.x, start - 1f, "dragging left shows the sections to the right");
-            Assert.That(scroll.content.anchoredPosition.y, Is.EqualTo(0f).Within(.01f), "the band never moves up or down");
+            var columns = HouseModes.Families.Select(family => HouseModes.ModesIn(family).Select(PlayPage.ModeButton).ToArray()).ToArray();
+            foreach (var column in columns)
+                for (int row = 0; row + 1 < column.Length; row++)
+                {
+                    Assert.AreSame(Find(column[row + 1]), Find(column[row]).FindSelectableOnDown(), "down from " + column[row]);
+                    Assert.AreSame(Find(column[row]), Find(column[row + 1]).FindSelectableOnUp(), "up from " + column[row + 1]);
+                }
+            for (int at = 0; at + 1 < columns.Length; at++)
+                for (int row = 0; row < Mathf.Min(columns[at].Length, columns[at + 1].Length); row++)
+                {
+                    Assert.AreSame(Find(columns[at + 1][row]), Find(columns[at][row]).FindSelectableOnRight(), "right from " + columns[at][row]);
+                    Assert.AreSame(Find(columns[at][row]), Find(columns[at + 1][row]).FindSelectableOnLeft(), "left from " + columns[at + 1][row]);
+                }
         }
 
         static void AssertFullHousePanel()
@@ -763,40 +803,37 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator PracticeSectionsRunLeftToRightAndSoloCoursesHideWhileExtraSeatsAreTaken()
+        public IEnumerator PracticeModesStackInFourColumnsAndSoloCoursesHideWhileExtraSeatsAreTaken()
         {
             var menu = LobbyMenu.Instance;
             menu.Choose(LobbyMenu.Practice, "Dibs", "pinwheel"); menu.Open(LobbyMenu.Play);
-            yield return null;
+            Page.anchorMin = Page.anchorMax = Vector2.zero; Page.sizeDelta = Wide;
+            yield return null; yield return null;
+            Canvas.ForceUpdateCanvases();
             CollectionAssert.AreEqual(HouseModes.Families.Select(HouseModes.FamilyName).ToArray(), Sections, "Classic, Co-op, Arcade, then Training");
             CollectionAssert.AreEqual(new[] { "CLASSIC", "CO-OP", "ARCADE", "TRAINING" }, Captions);
+            CollectionAssert.AreEqual(new[] { 4, 3, 3, 2 }, HouseModes.Families.Select(family => Section(family).GetComponentsInChildren<Button>().Length).ToArray(),
+                "four, three, three and two modes");
             foreach (var family in HouseModes.Families)
                 CollectionAssert.AreEqual(HouseModes.ModesIn(family).Select(PlayPage.ModeButton).ToArray(),
-                    Section(family).GetComponentsInChildren<Button>().Select(button => button.name).ToArray(), family.ToString());
+                    Section(family).GetComponentsInChildren<Button>().Select(button => button.name).ToArray(), family + " top to bottom");
             Assert.IsFalse(Page.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Group ")), "no group tabs");
-            Assert.Less(Strip.GetComponent<ScrollRect>().scrollSensitivity, 0f, "wheel down moves the band to the right");
-            for (int i = 0; i + 1 < HouseModes.Families.Count; i++)
-            {
-                string last = PlayPage.ModeButton(HouseModes.ModesIn(HouseModes.Families[i]).Last());
-                string next = PlayPage.ModeButton(HouseModes.ModesIn(HouseModes.Families[i + 1]).First());
-                Assert.AreSame(Find(next), Find(last).FindSelectableOnRight(), "pad right crosses from " + last + " to " + next);
-                Assert.AreSame(Find(last), Find(next).FindSelectableOnLeft(), "pad left crosses back from " + next);
-            }
-            foreach (var size in new[] { new Vector2(1868, 968), new Vector2(900, 580) })
-            {
-                Page.anchorMin = Page.anchorMax = Vector2.zero; Page.sizeDelta = size;
-                yield return null; yield return null;
-                Canvas.ForceUpdateCanvases();
-                AssertStripFits();
-                yield return RevealEveryMode();
-            }
-            yield return BandScrollsSideways();
+            AssertColumnsFit(true);
+            AssertNoScrollingNeeded();
+            AssertColumnNavigation();
+            Page.sizeDelta = Short;
+            yield return null; yield return null;
+            Canvas.ForceUpdateCanvases();
+            AssertColumnsFit(false);
+            yield return RevealEveryMode();
+            Page.sizeDelta = Wide;
+            yield return null; yield return null;
             Pick("MovingOut"); yield return null;
             Assert.AreEqual("MovingOut", menu.Mode, "every mode is one press away");
             Assert.IsTrue(Underlined("Mode MovingOut")); Assert.IsFalse(Underlined("Mode Dibs"));
             var second = new ScriptedBinding();
             menu.Join(second);
-            yield return null;
+            yield return null; yield return null;
             Canvas.ForceUpdateCanvases();
             Assert.IsFalse(Page.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Solo ")),
                 "courses are hidden, not just disabled");
@@ -804,9 +841,12 @@ namespace Wreckabulary.Tests
             CollectionAssert.AreEqual(new[] { PlayPage.SoloOnly("TimeRun"), PlayPage.SoloOnly("Freestyle") }, notes.Select(text => text.text).ToArray());
             Assert.IsTrue(notes[0].transform.IsChildOf(Section(HouseModeFamily.Arcade)));
             Assert.IsTrue(notes[1].transform.IsChildOf(Section(HouseModeFamily.Training)));
+            Assert.AreEqual(Section(HouseModeFamily.Arcade).childCount - 1, notes[0].transform.GetSiblingIndex(), "the note takes Time Trial's place under Arcade");
+            Assert.AreEqual(Section(HouseModeFamily.Training).childCount - 1, notes[1].transform.GetSiblingIndex(), "and Free Roam's place under Training");
             CollectionAssert.AreEqual(AllHouseModes, Modes, "every house party mode stays");
             Assert.IsTrue(HouseModes.Has(menu.Mode) && !menu.Page<PlayPage>().WordboundSolo);
-            AssertStripFits();
+            AssertColumnsFit(true);
+            AssertNoScrollingNeeded();
             menu.Leave(second);
             yield return null;
             Assert.IsTrue(Find("Solo Freestyle").IsInteractable());
@@ -1285,8 +1325,11 @@ namespace Wreckabulary.Tests
                 goal.ForceMeshUpdate();
                 Assert.IsFalse(goal.isTextTruncated || goal.isTextOverflowing, goal.text);
                 var icon = InPage((RectTransform)icons[0].transform); var line = InPage(goal.rectTransform);
+                var ink = goal.textBounds;
+                float end = Page.InverseTransformPoint(goal.rectTransform.TransformPoint(new Vector3(ink.max.x, ink.center.y))).x;
                 Assert.That(icon.center.y, Is.EqualTo(line.center.y).Within(1f), mode + ": the icon sits on the goal line");
-                Assert.Greater(icon.xMin, line.center.x, mode + ": after the goal text");
+                Assert.GreaterOrEqual(icon.xMin, end - .5f, mode + ": after the goal text");
+                Assert.LessOrEqual(icon.xMin, end + LobbyPlayGoalInfo.Gap + 1f, mode + ": right beside the goal text");
                 Assert.LessOrEqual(icon.xMax, line.xMax + .5f, mode + ": inside the line");
                 Assert.IsTrue(icons[0].IsInteractable());
                 Assert.AreEqual(PlayPage.GuideHint, icons[0].GetComponent<LobbyHint>().Text);
@@ -1314,28 +1357,49 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator EverySelectedModeShowsItsGoalUnderTheModes()
+        public IEnumerator EverySelectedModeShowsItsGoalBesideTheColumnsOrUnderThemWhenNarrow()
         {
             var menu = LobbyMenu.Instance;
             menu.Choose(LobbyMenu.Practice, "Dibs", "pinwheel"); menu.Open(LobbyMenu.Play);
+            Page.anchorMin = Page.anchorMax = Vector2.zero; Page.sizeDelta = Wide;
             yield return null;
             foreach (string mode in LobbyMenu.PracticeModes)
             {
                 Pick(mode); yield return null; yield return null;
                 Canvas.ForceUpdateCanvases();
-                var goal = Page.GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.GoalLine);
-                Assert.AreEqual(LobbyPlayModeLabels.Line(mode), goal.text, mode);
-                StringAssert.Contains(Wreckabulary.Rules.HouseModes.Goal(mode), goal.text);
-                var frame = Page.GetComponentInChildren<LobbyPlayPageView>();
-                var bounds = InPage(goal.rectTransform);
-                Assert.LessOrEqual(bounds.yMax, InPage(Strip).yMin + .5f, "The goal sits under the modes.");
-                Assert.GreaterOrEqual(bounds.yMin, InPage(frame.Choices.GetComponentInChildren<ScrollRect>().viewport).yMax - .5f, "The goal stays above the maps.");
-                goal.ForceMeshUpdate();
-                Assert.IsFalse(goal.isTextTruncated || goal.isTextOverflowing, goal.text);
+                var bounds = AssertGoal(LobbyPlayModeLabels.Line(mode));
+                StringAssert.Contains(Wreckabulary.Rules.HouseModes.Goal(mode), LobbyPlayModeLabels.Line(mode));
+                Assert.IsTrue(Strip.GetComponent<LobbyPlayModeBoard>().Beside, "a wide page has room beside the columns");
+                Assert.GreaterOrEqual(bounds.xMin, InPage(Columns).xMax, mode + ": the goal sits right of the last column");
+                Assert.GreaterOrEqual(bounds.yMin, InPage(Columns).yMin - .5f, mode + ": and does not add a row under the columns");
+                Assert.That(InPage(Strip).height, Is.EqualTo(InPage(Columns).height).Within(.5f), mode + ": so the maps keep their place");
+                AssertNoScrollingNeeded();
                 Assert.AreSame(Find("Mode " + mode).gameObject, EventSystem.current.currentSelectedGameObject);
             }
-            Pick("TimeRun"); yield return null;
-            Assert.AreEqual(LobbyPlayModeLabels.Line("TimeRun"), Page.GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.GoalLine).text);
+            Pick("TimeRun"); yield return null; yield return null;
+            AssertGoal(LobbyPlayModeLabels.Line("TimeRun"));
+            Page.sizeDelta = Short;
+            yield return null; yield return null;
+            Canvas.ForceUpdateCanvases();
+            var under = AssertGoal(LobbyPlayModeLabels.Line("TimeRun"));
+            Assert.IsFalse(Strip.GetComponent<LobbyPlayModeBoard>().Beside, "a narrow page has no room beside the columns");
+            Assert.LessOrEqual(under.yMax, InPage(Columns).yMin + .5f, "The goal sits under the columns.");
+            Assert.That(under.center.x, Is.EqualTo(InPage(Strip).center.x).Within(.5f), "centred under them");
+        }
+
+        static Rect AssertGoal(string line)
+        {
+            var goal = Page.GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.GoalLine);
+            Assert.AreEqual(line, goal.text);
+            Assert.IsTrue(goal.transform.IsChildOf(Strip), "the goal belongs to the mode block");
+            var bounds = InPage(goal.rectTransform); var block = InPage(Strip);
+            Assert.GreaterOrEqual(bounds.xMin, block.xMin - .5f); Assert.LessOrEqual(bounds.xMax, block.xMax + .5f);
+            Assert.GreaterOrEqual(bounds.yMin, block.yMin - .5f); Assert.LessOrEqual(bounds.yMax, block.yMax + .5f);
+            foreach (var family in HouseModes.Families)
+                Assert.IsFalse(bounds.Overlaps(InPage((RectTransform)Section(family))), "the goal never covers the " + family + " column");
+            goal.ForceMeshUpdate();
+            Assert.IsFalse(goal.isTextTruncated || goal.isTextOverflowing, goal.text);
+            return bounds;
         }
 
         [Test]
@@ -1550,6 +1614,115 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("flat", Session.MapId);
             Assert.IsNull(Object.FindAnyObjectByType<RoundManager>(), "no legacy battle starts on the online route");
             Assert.IsEmpty(Object.FindObjectsByType<BotController>(FindObjectsSortMode.None));
+        }
+
+        const string StoodIn = "pinwheel";
+        const string RememberedWorkshop = "v1;tab=workshop;mode=Duos;maps=;course=TimeRun;courseMap=ParcelService;shown=house;chosen=1";
+        static readonly string[] BadMemories =
+        {
+            "v0;tab=practice;mode=Duos;maps=;course=TimeRun;courseMap=ParcelService;shown=house;chosen=1",
+            "v1;tab=practice;mode=NoSuchMode;maps=;course=TimeRun;courseMap=ParcelService;shown=house;chosen=1",
+        };
+
+        static IEnumerator NextLaunch()
+        {
+            yield return TestScenes.Reset();
+            yield return OpenLobby();
+        }
+
+        static void AssertNothingRemembered(string why)
+        {
+            var menu = LobbyMenu.Instance;
+            var play = menu.Page<PlayPage>();
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, why);
+            Assert.AreEqual(LobbyMenu.Practice, menu.Queue, why);
+            Assert.AreEqual("Dibs", menu.Mode, why);
+            Assert.IsTrue(menu.Maps.All, why);
+            Assert.IsFalse(play.Online || play.WordboundSolo, why);
+            Assert.AreEqual("TimeRun", WordboundSoloEntry.SelectedMode, why);
+            Assert.AreEqual(WordboundSoloEntry.ParcelServiceMap, WordboundSoloEntry.SelectedMap, why);
+            Assert.IsNull(menu.LastMatch, why);
+        }
+
+        [UnityTest]
+        public IEnumerator ARealChoiceIsSavedAndComesBackOnTheNextLaunch()
+        {
+            var menu = LobbyMenu.Instance;
+            string[] ticked = GameConfig.Current.Houses.Keys.Where(id => id != StoodIn).ToArray();
+            Assert.IsFalse(LobbyMenu.RememberChoices, "the editor leaves the saved choice alone until a test asks for it");
+            Pick("Duos"); yield return null;
+            Assert.IsFalse(PlayerPrefs.HasKey(LastKey), "so an ordinary test run writes nothing");
+            LobbyMenu.RememberChoices = true;
+            menu.Choose(LobbyMenu.Practice, "MovingOut");
+            Assert.IsFalse(PlayerPrefs.HasKey(LastKey), "Choose alone is setup, not a player's choice");
+            menu.Open(LobbyMenu.Play); yield return null;
+            Pick("ShoppingList"); yield return null;
+            Assert.AreEqual("v1;tab=practice;mode=ShoppingList;maps=;course=TimeRun;courseMap=ParcelService;shown=house;chosen=1",
+                PlayerPrefs.GetString(LastKey), "every house ticked is saved as no list");
+            Submit("Map " + StoodIn); yield return null;
+            string saved = PlayerPrefs.GetString(LastKey);
+            Assert.AreEqual("v1;tab=practice;mode=ShoppingList;maps=" + string.Join("+", ticked) + ";course=TimeRun;courseMap=ParcelService;shown=house;chosen=1", saved);
+
+            yield return NextLaunch();
+            menu = LobbyMenu.Instance;
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, "a new launch still opens on Home");
+            Assert.AreEqual(LobbyMenu.Practice, menu.Queue); Assert.AreEqual("ShoppingList", menu.Mode);
+            CollectionAssert.AreEqual(ticked, menu.Maps.Ticked);
+            Assert.IsTrue(menu.Maps.IsTicked(menu.Map), "the lobby stands in a ticked house");
+            Assert.AreEqual(menu.MatchTitle, menu.LastMatch, "Home can start it again");
+            StringAssert.StartsWith(LobbyMenu.ModeName("ShoppingList") + Wreckabulary.Rules.MapCardText.Separator, menu.LastMatch);
+            Assert.AreEqual(saved, PlayerPrefs.GetString(LastKey), "restoring writes nothing");
+
+            menu.Open(LobbyMenu.Play); yield return null;
+            Pick("Duos"); yield return null;
+            StringAssert.Contains(";mode=Duos;", PlayerPrefs.GetString(LastKey));
+            PlayerPrefs.SetString(LastKey, saved);
+            yield return OpenLobby();
+            Assert.AreEqual("Duos", LobbyMenu.Instance.Mode, "a choice made in this run is never replaced by the saved one");
+            StringAssert.StartsWith(LobbyMenu.ModeName("Duos") + Wreckabulary.Rules.MapCardText.Separator, LobbyMenu.Instance.LastMatch);
+        }
+
+        [UnityTest]
+        public IEnumerator TheLastTabAndCourseComeBackAndABadValueRemembersNothing()
+        {
+            LobbyMenu.RememberChoices = true;
+            Pick("Freestyle"); yield return null;
+            Submit("Solo map " + WordboundSoloEntry.LostAddressMap); yield return null;
+            Submit("Queue " + LobbyMenu.Matchmaking); yield return null;
+            string saved = PlayerPrefs.GetString(LastKey);
+            Assert.AreEqual("v1;tab=matchmaking;mode=Dibs;maps=;course=Freestyle;courseMap=LostAddress;shown=course;chosen=1", saved);
+
+            yield return NextLaunch();
+            var menu = LobbyMenu.Instance;
+            var play = menu.Page<PlayPage>();
+            Assert.AreEqual(LobbyMenu.Home, menu.Current);
+            Assert.IsTrue(play.Online, "Play opens on Matchmaking again");
+            Assert.IsTrue(play.WordboundSolo, "and Practice still shows the course");
+            Assert.AreEqual("Freestyle", WordboundSoloEntry.SelectedMode);
+            Assert.AreEqual(WordboundSoloEntry.LostAddressMap, WordboundSoloEntry.SelectedMap);
+            Assert.AreEqual(LobbyMenu.Practice, menu.Queue, "the Matchmaking tab never reclassifies the local choice");
+            Assert.IsNull(menu.LastMatch, "Home does not start a local match while Matchmaking was used last");
+
+            PlayerPrefs.SetString(LastKey, RememberedWorkshop);
+            yield return NextLaunch();
+            menu = LobbyMenu.Instance;
+            Assert.AreEqual(LobbyMenu.Workshop, menu.Queue, "Create comes back as the last tab");
+            Assert.AreEqual(LobbyMenu.WorkshopMode, menu.Mode);
+            Assert.IsFalse(menu.Page<PlayPage>().Online);
+            Assert.IsNull(menu.LastMatch, "and Home opens the Play section instead of starting");
+
+            foreach (string bad in BadMemories)
+            {
+                PlayerPrefs.SetString(LastKey, bad);
+                yield return NextLaunch();
+                AssertNothingRemembered(bad);
+            }
+
+            PlayerPrefs.SetString(LastKey, saved);
+            LobbyMenu.RememberChoices = false;
+            yield return NextLaunch();
+            AssertNothingRemembered("remembering is off");
+            Assert.AreEqual(saved, PlayerPrefs.GetString(LastKey), "and the saved value is left alone");
         }
     }
 }

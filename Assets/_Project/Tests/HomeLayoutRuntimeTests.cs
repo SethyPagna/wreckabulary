@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Linq;
 using NUnit.Framework;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -69,7 +70,7 @@ namespace Wreckabulary.Tests
             page.Start.Button.onClick.Invoke();
             yield return null;
             Assert.AreEqual(LobbyMenu.Play, menu.Current, "PLAY opens the Play section");
-            Assert.IsFalse(menu.Starting, "and never starts a match by itself");
+            Assert.IsFalse(menu.Starting, "and starts nothing while no match has been chosen");
             Assert.AreEqual("Mode " + menu.Mode, EventSystem.current.currentSelectedGameObject.name);
             menu.Open(LobbyMenu.Home);
             var partner = new KeyboardBinding(KeyboardBinding.Side.Right);
@@ -85,7 +86,8 @@ namespace Wreckabulary.Tests
             View(menu);
             menu.Choose(LobbyMenu.Matchmaking, "Dibs"); menu.Open(LobbyMenu.Home);
             page = View(menu);
-            Assert.IsTrue(page.Start.Button.interactable, "PLAY only opens the Play section, so it stays pressable");
+            Assert.IsTrue(page.Start.Button.interactable, "PLAY opens the Play section here, so it stays pressable");
+            AssertOnlyPlay(page);
             Assert.AreSame(page.Start.Button, menu.Page<HomePage>().First);
             menu.Go();
             Assert.IsFalse(menu.Starting);
@@ -98,10 +100,79 @@ namespace Wreckabulary.Tests
 
         static void AssertOnlyPlay(LobbyHomePageView page)
         {
+            AssertAuthoredExtrasHidden(page);
+            CollectionAssert.AreEqual(new[] { LobbyHomePageView.PlayButton }, page.Dock.GetComponentsInChildren<Button>().Select(button => button.name).ToArray());
+            Assert.IsFalse(page.Dock.GetComponentsInChildren<TMP_Text>().Any(text => text.name == LobbyHomePageView.LastLine), "no match is named");
+        }
+
+        static void AssertAuthoredExtrasHidden(LobbyHomePageView page)
+        {
             Assert.IsTrue(page.Start.gameObject.activeSelf);
             Assert.IsFalse(page.Mode.gameObject.activeSelf || page.House.gameObject.activeSelf || page.Wordbound.gameObject.activeSelf || page.WordboundNote.gameObject.activeSelf,
                 "Home shows only PLAY");
-            CollectionAssert.AreEqual(new[] { LobbyHomePageView.PlayButton }, page.Dock.GetComponentsInChildren<Button>().Select(button => button.name).ToArray());
+        }
+
+        static float Edge(Component part, int corner)
+        {
+            var corners = new Vector3[4];
+            ((RectTransform)part.transform).GetWorldCorners(corners);
+            return corners[corner].y;
+        }
+
+        [UnityTest]
+        public IEnumerator SavedHomeNamesTheChosenMatchAndStartsItFromPlay()
+        {
+            const int BottomLeft = 0, TopLeft = 1;
+            var menu = LobbyMenu.Instance;
+            var profile = Resources.Load<LobbyHomeLayout>(LobbyHomeLayout.ResourcePath);
+            menu.Choose(LobbyMenu.Practice, "Dibs"); menu.Open(LobbyMenu.Play);
+            yield return null;
+            menu.Page<PlayPage>().Root.GetComponentsInChildren<Button>().Single(button => button.name == PlayPage.ModeButton("Duos")).onClick.Invoke();
+            yield return null;
+            menu.Open(LobbyMenu.Home);
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            var page = View(menu);
+            string line = LobbyMenu.ModeName("Duos") + Wreckabulary.Rules.MapCardText.Separator + Wreckabulary.Rules.PracticeMaps.Every;
+            Assert.AreEqual(line, menu.LastMatch, "a mode picked in the Play section is the match Home offers");
+            AssertAuthoredExtrasHidden(page);
+            CollectionAssert.AreEqual(new[] { LobbyHomePageView.PlayButton, LobbyHomePageView.ChangeButton },
+                page.Dock.GetComponentsInChildren<Button>().Select(button => button.name).ToArray());
+            var last = page.Dock.GetComponentsInChildren<TMP_Text>().Single(text => text.name == LobbyHomePageView.LastLine);
+            var change = page.Dock.GetComponentsInChildren<Button>().Single(button => button.name == LobbyHomePageView.ChangeButton);
+            Assert.AreEqual(line, last.text);
+            Assert.AreEqual(LobbyHomePageView.ChangeLabel, change.GetComponentInChildren<TMP_Text>().text);
+            foreach (var text in new[] { last, change.GetComponentInChildren<TMP_Text>() })
+            {
+                text.ForceMeshUpdate();
+                Assert.IsFalse(text.isTextTruncated || text.isTextOverflowing, text.text);
+            }
+            Assert.GreaterOrEqual(Edge(last, BottomLeft), Edge(page.Start, TopLeft) - .5f, "the match is named above PLAY");
+            Assert.LessOrEqual(Edge(change, TopLeft), Edge(page.Start, BottomLeft) + .5f, "Change sits under PLAY");
+            Assert.AreEqual(profile.Page.Dock.anchoredPosition, page.Dock.anchoredPosition, "the dock keeps its authored corner");
+            Assert.AreEqual(profile.Page.Dock.sizeDelta.x, page.Dock.sizeDelta.x, "and its authored width");
+            Assert.AreEqual(LobbyHomePageView.PlayLabel, page.Start.Label.text);
+            Assert.AreSame(page.Start.Button, menu.Page<HomePage>().First, "PLAY stays the first control");
+            change.onClick.Invoke();
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Play, menu.Current, "Change opens the Play section");
+            Assert.IsFalse(menu.Starting, "and starts nothing");
+            menu.Open(LobbyMenu.Home);
+            yield return null;
+            LobbyMenu.StartDelay = 3600f;
+            try
+            {
+                View(menu).Start.Button.onClick.Invoke();
+                Assert.IsTrue(menu.Starting, "PLAY starts the named match");
+                Assert.AreEqual("CANCEL", EventSystem.current.currentSelectedGameObject.name);
+            }
+            finally
+            {
+                menu.CancelStart(); LobbyMenu.StartDelay = savedDelay;
+            }
+            yield return null;
+            Assert.AreEqual(line, menu.LastMatch);
+            Assert.AreEqual(LobbyHomePageView.PlayButton, EventSystem.current.currentSelectedGameObject.name);
         }
 
         [UnityTest]
