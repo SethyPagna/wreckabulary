@@ -3,11 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    public enum Phase { Lobby, Countdown, Playing, RoundOver, MatchOver }
+    public enum Phase { Lobby, Countdown, Playing, RoundOver, MatchOver, Warmup }
 
     public class RoundManager : MonoBehaviour
     {
@@ -24,6 +25,9 @@ namespace Wreckabulary
         string joinLine, timerLine;
         int joinVersion = -1, timerSeconds = -1;
         HouseModeContext directed;
+        bool warmupAsked;
+        public static bool WarmupRequested { get; set; }
+        public HouseWarmup Warmup { get; private set; }
         public Phase Phase { get; private set; } = Phase.Lobby;
         public bool Directed => directed != null;
         public IHouseWordGoal WordGoal { get; set; }
@@ -41,7 +45,25 @@ namespace Wreckabulary
         bool AcceptsStartInput => !hud || !hud.StateController ||
             (hud.StateController.CurrentState == UIState.GameplayHUD && !hud.StateController.IsTransitioning);
 
-        void Awake() => Instance = this;
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ForgetWarmupRequest()
+        {
+            WarmupRequested = false;
+            SceneManager.sceneLoaded -= DropWarmupRequest;
+            SceneManager.sceneLoaded += DropWarmupRequest;
+        }
+
+        static void DropWarmupRequest(Scene scene, LoadSceneMode mode)
+        {
+            if (mode == LoadSceneMode.Single && !FindAnyObjectByType<RoundManager>()) WarmupRequested = false;
+        }
+
+        void Awake()
+        {
+            Instance = this;
+            warmupAsked = WarmupRequested;
+            WarmupRequested = false;
+        }
 
         void Start()
         {
@@ -66,6 +88,7 @@ namespace Wreckabulary
 
         void OnDestroy()
         {
+            CloseWarmup();
             if (Instance == this) Instance = null;
             Time.timeScale = 1f;
         }
@@ -80,9 +103,13 @@ namespace Wreckabulary
         void Update()
         {
             if (Time.timeScale <= 0f || Directed) return;
-            phaseElapsed += Mathf.Min(Time.unscaledDeltaTime, Time.maximumDeltaTime);
+            float step = FrameStep;
+            phaseElapsed += step;
             switch (Phase)
             {
+                case Phase.Warmup:
+                    if (TickWarmup(step)) EndWarmup();
+                    break;
                 case Phase.Lobby:
                     hud.SetInstruction(joins.HumanCount == 0 ? JoinLine() : "Press START — solo seats get AI opponents", "");
                     hud.SetTimer("");
@@ -152,8 +179,55 @@ namespace Wreckabulary
             joins.AllowJoining = false;
             hud.ShowModeActions(false);
             hud.HideResult();
+            CloseWarmup();
+            if (TakeWarmup()) EnterWarmup();
+            else BeginMatch();
+        }
+
+        void BeginMatch()
+        {
             MatchTally.BeginMatch();
             StartRound();
+        }
+
+        void EnterWarmup()
+        {
+            Time.timeScale = 1f;
+            SetPhase(Phase.Warmup);
+            deliveries.Running = true;
+            deliveries.ResetDrops();
+            OpenWarmup();
+        }
+
+        void EndWarmup()
+        {
+            CloseWarmup();
+            BeginMatch();
+        }
+
+        internal static float FrameStep => Mathf.Min(Time.unscaledDeltaTime, Time.maximumDeltaTime);
+
+        internal bool TakeWarmup()
+        {
+            bool wanted = warmupAsked && Rules.Warmup.Applies(Match.Mode);
+            warmupAsked = false;
+            return wanted;
+        }
+
+        internal void OpenWarmup()
+        {
+            CloseWarmup();
+            Warmup = new HouseWarmup(joins, hud, Match.Mode);
+            Warmup.Begin();
+        }
+
+        internal bool TickWarmup(float seconds) => Warmup != null && Warmup.Tick(seconds);
+
+        internal void CloseWarmup()
+        {
+            var open = Warmup;
+            Warmup = null;
+            open?.End();
         }
 
         void StartRound()

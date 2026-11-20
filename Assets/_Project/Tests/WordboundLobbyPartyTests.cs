@@ -26,7 +26,7 @@ namespace Wreckabulary.Tests
         const string Player = "10000000-0000-4000-8000-000000000001", PartyId = "20000000-0000-4000-8000-000000000001";
         const string Seed = "0123456789abcdef", Code = "1234567890abcdef", Pool = "lobby-party";
         const string ThemePath = "Assets/_Project/Data/Wordbound/Authoring/Interface.asset";
-        static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, QuickPlayChoices.StorageKey, FriendRooms.StorageKey };
+        static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, QuickPlayChoices.StorageKey, FriendRooms.StorageKey, Wreckabulary.Rules.LastPlayChoice.StorageKey };
         readonly List<string> requests = new List<string>();
         string[] saved;
         bool hadTutorial;

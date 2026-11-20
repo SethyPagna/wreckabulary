@@ -23,13 +23,14 @@ namespace Wreckabulary
         public override float PanelWidth => framePanel && framePanel.rect.width > 0 ? framePanel.rect.width : base.PanelWidth;
 
         public const string SavedHomeCard = "Saved home ";
-        public const string ModeSections = "Sections", SidewaysTrack = "Sideways position", SoloNote = "Solo only note";
+        public const string ModeBoard = "Modes", ModeSections = "Sections", SoloNote = "Solo only note";
         public const string KeepOneMap = "Keep at least one map ticked.";
         public const string GoalLine = "Mode goal";
         public const string NameScrim = "Map name scrim";
         public const string GuideIcon = "Guide icon", GuideHint = "How to play";
         static readonly Vector2 HouseSize = new Vector2(280, 300);
-        const float ModeHeight = 52f, WideStrip = 1800f, SidewaysWheel = -40f;
+        const float ModeHeight = 52f, WideStrip = 1800f;
+        const float ModeLabelInset = 8f, SoloNoteTop = 10f;
         const int PictureRadius = 10, GuideRadius = 13;
         const float GuideInset = 4f;
         const float TitleInset = 12f;
@@ -128,8 +129,7 @@ namespace Wreckabulary
             SummaryLine(bar);
             string blocked = Menu.PartySize != 1 ? "Solo only. Leave extra local seats to start." :
                 !Session.CanLoad(Session.WordboundScene) ? "Courses are unavailable in this build." : null;
-            var heading = LobbyKit.Text(bar, LobbyPlayModeLabels.Name(WordboundSoloEntry.SelectedMode) + MapCardText.Separator + SoloMapName(WordboundSoloEntry.SelectedMap),
-                26, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
+            var heading = LobbyKit.Text(bar, CourseTitle, 26, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
             heading.enableAutoSizing = true; heading.fontSizeMin = 20; heading.fontSizeMax = 26;
             heading.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(8, 44), new Vector2(-250, -8));
             var detail = LobbyKit.Text(bar, blocked ?? "1 player", 18,
@@ -163,6 +163,9 @@ namespace Wreckabulary
             First = open;
         }
 
+        public static string CourseTitle =>
+            LobbyPlayModeLabels.Name(WordboundSoloEntry.SelectedMode) + MapCardText.Separator + SoloMapName(WordboundSoloEntry.SelectedMap);
+
         static string SoloMapName(string id) => id switch
         {
             WordboundSoloEntry.LostAddressMap => "The Lost Address",
@@ -176,6 +179,7 @@ namespace Wreckabulary
             Online = queue == LobbyMenu.Matchmaking;
             Friends = false;
             if (!Online) Menu.Choose(queue: queue);
+            Menu.NoteChoice();
             Refresh();
             Reselect(id);
         }
@@ -193,21 +197,23 @@ namespace Wreckabulary
         void PracticeModes(RectTransform column)
         {
             string shown = ShownMode;
-            var strip = ModeStrip(column, "Modes", LobbyPlayModeLabels.Line(shown), shown, true);
-            var families = strip.GetComponentInChildren<LobbyPlayModeFamilies>();
+            var board = LobbyKit.Rect(column, ModeBoard);
+            var families = LobbyKit.Rect(board, ModeSections).gameObject.AddComponent<LobbyPlayModeFamilies>();
+            families.Stacked = true;
+            families.ButtonWidth = playLayout ? playLayout.ModeMinimumWidth : 104;
+            families.ButtonHeight = LobbyPlayModeFamilies.StackedHeight;
             foreach (var family in HouseModes.Families)
             {
                 var section = Family(families.transform, HouseModes.FamilyName(family));
                 foreach (string mode in HouseModes.ModesIn(family))
-                {
-                    if (HouseModes.Has(mode) || Menu.PartySize == 1) { PracticeChoice(section, mode); continue; }
-                    var note = LobbyKit.Text(section, SoloOnly(mode), 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
-                    note.name = SoloNote;
-                    note.enableAutoSizing = true; note.fontSizeMin = 12; note.fontSizeMax = 16;
-                }
+                    if (HouseModes.Has(mode) || Menu.PartySize == 1) PracticeChoice(section, mode);
+                    else SoloOnlyNote(section, mode);
             }
-            families.Fit();
-            strip.GetComponent<LobbyPlayModeDock>()?.Fit();
+            var line = Goal(board, LobbyPlayModeLabels.Line(shown));
+            GuideButton(line, shown);
+            var fit = board.gameObject.AddComponent<LobbyPlayModeBoard>();
+            fit.Sections = families; fit.Goal = line;
+            fit.Fit();
         }
 
         static RectTransform Family(Transform sections, string name)
@@ -216,40 +222,25 @@ namespace Wreckabulary
             var caption = LobbyKit.Text(family, LobbyKit.Upper(name), 14, LobbyKit.Muted, TextAlignmentOptions.BottomLeft);
             caption.name = LobbyPlayModeFamilies.Caption;
             caption.characterSpacing = 1;
+            caption.margin = new Vector4(ModeLabelInset, 0, 0, 0);
             return family;
         }
 
-        static RectTransform Sideways(RectTransform strip)
+        static void SoloOnlyNote(Transform section, string mode)
         {
-            strip.Paint(new Color(0, 0, 0, 0));
-            strip.gameObject.AddComponent<RectMask2D>();
-            var content = LobbyKit.Rect(strip, ModeSections);
-            content.anchorMin = content.anchorMax = content.pivot = new Vector2(.5f, 1);
-            content.anchoredPosition = Vector2.zero;
-            var scroll = strip.gameObject.AddComponent<ScrollRect>();
-            scroll.horizontal = true; scroll.vertical = false;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = SidewaysWheel;
-            scroll.viewport = strip; scroll.content = content;
-            var track = LobbyKit.Rect(strip, SidewaysTrack).Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 4));
-            track.Paint(LobbyKit.Line, 2);
-            var handle = LobbyKit.Rect(track, "Handle").Fill();
-            var ink = handle.Paint(LobbyKit.Cyan, 2);
-            var bar = track.gameObject.AddComponent<Scrollbar>();
-            bar.direction = Scrollbar.Direction.LeftToRight;
-            bar.handleRect = handle; bar.targetGraphic = ink;
-            bar.navigation = new Navigation { mode = Navigation.Mode.None };
-            scroll.horizontalScrollbar = bar;
-            scroll.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
-            strip.gameObject.AddComponent<LobbyScrollFollow>();
-            return content;
+            var note = LobbyKit.Text(section, SoloOnly(mode), 16, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
+            note.name = SoloNote;
+            note.textWrappingMode = TextWrappingModes.Normal;
+            note.margin = new Vector4(ModeLabelInset, SoloNoteTop, ModeLabelInset, 0);
+            note.enableAutoSizing = true; note.fontSizeMin = 12; note.fontSizeMax = 16;
         }
 
-        void PracticeChoice(Transform row, string mode)
+        void PracticeChoice(Transform section, string mode)
         {
             string id = ModeButton(mode);
             bool selected = ShownMode == mode;
-            var button = CompactMode(row, id, LobbyPlayModeLabels.Name(mode), selected, () => { PickMode(mode); Refresh(); Reselect(id); });
+            var button = CompactMode(section, id, LobbyPlayModeLabels.Name(mode), selected, () => { PickMode(mode); Refresh(); Reselect(id); });
+            button.Body().Find("Content").GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
             if (selected) First = button;
         }
 
@@ -258,19 +249,18 @@ namespace Wreckabulary
             WordboundSolo = !HouseModes.Has(mode);
             if (WordboundSolo) WordboundSoloEntry.Select(mode);
             else Menu.Choose(queue: LobbyMenu.Practice, mode: mode);
+            Menu.NoteChoice(true);
         }
 
-        RectTransform ModeStrip(Transform parent, string name, string goal, string guide = null, bool sideways = false)
+        RectTransform ModeStrip(Transform parent, string name, string goal)
         {
             var host = authoredFrame ? authoredFrame.Body : parent;
             var strip = LobbyKit.Rect(host, name);
             var element = strip.gameObject.AddComponent<LayoutElement>();
-            var families = (sideways ? Sideways(strip) : strip).gameObject.AddComponent<LobbyPlayModeFamilies>();
-            families.OneRow = sideways;
+            var families = strip.gameObject.AddComponent<LobbyPlayModeFamilies>();
             families.ButtonWidth = playLayout ? playLayout.ModeMinimumWidth : 104;
             families.ButtonHeight = playLayout ? playLayout.ModeHeight : ModeHeight;
             var line = Goal(host, goal);
-            GuideButton(line, guide);
             if (authoredFrame)
             {
                 element.ignoreLayout = true;
@@ -321,6 +311,7 @@ namespace Wreckabulary
                 var button = CompactMode(tools, choice.id, choice.title, selected, () => {
                     WordboundMaps = editor;
                     if (!editor) Menu.Choose(queue: LobbyMenu.Workshop, mode: LobbyMenu.WorkshopMode);
+                    Menu.NoteChoice();
                     Refresh(); Reselect(choice.id);
                 });
                 if (selected) First = button;
@@ -439,7 +430,7 @@ namespace Wreckabulary
         {
             string name = "Solo map " + id;
             var card = MapCard(parent, name, WordboundSoloEntry.SelectedMap == id, () => {
-                WordboundSoloEntry.SelectMap(id); Refresh(); Reselect(name);
+                WordboundSoloEntry.SelectMap(id); Menu.NoteChoice(true); Refresh(); Reselect(name);
             });
             MapWords(card, CardPicture(card, LobbyMapSnapshots.For(id) ?? CoursePreview(id), LobbyIcons.Layers), title, detail);
         }
@@ -471,6 +462,7 @@ namespace Wreckabulary
             var card = MapCard(parent, name, ticked, () => {
                 if (practice && !Menu.ToggleMap(id)) { Menu.Post(KeepOneMap); return; }
                 if (!practice) Menu.Choose(map: id);
+                Menu.NoteChoice(practice);
                 Refresh(); Reselect(name);
             });
             MapWords(card, CardPicture(card, LobbyMapSnapshots.For(id), LobbyIcons.Home), layout.Name, MapCardText.HouseLine(layout));
@@ -486,7 +478,7 @@ namespace Wreckabulary
             string name = SavedHomeCard + home.Map;
             var house = GameConfig.Current.HouseFor(home.Map);
             var card = MapCard(parent, name, Menu.SavedHome == home.Map,
-                () => { if (Menu.ChooseHome(home.Map)) { Refresh(); Reselect(name); } });
+                () => { if (Menu.ChooseHome(home.Map)) { Menu.NoteChoice(true); Refresh(); Reselect(name); } });
             MapWords(card, CardPicture(card, LobbyMapSnapshots.For(home.Map), LobbyIcons.Home), home.Name, "Your home" + MapCardText.Separator + house.Name);
         }
 
@@ -518,8 +510,7 @@ namespace Wreckabulary
             var bar = SummaryFrame(body, "Summary");
             SummaryLine(bar);
             string blocked = Menu.Blocked;
-            string where = Menu.Mode == LobbyMenu.TutorialMode ? "The tutorial room" : Menu.MapLabel;
-            var title = LobbyKit.Text(bar, LobbyMenu.ModeName(Menu.Mode) + MapCardText.Separator + where, 26, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
+            var title = LobbyKit.Text(bar, Menu.MatchTitle, 26, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
             title.enableAutoSizing = true; title.fontSizeMin = 20; title.fontSizeMax = 26;
             title.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(8, 44), new Vector2(-250, -8));
             string detailText = blocked ?? Participants(Menu.Mode, Menu.PartySize);

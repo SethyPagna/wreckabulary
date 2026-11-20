@@ -12,10 +12,14 @@ namespace Wreckabulary
             Party = "party", Plus = "plus", Glasses = "glasses", Satchel = "satchel",
             Undo = "undo", Redo = "redo", Move = "move", Duplicate = "duplicate", Delete = "delete",
             Group = "group", Ungroup = "ungroup", Layers = "layers", Frame = "frame", Dice = "dice",
-            Eye = "eye", EyeOff = "eye-off";
+            Eye = "eye", EyeOff = "eye-off",
+            Hair = "hair", Eyes = "eyes", Headwear = "headwear", Top = "top", Bottoms = "bottoms", Gloves = "gloves",
+            Footwear = "footwear", Colours = "colours", GearStyle = "gear-style", Save = "save", Looks = "looks",
+            Filter = "filter", New = "new";
         public static readonly string[] All =
             { Home, Settings, Power, Trophy, Cart, Coin, Close, Turn, Play, Locker, Badge, Lock, Check, Arrow, CoinW, Chevron, Party, Plus,
-              Glasses, Satchel, Undo, Redo, Move, Duplicate, Delete, Group, Ungroup, Layers, Frame, Dice, Eye, EyeOff };
+              Glasses, Satchel, Undo, Redo, Move, Duplicate, Delete, Group, Ungroup, Layers, Frame, Dice, Eye, EyeOff,
+              Hair, Eyes, Headwear, Top, Bottoms, Gloves, Footwear, Colours, GearStyle, Save, Looks, Filter, New };
         const int Size = 128;
         const float Half = 2.3f / 24f;
         static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
@@ -44,6 +48,24 @@ namespace Wreckabulary
             sprite.name = texture.name;
             cache[name] = sprite;
             return sprite;
+        }
+
+        public static string ForSlot(string slot)
+        {
+            switch (slot)
+            {
+                case "Hair": return Hair;
+                case "Eyes": return Eyes;
+                case "Top": return Top;
+                case "Bottoms": return Bottoms;
+                case "Gloves": return Gloves;
+                case "Footwear": return Footwear;
+                case "Headwear": return Headwear;
+                case "Face": return Glasses;
+                case "Back": return Satchel;
+                case "Badge": return Badge;
+                default: return Locker;
+            }
         }
 
         public static Sprite Rounded => RoundedSprite(10);
@@ -189,9 +211,7 @@ namespace Wreckabulary
                 case Play:
                     return p => Polygon(p, G(8, 5.5f), G(19, 12), G(8, 18.5f)) - .04f;
                 case Locker:
-                    return p => Arc(p, G(12, 6.5f), 2f / 12f, -72.4f, 180f)
-                        .Min(Lines(p, G(12.6f, 8.4f), G(12, 9.3f), G(12, 10)))
-                        .Min(Lines(p, G(12, 10), G(3.8f, 16.6f), G(4.3f, 18), G(19.7f, 18), G(20.2f, 16.6f), G(12, 10))) - Half;
+                    return p => Hanger(p) - Half;
                 case Badge:
                     return p => Mathf.Abs(Box(p, Vector2.zero, new Vector2(.625f, .625f), 3.5f / 12f))
                         .Min(Lines(p, G(8.5f, 9), G(15.5f, 9))).Min(Lines(p, G(12, 9), G(12, 16))) - Half;
@@ -261,9 +281,66 @@ namespace Wreckabulary
                         float slash = Segment(p, G(4, 4), G(20, 20));
                         return Union(Cut(VisibilityEye(p), slash - Half * 2), slash - Half);
                     };
+                case Hair:
+                    return p => Union(Mathf.Abs(Circle(p, G(12, 13.5f), 6.5f / 12f)) - Half,
+                        Mathf.Max(Circle(p, G(12, 11.5f), 8f / 12f), Above(p, G(3, 13.5f), G(21, 8.5f))));
+                case Eyes:
+                    return p => Cut(Union(TallEye(p, G(7.5f, 12)), TallEye(p, G(16.5f, 12))),
+                        Union(Circle(p, G(8.6f, 9.6f), 1.2f / 12f), Circle(p, G(17.6f, 9.6f), 1.2f / 12f)));
+                case Headwear:
+                    return p => Arc(p, G(10.5f, 16.5f), 7.5f / 12f, 0f, 180f)
+                        .Min(Lines(p, G(3, 16.5f), G(18, 16.5f), G(21.5f, 18))) - Half;
+                case Top:
+                    return p => Lines(p, G(9, 4.5f), G(3, 8.5f), G(5.5f, 12), G(8, 10.5f), G(8, 20), G(16, 20), G(16, 10.5f),
+                            G(18.5f, 12), G(21, 8.5f), G(15, 4.5f))
+                        .Min(Arc(p, G(12, 4.5f), 3f / 12f, 180f, 360f)) - Half;
+                case Bottoms:
+                    return p => Lines(p, G(6, 4.5f), G(18, 4.5f), G(19.5f, 20), G(14.5f, 20), G(12, 10.5f), G(9.5f, 20),
+                        G(4.5f, 20), G(6, 4.5f)) - Half;
+                case Gloves:
+                    return p => Union(Mathf.Abs(Mathf.Max(Union(Box(p, G(13.5f, 12), new Vector2(4.5f / 12f, 8f / 12f), 4.5f / 12f),
+                            Box(p, G(8, 12), new Vector2(2f / 12f, 3.2f / 12f), 2f / 12f)), G(12, 16).y - p.y)) - Half,
+                        Box(p, G(13.5f, 19.9f), new Vector2(5.2f / 12f, 1.3f / 12f), .7f / 12f));
+                case Footwear:
+                    return p => Union(Lines(p, G(5.5f, 16.5f), G(5.5f, 3.5f), G(11.5f, 3.5f), G(11.5f, 10.5f), G(16.5f, 12),
+                            G(19, 15), G(19, 16.5f)) - Half,
+                        Box(p, G(12.25f, 18.9f), new Vector2(7.9f / 12f, 1.8f / 12f), .8f / 12f));
+                case Colours:
+                    return p => Union(Mathf.Abs(Cut(Circle(p, Vector2.zero, 8.5f / 12f), Circle(p, G(17.5f, 17.5f), 3.4f / 12f))) - Half,
+                        Circle(p, G(7.7f, 12), 1.3f / 12f).Min(Circle(p, G(9.5f, 8.5f), 1.3f / 12f))
+                            .Min(Circle(p, G(13.5f, 8), 1.3f / 12f)).Min(Circle(p, G(16.2f, 10.9f), 1.3f / 12f)));
+                case GearStyle:
+                    return p => Union(Lines(p, G(5, 4.5f), G(19, 4.5f), G(19, 12), G(12, 20.5f), G(5, 12), G(5, 4.5f)) - Half,
+                        Sparkle(p, G(12, 10.5f), 3.6f / 12f, 1.1f / 12f));
+                case Save:
+                    return p => Lines(p, G(4.5f, 4.5f), G(16, 4.5f), G(19.5f, 8), G(19.5f, 19.5f), G(4.5f, 19.5f), G(4.5f, 4.5f))
+                        .Min(Lines(p, G(8, 4.5f), G(8, 9), G(14.5f, 9), G(14.5f, 4.5f)))
+                        .Min(Lines(p, G(8, 19.5f), G(8, 14), G(16, 14), G(16, 19.5f))) - Half;
+                case Looks:
+                    return p => Union(Hanger(p) - Half, Sparkle(p, G(20, 5.5f), 3.2f / 12f, 1f / 12f));
+                case Filter:
+                    return p => Lines(p, G(4, 5.5f), G(20, 5.5f), G(14, 12.5f), G(14, 19), G(10, 17), G(10, 12.5f), G(4, 5.5f)) - Half;
+                case New:
+                    return p => Circle(p, Vector2.zero, .6f);
                 default:
                     throw new ArgumentException("No lobby icon called " + name, nameof(name));
             }
+        }
+
+        static float Hanger(Vector2 p) => Arc(p, G(12, 6.5f), 2f / 12f, -72.4f, 180f)
+            .Min(Lines(p, G(12.6f, 8.4f), G(12, 9.3f), G(12, 10)))
+            .Min(Lines(p, G(12, 10), G(3.8f, 16.6f), G(4.3f, 18), G(19.7f, 18), G(20.2f, 16.6f), G(12, 10)));
+
+        static float TallEye(Vector2 p, Vector2 c) => Box(p, c, new Vector2(2.7f / 12f, 4.8f / 12f), 2.7f / 12f);
+
+        static float Sparkle(Vector2 p, Vector2 c, float tip, float waist) => Polygon(p - c,
+            new Vector2(0, tip), new Vector2(waist, waist), new Vector2(tip, 0), new Vector2(waist, -waist),
+            new Vector2(0, -tip), new Vector2(-waist, -waist), new Vector2(-tip, 0), new Vector2(-waist, waist));
+
+        static float Above(Vector2 p, Vector2 a, Vector2 b)
+        {
+            var along = (b - a).normalized;
+            return Vector2.Dot(p - a, new Vector2(along.y, -along.x));
         }
 
         static float HistoryArrow(Vector2 p) => Arc(p, G(14, 14), 6f / 12f, 0, 90)

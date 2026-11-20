@@ -1063,6 +1063,7 @@ namespace Wreckabulary
 
         string MissingLetters(string word)
         {
+            if (LocalPlayer.Inventory.SpellsFree) return "";
             spare.Clear(); spare.AddRange(LocalPlayer.Inventory.Letters);
             sb.Clear();
             foreach (char letter in word)
@@ -1107,7 +1108,7 @@ namespace Wreckabulary
             if (composerError != null) return composerError;
             string word = composerText;
             state = 0;
-            if (word.Length == 0) return "Type a word you can make from your letters. Tab or right-click closes.";
+            if (word.Length == 0) return LocalPlayer.Inventory.SpellsFree ? Warmup.TypeAnything : "Type a word you can make from your letters. Tab or right-click closes.";
             var player = LocalPlayer;
             var recipe = EnabledRecipe(word);
             state = 2;
@@ -1174,6 +1175,7 @@ namespace Wreckabulary
         {
             const float width = 47.5f, height = 55f, gap = 7.5f, field = 490f;
             int count = Mathf.Min(word.Length, tiles.Length);
+            bool free = LocalPlayer.Inventory.SpellsFree;
             spare.Clear(); spare.AddRange(LocalPlayer.Inventory.Letters);
             float room = field - 25f - (typed ? 14f : 0f) - (picking ? 84f : 0f);
             float run = count * width + Mathf.Max(0, count - 1) * gap;
@@ -1187,8 +1189,8 @@ namespace Wreckabulary
                 if (!shown) continue;
                 char letter = word[i];
                 int at = spare.IndexOf(letter);
-                bool got = at >= 0;
-                if (got) spare.RemoveAt(at);
+                bool got = free || at >= 0;
+                if (at >= 0) spare.RemoveAt(at);
                 tile.root.anchoredPosition = new Vector2(x0 + (i * (width + gap) + width * .5f) * scale, 0f);
                 tile.root.sizeDelta = new Vector2(width, height) * scale;
                 tile.root.localRotation = Quaternion.Euler(0f, 0f, i % 3 == 2 ? 3f : i % 3 == 0 ? -2f : 0f);

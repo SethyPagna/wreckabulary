@@ -264,6 +264,64 @@ namespace Wreckabulary
         }
     }
 
+    public sealed class LobbyPlayModeBoard : MonoBehaviour
+    {
+        public LobbyPlayModeFamilies Sections;
+        public TMP_Text Goal;
+        public float Gap = 36, GoalMinimumWidth = 420, GoalHeight = 30, GoalGap = 2;
+        float arrangedWidth = -1f;
+        bool fitting;
+
+        public bool Beside { get; private set; }
+
+        void OnEnable() => Fit();
+        void OnRectTransformDimensionsChange() => Fit();
+        void LateUpdate() => Fit();
+
+        float Available => transform.parent is RectTransform parent ? parent.rect.width : ((RectTransform)transform).rect.width;
+
+        public void Fit()
+        {
+            float width = Available;
+            if (fitting || !Sections || width <= 0 || Mathf.Approximately(width, arrangedWidth)) return;
+            fitting = true;
+            try { Arrange(width); arrangedWidth = width; }
+            finally { fitting = false; }
+        }
+
+        void Arrange(float width)
+        {
+            float columns = Sections.NaturalWidth;
+            Beside = Goal && width - columns - Gap >= GoalMinimumWidth;
+            var sections = (RectTransform)Sections.transform;
+            float sectionsWidth = Beside ? columns : width;
+            LobbyPlayModeFamilies.Set(sections, Vector2.zero, new Vector2(sectionsWidth, sections.sizeDelta.y));
+            Sections.Fit();
+            float height = Sections.Height;
+            LobbyPlayModeFamilies.Set(sections, Vector2.zero, new Vector2(sectionsWidth, height));
+            if (Goal) height = PlaceGoal(width, columns, height);
+            if (!TryGetComponent(out LayoutElement element)) element = gameObject.AddComponent<LayoutElement>();
+            if (Mathf.Approximately(element.preferredHeight, height)) return;
+            element.preferredHeight = element.minHeight = height;
+            if (transform.parent is RectTransform parent) LayoutRebuilder.MarkLayoutForRebuild(parent);
+        }
+
+        float PlaceGoal(float width, float columns, float height)
+        {
+            var alignment = Beside ? TextAlignmentOptions.MidlineLeft : TextAlignmentOptions.Center;
+            if (Goal.alignment != alignment) Goal.alignment = alignment;
+            if (Beside) LobbyPlayModeFamilies.Set(Goal.rectTransform, new Vector2(columns + Gap, -Sections.CaptionHeight),
+                new Vector2(width - columns - Gap, Sections.ButtonHeight));
+            else
+            {
+                LobbyPlayModeFamilies.Set(Goal.rectTransform, new Vector2(0, -height - GoalGap), new Vector2(width, GoalHeight));
+                height += GoalGap + GoalHeight;
+            }
+            if (Goal.TryGetComponent(out LobbyPlayGoalInfo info)) info.Fit();
+            return height;
+        }
+    }
+
     public sealed class LobbyPlayGoalInfo : MonoBehaviour
     {
         public const float Size = 34, Gap = 6;
@@ -271,6 +329,7 @@ namespace Wreckabulary
         public RectTransform Icon;
         float placedWidth = -1f;
         string placedText;
+        bool placedCentred;
 
         void LateUpdate() => Fit();
 
@@ -278,13 +337,14 @@ namespace Wreckabulary
         {
             if (!Line || !Icon) return;
             var rect = Line.rectTransform.rect;
-            if (rect.width <= 0 || Mathf.Approximately(rect.width, placedWidth) && placedText == Line.text) return;
-            placedWidth = rect.width; placedText = Line.text;
-            var room = new Vector4(Size + Gap, 0, Size + Gap, 0);
+            bool centred = Line.alignment == TextAlignmentOptions.Center;
+            if (rect.width <= 0 || Mathf.Approximately(rect.width, placedWidth) && placedText == Line.text && placedCentred == centred) return;
+            placedWidth = rect.width; placedText = Line.text; placedCentred = centred;
+            var room = new Vector4(centred ? Size + Gap : 0, 0, Size + Gap, 0);
             if (Line.margin != room) Line.margin = room;
             Line.ForceMeshUpdate();
             var bounds = Line.textBounds;
-            float end = bounds.size.x > 0 ? bounds.max.x : 0f;
+            float end = bounds.size.x > 0 ? bounds.max.x : centred ? 0f : rect.xMin;
             Icon.anchoredPosition = new Vector2(end - rect.center.x + Gap + Size * .5f, 0f);
         }
     }
@@ -292,23 +352,34 @@ namespace Wreckabulary
     public sealed class LobbyPlayModeFamilies : MonoBehaviour
     {
         public const string Caption = "Family caption";
+        public const float StackedHeight = 44f, NoteWidth = 200f;
+        public const int NoteRows = 2;
         public float ButtonWidth = 104, ButtonHeight = 52, CaptionHeight = 22;
-        public float Spacing = 6, FamilySpacing = 28, LineSpacing = 8, OneLineScale = .8f, RowFooter = 10;
-        public bool OneRow;
+        public float Spacing = 6, StackSpacing = 0, FamilySpacing = 28, LineSpacing = 8, OneLineScale = .8f;
+        public bool Stacked;
         readonly Dictionary<Transform, float> natural = new Dictionary<Transform, float>();
         float arrangedWidth = -1f;
         int arrangedCount = -1;
         bool fitting;
 
+        public float Height { get; private set; }
+
+        public float NaturalWidth
+        {
+            get
+            {
+                var families = Families();
+                return families.Sum(Natural) + FamilySpacing * Mathf.Max(0, families.Count - 1);
+            }
+        }
+
         void OnEnable() => Fit();
         void OnRectTransformDimensionsChange() => Fit();
         void LateUpdate() => Fit();
 
-        float Available => OneRow && transform.parent is RectTransform view ? view.rect.width : ((RectTransform)transform).rect.width;
-
         public void Fit()
         {
-            float width = Available;
+            float width = ((RectTransform)transform).rect.width;
             if (fitting || width <= 0) return;
             int count = ActiveFamilies();
             if (count == arrangedCount && Mathf.Approximately(width, arrangedWidth)) return;
@@ -329,57 +400,68 @@ namespace Wreckabulary
             return count;
         }
 
+        List<RectTransform> Families() =>
+            transform.Cast<Transform>().Where(child => child.gameObject.activeSelf).Select(child => (RectTransform)child).ToList();
+
         void Arrange(float width)
         {
-            var families = transform.Cast<Transform>().Where(child => child.gameObject.activeSelf).Select(child => (RectTransform)child).ToList();
+            var families = Families();
             if (families.Count == 0) return;
-            if (OneRow)
-            {
-                float sum = families.Sum(Natural), gaps = FamilySpacing * (families.Count - 1);
-                width = sum * Mathf.Clamp(Mathf.Max(0f, width - gaps) / Mathf.Max(1f, sum), OneLineScale, 1f) + gaps;
-                var own = (RectTransform)transform;
-                if (!Mathf.Approximately(own.rect.width, width)) own.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
-            }
-            var lines = new List<List<RectTransform>>();
+            float y = 0f;
             int start = 0;
-            var sizes = OneRow ? new[] { families.Count } : Lines(families.Select(Natural).ToList(), FamilySpacing, width, OneLineScale);
-            foreach (int size in sizes)
+            foreach (int size in Lines(families.Select(Natural).ToList(), FamilySpacing, width, OneLineScale))
             {
-                lines.Add(families.GetRange(start, size));
+                y += ArrangeLine(families.GetRange(start, size), width, y) + LineSpacing;
                 start += size;
             }
-            float rowHeight = CaptionHeight + ButtonHeight, y = 0f;
-            foreach (var line in lines)
-            {
-                float sum = line.Sum(Natural);
-                float lineScale = Mathf.Min(1f, Mathf.Max(0f, width - FamilySpacing * (line.Count - 1)) / Mathf.Max(1f, sum));
-                float lineWidth = sum * lineScale + FamilySpacing * (line.Count - 1);
-                float x = Mathf.Max(0f, (width - lineWidth) * .5f);
-                foreach (var family in line)
-                {
-                    float familyWidth = Natural(family) * lineScale;
-                    Set(family, new Vector2(x, -y), new Vector2(familyWidth, rowHeight));
-                    float at = 0f;
-                    foreach (Transform child in family)
-                    {
-                        var item = (RectTransform)child;
-                        if (child.name == Caption) { Set(item, Vector2.zero, new Vector2(familyWidth, CaptionHeight)); continue; }
-                        float itemWidth = Choice(item) * lineScale;
-                        Set(item, new Vector2(at, -CaptionHeight), new Vector2(itemWidth, ButtonHeight));
-                        at += itemWidth + Spacing * lineScale;
-                    }
-                    x += familyWidth + FamilySpacing;
-                }
-                y += rowHeight + LineSpacing;
-            }
-            float height = y - LineSpacing;
+            Height = y - LineSpacing;
             if (!TryGetComponent(out LayoutElement element)) element = gameObject.AddComponent<LayoutElement>();
-            if (!Mathf.Approximately(element.preferredHeight, height)) { element.preferredHeight = height; element.minHeight = height; }
-            if (!OneRow) return;
-            var content = (RectTransform)transform;
-            if (!Mathf.Approximately(content.rect.height, height)) content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
-            if (transform.parent.TryGetComponent(out LayoutElement band) && !Mathf.Approximately(band.preferredHeight, height + RowFooter))
-                band.preferredHeight = band.minHeight = height + RowFooter;
+            if (!Mathf.Approximately(element.preferredHeight, Height)) { element.preferredHeight = Height; element.minHeight = Height; }
+        }
+
+        float ArrangeLine(List<RectTransform> line, float width, float y)
+        {
+            float sum = line.Sum(Natural), gaps = FamilySpacing * (line.Count - 1);
+            float scale = Mathf.Min(1f, Mathf.Max(0f, width - gaps) / Mathf.Max(1f, sum));
+            float x = Mathf.Max(0f, (width - sum * scale - gaps) * .5f), tallest = 0f;
+            foreach (var family in line)
+            {
+                float familyWidth = Natural(family) * scale;
+                float familyHeight = Stacked ? Stack(family, familyWidth) : Row(family, familyWidth, scale);
+                Set(family, new Vector2(x, -y), new Vector2(familyWidth, familyHeight));
+                tallest = Mathf.Max(tallest, familyHeight);
+                x += familyWidth + FamilySpacing;
+            }
+            return tallest;
+        }
+
+        float Row(RectTransform family, float familyWidth, float scale)
+        {
+            float at = 0f;
+            foreach (Transform child in family)
+            {
+                var item = (RectTransform)child;
+                if (child.name == Caption) { Set(item, Vector2.zero, new Vector2(familyWidth, CaptionHeight)); continue; }
+                float itemWidth = Choice(item) * scale;
+                Set(item, new Vector2(at, -CaptionHeight), new Vector2(itemWidth, ButtonHeight));
+                at += itemWidth + Spacing * scale;
+            }
+            return CaptionHeight + ButtonHeight;
+        }
+
+        float Stack(RectTransform family, float familyWidth)
+        {
+            float at = CaptionHeight;
+            foreach (Transform child in family)
+            {
+                var item = (RectTransform)child;
+                if (child.name == Caption) { Set(item, Vector2.zero, new Vector2(familyWidth, CaptionHeight)); continue; }
+                int rows = item.GetComponent<Selectable>() ? 1 : NoteRows;
+                float itemHeight = rows * ButtonHeight + (rows - 1) * StackSpacing;
+                Set(item, new Vector2(0, -at), new Vector2(familyWidth, itemHeight));
+                at += itemHeight + StackSpacing;
+            }
+            return Mathf.Max(CaptionHeight, at - StackSpacing);
         }
 
         public static int[] Lines(IReadOnlyList<float> widths, float spacing, float width, float minimumScale)
@@ -413,13 +495,14 @@ namespace Wreckabulary
         float Natural(Transform family)
         {
             if (natural.TryGetValue(family, out float known)) return known;
-            float choices = 0f, caption = 0f; int count = 0;
+            float choices = 0f, widest = 0f, caption = 0f; int count = 0;
             foreach (Transform child in family)
             {
                 if (child.name == Caption) { caption = Preferred(child) + 2f; continue; }
-                choices += Choice((RectTransform)child); count++;
+                float choice = Choice((RectTransform)child);
+                choices += choice; widest = Mathf.Max(widest, choice); count++;
             }
-            float result = Mathf.Max(caption, choices + Spacing * Mathf.Max(0, count - 1));
+            float result = Mathf.Max(caption, Stacked ? widest : choices + Spacing * Mathf.Max(0, count - 1));
             natural[family] = result;
             return result;
         }
@@ -427,7 +510,7 @@ namespace Wreckabulary
         float Choice(RectTransform item)
         {
             if (natural.TryGetValue(item, out float known)) return known;
-            float result = item.GetComponent<Selectable>() ? Mathf.Max(ButtonWidth, Preferred(item) + 28f) : Preferred(item) + 4f;
+            float result = item.GetComponent<Selectable>() ? Mathf.Max(ButtonWidth, Preferred(item) + 28f) : Stacked ? NoteWidth : Preferred(item) + 4f;
             natural[item] = result;
             return result;
         }
@@ -438,7 +521,7 @@ namespace Wreckabulary
             return text ? text.GetPreferredValues(text.text).x : 0f;
         }
 
-        static void Set(RectTransform rect, Vector2 position, Vector2 size)
+        internal static void Set(RectTransform rect, Vector2 position, Vector2 size)
         {
             var corner = new Vector2(0, 1);
             if (rect.anchorMin != corner || rect.anchorMax != corner || rect.pivot != corner)

@@ -70,6 +70,19 @@ namespace Wreckabulary
         AnimationClipPlayable emotePlayable;
         const float EmoteFade = .14f;
         float emoteDuration;
+        const string RightGripBone = "grip_R", UpperBodyBone = "spine";
+        const string HoldOneHandClip = "Hold_OneHand", CarryTwoHandClip = "Carry_TwoHand";
+        const int BodyLayer = 0, HoldLayer = 1;
+        const float HoldBlendPerSecond = 8f;
+        Transform rightGrip, handAnchor, heldItem;
+        Quaternion gripCorrection = Quaternion.identity;
+        string heldWord, heldSkin;
+        AnimationPlayableOutput avatarOutput;
+        AnimationLayerMixerPlayable holdLayers;
+        AnimationClipPlayable holdPlayable;
+        AnimationClip holdClip;
+        AvatarMask holdMask;
+        float holdWeight;
         Camera cam;
         CameraRig rig;
         bool rigWasEnabled, cameraTaken;
@@ -89,6 +102,8 @@ namespace Wreckabulary
         public bool CharactersVisible => charactersVisible;
         public bool ThemeEffectsEnabled => themeEffects;
         public Transform ItemPreview => itemPreview;
+        public Transform HeldItem => heldItem;
+        public bool IsHoldingItem => heldItem;
         public LobbyRoom Room => room;
         public LobbyWreck Wreck => wreck;
         public float VisibleRight => cam && panel > 0f && targetSide > .5f ? Mathf.Clamp01(1f - panel / cam.aspect) : 1f;
@@ -124,6 +139,7 @@ namespace Wreckabulary
             if (!library || !library.Find("Items/" + word)) return false;
             if (itemPreview && previewWord == word && previewSkin == skin) return true;
             ClearItemPreview();
+            ClearHeldItem();
             itemPreview = new GameObject("Lobby item preview").transform;
             itemPreview.SetParent(transform, false);
             var pivot = new GameObject("Preview model").transform;
@@ -158,6 +174,123 @@ namespace Wreckabulary
                 Destroy(itemPreview.gameObject);
             }
             itemPreview = null; itemStand = null; previewWord = previewSkin = null;
+        }
+
+        public bool HoldItem(string word, string skin)
+        {
+            if (string.IsNullOrWhiteSpace(word)) return false;
+            word = word.ToUpperInvariant();
+            if (!GameConfig.Current.Items.TryGet(word, out var item) || !item.HasSkin(skin) || string.IsNullOrEmpty(item.Model)) return false;
+            var library = ModelLibrary.Load();
+            var source = library ? library.Find(item.Model) : null;
+            if (!source || !avatar || !rightGrip) return false;
+            if (heldItem && heldWord == word && heldSkin == skin) return true;
+            ClearHeldItem();
+            ClearItemPreview();
+            if (!handAnchor)
+            {
+                handAnchor = new GameObject("Lobby hand anchor").transform;
+                handAnchor.SetParent(avatarRoot, false);
+            }
+            heldItem = new GameObject("Lobby held item").transform;
+            heldItem.SetParent(handAnchor, false);
+            var model = ModelVisual.Spawn(item.Model, heldItem, skin);
+            if (!model) { ClearHeldItem(); return false; }
+            SeatHeldModel(item, model.transform, source.transform);
+            var turn = HeldItemPose.Turn(item);
+            heldItem.localScale = Vector3.one * item.HeldScale;
+            heldItem.SetLocalPositionAndRotation(-(turn * HeldItemPose.Grip(item)) * item.HeldScale, turn);
+            heldWord = word; heldSkin = skin;
+            PlayHoldPose(library.FindClip(AvatarKey, item.IsTwoHanded ? CarryTwoHandClip : HoldOneHandClip));
+            FollowHand();
+            return true;
+        }
+
+        public void ClearHeldItem()
+        {
+            if (heldItem)
+            {
+                heldItem.gameObject.SetActive(false);
+                TactileMaterials.Release(heldItem.gameObject);
+                Destroy(heldItem.gameObject);
+            }
+            heldItem = null; heldWord = heldSkin = null;
+        }
+
+        static void SeatHeldModel(ItemDefinition item, Transform model, Transform source)
+        {
+            var hold = ItemHolds.For(item.Id);
+            if (hold == null || hold.ModelYaw == 0f && hold.ModelShift == null) return;
+            var turn = Quaternion.Euler(0f, hold.ModelYaw, 0f);
+            var shift = hold.ModelShift == null ? Vector3.zero : new Vector3(hold.ModelShift[0], hold.ModelShift[1], hold.ModelShift[2]);
+            model.SetLocalPositionAndRotation(turn * source.localPosition + shift, turn * source.localRotation);
+        }
+
+        void FollowHand()
+        {
+            if (!heldItem || !rightGrip) return;
+            handAnchor.SetPositionAndRotation(rightGrip.position, rightGrip.rotation * gripCorrection);
+        }
+
+        void PlayHoldPose(AnimationClip clip)
+        {
+            if (!graph.IsValid() || !clip) return;
+            if (!holdLayers.IsValid()) BuildHoldLayer();
+            if (holdPlayable.IsValid() && holdClip == clip) return;
+            if (holdPlayable.IsValid())
+            {
+                graph.Disconnect(holdLayers, HoldLayer);
+                graph.DestroyPlayable(holdPlayable);
+            }
+            holdPlayable = AnimationClipPlayable.Create(graph, clip);
+            holdPlayable.SetApplyFootIK(false);
+            holdClip = clip;
+            graph.Connect(holdPlayable, 0, holdLayers, HoldLayer);
+            holdLayers.SetInputWeight(HoldLayer, holdWeight);
+        }
+
+        void BuildHoldLayer()
+        {
+            holdLayers = AnimationLayerMixerPlayable.Create(graph, 2);
+            avatarOutput.SetSourcePlayable(holdLayers);
+            graph.Connect(animationMixer, 0, holdLayers, BodyLayer);
+            holdLayers.SetInputWeight(BodyLayer, 1f);
+            holdMask = UpperBodyMask(avatar.GetComponentInChildren<Animator>(true).transform);
+            holdLayers.SetLayerMaskFromAvatarMask(HoldLayer, holdMask);
+        }
+
+        static AvatarMask UpperBodyMask(Transform animatorRoot)
+        {
+            var bones = animatorRoot.GetComponentsInChildren<Transform>(true);
+            var mask = new AvatarMask { name = "Lobby upper body", transformCount = bones.Length };
+            for (int i = 0; i < bones.Length; i++)
+            {
+                string path = "";
+                bool upper = false;
+                for (var at = bones[i]; at && at != animatorRoot; at = at.parent)
+                {
+                    path = path.Length == 0 ? at.name : at.name + "/" + path;
+                    if (at.name == UpperBodyBone) upper = true;
+                }
+                mask.SetTransformPath(i, path);
+                mask.SetTransformActive(i, upper);
+            }
+            return mask;
+        }
+
+        void StepHoldPose()
+        {
+            if (!holdLayers.IsValid()) return;
+            float target = heldItem && holdPlayable.IsValid() && !IsEmoting ? 1f : 0f;
+            if (holdWeight == target) return;
+            holdWeight = Mathf.MoveTowards(holdWeight, target, HoldBlendPerSecond * Time.unscaledDeltaTime);
+            holdLayers.SetInputWeight(HoldLayer, holdWeight);
+        }
+
+        void DropHoldPose()
+        {
+            holdWeight = 0f;
+            if (holdLayers.IsValid()) holdLayers.SetInputWeight(HoldLayer, 0f);
         }
 
         public void Show(string mapId, Outfit outfit)
@@ -198,13 +331,14 @@ namespace Wreckabulary
         public void SetPartyVisible(bool visible)
         {
             partyVisible = visible;
+            if (visible) ClearHeldItem();
             PlaceParty();
         }
 
         public void SetCharactersVisible(bool visible)
         {
             charactersVisible = visible;
-            if (!visible) StopEmote();
+            if (!visible) { StopEmote(); ClearHeldItem(); }
             if (avatarRoot) avatarRoot.gameObject.SetActive(visible);
             if (graph.IsValid())
             {
@@ -292,6 +426,8 @@ namespace Wreckabulary
             avatar = ModelVisual.Spawn(AvatarKey, avatarRoot);
             if (!avatar) return false;
             meshes = avatar.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            rightGrip = ModelVisual.FindNamed(avatar, RightGripBone);
+            if (rightGrip) gripCorrection = Quaternion.Inverse(rightGrip.rotation) * avatarRoot.rotation;
             var animator = avatar.GetComponentInChildren<Animator>(true);
             var idle = library.FindClip(AvatarKey, "Idle");
             if (animator && idle)
@@ -303,8 +439,8 @@ namespace Wreckabulary
                 animationMixer = AnimationMixerPlayable.Create(graph, 2);
                 graph.Connect(AnimationClipPlayable.Create(graph, idle), 0, animationMixer, 0);
                 animationMixer.SetInputWeight(0, 1f);
-                var output = AnimationPlayableOutput.Create(graph, "Lobby avatar", animator);
-                output.SetSourcePlayable(animationMixer);
+                avatarOutput = AnimationPlayableOutput.Create(graph, "Lobby avatar", animator);
+                avatarOutput.SetSourcePlayable(animationMixer);
                 if (charactersVisible) graph.Play();
             }
             avatarRoot.gameObject.SetActive(charactersVisible);
@@ -339,6 +475,12 @@ namespace Wreckabulary
         }
 
         void Update()
+        {
+            StepEmote();
+            StepHoldPose();
+        }
+
+        void StepEmote()
         {
             if (!IsEmoting) return;
             if (!IsPresenting) { StopEmote(); return; }
@@ -581,6 +723,8 @@ namespace Wreckabulary
         {
             StopEmote();
             ClearItemPreview();
+            ClearHeldItem();
+            DropHoldPose();
             if (!cameraTaken) return;
             if (cam)
             {
@@ -602,6 +746,7 @@ namespace Wreckabulary
             yaw = Mathf.Lerp(yaw, targetYaw, k);
             side = Mathf.Lerp(side, targetSide, snap ? 1f : 1f - Mathf.Exp(-7f * Time.unscaledDeltaTime));
             PlaceParty();
+            FollowHand();
             if (itemPreview)
             {
                 var rightOfAvatar = Vector3.Cross(Vector3.up, -toCamera.normalized);
@@ -655,6 +800,7 @@ namespace Wreckabulary
             foreach (var guest in guests) if (guest.graph.IsValid()) guest.graph.Destroy();
             TactileMaterials.Release(gameObject);
             if (lookProfile) Destroy(lookProfile);
+            if (holdMask) Destroy(holdMask);
             if (skyTexture) Destroy(skyTexture);
             if (softTexture) Destroy(softTexture);
         }
