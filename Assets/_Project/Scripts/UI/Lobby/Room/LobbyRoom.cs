@@ -6,11 +6,6 @@ using Wreckabulary.Art;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// The lobby's own room: a half-packed moving-day living room built from the game's furniture and
-    /// surfaces. The avatar stands at the local origin and the camera looks down +Z. Themes re-dress it
-    /// (walls, window, light and a few props) instead of swapping in a painted backdrop.
-    /// </summary>
     [DisallowMultipleComponent]
     public sealed class LobbyRoom : MonoBehaviour
     {
@@ -194,7 +189,6 @@ namespace Wreckabulary
 
         static Mesh pennant;
 
-        /// <summary>A double-sided downward triangle, 1 unit wide and tall, hanging from its top edge.</summary>
         static Mesh Pennant()
         {
             if (pennant) return pennant;
@@ -241,7 +235,6 @@ namespace Wreckabulary
             return prop;
         }
 
-        /// <summary>Writes a moving-box label in marker on the box side that faces the camera (-Z).</summary>
         static void Label(Transform box, string text, Color ink)
         {
             var renderers = box.GetComponentsInChildren<Renderer>();
@@ -327,7 +320,6 @@ namespace Wreckabulary
             return go;
         }
 
-        /// <summary>A flat UI picture of a theme's room for shop cards: wall, window, wainscot and floor.</summary>
         public static RectTransform Swatch(Transform parent, string theme)
         {
             var look = LookOf(theme);

@@ -3,24 +3,16 @@ using UnityEngine;
 
 namespace Wreckabulary.Art
 {
-    /// <summary>
-    /// Code-built wardrobe pieces that hang from the head bone. A wardrobe piece uses one by naming
-    /// its "rigid" art "Cute_…". The tinted parts use the material "cute_main", so list that as the
-    /// piece's tint to let the colour picker recolour them.
-    /// </summary>
     public static class CuteWear
     {
         public const string Prefix = "Cute_";
         public const string TintMaterial = "cute_main";
         static readonly Vector3 EyeL = new Vector3(-.074f, .04f, 0f), EyeR = new Vector3(.074f, .04f, 0f);
 
-        // Hair pieces ("Cute_Hair_<style>") build a CuteHair; eye pieces ("Cute_Eyes_<style>") are empty
-        // markers that CuteFace reads to pick its eye style.
         public const string HairPrefix = "Cute_Hair_", EyesPrefix = "Cute_Eyes_";
 
         public static bool Handles(string rigid) => !string.IsNullOrEmpty(rigid) && rigid.StartsWith(Prefix, System.StringComparison.Ordinal);
 
-        /// <summary>Ears, bows, flowers and sprouts: decor that sits on top of the head.</summary>
         public static bool IsHeadDecor(string rigid) => Handles(rigid) &&
             !rigid.StartsWith(HairPrefix, System.StringComparison.Ordinal) && !rigid.StartsWith(EyesPrefix, System.StringComparison.Ordinal) &&
             !rigid.Contains("Specs") && !rigid.Contains("Shades");
@@ -64,7 +56,6 @@ namespace Wreckabulary.Art
 
         static void Specs(Transform root, Material frame, List<Vector2> lensShape, Material lens)
         {
-            // Rims sit close to the face and are wide enough to go round the whole eye.
             const float Out = .013f;
             foreach (var eye in new[] { EyeL, EyeR })
             {
@@ -77,14 +68,11 @@ namespace Wreckabulary.Art
                 CuteShapes.Part(root, "Rim", CuteShapes.Tube(rim, .0075f, true, 8), frame, Vector3.zero, Quaternion.identity, Vector3.one);
                 if (lens) CuteShapes.Part(root, "Lens", CuteShapes.Slab(outline, .006f), lens, centre, facing, Vector3.one);
 
-                // The arm leaves the rim's outer edge a little above the middle, steps back past the
-                // lens, then curves back close to the head and slips under the hair at the temple.
                 float side = Mathf.Sign(eye.x);
                 var corner = shape[0];
                 foreach (var p in shape) if (side * p.x + .35f * p.y > side * corner.x + .35f * corner.y) corner = p;
                 var start = centre + facing * new Vector3(corner.x, corner.y, 0f);
                 var hinge = centre + facing * new Vector3(corner.x + side * .006f, corner.y, -.008f);
-                // Glide from the hinge's height over the face down to just under the hair surface.
                 var from = (hinge - CuteShapes.HeadCentre).normalized;
                 var to = new Vector3(side, (hinge.y - CuteShapes.HeadCentre.y) / CuteShapes.HeadRadii.y, .25f).normalized;
                 float rise = Vector3.Distance(hinge, CuteShapes.OnHead(from, 0f, out _));
@@ -112,7 +100,6 @@ namespace Wreckabulary.Art
             return grown;
         }
 
-        // Chaikin corner cutting: softens a pointy outline into a rounded one.
         static List<Vector2> Rounded(List<Vector2> outline, int passes)
         {
             for (int pass = 0; pass < passes; pass++)

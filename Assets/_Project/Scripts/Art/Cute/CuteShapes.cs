@@ -3,13 +3,8 @@ using UnityEngine;
 
 namespace Wreckabulary.Art
 {
-    /// <summary>
-    /// Small shape kit for the code-built face and accessories. Everything is placed in the
-    /// avatar's head-bone space, where the face looks along -Z and +Y is up.
-    /// </summary>
     public static class CuteShapes
     {
-        // Skin part of SK_Head in head-bone space (Avatar.fbx bind pose).
         public static readonly Vector3 HeadCentre = new Vector3(0f, .06f, -.04f);
         public static readonly Vector3 HeadRadii = new Vector3(.224f, .215f, .175f);
 
@@ -19,7 +14,6 @@ namespace Wreckabulary.Art
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() { sphere = null; cone = null; materials.Clear(); }
 
-        /// <summary>Point on the front of the head at (x, y), pushed out along the surface normal.</summary>
         public static Vector3 OnFace(float x, float y, float lift, out Vector3 normal)
         {
             var c = HeadCentre; var r = HeadRadii;
@@ -30,7 +24,6 @@ namespace Wreckabulary.Art
             return p + normal * lift;
         }
 
-        /// <summary>Point where a ray from the head centre along dir meets the head, pushed out by lift.</summary>
         public static Vector3 OnHead(Vector3 dir, float lift, out Vector3 normal)
         {
             dir.Normalize();
@@ -49,7 +42,6 @@ namespace Wreckabulary.Art
 
         static float Sq(float x) => x * x;
 
-        /// <summary>Rotation whose +Y follows the surface normal and +Z faces forward out of the face.</summary>
         public static Quaternion Upright(Vector3 normal)
         {
             var forward = Vector3.ProjectOnPlane(Vector3.back, normal);
@@ -57,7 +49,6 @@ namespace Wreckabulary.Art
             return Quaternion.LookRotation(forward, normal);
         }
 
-        /// <summary>Rotation whose +Z points out along the surface normal and +Y stays as close to up as it can.</summary>
         public static Quaternion Facing(Vector3 normal) => Quaternion.LookRotation(normal, Vector3.up);
 
         public static Mesh Sphere => sphere ? sphere : sphere = BuiltinSphere();
@@ -71,10 +62,8 @@ namespace Wreckabulary.Art
             return mesh;
         }
 
-        /// <summary>Unit cone: base radius .5 at y = 0, rounded tip at y = 1.</summary>
         public static Mesh Cone => cone ? cone : cone = BuildCone(20);
 
-        /// <summary>A plump gumdrop: base radius .5 at y = 0, bulging sides, a round tip at y = 1.</summary>
         public static Mesh Puff => puff ? puff : puff = BuildPuff(24, 14);
         static Mesh puff;
 
@@ -137,7 +126,6 @@ namespace Wreckabulary.Art
             return mesh;
         }
 
-        /// <summary>A round tube along a path of points.</summary>
         public static Mesh Tube(IList<Vector3> path, float radius, bool closed, int sides = 10)
         {
             var verts = new List<Vector3>(); var tris = new List<int>();
@@ -190,7 +178,6 @@ namespace Wreckabulary.Art
             }
         }
 
-        /// <summary>A flat puffy shape from an outline that every point of can see the origin, thickness along Z.</summary>
         public static Mesh Slab(IList<Vector2> outline, float thickness)
         {
             var verts = new List<Vector3>(); var tris = new List<int>();
@@ -254,7 +241,6 @@ namespace Wreckabulary.Art
             return list;
         }
 
-        /// <summary>A shared material made from a URP Lit template, with its own name so tinting can find it.</summary>
         public static Material Paint(Material template, string name, Color colour, float smoothness, float glow = 0f)
         {
             if (materials.TryGetValue(name, out var cached) && cached) return cached;
@@ -279,7 +265,6 @@ namespace Wreckabulary.Art
             return material;
         }
 
-        /// <summary>A copy of a material that draws nothing (alpha-clipped away), used to hide painted-on eyes.</summary>
         public static Material Hidden(Material template)
         {
             const string name = "cute_hidden";

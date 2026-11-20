@@ -317,7 +317,6 @@ namespace Wreckabulary
             lockerList.anchoredPosition = new Vector2(0, scrolled);
             AddLockerScrollbar(view, lockerList.GetComponentInParent<ScrollRect>());
 
-            // One card per slot, grouped so the face comes first, then things worn on top, then clothes.
             var slots = wardrobe.Slots.Where(s => wardrobe.PiecesFor(s).Count() > 1).ToList();
             var shown = new HashSet<string>();
             foreach (var (group, members) in LockerGroups)
@@ -406,7 +405,6 @@ namespace Wreckabulary
             }).ToList();
         }
 
-        // Hair and eye pieces are named after their style, so the colour chip says "Hair" instead.
         string PartName(string slot) => slot == "Hair" || slot == "Eyes" ? slot :
             Menu.Outfit.PieceIn(slot) is string piece ? GameConfig.Current.Wardrobe.NameOf(piece) : slot;
 
@@ -441,8 +439,6 @@ namespace Wreckabulary
             label.Size(-1, 30);
         }
 
-        // A white card per slot: the slot name with what's worn now, then every choice as a chip in an
-        // even three-column grid. The worn chip is filled pink with a tick; locked ones show a padlock.
         void PiecePicker(Transform parent, string slot)
         {
             const int PerRow = 3;
@@ -736,6 +732,7 @@ namespace Wreckabulary
                 var label = LobbyKit.Text(state, worn ? "WEARING" : "OWNED", 13, worn ? LobbyKit.Owned : LobbyKit.CardSub,
                     TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
                 label.characterSpacing = 1;
+                label.enableAutoSizing = true; label.fontSizeMin = 10; label.fontSizeMax = 13;
                 label.Size(-1, 20);
             }
             else
@@ -882,8 +879,6 @@ namespace Wreckabulary
             if (item.Deploy?.Effect == DeployEffect.WindField) return "Forward gust · pushes everyone";
             if (item.Deploy?.Effect == DeployEffect.SlowField) return "Slowing field · affects everyone";
             if (item.Thrown?.FuseSeconds > 0f) return "Delayed blast · clear the room";
-            if (item.Ranged != null) return $"Hold to draw · {item.Ranged.Damage:0}-{item.Ranged.FullDamage:0} damage";
-            if (item.Deploy?.Effect == DeployEffect.Stash) return "Bank letters for your team";
             if (item.Consumable && item.Thrown != null) return "One throw · one splat";
             return Blurb(item.Family);
         }

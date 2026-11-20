@@ -377,7 +377,6 @@ namespace Wreckabulary
                 selected ? LobbyKit.Selection : LobbyKit.Line, selected ? 3 : 1, 0);
             var press = card.GetComponent<LobbyPress>();
             press.Lift = 0; press.Tilt = 0; press.Sink = 1;
-            // Postcards: a perforated edge round every card; the chosen one is franked with a red stamp.
             var ink = selected ? LobbyParcel.Stamp : LobbyKit.Line;
             LobbyParcel.Dashes(card.Body(), new Color(ink.r, ink.g, ink.b, selected ? .9f : .7f), 5f);
             if (selected)

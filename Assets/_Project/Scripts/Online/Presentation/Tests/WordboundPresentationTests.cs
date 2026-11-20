@@ -37,9 +37,10 @@ namespace Wreckabulary.Tests
             Assert.IsNotNull(correction, "Create the saved avatar surface correction before this native test.");
             var source = ModelLibrary.Load().Find(WordboundVisualResolver.AvatarKey);
             using var visual = resolver.Create("player", new Vector3(.7f, 1.8f, .7f), anchor.transform);
-            Mesh[] Read(GameObject root) => root.GetComponentsInChildren<MeshFilter>(true).Select(filter => filter.sharedMesh)
+            Mesh[] Read(GameObject root) => root.GetComponentsInChildren<MeshFilter>(true).Where(filter => !CuteFace.IsCodeBuilt(filter.transform)).Select(filter => filter.sharedMesh)
                 .Concat(root.GetComponentsInChildren<SkinnedMeshRenderer>(true).Select(renderer => renderer.sharedMesh)).ToArray();
             var expected = Read(source);
+            Assert.IsNotNull(visual.Model.GetComponentInChildren<CuteFace>(true), "online players wear the cute face too");
             Assert.AreNotSame(visual.Root, visual.Model);
             Assert.IsTrue(visual.Model.transform.IsChildOf(visual.Root.transform));
             Assert.IsTrue(correction.MatchesOnlyBoundHeadReplacement(source, visual.Root, expected, Read(visual.Root)));

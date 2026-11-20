@@ -44,7 +44,6 @@ namespace Wreckabulary
                 cacheForPlay = Application.isPlaying;
             }
             if (display || failed) return;
-            // The rounded Lilita One / Nunito pair is the house look; the saved profile (Roboto) is only a fallback.
             if (TryRounded()) return;
             var profile = Resources.Load<LobbyTypographyProfile>(LobbyTypographyProfile.ResourcePath);
             if (profile)

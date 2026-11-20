@@ -86,7 +86,7 @@ namespace Wreckabulary
             var back = LobbyKit.Pill(bar, BackToPlaylists, "Playlists", 18, ShowPlaylists);
             ((RectTransform)back.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-544, -22), new Vector2(-332, 22));
             var go = LobbyKit.Primary(bar, CreateRoom, "Create room",
-                () => Menu.HostFriendsRoom(selected.Mode, choice.Format, choice.Layout), 42, 26);
+                () => Menu.HostFriendsRoom(selected.Mode, choice.Format, choice.Layout), 36, 26);
             ((RectTransform)go.transform).Place(new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-316, -30), new Vector2(-8, 30));
             go.interactable = available;
             if (Aim != null)

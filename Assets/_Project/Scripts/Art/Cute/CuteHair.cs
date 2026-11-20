@@ -3,13 +3,6 @@ using UnityEngine;
 
 namespace Wreckabulary.Art
 {
-    /// <summary>
-    /// Code-built hair that sits on the avatar's head bone. Wardrobe "Hair" pieces build one through
-    /// <see cref="CuteWear"/> (rigid art "Cute_Hair_&lt;style&gt;"), and <see cref="CuteFace"/> keeps one as a
-    /// fallback for avatars dressed without a hair piece. The hair material is called
-    /// <see cref="MaterialName"/> so the wardrobe colour picker can tint it. Under a hat the hair swaps
-    /// to a flatter copy, and buns step aside for hats and head decor.
-    /// </summary>
     [DisallowMultipleComponent]
     public sealed class CuteHair : MonoBehaviour
     {
@@ -25,7 +18,6 @@ namespace Wreckabulary.Art
 
         public static Material Paint(Material template) => CuteShapes.Paint(template, MaterialName, DefaultColour, .55f);
 
-        /// <summary>Builds a hair group named <paramref name="name"/> under <paramref name="parent"/>.</summary>
         public static CuteHair Create(Transform parent, string name, string style, Material material)
         {
             if (!parent || !material) return null;
@@ -70,7 +62,6 @@ namespace Wreckabulary.Art
             if (buns && buns.gameObject.activeSelf == hideBuns) buns.gameObject.SetActive(!hideBuns);
         }
 
-        // Ears, bows and sprouts sit where the buns would, so the buns step aside for them.
         bool HeadDecorOn()
         {
             for (int i = 0; i < headBone.childCount; i++)
@@ -98,23 +89,12 @@ namespace Wreckabulary.Art
                 if (mesh) { if (Application.isPlaying) Destroy(mesh); else DestroyImmediate(mesh); }
         }
 
-        /// <summary>
-        /// A hairstyle: a base hairline around the head with rounded locks hanging below it. Each lock
-        /// has a round tip, neighbouring locks meet in a soft notch, and a shallow groove runs up the
-        /// hair from each notch, so the hair reads as a few chunky clumps rather than a painted cap.
-        /// </summary>
         public sealed class HairStyle
         {
             public string Id;
-            // Base hairline height (d.y from the head centre) at the front, the sides and the back,
-            // and the azimuths where the front line starts dropping and where the side height is reached.
             public float Front, Side, Back, FrontEnd = .5f, SideAt = 1.5f;
-            // Locks: centre azimuth (0 = front, ±π the back), half width (radians) and how far the tip
-            // hangs below the base line.
             public (float at, float half, float drop)[] Locks = new (float, float, float)[0];
-            // Extra fullness over the sides.
             public float Puff;
-            // Two round buns on top (hidden under hats and head decor).
             public bool Buns;
 
             public HairStyle Ring(int count, float drop, float offset = 0f)
@@ -166,8 +146,6 @@ namespace Wreckabulary.Art
 
         static float Wrap(float angle) => Mathf.Repeat(angle + Mathf.PI, Mathf.PI * 2f) - Mathf.PI;
 
-        // Hairline height at an azimuth, plus how much of a lock covers it (1 at a lock's middle,
-        // falling to 0 at its edge) and how strongly a groove between locks shows there.
         static float Hairline(HairStyle style, float azimuth, out float cover, out float groove)
         {
             float a = Mathf.Abs(azimuth);
@@ -188,8 +166,6 @@ namespace Wreckabulary.Art
             return Mathf.Clamp(line - drop, -.7f, .9f);
         }
 
-        // Hair stands well off the head (a full silhouette, not a painted cap), fullest at the crown
-        // and the back. Towards the edge each lock swells a little and the grooves between them dip.
         static float Thickness(HairStyle style, Vector3 d, float along, float cover, float groove, bool flat)
         {
             if (flat) return .007f;
@@ -217,8 +193,6 @@ namespace Wreckabulary.Art
                     var d = Around(edge * along, outward);
                     verts.Add(CuteShapes.OnHead(d, Thickness(style, d, along, cover, groove, flat), out _));
                 }
-                // Rolled rim: a quarter round from the outer surface down onto the skin, so each lock
-                // ends in a thick rounded tip.
                 float lift = Thickness(style, Around(edge, outward), 1f, cover, groove, flat);
                 for (int k = 1; k <= HairRim; k++)
                 {

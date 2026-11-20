@@ -1155,15 +1155,17 @@ namespace Wreckabulary.Tests
             var loadout = menu.Page<LoadoutPage>();
             var panel = loadout.Root.GetComponentsInChildren<RectTransform>().First(r => r.name == "Panel");
             Assert.AreEqual(LoadoutPage.Width, panel.rect.width, 1f, "the saved customization width");
-            foreach (string name in new[] { "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear", "Part Top", "Part Bottoms", "Colour tomato",
-                "Extra Face", "Satchel", "TBadge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
+            foreach (string name in new[] { "HairSwept", "HairBuns", "EyesSparkle", "EyesJelly", "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear",
+                "Glasses", "HeartShades", "StarShades", "No Face", "Part Top", "Part Bottoms", "Colour tomato",
+                "Satchel", "TBadge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
                 Find(name);
+            Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name == "No Hair" || b.name == "No Eyes"), "hair and eyes are always chosen");
             Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Slot ")),
                 "the full list stays available without extra modal slot pages");
             var list = loadout.Root.GetComponentsInChildren<ScrollRect>().Single();
             Assert.IsTrue(list.vertical && !list.horizontal);
             Assert.IsNotNull(list.verticalScrollbar, "long customization pages show their scroll position");
-            foreach (string name in new[] { "Extra Face", "Finish Classic", "Finish Candy", "Finish Arcade" })
+            foreach (string name in new[] { "Finish Classic", "Finish Candy", "Finish Arcade" })
                 Assert.GreaterOrEqual(((RectTransform)Find(name).transform).rect.height, 52f, "one readable option per row");
             var corners = new Vector3[4];
             panel.GetWorldCorners(corners);
@@ -1183,21 +1185,31 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator LockerExtrasHoodAndPartColours()
+        public IEnumerator LockerLookAccessoriesHoodAndPartColours()
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
             Click("LOADOUT");
             yield return null;
             Assert.IsNull(menu.Outfit.PieceIn("Face"), "no glasses to start");
-            Click("Extra Face");
+            Click("Glasses");
             yield return null;
-            Assert.AreEqual("Glasses", menu.Outfit.PieceIn("Face"), "the card puts the glasses on");
+            Assert.AreEqual("Glasses", menu.Outfit.PieceIn("Face"), "the round specs go on");
             Assert.AreEqual("Glasses", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).PieceIn("Face"), "saved");
-            Assert.AreSame(Find("Extra Face").gameObject, Selected, "a keyboard or controller stays on the card");
-            Click("Extra Face");
+            Assert.AreSame(Find("Glasses").gameObject, Selected, "a keyboard or controller stays on the choice");
+            Click("HeartShades");
             yield return null;
-            Assert.IsNull(menu.Outfit.PieceIn("Face"), "a second click takes them off");
+            Assert.AreEqual("HeartShades", menu.Outfit.PieceIn("Face"), "one face piece at a time");
+            Click("No Face");
+            yield return null;
+            Assert.IsNull(menu.Outfit.PieceIn("Face"), "No Face takes them off");
+            Click("HairBuns");
+            yield return null;
+            Assert.AreEqual("HairBuns", menu.Outfit.PieceIn("Hair"));
+            Click("EyesJelly");
+            yield return null;
+            Assert.AreEqual("EyesJelly", menu.Outfit.PieceIn("Eyes"));
+            Assert.AreEqual("HairBuns", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).PieceIn("Hair"), "hair is saved with the look");
 
             Assert.AreEqual("Hood", menu.Outfit.PieceIn("Headwear"));
             Click("Crewneck");

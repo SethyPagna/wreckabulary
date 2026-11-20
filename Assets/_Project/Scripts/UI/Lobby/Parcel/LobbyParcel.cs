@@ -3,21 +3,15 @@ using UnityEngine.UI;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// Moving-day stationery for the lobby: kraft cardboard grain, torn masking tape, postcard dashes and
-    /// shipping-label barcodes. Every texture is drawn here in code (tileable, a few KB each), so nothing
-    /// depends on painted art. <see cref="DressPage"/> applies it to a built page in one pass.
-    /// </summary>
     public static class LobbyParcel
     {
         public const string GrainName = "Kraft grain", TapeName = "Masking tape", StampName = "Postage stamp";
         public static readonly Color Ink = LobbyKit.Hex(0x3B2A1C), TapeColour = LobbyKit.Hex(0xF4E9C9, .88f);
         public static readonly Color Stamp = LobbyKit.Hex(0xD9583F), Kraft = LobbyKit.Hex(0xD9B98B);
-        const int GrainSize = 128;
+        internal const int GrainSize = 128;
         static Texture2D grain;
         static Sprite tape, dashes;
 
-        /// <summary>Kraft panels: grain, two strips of tape across the top corners. Safe to call twice.</summary>
         public static void Box(RectTransform panel, bool taped = true)
         {
             if (!panel) return;
@@ -27,7 +21,6 @@ namespace Wreckabulary
             Tape(panel, new Vector2(1f, 1f), new Vector2(-34f, -6f), -38f);
         }
 
-        /// <summary>Applies cardboard to every panel and grain to the top-bar pills of a built page.</summary>
         public static void DressPage(Transform root)
         {
             if (!root) return;
@@ -39,7 +32,6 @@ namespace Wreckabulary
                     LobbyTileWord.Replace(label, 40f);
         }
 
-        /// <summary>Dresses a big action button as a parcel label: dashed edge, barcode and a red stamp.</summary>
         public static void ShippingLabel(RectTransform body)
         {
             if (!body || body.Find("Postcard dashes")) return;
@@ -67,7 +59,7 @@ namespace Wreckabulary
             image.texture = GrainTexture();
             image.color = new Color(1f, 1f, 1f, strength);
             image.raycastTarget = false;
-            layer.gameObject.AddComponent<Tiler>();
+            layer.gameObject.AddComponent<LobbyParcelGrain>();
             return image;
         }
 
@@ -85,7 +77,6 @@ namespace Wreckabulary
             return image;
         }
 
-        /// <summary>A dashed postcard edge drawn inside <paramref name="rect"/>; the dashes tile, they never stretch.</summary>
         public static Image Dashes(RectTransform rect, Color colour, float inset = 7f)
         {
             var edge = LobbyKit.Rect(rect, "Postcard dashes").Place(Vector2.zero, Vector2.one, new Vector2(inset, inset), new Vector2(-inset, -inset));
@@ -100,7 +91,6 @@ namespace Wreckabulary
             return image;
         }
 
-        /// <summary>Barcode bars, deterministic per <paramref name="seed"/>, filling <paramref name="rect"/>.</summary>
         public static RectTransform Barcode(Transform parent, string seed, Color colour)
         {
             var root = LobbyKit.Rect(parent, "Barcode");
@@ -126,7 +116,7 @@ namespace Wreckabulary
             return root;
         }
 
-        static Texture2D GrainTexture()
+        internal static Texture2D GrainTexture()
         {
             if (grain) return grain;
             grain = new Texture2D(GrainSize, GrainSize, TextureFormat.RGBA32, false)
@@ -197,20 +187,6 @@ namespace Wreckabulary
             texture.Apply(false, true);
             return dashes = Sprite.Create(texture, new Rect(0, 0, S, S), new Vector2(.5f, .5f), 100f, 0, SpriteMeshType.FullRect,
                 new Vector4(Line, Line, Line, Line));
-        }
-
-        /// <summary>Keeps grain at one texel per UI unit however big the panel is.</summary>
-        [DisallowMultipleComponent]
-        sealed class Tiler : MonoBehaviour
-        {
-            void OnEnable() => Fit();
-            void OnRectTransformDimensionsChange() => Fit();
-            void Fit()
-            {
-                if (!TryGetComponent(out RawImage image)) return;
-                var size = ((RectTransform)transform).rect.size;
-                image.uvRect = new Rect(0f, 0f, Mathf.Max(1f, size.x) / GrainSize, Mathf.Max(1f, size.y) / GrainSize);
-            }
         }
     }
 }

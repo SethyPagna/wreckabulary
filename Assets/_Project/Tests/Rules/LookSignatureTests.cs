@@ -205,6 +205,25 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
+        public void HairAndEyesAreChosenButOutfitsSavedWithoutThemStillFit()
+        {
+            CollectionAssert.AreEquivalent(new[] { "Hair", "Eyes" }, w.FallbackSlots);
+            Assert.IsTrue(w.FallbackSlots.All(w.RequiredSlots.Contains));
+            Assert.AreEqual("HairSwept", w.Default.PieceIn("Hair"));
+            Assert.AreEqual("EyesSparkle", w.Default.PieceIn("Eyes"));
+            var old = Outfit.Deserialize("Back=Satchel:olive;Badge=TBadge;Bottoms=Joggers:olive;Footwear=Boots:forest;Gloves=Mittens:charcoal;Top=Hoodie:mint|");
+            Assert.IsEmpty(w.Problems(old));
+            Assert.IsNull(old.PieceIn("Hair"));
+            Assert.IsFalse(w.Choices(w.Default, "Hair").Contains(null), "hair has no None choice");
+            Assert.IsFalse(w.Choices(w.Default, "Eyes").Contains(null), "eyes have no None choice");
+            var bare = old.Clone();
+            bare.Pieces.Remove("Top");
+            Assert.IsFalse(w.Fits(bare), "other required slots still can't be empty");
+            Assert.AreEqual("Hoodie", w.Sanitize(bare).PieceIn("Top"));
+            Assert.AreEqual("Joggers", w.Sanitize(bare).PieceIn("Bottoms"));
+        }
+
+        [Test]
         public void TheLetterBadgeShowsTheSeatInitialUntilAPlayerPicksALetter()
         {
             var o = w.Default.Clone();

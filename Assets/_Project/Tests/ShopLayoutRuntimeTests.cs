@@ -60,7 +60,10 @@ namespace Wreckabulary.Tests
                     Assert.AreNotSame(savedTitle.font, card.Title.font);
                     Assert.AreNotSame(savedTitle.fontSharedMaterial, card.Title.fontSharedMaterial);
                     Assert.AreEqual(savedTitle.fontSize, card.Title.fontSize);
-                    Assert.AreEqual(savedTitle.color, card.Title.color);
+                    var frame = card.GetComponent<LobbyInterfaceFrame>();
+                    var binding = frame ? frame.Bindings.FirstOrDefault(b => b.Target == card.Title) : null;
+                    Assert.AreEqual(binding != null ? frame.Theme.Colours.Get(binding.Role) : savedTitle.color, card.Title.color,
+                        "the saved title takes the shared interface colour for its role");
                 }
             }
             Assert.Greater(shop.Root.GetComponentsInChildren<LobbyShopOfferView>().Length, 0, "The Looks shelf must contain actual saved offer-card instances.");

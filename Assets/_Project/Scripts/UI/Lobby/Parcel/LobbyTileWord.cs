@@ -4,11 +4,6 @@ using UnityEngine.UI;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// A heading spelled in wooden letter tiles, like the ones players pick up. When a new heading appears
-    /// it is spelled from the last one: tiles whose letter is reused slide across into place, new letters
-    /// drop in, and letters that are not needed tumble away. Unscaled time, no physics.
-    /// </summary>
     [DisallowMultipleComponent]
     public sealed class LobbyTileWord : MonoBehaviour
     {
@@ -51,7 +46,6 @@ namespace Wreckabulary
             return tileWord;
         }
 
-        /// <summary>Swaps a saved heading label for tiles at the same place and returns the new word.</summary>
         public static LobbyTileWord Replace(TMPro.TMP_Text label, float size)
         {
             if (!label) return null;
@@ -183,7 +177,6 @@ namespace Wreckabulary
             Settle();
         }
 
-        /// <summary>A wooden letter tile with the in-game tile's soft square corners (not the round kit chip).</summary>
         public static RectTransform Square(Transform parent, char letter, float size)
         {
             var tile = LobbyKit.Rect(parent, "Tile " + letter);
@@ -209,10 +202,6 @@ namespace Wreckabulary
             return 1f - .12f * (1f - v * v);
         }
 
-        /// <summary>
-        /// Called when the lobby moves to another page: remembers where the outgoing heading's tiles are,
-        /// so the next heading is spelled out of them. Rebuilding the same page never re-animates.
-        /// </summary>
         public static void Handoff(Transform outgoing)
         {
             last.Clear();

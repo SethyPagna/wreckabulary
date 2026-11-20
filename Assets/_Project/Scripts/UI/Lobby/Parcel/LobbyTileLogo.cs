@@ -7,11 +7,6 @@ using Wreckabulary.Art;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// The Home logo: WRECKABULARY spelled with the real 3D letter tiles from the game, lit and rendered by a
-    /// small camera of its own into a transparent texture shown in the UI. The tiles tumble into place when
-    /// the badge appears, bob gently, and now and then one hops and spins. Click it to wreck and rebuild it.
-    /// </summary>
     [DisallowMultipleComponent]
     public sealed class LobbyTileLogo : MonoBehaviour
     {
@@ -113,7 +108,6 @@ namespace Wreckabulary
             if (!model) { Destroy(root.gameObject); return null; }
             var bounds = ModelVisual.BoundsIn(holder, model);
             var size = bounds.size;
-            // Turned half way round so the letter face looks at the camera and reads upright.
             holder.localRotation = Quaternion.Euler(0f, 180f, 0f);
             float scale = Size / Mathf.Max(.001f, Mathf.Max(size.x, Mathf.Max(size.y, size.z)));
             holder.localScale = Vector3.one * scale;
@@ -122,7 +116,6 @@ namespace Wreckabulary
             return root;
         }
 
-        /// <summary>Drops every tile in again from above, one after another.</summary>
         public void Restart() { clock = 0f; foreach (var t in tiles) t.hop = -1f; }
 
         public void Tumble() => Restart();

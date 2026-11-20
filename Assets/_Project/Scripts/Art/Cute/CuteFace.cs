@@ -3,11 +3,6 @@ using UnityEngine;
 
 namespace Wreckabulary.Art
 {
-    /// <summary>
-    /// Swaps the avatar's painted eyes for a code-built cute face: big glossy eyes with sparkles,
-    /// blush cheeks and a small smile. Blinks follow the head's existing "Blink" blendshape, so the
-    /// expression driver keeps working unchanged.
-    /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(200)]
     public sealed class CuteFace : MonoBehaviour
@@ -84,10 +79,16 @@ namespace Wreckabulary.Art
             foreach (var t in root.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = face.gameObject.layer;
         }
 
+        public static bool IsCodeBuilt(Transform node)
+        {
+            for (var t = node; t; t = t.parent)
+                if (t.name == RootName || CuteWear.Handles(t.name)) return true;
+            return false;
+        }
+
         public static readonly string[] EyeStyles = { "Sparkle", "Button", "Dot", "Happy", "Starry", "Lashes", "Jelly" };
         public static string DefaultEyes = "Sparkle";
 
-        /// <summary>Rebuilds both eyes in another style (see <see cref="EyeStyles"/>).</summary>
         public void UseEyes(string id)
         {
             if (!root || !skinTemplate) return;
@@ -96,8 +97,6 @@ namespace Wreckabulary.Art
                 foreach (var t in eye.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = head.gameObject.layer;
         }
 
-        // Each eye is built in its own frame on the face: x across, y up, z out of the face.
-        // Blinks squash the whole frame vertically, so every style blinks the same way.
         void Eyes(string style)
         {
             foreach (var old in eyes) if (old) { if (Application.isPlaying) Destroy(old.gameObject); else DestroyImmediate(old.gameObject); }
@@ -112,7 +111,7 @@ namespace Wreckabulary.Art
             {
                 var at = CuteShapes.OnFace(side * EyeX, EyeY, .001f, out var normal);
                 var eye = CuteShapes.Group(root, side < 0 ? "Eye L" : "Eye R", at, CuteShapes.Facing(normal));
-                float outer = -side; // local x pointing away from the nose
+                float outer = -side;
                 void Part(string name, Material m, float x, float y, float z, float w, float h, float d) =>
                     CuteShapes.Part(eye, name, sphere, m, new Vector3(x, y, z), Quaternion.identity, new Vector3(w, h, d));
                 void Glossy()
@@ -185,7 +184,6 @@ namespace Wreckabulary.Art
 
         public static string DefaultHair = "Swept";
 
-        /// <summary>Rebuilds the fallback hair in another style.</summary>
         public void UseHair(string id)
         {
             if (!hairMaterial || !root) return;
@@ -202,8 +200,6 @@ namespace Wreckabulary.Art
             float closed = blink >= 0 ? Mathf.Clamp01(head.GetBlendShapeWeight(blink) / 100f) : 0f;
             var scale = new Vector3(1f, Mathf.Lerp(1f, .1f, closed), 1f);
             foreach (var eye in eyes) if (eye) eye.localScale = scale;
-            // Wardrobe hair and eye pieces hang on the head bone; when one is worn it wins over the
-            // fallback hair and the default eyes.
             string wornHair = null, wornEyes = null;
             for (int i = 0; i < headBone.childCount; i++)
             {
