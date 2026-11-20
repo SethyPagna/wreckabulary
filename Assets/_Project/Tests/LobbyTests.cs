@@ -140,13 +140,6 @@ namespace Wreckabulary.Tests
         static Transform Backdrop(LobbyStage stage) =>
             stage.GetComponentsInChildren<Transform>().FirstOrDefault(t => t.name.StartsWith("Lobby backdrop"));
 
-        static float DistanceToSegment(Vector3 point, Vector3 from, Vector3 to)
-        {
-            Vector2 p = new Vector2(point.x, point.z), a = new Vector2(from.x, from.z), b = new Vector2(to.x, to.z);
-            float t = Mathf.Clamp01(Vector2.Dot(p - a, b - a) / Mathf.Max(1e-6f, (b - a).sqrMagnitude));
-            return (p - (a + (b - a) * t)).magnitude;
-        }
-
         static float Height(string name, System.Type layout)
         {
             Canvas.ForceUpdateCanvases();
@@ -213,16 +206,17 @@ namespace Wreckabulary.Tests
             var menu = LobbyMenu.Instance;
             var stage = menu.Stage;
             Assert.AreEqual(LobbyMenu.Home, menu.Current);
-            Assert.AreEqual(Session.MapId, stage.Map, "the backdrop is the selected map");
-            Assert.IsNotNull(Backdrop(stage), "the map is built behind you");
+            Assert.AreEqual(Session.MapId, stage.Map, "the stage still records the selected map");
+            Assert.IsNotNull(Backdrop(stage), "the moving-day room is built behind you");
+            StringAssert.Contains(LobbyRoom.RoomName, Backdrop(stage).name, "one dedicated lobby room, whatever the map");
+            Assert.AreSame(stage.Room, Backdrop(stage).GetComponentInChildren<LobbyRoom>());
+            Assert.IsNotEmpty(stage.Room.Wreckable, "some furniture can wreck into its letters");
+            Assert.IsNotNull(stage.Wreck, "the wreck loop runs in the room");
             Assert.IsNotNull(stage.Avatar, "your avatar stands in it");
             Assert.Greater(stage.Spot.magnitude, 100f, "built well away from the hub room");
             Assert.AreSame(Camera.main, stage.Camera);
             Assert.IsFalse(stage.Camera.orthographic);
             AssertFramed(stage, "the camera looks at you");
-            var eye = stage.Camera.transform.position;
-            foreach (var rug in Backdrop(stage).GetComponentsInChildren<Transform>().Where(t => t.name is "RUG" or "Rug" || t.name.EndsWith("_Rug")))
-                Assert.Greater(DistanceToSegment(rug.position, eye, stage.Spot), 2f, $"{rug.name} at {rug.position} is clear of the view");
             Assert.IsFalse(Object.FindAnyObjectByType<PlayerJoinManager>().AllowJoining, "clicking the hub no longer joins players");
             Assert.IsEmpty(Object.FindAnyObjectByType<PlayerJoinManager>().Players, "bots never stand in the lobby");
 
@@ -914,9 +908,8 @@ namespace Wreckabulary.Tests
             CollectionAssert.AreEqual(new[] { other }, menu.Maps.Ticked, "untick the others to play one house");
             Assert.AreEqual(other, menu.Map);
             Assert.AreEqual(other, Session.MapId);
-            Assert.AreEqual(other, menu.Stage.Map, "the backdrop follows the map");
-            Assert.IsTrue(!oldBackdrop, "the old map is taken down");
-            StringAssert.Contains(GameConfig.Current.HouseFor(other).Name, Backdrop(menu.Stage).name);
+            Assert.AreEqual(other, menu.Stage.Map, "the stage records the new map");
+            Assert.AreSame(oldBackdrop, Backdrop(menu.Stage), "the lobby room stays the same; maps no longer rebuild it");
             StringAssert.Contains(GameConfig.Current.HouseFor(other).Name, menu.Describe(), "the selected match shows the current house");
             AssertFramed(menu.Stage, "you stand in the new map");
 
@@ -1162,15 +1155,17 @@ namespace Wreckabulary.Tests
             var loadout = menu.Page<LoadoutPage>();
             var panel = loadout.Root.GetComponentsInChildren<RectTransform>().First(r => r.name == "Panel");
             Assert.AreEqual(LoadoutPage.Width, panel.rect.width, 1f, "the saved customization width");
-            foreach (string name in new[] { "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear", "Part Top", "Part Bottoms", "Colour tomato",
-                "Extra Face", "Satchel", "TBadge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
+            foreach (string name in new[] { "HairSwept", "HairBuns", "EyesSparkle", "EyesJelly", "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear",
+                "Glasses", "HeartShades", "StarShades", "No Face", "Part Top", "Part Bottoms", "Colour tomato",
+                "Satchel", "TBadge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
                 Find(name);
+            Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name == "No Hair" || b.name == "No Eyes"), "hair and eyes are always chosen");
             Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Slot ")),
                 "the full list stays available without extra modal slot pages");
             var list = loadout.Root.GetComponentsInChildren<ScrollRect>().Single();
             Assert.IsTrue(list.vertical && !list.horizontal);
             Assert.IsNotNull(list.verticalScrollbar, "long customization pages show their scroll position");
-            foreach (string name in new[] { "Extra Face", "Finish Classic", "Finish Candy", "Finish Arcade" })
+            foreach (string name in new[] { "Finish Classic", "Finish Candy", "Finish Arcade" })
                 Assert.GreaterOrEqual(((RectTransform)Find(name).transform).rect.height, 52f, "one readable option per row");
             var corners = new Vector3[4];
             panel.GetWorldCorners(corners);
@@ -1190,21 +1185,31 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator LockerExtrasHoodAndPartColours()
+        public IEnumerator LockerLookAccessoriesHoodAndPartColours()
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
             Click("LOADOUT");
             yield return null;
             Assert.IsNull(menu.Outfit.PieceIn("Face"), "no glasses to start");
-            Click("Extra Face");
+            Click("Glasses");
             yield return null;
-            Assert.AreEqual("Glasses", menu.Outfit.PieceIn("Face"), "the card puts the glasses on");
+            Assert.AreEqual("Glasses", menu.Outfit.PieceIn("Face"), "the round specs go on");
             Assert.AreEqual("Glasses", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).PieceIn("Face"), "saved");
-            Assert.AreSame(Find("Extra Face").gameObject, Selected, "a keyboard or controller stays on the card");
-            Click("Extra Face");
+            Assert.AreSame(Find("Glasses").gameObject, Selected, "a keyboard or controller stays on the choice");
+            Click("HeartShades");
             yield return null;
-            Assert.IsNull(menu.Outfit.PieceIn("Face"), "a second click takes them off");
+            Assert.AreEqual("HeartShades", menu.Outfit.PieceIn("Face"), "one face piece at a time");
+            Click("No Face");
+            yield return null;
+            Assert.IsNull(menu.Outfit.PieceIn("Face"), "No Face takes them off");
+            Click("HairBuns");
+            yield return null;
+            Assert.AreEqual("HairBuns", menu.Outfit.PieceIn("Hair"));
+            Click("EyesJelly");
+            yield return null;
+            Assert.AreEqual("EyesJelly", menu.Outfit.PieceIn("Eyes"));
+            Assert.AreEqual("HairBuns", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).PieceIn("Hair"), "hair is saved with the look");
 
             Assert.AreEqual("Hood", menu.Outfit.PieceIn("Headwear"));
             Click("Crewneck");

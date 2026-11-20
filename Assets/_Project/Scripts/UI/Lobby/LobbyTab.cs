@@ -44,7 +44,9 @@ namespace Wreckabulary
             face.color = Color.clear;
             gradient.enabled = false;
             drop.enabled = false;
-            edge.enabled = on || hot || down;
+            bool stamped = on && Style == Look.Slab;
+            Stamp(stamped);
+            edge.enabled = !stamped && (on || hot || down);
             edge.type = Image.Type.Simple;
             edge.sprite = null;
             var underline = edge.rectTransform;
@@ -54,11 +56,30 @@ namespace Wreckabulary
             underline.offsetMax = new Vector2(-8, on ? 5 : 3);
             var accent = LobbyKit.Selection;
             edge.color = accent;
-            var ink = on || hot ? LobbyKit.Cyan : LobbyKit.Navy;
+            var ink = stamped ? LobbyParcel.Stamp : on || hot ? LobbyKit.Cyan : LobbyKit.Navy;
             if (label) label.color = ink;
             if (glyph) glyph.color = ink;
             press.Scale = 1f;
             press.Lift = on ? 0f : 2f;
+        }
+
+        RectTransform stamp;
+
+        void Stamp(bool show)
+        {
+            if (!show) { if (stamp) stamp.gameObject.SetActive(false); return; }
+            if (!stamp)
+            {
+                stamp = LobbyKit.Rect(face.rectTransform, LobbyParcel.StampName).Place(Vector2.zero, Vector2.one, new Vector2(6, 4), new Vector2(-6, -4));
+                stamp.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+                stamp.SetSiblingIndex(0);
+                stamp.localRotation = Quaternion.Euler(0f, 0f, ((name.Length * 7) % 5 - 2) * .9f);
+                var paper = stamp.gameObject.AddComponent<Image>();
+                paper.color = LobbyKit.Hex(0xFFF6E8);
+                paper.raycastTarget = false;
+                LobbyParcel.Dashes(stamp, LobbyParcel.Stamp, 3f);
+            }
+            stamp.gameObject.SetActive(true);
         }
     }
 }

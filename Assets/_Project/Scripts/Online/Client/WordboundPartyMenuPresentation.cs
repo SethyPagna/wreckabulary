@@ -80,8 +80,7 @@ namespace Wreckabulary.Online
         {
             if (Event.current.type != EventType.Repaint) return;
             var settings = ui.ConfigurationError.Length == 0 ? Theme : null;
-            Texture2D background = settings && settings.OnlineBackground ? settings.OnlineBackground :
-                !settings || settings.OnlineUseLobbyBackground ? LobbyThemes.Current.Background : null;
+            Texture2D background = settings && settings.OnlineBackground ? settings.OnlineBackground : null;
             if (!background) return;
             var previous = GUI.color;
             try

@@ -58,7 +58,8 @@ namespace Wreckabulary
         RawImage backdrop, contactShadow;
         RectTransform effectLayer;
         readonly ThemeMote[] motes = new ThemeMote[14];
-        readonly List<(Renderer renderer, bool hidden)> mapRenderers = new();
+        LobbyRoom room;
+        LobbyWreck wreck;
         Volume look;
         VolumeProfile lookProfile;
         Light key, fill, rim;
@@ -88,6 +89,9 @@ namespace Wreckabulary
         public bool CharactersVisible => charactersVisible;
         public bool ThemeEffectsEnabled => themeEffects;
         public Transform ItemPreview => itemPreview;
+        public LobbyRoom Room => room;
+        public LobbyWreck Wreck => wreck;
+        public float VisibleRight => cam && panel > 0f && targetSide > .5f ? Mathf.Clamp01(1f - panel / cam.aspect) : 1f;
         public bool IsPresenting => cameraTaken && isActiveAndEnabled;
         public bool IsEmoting => graph.IsValid() && emotePlayable.IsValid();
 
@@ -97,10 +101,8 @@ namespace Wreckabulary
         public void ShowArtwork(bool show)
         {
             artwork = show;
-            foreach (var entry in mapRenderers)
-                if (entry.renderer) entry.renderer.forceRenderingOff = show || entry.hidden;
-            if (backdrop) { backdrop.texture = show && LobbyThemes.Current.Background ? LobbyThemes.Current.Background : skyTexture; imageAspect = -1f; }
-            if (contactShadow) contactShadow.enabled = show && charactersVisible;
+            if (backdrop) { backdrop.texture = skyTexture; imageAspect = -1f; }
+            if (contactShadow) contactShadow.enabled = charactersVisible;
             if (effectLayer) effectLayer.gameObject.SetActive(show && themeEffects);
             if (lookProfile && lookProfile.TryGet<DepthOfField>(out var depth))
                 depth.mode.Override(show ? DepthOfFieldMode.Off : DepthOfFieldMode.Gaussian);
@@ -168,71 +170,22 @@ namespace Wreckabulary
         public void SetMap(string mapId)
         {
             LoadCameraProfile();
-            if (Map == mapId && set) return;
             if (string.IsNullOrEmpty(mapId) || !GameConfig.Current.Houses.ContainsKey(mapId))
                 foreach (var key in GameConfig.Current.Houses.Keys) { mapId = key; break; }
-            var layout = GameConfig.Current.HouseFor(mapId);
-            if (set) { set.gameObject.SetActive(false); TactileMaterials.Release(set.gameObject); Destroy(set.gameObject); }
-            set = new GameObject("Lobby backdrop · " + layout.Name).transform;
-            set.SetParent(transform, false);
-            var geometry = RoomBuilder.CreateGeometry(layout, mapId, set);
-            var room = OpenRoom(layout);
-            int storey = layout.StoreyOf(room);
-            foreach (Transform group in geometry)
-                for (int above = storey + 1; above < layout.StoreyFloors().Count; above++)
-                    if (group.name == RoomBuilder.StoreyName(above)) group.gameObject.SetActive(false);
-            foreach (var child in geometry.GetComponentsInChildren<Transform>(true))
-            {
-                var p = set.InverseTransformPoint(child.position);
-                if (child.name == "Rug" && Mathf.Abs(p.y - room.FloorY) < 1f && p.x > room.MinX && p.x < room.MaxX && p.z > room.MinZ && p.z < room.MaxZ)
-                { child.gameObject.SetActive(false); Destroy(child.gameObject); }
-            }
-            float depth = room.MaxZ - room.MinZ;
-            float distance = Mathf.Min(cameraDistance, depth * .62f);
-            var local = new Vector3((room.MinX + room.MaxX) * .5f, room.FloorY, Mathf.Min(room.MaxZ - 1.6f, room.MinZ + .45f + distance + depth * .12f));
-            toCamera = new Vector3(0f, 0f, -distance);
-            Furnish(layout, storey, local, local + toCamera);
-            mapRenderers.Clear();
-            foreach (var renderer in set.GetComponentsInChildren<Renderer>(true)) mapRenderers.Add((renderer, renderer.forceRenderingOff));
-            set.position = Origin;
-            spot = Origin + local;
             Map = mapId;
+            if (set) return;
+            set = new GameObject("Lobby backdrop · " + LobbyRoom.RoomName).transform;
+            set.SetParent(transform, false);
+            room = LobbyRoom.Build(set);
+            room.Dress(LobbyThemes.Current);
+            wreck = set.gameObject.AddComponent<LobbyWreck>();
+            wreck.Init(room, this);
+            toCamera = new Vector3(0f, 0f, -cameraDistance);
+            set.position = Origin;
+            spot = Origin;
             if (avatarRoot) avatarRoot.position = spot;
             ShowArtwork(artwork);
             Place(true);
-        }
-
-        static RoomBox OpenRoom(HouseLayout layout) =>
-            (layout.LobbyRoom != null ? layout.Room(layout.LobbyRoom) : null)
-            ?? layout.Rooms.Where(r => layout.StoreyOf(r) == 0)
-                .OrderByDescending(r => Mathf.Min(r.MaxX - r.MinX, r.MaxZ - r.MinZ)).ThenBy(r => r.Name, System.StringComparer.Ordinal).First();
-
-        void Furnish(HouseLayout layout, int storey, Vector3 stand, Vector3 eye)
-        {
-            var library = ModelLibrary.Load();
-            if (!library) return;
-            var decor = new GameObject("Furniture").transform;
-            decor.SetParent(set, false);
-            foreach (var f in layout.Furniture)
-            {
-                if (layout.StoreyOf(layout.Room(f.Room)) > storey) continue;
-                var at = new Vector3(f.X, layout.Room(f.Room).FloorY + f.Y, f.Z);
-                float clear = f.Word == "RUG" ? 2.2f : 1.1f;
-                if (DistanceToSegment(new Vector2(at.x, at.z), new Vector2(eye.x, eye.z), new Vector2(stand.x, stand.z)) < clear) continue;
-                string key = f.Word == "RUG" ? "Environment/Round_Rug" : "Items/" + f.Word.ToUpperInvariant();
-                if (!library.Find(key)) continue;
-                var root = new GameObject(f.Word).transform;
-                root.SetParent(decor, false);
-                root.SetPositionAndRotation(at, Quaternion.Euler(0f, f.Yaw, 0f));
-                ModelVisual.Spawn(key, root);
-            }
-        }
-
-        static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
-        {
-            var ab = b - a;
-            float t = ab.sqrMagnitude < 1e-6f ? 0f : Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
-            return (p - (a + ab * t)).magnitude;
         }
 
         public void Dress(Outfit outfit)
@@ -257,7 +210,7 @@ namespace Wreckabulary
             {
                 if (visible) graph.Play(); else graph.Stop();
             }
-            if (contactShadow) contactShadow.enabled = visible && artwork;
+            if (contactShadow) contactShadow.enabled = visible;
             PlaceParty();
         }
 
@@ -314,7 +267,7 @@ namespace Wreckabulary
                 {
                     if (show) guest.graph.Play(); else guest.graph.Stop();
                 }
-                guest.shadow.enabled = show && artwork;
+                guest.shadow.enabled = show;
                 if (!show) continue;
                 guest.root.SetPositionAndRotation(spot + right * PartyOffset(i + 1, count), rotation);
                 guest.root.localScale = Vector3.one * scale;
@@ -521,6 +474,7 @@ namespace Wreckabulary
             if (cam && cameraTaken) cam.backgroundColor = theme.Surface;
             if (rim) rim.color = Color.Lerp(Color.white, theme.Secondary, .22f);
             if (itemStand) itemStand.sharedMaterial = GameAssets.I.Tinted(theme.Surface);
+            if (room) room.Dress(theme);
             for (int i = 0; i < motes.Length; i++)
             {
                 var mote = motes[i];
@@ -557,21 +511,9 @@ namespace Wreckabulary
             if (imageAspect != cam.aspect)
             {
                 imageAspect = cam.aspect;
-                float source = backdrop.texture ? (float)backdrop.texture.width / backdrop.texture.height : cam.aspect;
-                if (!artwork) backdrop.uvRect = new Rect(0f, 0f, 1f, 1f);
-                else if (source > cam.aspect)
-                {
-                    float width = cam.aspect / source;
-                    backdrop.uvRect = new Rect((1f - width) * .5f, 0f, width, 1f);
-                }
-                else
-                {
-                    float height = source / cam.aspect;
-                    backdrop.uvRect = new Rect(0f, (1f - height) * .35f, 1f, height);
-                }
+                backdrop.uvRect = new Rect(0f, 0f, 1f, 1f);
             }
-            if (!artwork) return;
-            PlaceShadow(contactShadow, avatarRoot ? avatarRoot : null);
+            if (contactShadow.enabled) PlaceShadow(contactShadow, avatarRoot ? avatarRoot : null);
             foreach (var guest in guests)
                 if (guest.shadow.enabled) PlaceShadow(guest.shadow, guest.root);
             if (!themeEffects) return;

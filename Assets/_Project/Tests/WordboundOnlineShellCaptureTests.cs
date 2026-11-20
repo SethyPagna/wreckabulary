@@ -74,7 +74,6 @@ namespace Wreckabulary.Tests
             Assert.IsNotNull(savedTheme); savedTheme.Validate();
             themeJson = JsonUtility.ToJson(savedTheme); themeWasDirty = EditorUtility.IsDirty(savedTheme);
             foreach (string path in AssetDatabase.GetDependencies(ThemePath, true)) Protect(path);
-            Assert.IsNotNull(LobbyThemes.Current.Background); Protect(AssetDatabase.GetAssetPath(LobbyThemes.Current.Background));
             foreach (string path in new[] {
                 "Assets/_Project/Scripts/Online/Client/WordboundPartyMenu.cs",
                 "Assets/_Project/Scripts/Online/Client/WordboundPartyMenuInput.cs",

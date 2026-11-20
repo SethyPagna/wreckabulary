@@ -675,14 +675,17 @@ namespace Wreckabulary
             status.gameObject.SetActive(false);
         }
 
+        LobbyTileLogo logo;
+
         void BuildThemeBadge()
         {
-            themeBadge = LobbyKit.Rect(safe, "Current theme").Pin(Vector2.zero, new Vector2(Gutter, 22), new Vector2(300, 72));
+            themeBadge = LobbyKit.Rect(safe, "Current theme").Pin(Vector2.zero, new Vector2(Gutter, 22), new Vector2(440, 112));
             LobbyKit.PanelFace(themeBadge, 12, 1, 0);
-            var brand = LobbyKit.Display(themeBadge, "WRECKABULARY", 26, LobbyKit.Navy, TextAlignmentOptions.Center);
-            brand.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(12, 30), new Vector2(-12, -4));
+            LobbyParcel.Tape(themeBadge, new Vector2(0f, 1f), new Vector2(26f, -4f), 32f, 78f, 24f);
+            logo = LobbyTileLogo.Create(themeBadge);
+            ((RectTransform)logo.transform).Place(Vector2.zero, Vector2.one, new Vector2(4, 34), new Vector2(-4, -2));
             var button = LobbyKit.TextAction(themeBadge, "Browse themes", "", 18, () => Open(Shop));
-            ((RectTransform)button.transform).Place(Vector2.zero, Vector2.one, new Vector2(8, 2), new Vector2(-8, -34));
+            ((RectTransform)button.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(8, 4), new Vector2(-8, 34));
             themeName = button.GetComponentInChildren<TextMeshProUGUI>();
             RefreshThemeBadge();
         }
@@ -696,7 +699,11 @@ namespace Wreckabulary
         {
             if (!pages.TryGetValue(id, out var page)) throw new ArgumentException("No lobby page " + id, nameof(id));
             bool moved = id != Current;
-            if (moved && Current != null && pages.TryGetValue(Current, out var previous)) previous.Closed();
+            if (moved && Current != null && pages.TryGetValue(Current, out var previous))
+            {
+                LobbyTileWord.Handoff(previous.Root);
+                previous.Closed();
+            }
             foreach (var other in pages.Values) other.Root.gameObject.SetActive(other == page);
             Current = id;
             LayoutPageHost();

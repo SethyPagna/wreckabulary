@@ -167,6 +167,7 @@ namespace Wreckabulary.EditorTests
             {
                 Assert.IsNotNull(signature, $"{piece.Id}: Resources/{WardrobeRig.ArtPath} is missing");
                 Assert.IsTrue(bones.Contains(piece.Bone), $"{piece.Id}: Avatar.fbx has no bone {piece.Bone}");
+                if (CuteWear.Handles(piece.Rigid)) { AssertCodeBuilt(avatar, piece); continue; }
                 var node = ModelVisual.FindNamed(signature, piece.Rigid);
                 Assert.IsNotNull(node, $"{piece.Id}: the signature art has no {piece.Rigid}");
                 var parts = node.GetComponentsInChildren<Renderer>(true);
@@ -185,10 +186,33 @@ namespace Wreckabulary.EditorTests
             {
                 var r = renderers.FirstOrDefault(x => x.name == piece.Mesh);
                 Assert.IsNotNull(r, $"{piece.Id}: Avatar.fbx has no mesh {piece.Mesh}");
-                if (piece.TintMaterial == null) continue;
+                if (piece.TintMaterial == null || CuteWear.Handles(piece.Rigid)) continue;
                 Assert.IsNotNull(materials.Find(piece.TintMaterial), $"{piece.Id}: no library material {piece.TintMaterial}");
                 Assert.IsTrue(r.sharedMaterials.Any(m => m != null && m.name == piece.TintMaterial), $"{piece.Id}: {piece.Mesh} doesn't use {piece.TintMaterial}");
             }
+        }
+
+        static void AssertCodeBuilt(GameObject avatar, WardrobePiece piece)
+        {
+            var copy = Object.Instantiate(avatar);
+            try
+            {
+                var bone = copy.GetComponentsInChildren<Transform>(true).First(t => t.name == piece.Bone);
+                var template = copy.GetComponentsInChildren<SkinnedMeshRenderer>(true).First(s => s.name == "SK_Head").sharedMaterials[0];
+                var node = CuteWear.Build(piece.Rigid, bone, template);
+                Assert.IsNotNull(node, $"{piece.Id}: CuteWear builds no {piece.Rigid}");
+                if (piece.Rigid.StartsWith(CuteWear.EyesPrefix, System.StringComparison.Ordinal))
+                {
+                    CollectionAssert.Contains(CuteFace.EyeStyles, piece.Rigid.Substring(CuteWear.EyesPrefix.Length), $"{piece.Id}: no such eye style");
+                    return;
+                }
+                var parts = node.GetComponentsInChildren<Renderer>(true);
+                Assert.IsNotEmpty(parts, $"{piece.Id}: {piece.Rigid} has no geometry");
+                foreach (string tint in piece.TintMaterials)
+                    Assert.IsTrue(parts.SelectMany(p => p.sharedMaterials).Any(m => m != null && WardrobeRig.CanonicalMaterial(m.name) == tint),
+                        $"{piece.Id}: {piece.Rigid} doesn't use {tint}");
+            }
+            finally { Object.DestroyImmediate(copy); }
         }
 
         [Test]

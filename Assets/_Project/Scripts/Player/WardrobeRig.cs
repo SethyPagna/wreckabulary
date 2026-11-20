@@ -102,6 +102,19 @@ namespace Wreckabulary
                 foreach (var piece in catalogue.Pieces)
                 {
                     if (string.IsNullOrEmpty(piece.Rigid) || parts.ContainsKey(piece.Rigid)) continue;
+                    if (CuteWear.Handles(piece.Rigid))
+                    {
+                        if (!binds.TryGetValue(piece.Bone ?? "", out var cuteBone)) continue;
+                        var cute = CuteWear.Build(piece.Rigid, cuteBone.bone, Template(meshes));
+                        if (!cute) continue;
+                        parts[piece.Rigid] = new Part
+                        {
+                            Piece = piece, Node = cute, Renderers = cute.GetComponentsInChildren<Renderer>(true),
+                            Rest = cute.localPosition, Forward = cuteBone.bind.inverse.MultiplyVector(front * scale),
+                        };
+                        cute.gameObject.SetActive(false);
+                        continue;
+                    }
                     var node = ModelVisual.FindNamed(holder, piece.Rigid);
                     if (!node || !binds.TryGetValue(piece.Bone ?? "", out var bone)) continue;
                     var inOwner = solve * (artRoot.worldToLocalMatrix * node.localToWorldMatrix);
@@ -153,6 +166,15 @@ namespace Wreckabulary
             var rotation = Quaternion.LookRotation(toFront, toUp) * Quaternion.Inverse(Quaternion.LookRotation(fromFront, fromUp));
             front = toFront.normalized;
             return Matrix4x4.Translate(to[0]) * Matrix4x4.TRS(Vector3.zero, rotation, Vector3.one * scale) * Matrix4x4.Translate(-from[0]);
+        }
+
+        static Material Template(SkinnedMeshRenderer[] meshes)
+        {
+            foreach (var mesh in meshes)
+                if (mesh && mesh.name == "SK_Head" && mesh.sharedMaterials.Length > 0 && mesh.sharedMaterials[0]) return mesh.sharedMaterials[0];
+            foreach (var mesh in meshes)
+                if (mesh && mesh.sharedMaterial) return mesh.sharedMaterial;
+            return null;
         }
 
         static void SetLayer(Transform node, int layer)

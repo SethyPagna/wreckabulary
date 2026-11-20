@@ -82,7 +82,6 @@ namespace Wreckabulary.Tests
             var layout = Resources.Load<LobbyShopLayout>(LobbyShopLayout.ResourcePath);
             layout.Validate(); Protect(AssetDatabase.GetAssetPath(layout.Page)); Protect(AssetDatabase.GetAssetPath(layout.Offer));
             foreach (var look in CosmeticBundles.All) Protect(AssetDatabase.GetAssetPath(Resources.Load<Texture2D>("UI/Shop/Looks/" + look.Id)));
-            foreach (var theme in LobbyThemes.All) Protect(AssetDatabase.GetAssetPath(theme.Background));
             EditorSettings.asyncShaderCompilation = false; GameHud.PauseOnFocusLossOverride = false;
             Time.captureDeltaTime = 1f / 60f;
             gameView = new UIRefinementCaptureTests.GameViewScope(); gameView.Select(1280, 720);

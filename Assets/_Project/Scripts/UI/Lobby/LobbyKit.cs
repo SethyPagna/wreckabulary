@@ -28,7 +28,7 @@ namespace Wreckabulary
         public static Color Panel => Palette.Panel;
         public static Color PanelTop => Palette.Panel;
         public static Color PanelBottom => Palette.Panel;
-        public static Color ScrimNavy => Palette.Panel;
+        public static Color ScrimNavy => LobbyParcel.Ink;
         public static Color Card => Palette.Card;
         public static Color Raised => Palette.Raised;
         public static Color Line => Palette.Border;
@@ -95,9 +95,11 @@ namespace Wreckabulary
         {
             if (!rect.TryGetComponent(out Image image)) image = rect.gameObject.AddComponent<Image>();
             image.color = colour;
-            if (radius >= 0) { image.sprite = LobbyIcons.RoundedSprite(radius); image.type = Image.Type.Sliced; }
+            if (radius >= 0) { image.sprite = LobbyIcons.RoundedSprite(Soft(radius)); image.type = Image.Type.Sliced; }
             return image;
         }
+
+        public static int Soft(int radius) => radius <= 2 ? radius : Mathf.RoundToInt(radius * 1.6f) + 4;
 
         public static TextMeshProUGUI Text(Transform parent, string text, float size, Color colour,
             TextAlignmentOptions align = TextAlignmentOptions.Left, FontStyles style = FontStyles.Normal)
@@ -190,7 +192,7 @@ namespace Wreckabulary
             var frame = Rect(rect, name).Place(Vector2.zero, Vector2.one, new Vector2(-outset, -outset), new Vector2(outset, outset));
             frame.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
             var image = frame.gameObject.AddComponent<Image>();
-            image.sprite = LobbyIcons.FrameSprite(Mathf.Max(0, radius + Mathf.RoundToInt(outset)), width);
+            image.sprite = LobbyIcons.FrameSprite(Mathf.Max(0, Soft(radius) + Mathf.RoundToInt(outset)), width);
             image.type = Image.Type.Sliced;
             image.color = colour; image.raycastTarget = false;
             return image;
@@ -480,8 +482,12 @@ namespace Wreckabulary
             return sprite;
         }
 
-        public static Image PanelFace(RectTransform rect, int radius, int edgeWidth = 4, float drop = 6) =>
-            Face(rect, PanelTop, radius, Line, Mathf.Min(edgeWidth, 2), 0, PanelBottom);
+        public static Image PanelFace(RectTransform rect, int radius, int edgeWidth = 4, float drop = 6)
+        {
+            var face = Face(rect, PanelTop, radius, Line, Mathf.Min(edgeWidth, 2), 0, PanelBottom);
+            LobbyParcel.Grain(rect, .14f);
+            return face;
+        }
 
         public static Button PickCard(Transform parent, string name, Color accent, string caps, string title, string detail,
             Action click, float art, Color? detailColour = null)
