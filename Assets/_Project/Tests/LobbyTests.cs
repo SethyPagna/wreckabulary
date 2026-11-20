@@ -16,10 +16,11 @@ namespace Wreckabulary.Tests
 {
     public class LobbyTests
     {
-        static readonly string[] Keys = new[] { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey }
+        static readonly string[] Keys = new[] { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, LastPlayChoice.StorageKey }
             .Concat(GraphicsOptions.Keys).ToArray();
+        const float NeverStarts = 3600f;
         string[] saved;
-        bool hadVolume, hadVsync;
+        bool hadVolume, hadVsync, savedRemember;
         float savedVolume, savedDelay;
         int savedVsync, savedVsyncCount, savedTutorial;
         bool hadTutorial;
@@ -68,6 +69,7 @@ namespace Wreckabulary.Tests
             GraphicsOptions.Load();
             savedDelay = LobbyMenu.StartDelay;
             LobbyMenu.StartDelay = .3f;
+            savedRemember = LobbyMenu.RememberChoices;
             MatchTally.LastResult = null;
             yield return TestScenes.Reset();
         }
@@ -104,6 +106,7 @@ namespace Wreckabulary.Tests
             GraphicsOptions.Load();
             AudioListener.volume = savedVolume;
             LobbyMenu.StartDelay = savedDelay;
+            LobbyMenu.RememberChoices = savedRemember;
             MatchTally.LastResult = null;
         }
 
@@ -345,10 +348,195 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(300f, dock.rect.width, 1f);
             Assert.AreSame(play.gameObject, Selected, "a controller starts on PLAY");
             AssertNoEllipsis(dock, "the Home dock");
+            Assert.IsNull(menu.LastMatch, "nothing is remembered on a first visit");
+            AssertHomeOffers(menu, null);
             Click(LobbyHomePageView.PlayButton);
             yield return null;
             Assert.AreEqual(LobbyMenu.Play, menu.Current, "PLAY opens the Play section");
-            Assert.IsFalse(menu.Starting, "PLAY never starts a match by itself");
+            Assert.IsFalse(menu.Starting, "PLAY starts nothing until a match has been chosen");
+        }
+
+        static float WorldTop(Component part)
+        {
+            var corners = new Vector3[4];
+            ((RectTransform)part.transform).GetWorldCorners(corners);
+            return corners[1].y;
+        }
+
+        static float WorldBottom(Component part)
+        {
+            var corners = new Vector3[4];
+            ((RectTransform)part.transform).GetWorldCorners(corners);
+            return corners[0].y;
+        }
+
+        static void AssertHomeOffers(LobbyMenu menu, string last)
+        {
+            Assert.AreEqual(LobbyMenu.Home, menu.Current);
+            Canvas.ForceUpdateCanvases();
+            var dock = menu.GetComponentsInChildren<RectTransform>().Single(r => r.name == "Next match");
+            string[] buttons = dock.GetComponentsInChildren<Button>().Select(button => button.name).ToArray();
+            var lines = dock.GetComponentsInChildren<TMPro.TMP_Text>().Where(text => text.name == LobbyHomePageView.LastLine).ToArray();
+            Assert.AreEqual(300f, dock.rect.width, 1f, "the dock keeps its width");
+            if (last == null)
+            {
+                CollectionAssert.AreEqual(new[] { LobbyHomePageView.PlayButton }, buttons, "with nothing to start, Home shows only PLAY");
+                Assert.IsEmpty(lines);
+                return;
+            }
+            CollectionAssert.AreEqual(new[] { LobbyHomePageView.PlayButton, LobbyHomePageView.ChangeButton }, buttons, "PLAY, then Change");
+            Assert.AreEqual(1, lines.Length, "one line names the match");
+            Assert.AreEqual(last, lines[0].text);
+            var play = Find(LobbyHomePageView.PlayButton); var change = Find(LobbyHomePageView.ChangeButton);
+            Assert.AreEqual(LobbyHomePageView.ChangeLabel, change.GetComponentInChildren<TMPro.TMP_Text>().text);
+            Assert.GreaterOrEqual(WorldBottom(lines[0]), WorldTop(play) - .5f, "the match is named above PLAY");
+            Assert.LessOrEqual(WorldTop(change), WorldBottom(play) + .5f, "Change sits under PLAY");
+            Assert.Less(((RectTransform)change.transform).rect.height, ((RectTransform)play.transform).rect.height * .5f, "Change is the small button");
+            Assert.GreaterOrEqual(((RectTransform)play.transform).rect.height, LobbyHomePageView.PlayHeight - 1f, "PLAY stays big");
+            AssertNoEllipsis(dock, "the Home dock");
+        }
+
+        [UnityTest]
+        public IEnumerator HomePlayStartsTheLastLocalMatchAndChangeOpensThePlaySection()
+        {
+            LobbyMenu.StartDelay = NeverStarts;
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Click("PLAY");
+            yield return null;
+            Click("Queue " + LobbyMenu.Matchmaking);
+            yield return null;
+            Click("Queue " + LobbyMenu.Practice);
+            yield return null;
+            Click("Home");
+            yield return null;
+            Assert.IsNull(menu.LastMatch, "looking at the tabs is not choosing a match");
+            AssertHomeOffers(menu, null);
+            Click(LobbyHomePageView.PlayButton);
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Play, menu.Current);
+            Assert.IsFalse(menu.Starting);
+
+            Click("Mode Duos");
+            yield return null;
+            Click("Home");
+            yield return null;
+            string line = LobbyMenu.ModeName("Duos") + MapCardText.Separator + PracticeMaps.Every;
+            Assert.AreEqual(line, menu.LastMatch, "the chosen match is named in the footer's words");
+            AssertHomeOffers(menu, line);
+            Assert.AreSame(Find(LobbyHomePageView.PlayButton).gameObject, Selected, "a controller still starts on PLAY");
+            Assert.AreSame(Find(LobbyHomePageView.ChangeButton), Find(LobbyHomePageView.PlayButton).FindSelectableOnDown(), "and Change is one step down");
+
+            Click(LobbyHomePageView.ChangeButton);
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Play, menu.Current, "Change opens the Play section");
+            Assert.IsFalse(menu.Starting, "and starts nothing");
+            Assert.AreSame(Find("Mode Duos").gameObject, Selected);
+
+            Click("Home");
+            yield return null;
+            Click(LobbyHomePageView.PlayButton);
+            Assert.IsTrue(menu.Starting, "one press starts the remembered match");
+            Assert.AreEqual(LobbyMenu.Home, menu.Current);
+            Assert.IsTrue(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Starting"), "with the same countdown as GO");
+            Assert.AreSame(Find("CANCEL").gameObject, Selected, "and the same CANCEL");
+            StringAssert.Contains(menu.Describe(), menu.Messages[0]);
+            Click("CANCEL");
+            Assert.IsFalse(menu.Starting);
+            Assert.AreEqual(Session.HubScene, SceneManager.GetActiveScene().name);
+            AssertHomeOffers(menu, line);
+
+            Click("PLAY");
+            yield return null;
+            Click("Queue " + LobbyMenu.Workshop);
+            yield return null;
+            Click("Home");
+            yield return null;
+            AssertHomeOffers(menu, null);
+            Click(LobbyHomePageView.PlayButton);
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Play, menu.Current, "after Create, PLAY opens the Play section");
+            Assert.AreEqual(LobbyMenu.Workshop, menu.Queue);
+            Assert.IsFalse(menu.Starting);
+
+            Click("Queue " + LobbyMenu.Matchmaking);
+            yield return null;
+            Click("Home");
+            yield return null;
+            AssertHomeOffers(menu, null);
+            Click(LobbyHomePageView.PlayButton);
+            yield return null;
+            Assert.IsTrue(menu.Current == LobbyMenu.Play && menu.Page<PlayPage>().Online, "after Matchmaking, PLAY opens that tab");
+            Assert.IsFalse(menu.Starting);
+
+            Click("Queue " + LobbyMenu.Practice);
+            yield return null;
+            Click("Home");
+            yield return null;
+            AssertHomeOffers(menu, menu.MatchTitle);
+        }
+
+        [UnityTest]
+        public IEnumerator HomePlayPlaysTheRememberedMatchAndKeepsOfferingItAfterwards()
+        {
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Click("PLAY");
+            yield return null;
+            Click("Mode Duos");
+            yield return null;
+            Click("Home");
+            yield return null;
+            Click(LobbyHomePageView.PlayButton);
+            Assert.IsTrue(menu.Starting);
+            yield return TestScenes.WaitForActive(Session.DibsScene);
+            Assert.AreEqual("Duos", Match.Mode);
+            Assert.IsTrue(Session.GoHome());
+            yield return TestScenes.WaitForActive(Session.HubScene);
+            yield return TestScenes.WaitUntil(() => LobbyMenu.Instance && LobbyMenu.Instance.Current == LobbyMenu.Home, 2f, "the lobby to come back");
+            Assert.AreEqual(LobbyMenu.ModeName("Duos") + MapCardText.Separator + PracticeMaps.Every, LobbyMenu.Instance.LastMatch,
+                "the choice is still offered after the match");
+            AssertHomeOffers(LobbyMenu.Instance, LobbyMenu.Instance.LastMatch);
+            Assert.IsFalse(PlayerPrefs.HasKey(LastPlayChoice.StorageKey), "a test run never writes the saved choice");
+        }
+
+        [UnityTest]
+        public IEnumerator HomePlayStartsTheRememberedCourseForOnePlayerOnly()
+        {
+            LobbyMenu.StartDelay = NeverStarts;
+            yield return OpenLobby();
+            var menu = LobbyMenu.Instance;
+            Click("PLAY");
+            yield return null;
+            Click(PlayPage.ModeButton("TimeRun"));
+            yield return null;
+            Click("Solo map " + WordboundSoloEntry.LostAddressMap);
+            yield return null;
+            Click("Home");
+            yield return null;
+            bool installed = Session.CanLoad(Session.WordboundScene);
+            Assert.AreEqual(installed ? PlayPage.CourseTitle : null, menu.LastMatch, "a course is offered only when it can load");
+            AssertHomeOffers(menu, menu.LastMatch);
+            if (installed)
+            {
+                StringAssert.StartsWith(LobbyPlayModeLabels.Name("TimeRun") + MapCardText.Separator, menu.LastMatch);
+                Click(LobbyHomePageView.PlayButton);
+                Assert.IsTrue(menu.Starting, "the course starts with the same countdown");
+                StringAssert.Contains(PlayPage.CourseTitle, menu.Messages[0]);
+                Assert.AreSame(Find("CANCEL").gameObject, Selected);
+                Click("CANCEL");
+                Assert.IsFalse(menu.Starting);
+                Assert.IsNull(WordboundSoloEntry.TakeRequest(), "a cancelled start never asks for the course");
+                Assert.AreEqual(Session.HubScene, SceneManager.GetActiveScene().name);
+            }
+            var second = new ScriptedBinding();
+            menu.Join(second);
+            yield return null;
+            Assert.AreEqual(menu.MatchTitle, menu.LastMatch, "with a second seat PLAY offers the house mode, as the Play section does");
+            AssertHomeOffers(menu, menu.MatchTitle);
+            menu.Leave(second);
+            yield return null;
+            Assert.AreEqual(installed ? PlayPage.CourseTitle : null, menu.LastMatch, "and the course comes back when the seat leaves");
         }
 
         [UnityTest]
@@ -882,6 +1070,31 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(menu.Stage.Spot, stage.Avatar.position, "without moving");
             Assert.IsFalse(menu.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Turn hint"), "and stops saying so once you have");
             Assert.IsTrue(PlayerPrefs.HasKey(LobbyMenu.TurnHintKey), "for good");
+        }
+
+        [UnityTest]
+        public IEnumerator GoAsksForAWarmupOnlyWhenWarmupsAreOn()
+        {
+            bool saved = LobbyMenu.WarmupBeforeMatches;
+            try
+            {
+                Assert.IsFalse(saved, "the editor starts matches without a warm-up until a test asks for one");
+                LobbyMenu.WarmupBeforeMatches = true;
+                yield return OpenLobby();
+                Click("PLAY");
+                yield return null;
+                Click("Queue " + LobbyMenu.Practice);
+                yield return null;
+                Click("Mode Duos");
+                yield return null;
+                Click("GO");
+                yield return TestScenes.WaitUntil(() => RoundManager.Instance && RoundManager.Instance.Phase == Phase.Warmup, 30f, "the warm-up after a lobby start");
+                Assert.IsFalse(RoundManager.WarmupRequested, "the request is used once");
+            }
+            finally
+            {
+                LobbyMenu.WarmupBeforeMatches = saved;
+            }
         }
 
         [UnityTest]

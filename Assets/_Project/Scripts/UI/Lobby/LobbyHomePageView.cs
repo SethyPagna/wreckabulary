@@ -9,7 +9,9 @@ namespace Wreckabulary
     public sealed class LobbyHomePageView : MonoBehaviour
     {
         public const string PlayButton = "Home PLAY", PlayLabel = "PLAY";
+        public const string LastLine = "Last match", ChangeButton = "Home CHANGE", ChangeLabel = "Change";
         public const float PlayHeight = 88f, PlayText = 56f;
+        const float LastHeight = 24f, LastText = 17f, LastTextMinimum = 12f, ChangeHeight = 32f, ChangeText = 18f;
         public RectTransform TurnHint;
         public RectTransform Dock;
         public LobbyShopActionView Start;
@@ -37,7 +39,9 @@ namespace Wreckabulary
             }
         }
 
-        public Selectable Bind(bool showTurnHint, bool starting, Action play)
+        public Selectable Bind(bool showTurnHint, bool starting, Action play) => Bind(showTurnHint, starting, play, null, null);
+
+        public Selectable Bind(bool showTurnHint, bool starting, Action play, string last, Action change)
         {
             Validate();
             TurnHint.name = "Turn hint"; TurnHint.gameObject.SetActive(showTurnHint);
@@ -59,8 +63,33 @@ namespace Wreckabulary
                 other.gameObject.SetActive(false);
             }
             WordboundNote.gameObject.SetActive(false);
+            ShowLast(starting ? null : last, change);
             Dock.gameObject.SetActive(!starting);
             return starting ? null : Start.Button;
+        }
+
+        void ShowLast(string last, Action change)
+        {
+            Remove(LastLine); Remove(ChangeButton);
+            if (string.IsNullOrEmpty(last)) return;
+            var slot = Start.transform;
+            while (slot.parent != Dock) slot = slot.parent;
+            var line = LobbyKit.Text(Dock, last, LastText, LobbyKit.Muted, TextAlignmentOptions.Center);
+            line.name = LastLine;
+            line.enableAutoSizing = true; line.fontSizeMin = LastTextMinimum; line.fontSizeMax = LastText;
+            line.Size(-1, LastHeight);
+            line.transform.SetSiblingIndex(slot.GetSiblingIndex());
+            var button = LobbyKit.TextAction(Dock, ChangeButton, ChangeLabel, ChangeText, change);
+            button.Size(-1, ChangeHeight);
+            button.transform.SetSiblingIndex(slot.GetSiblingIndex() + 1);
+        }
+
+        void Remove(string child)
+        {
+            var old = Dock.Find(child);
+            if (!old) return;
+            old.gameObject.SetActive(false);
+            if (Application.isPlaying) Destroy(old.gameObject); else DestroyImmediate(old.gameObject);
         }
     }
 }

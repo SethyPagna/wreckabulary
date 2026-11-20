@@ -22,7 +22,13 @@ namespace Wreckabulary
 
         public bool Collects { get; set; } = true;
 
+        public static bool FreeSpelling { get; set; }
+        public bool SpellsFree => FreeSpelling && controller && controller.Binding is not BotBinding;
+
         public event Action Changed;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ForgetFreeSpelling() => FreeSpelling = false;
 
         void Awake() => controller = GetComponent<PlayerController>();
 
@@ -61,6 +67,7 @@ namespace Wreckabulary
         public bool TrySpend(string word)
         {
             if (string.IsNullOrEmpty(word)) return false;
+            if (SpellsFree) return true;
             if (!WordSolver.CanSpell(WordSolver.Count(letters), word)) return false;
             foreach (char c in word) letters.Remove(char.ToUpperInvariant(c));
             Changed?.Invoke();

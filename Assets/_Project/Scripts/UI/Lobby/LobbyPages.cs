@@ -240,7 +240,8 @@ namespace Wreckabulary
                 view = LobbyRuntimeTypography.Instantiate(layout.Page, Root, false);
             }
             else view = LobbyHomeDefaultLayout.Create(Root);
-            First = view.Bind(!PlayerPrefs.HasKey(LobbyMenu.TurnHintKey), Menu.Starting, () => Menu.Open(LobbyMenu.Play));
+            First = view.Bind(!PlayerPrefs.HasKey(LobbyMenu.TurnHintKey), Menu.Starting, Menu.PlayLast, Menu.LastMatch,
+                () => Menu.Open(LobbyMenu.Play));
         }
     }
 
