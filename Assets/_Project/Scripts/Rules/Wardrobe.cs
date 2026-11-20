@@ -93,6 +93,7 @@ namespace Wreckabulary.Rules
     {
         public readonly List<string> Slots = new List<string>();
         public readonly HashSet<string> RequiredSlots = new HashSet<string>(StringComparer.Ordinal);
+        public readonly HashSet<string> FallbackSlots = new HashSet<string>(StringComparer.Ordinal);
         public readonly List<WardrobePiece> Pieces = new List<WardrobePiece>();
         public readonly Dictionary<string, List<Colourway>> Palettes = new Dictionary<string, List<Colourway>>(StringComparer.Ordinal);
         public Outfit Default = new Outfit();
@@ -121,7 +122,7 @@ namespace Wreckabulary.Rules
         {
             var problems = new List<string>();
             foreach (string slot in RequiredSlots)
-                if (outfit.PieceIn(slot) == null) problems.Add($"{slot} can't be empty");
+                if (outfit.PieceIn(slot) == null && !FallbackSlots.Contains(slot)) problems.Add($"{slot} can't be empty");
             var worn = new HashSet<string>(StringComparer.Ordinal);
             foreach (var kv in outfit.Pieces)
             {
@@ -194,8 +195,6 @@ namespace Wreckabulary.Rules
             if (outfit != null && Fits(outfit)) return outfit;
             if (outfit != null)
             {
-                // Outfits saved before a required slot existed (e.g. Hair, Eyes) keep everything
-                // else and take the default piece for the new slot.
                 var filled = outfit.Clone();
                 foreach (string slot in RequiredSlots)
                     if (filled.PieceIn(slot) == null && Default.PieceIn(slot) is string piece) filled.Pieces[slot] = piece;
@@ -233,6 +232,8 @@ namespace Wreckabulary.Rules
             }
             foreach (string s in RequiredSlots)
                 if (!PiecesFor(s).Any()) problems.Add($"required slot {s} has no pieces");
+            foreach (string s in FallbackSlots)
+                if (!RequiredSlots.Contains(s)) problems.Add($"fallback slot {s} is not a required slot");
             foreach (var kv in Palettes)
             {
                 if (kv.Value.Select(c => c.Id).Distinct().Count() != kv.Value.Count) problems.Add($"{kv.Key} lists a colour twice");
@@ -275,6 +276,7 @@ namespace Wreckabulary.Rules
             var w = new WardrobeCatalogue();
             w.Slots.AddRange(root["slots"].Strings());
             foreach (string s in root["requiredSlots"].Strings()) w.RequiredSlots.Add(s);
+            foreach (string s in root["fallbackSlots"].Strings()) w.FallbackSlots.Add(s);
             foreach (var n in root["pieces"].Items)
             {
                 w.Pieces.Add(new WardrobePiece

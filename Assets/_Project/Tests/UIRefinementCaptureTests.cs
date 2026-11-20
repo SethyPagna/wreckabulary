@@ -128,7 +128,7 @@ namespace Wreckabulary.Tests
                 yield return Settle();
                 Assert.IsTrue(menu.Stage.ArtworkShown);
                 Assert.NotNull(menu.Stage.Avatar);
-                Assert.AreSame(theme.Background, menu.Stage.GetComponentsInChildren<RawImage>().Single(i => i.name == "Theme artwork").texture);
+                Assert.AreEqual(theme.Id, menu.Stage.Room.Dressed);
                 yield return Capture("home-" + theme.Id);
             }
             LobbyThemes.Preview("sunroom");

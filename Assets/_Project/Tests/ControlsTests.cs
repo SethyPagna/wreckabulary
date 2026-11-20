@@ -151,7 +151,7 @@ namespace Wreckabulary.Tests
 
             input.Next.move = Vector2.right;
             input.Next.dodge = true;
-            yield return Frames(3);
+            yield return TestScenes.WaitUntil(() => p.IsDodging, 1f, "the dodge to start while the stick is held");
             input.Next.move = Vector2.zero;
             yield return new WaitForSeconds(0.6f);
             Assert.Greater(p.transform.position.x, 3f, "dashed right, the way the stick points");

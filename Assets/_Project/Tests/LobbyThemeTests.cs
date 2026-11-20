@@ -89,41 +89,36 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator ArtworkUsesRealAvatarAndRestoresTheSameMapRenderers()
+        public IEnumerator ThemesDressTheOneLobbyRoomInFrontOfTheSameSky()
         {
             yield return TestScenes.Load(Session.HubScene);
             yield return null;
             var stage = LobbyMenu.Instance.Stage;
-            stage.ShowArtwork(false);
-            var map = stage.GetComponentsInChildren<Transform>(true).First(t => t.name.StartsWith("Lobby backdrop"));
-            var renderers = map.GetComponentsInChildren<Renderer>(true);
-            Assert.IsNotEmpty(renderers);
-            var original = renderers.Select(renderer => renderer.forceRenderingOff).ToArray();
             stage.ShowArtwork(true);
-            Assert.IsTrue(map.gameObject.activeSelf, "art mode retains the map and its authored structure for preview");
-            Assert.IsTrue(renderers.All(renderer => renderer.forceRenderingOff));
+            var room = stage.GetComponentsInChildren<Transform>(true).First(t => t.name.StartsWith("Lobby backdrop"));
+            StringAssert.Contains(LobbyRoom.RoomName, room.name);
+            Assert.AreSame(stage.Room, room.GetComponentInChildren<LobbyRoom>());
+            Assert.IsTrue(room.GetComponentsInChildren<Renderer>(true).Any(renderer => renderer.enabled && !renderer.forceRenderingOff), "the room is drawn behind you");
             Assert.IsTrue(stage.Avatar.GetComponentsInChildren<Renderer>().Any(renderer => renderer.enabled && !renderer.forceRenderingOff));
             var art = stage.GetComponentsInChildren<RawImage>().Single(image => image.name == "Theme artwork");
-            Assert.AreSame(LobbyThemes.Current.Background, art.texture);
-            Assert.NotNull(art.texture);
+            var sky = art.texture;
+            Assert.NotNull(sky);
             foreach (var theme in LobbyThemes.All)
             {
                 Assert.IsTrue(LobbyThemes.Preview(theme.Id));
                 yield return null;
-                Assert.AreSame(theme.Background, art.texture);
+                Assert.AreEqual(theme.Id, stage.Room.Dressed, "each theme dresses the room");
+                Assert.AreSame(sky, art.texture, "every theme keeps the same sky");
                 Assert.AreEqual(theme.Surface, stage.Camera.backgroundColor);
             }
             stage.ShowArtwork(false);
-            for (int i = 0; i < renderers.Length; i++) Assert.AreEqual(original[i], renderers[i].forceRenderingOff);
-            Assert.AreSame(map, stage.GetComponentsInChildren<Transform>(true).First(t => t.name.StartsWith("Lobby backdrop")));
+            Assert.AreSame(sky, art.texture);
+            Assert.AreSame(room, stage.GetComponentsInChildren<Transform>(true).First(t => t.name.StartsWith("Lobby backdrop")));
             stage.ShowArtwork(true);
             stage.SetMap("terrace");
             yield return null;
-            var replacement = stage.GetComponentsInChildren<Transform>(true).First(t => t.name.StartsWith("Lobby backdrop"));
-            Assert.AreNotSame(map, replacement);
-            Assert.IsTrue(replacement.GetComponentsInChildren<Renderer>(true).All(renderer => renderer.forceRenderingOff));
-            stage.ShowArtwork(false);
-            Assert.IsTrue(replacement.GetComponentsInChildren<Renderer>(true).Any(renderer => !renderer.forceRenderingOff));
+            Assert.AreSame(room, stage.GetComponentsInChildren<Transform>(true).First(t => t.name.StartsWith("Lobby backdrop")), "changing the map keeps the one lobby room");
+            Assert.AreEqual("terrace", stage.Map);
         }
 
         [UnityTest]
@@ -156,7 +151,8 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(stage.GetComponentsInChildren<Light>().All(light => !light.enabled));
             stage.TakeCamera();
             yield return null;
-            Assert.AreSame(LobbyThemes.Current.Background, stage.GetComponentsInChildren<RawImage>().Single(image => image.name == "Theme artwork").texture);
+            Assert.NotNull(stage.GetComponentsInChildren<RawImage>().Single(image => image.name == "Theme artwork").texture);
+            Assert.AreEqual(LobbyThemes.Current.Id, stage.Room.Dressed);
             Assert.AreEqual(LobbyThemes.Current.Surface, stage.Camera.backgroundColor);
         }
 

@@ -23,13 +23,13 @@ namespace Wreckabulary
         public override float PanelWidth => framePanel && framePanel.rect.width > 0 ? framePanel.rect.width : base.PanelWidth;
 
         public const string SavedHomeCard = "Saved home ";
-        public const string GroupTab = "Group ", GroupTabs = "Groups", SoloNote = "Solo only note";
+        public const string ModeSections = "Sections", SidewaysTrack = "Sideways position", SoloNote = "Solo only note";
         public const string KeepOneMap = "Keep at least one map ticked.";
         public const string GoalLine = "Mode goal";
         public const string NameScrim = "Map name scrim";
         public const string GuideIcon = "Guide icon", GuideHint = "How to play";
         static readonly Vector2 HouseSize = new Vector2(280, 300);
-        const float ModeHeight = 52f, WideStrip = 1800f;
+        const float ModeHeight = 52f, WideStrip = 1800f, SidewaysWheel = -40f;
         const int PictureRadius = 10, GuideRadius = 13;
         const float GuideInset = 4f;
         const float TitleInset = 12f;
@@ -184,8 +184,6 @@ namespace Wreckabulary
             ? "Human players online."
             : queue == LobbyMenu.Workshop ? "Build homes and maps." : "Play on this PC.";
 
-        readonly Dictionary<HouseModeFamily, string> lastInGroup = new Dictionary<HouseModeFamily, string>();
-
         string ShownMode => WordboundSolo ? WordboundSoloEntry.SelectedMode : Menu.Mode;
 
         public static string ModeButton(string mode) => (HouseModes.Has(mode) ? "Mode " : "Solo ") + mode;
@@ -195,27 +193,56 @@ namespace Wreckabulary
         void PracticeModes(RectTransform column)
         {
             string shown = ShownMode;
-            var group = HouseModes.FamilyOf(shown);
-            lastInGroup[group] = shown;
-            var strip = ModeStrip(column, "Modes", LobbyPlayModeLabels.Line(shown), shown);
-            var families = strip.GetComponent<LobbyPlayModeFamilies>();
-            families.Stacked = true; families.CaptionHeight = 0;
-            var tabs = LobbyKit.Rect(strip, GroupTabs);
+            var strip = ModeStrip(column, "Modes", LobbyPlayModeLabels.Line(shown), shown, true);
+            var families = strip.GetComponentInChildren<LobbyPlayModeFamilies>();
             foreach (var family in HouseModes.Families)
             {
-                string id = GroupTab + family;
-                CompactMode(tabs, id, LobbyKit.Upper(HouseModes.FamilyName(family)), family == group, () => PickGroup(family, id));
-            }
-            var row = LobbyKit.Rect(strip, HouseModes.FamilyName(group));
-            foreach (string mode in HouseModes.ModesIn(group))
-            {
-                if (HouseModes.Has(mode) || Menu.PartySize == 1) { PracticeChoice(row, mode); continue; }
-                var note = LobbyKit.Text(row, SoloOnly(mode), 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
-                note.name = SoloNote;
-                note.enableAutoSizing = true; note.fontSizeMin = 12; note.fontSizeMax = 16;
+                var section = Family(families.transform, HouseModes.FamilyName(family));
+                foreach (string mode in HouseModes.ModesIn(family))
+                {
+                    if (HouseModes.Has(mode) || Menu.PartySize == 1) { PracticeChoice(section, mode); continue; }
+                    var note = LobbyKit.Text(section, SoloOnly(mode), 16, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
+                    note.name = SoloNote;
+                    note.enableAutoSizing = true; note.fontSizeMin = 12; note.fontSizeMax = 16;
+                }
             }
             families.Fit();
             strip.GetComponent<LobbyPlayModeDock>()?.Fit();
+        }
+
+        static RectTransform Family(Transform sections, string name)
+        {
+            var family = LobbyKit.Rect(sections, name);
+            var caption = LobbyKit.Text(family, LobbyKit.Upper(name), 14, LobbyKit.Muted, TextAlignmentOptions.BottomLeft);
+            caption.name = LobbyPlayModeFamilies.Caption;
+            caption.characterSpacing = 1;
+            return family;
+        }
+
+        static RectTransform Sideways(RectTransform strip)
+        {
+            strip.Paint(new Color(0, 0, 0, 0));
+            strip.gameObject.AddComponent<RectMask2D>();
+            var content = LobbyKit.Rect(strip, ModeSections);
+            content.anchorMin = content.anchorMax = content.pivot = new Vector2(.5f, 1);
+            content.anchoredPosition = Vector2.zero;
+            var scroll = strip.gameObject.AddComponent<ScrollRect>();
+            scroll.horizontal = true; scroll.vertical = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = SidewaysWheel;
+            scroll.viewport = strip; scroll.content = content;
+            var track = LobbyKit.Rect(strip, SidewaysTrack).Place(Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 4));
+            track.Paint(LobbyKit.Line, 2);
+            var handle = LobbyKit.Rect(track, "Handle").Fill();
+            var ink = handle.Paint(LobbyKit.Cyan, 2);
+            var bar = track.gameObject.AddComponent<Scrollbar>();
+            bar.direction = Scrollbar.Direction.LeftToRight;
+            bar.handleRect = handle; bar.targetGraphic = ink;
+            bar.navigation = new Navigation { mode = Navigation.Mode.None };
+            scroll.horizontalScrollbar = bar;
+            scroll.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+            strip.gameObject.AddComponent<LobbyScrollFollow>();
+            return content;
         }
 
         void PracticeChoice(Transform row, string mode)
@@ -233,22 +260,15 @@ namespace Wreckabulary
             else Menu.Choose(queue: LobbyMenu.Practice, mode: mode);
         }
 
-        void PickGroup(HouseModeFamily family, string id)
-        {
-            if (HouseModes.FamilyOf(ShownMode) != family)
-                PickMode(HouseModes.OpenModeIn(family, lastInGroup.TryGetValue(family, out string last) ? last : null, Menu.PartySize == 1));
-            Refresh();
-            Reselect(id);
-        }
-
-        RectTransform ModeStrip(Transform parent, string name, string goal, string guide = null)
+        RectTransform ModeStrip(Transform parent, string name, string goal, string guide = null, bool sideways = false)
         {
             var host = authoredFrame ? authoredFrame.Body : parent;
             var strip = LobbyKit.Rect(host, name);
-            var families = strip.gameObject.AddComponent<LobbyPlayModeFamilies>();
+            var element = strip.gameObject.AddComponent<LayoutElement>();
+            var families = (sideways ? Sideways(strip) : strip).gameObject.AddComponent<LobbyPlayModeFamilies>();
+            families.OneRow = sideways;
             families.ButtonWidth = playLayout ? playLayout.ModeMinimumWidth : 104;
             families.ButtonHeight = playLayout ? playLayout.ModeHeight : ModeHeight;
-            var element = strip.gameObject.AddComponent<LayoutElement>();
             var line = Goal(host, goal);
             GuideButton(line, guide);
             if (authoredFrame)
@@ -357,7 +377,6 @@ namespace Wreckabulary
                 selected ? LobbyKit.Selection : LobbyKit.Line, selected ? 3 : 1, 0);
             var press = card.GetComponent<LobbyPress>();
             press.Lift = 0; press.Tilt = 0; press.Sink = 1;
-            // Postcards: a perforated edge round every card; the chosen one is franked with a red stamp.
             var ink = selected ? LobbyParcel.Stamp : LobbyKit.Line;
             LobbyParcel.Dashes(card.Body(), new Color(ink.r, ink.g, ink.b, selected ? .9f : .7f), 5f);
             if (selected)

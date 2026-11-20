@@ -65,7 +65,6 @@ namespace Wreckabulary
 
         RectTransform stamp;
 
-        /// <summary>The open page's tab is a postage stamp: a cream ticket with a perforated red edge, set a little askew.</summary>
         void Stamp(bool show)
         {
             if (!show) { if (stamp) stamp.gameObject.SetActive(false); return; }

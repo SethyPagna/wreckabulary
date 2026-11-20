@@ -252,6 +252,51 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
+        public void ARiddleNobodySolvesPassesFortySecondsAfterItsHintAndScoresNothing()
+        {
+            var race = Race();
+            race.Start();
+            string first = race.Current.Answer;
+            Assert.AreEqual(RiddleEvent.Hint, race.Tick(RiddleRace.HintSeconds));
+            Assert.AreEqual(RiddleEvent.None, race.Tick(RiddleRace.PassSeconds - .5f));
+            Assert.AreEqual(0, race.Passes);
+            Assert.IsNull(race.LastPassed);
+            Assert.AreEqual(RiddleEvent.Asked, race.Tick(1f));
+            Assert.AreEqual(1, race.Passes);
+            Assert.AreEqual(first, race.LastPassed);
+            Assert.AreEqual(RiddleStage.Asking, race.Stage);
+            Assert.AreNotEqual(first, race.Current.Answer);
+            Assert.AreEqual(2, race.Asked);
+            Assert.AreEqual(0f, race.Elapsed);
+            Assert.IsFalse(race.HintShown);
+            Assert.AreEqual(0, race.Solved);
+            Assert.AreEqual(-1, race.Solver);
+            Assert.IsFalse(race.Solve(0, first), "the passed riddle no longer scores");
+            Assert.IsTrue(race.Solve(0, race.Current.Answer));
+            race.Start();
+            Assert.AreEqual(0, race.Passes);
+            Assert.IsNull(race.LastPassed);
+        }
+
+        [Test]
+        public void ThePassTimeCanBeChangedAndASolveBeforeItKeepsTheRiddle()
+        {
+            var race = Race();
+            race.PassAfter = 5f;
+            race.Start();
+            race.Tick(RiddleRace.HintSeconds + 4f);
+            Assert.AreEqual(0, race.Passes);
+            Assert.IsTrue(race.Solve(1, race.Current.Answer));
+            Assert.AreEqual(RiddleEvent.None, race.Tick(RiddleRace.BeatSeconds - .1f));
+            Assert.AreEqual(0, race.Passes);
+            Assert.AreEqual(RiddleEvent.Asked, race.Tick(.2f));
+            Assert.AreEqual(RiddleEvent.Hint, race.Tick(RiddleRace.HintSeconds));
+            Assert.AreEqual(RiddleEvent.Asked, race.Tick(5f));
+            Assert.AreEqual(1, race.Passes);
+            Assert.AreEqual(1, race.Points(1));
+        }
+
+        [Test]
         public void TheFirstToFivePointsWinsTheMatch()
         {
             var race = Race(Book());
@@ -364,6 +409,7 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual("Starts with B", RiddleText.StartsWith(new Riddle("BED", "x (3)")));
             Assert.AreEqual("", RiddleText.StartsWith(null));
             Assert.AreEqual("P2 spelled TABLE!", RiddleText.Spelled("P2", "TABLE"));
+            Assert.AreEqual("Nobody got it. It was WATER.", RiddleText.Passed("WATER"));
             Assert.AreEqual("1 point", RiddleText.Points(1));
             Assert.AreEqual("0 points", RiddleText.Points(0));
             Assert.AreEqual("P3 wins Riddles!", RiddleText.Heading("P3", false));

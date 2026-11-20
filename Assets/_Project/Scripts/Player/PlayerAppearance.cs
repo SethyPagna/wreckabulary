@@ -76,6 +76,7 @@ namespace Wreckabulary
             look.Pieces["Back"] = "Satchel";
             look.Colours["Gloves"] = "putty";
             look.Colours["Bottoms"] = "denim";
+            foreach (string slot in catalogue.FallbackSlots) { look.Pieces.Remove(slot); look.Colours.Remove(slot); }
             return catalogue.Sanitize(look);
         }
 

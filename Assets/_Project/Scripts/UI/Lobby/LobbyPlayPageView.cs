@@ -157,6 +157,69 @@ namespace Wreckabulary
         }
     }
 
+    public sealed class LobbyPlayCardBand : MonoBehaviour
+    {
+        public const string Caption = "Section caption";
+        public float Spacing = 12, SectionSpacing = 28, CaptionHeight = 28, CaptionGap = 6, MinimumWidth = 120;
+        float arrangedWidth = -1f;
+        bool fitting;
+
+        public static float CardWidth(float available, int cards, int sections, float spacing, float sectionSpacing, float minimum)
+        {
+            if (cards <= 0) return 0f;
+            float room = available - spacing * (cards - sections) - sectionSpacing * Mathf.Max(0, sections - 1);
+            return Mathf.Clamp(room / cards, minimum, LobbyPlayCardGrid.PreferredWidth);
+        }
+
+        void OnEnable() => Fit();
+        void OnRectTransformDimensionsChange() => Fit();
+        void LateUpdate() => Fit();
+
+        public void Fit()
+        {
+            float width = ((RectTransform)transform).rect.width;
+            if (fitting || width <= 0 || Mathf.Approximately(width, arrangedWidth)) return;
+            fitting = true;
+            try { Arrange(width); arrangedWidth = width; }
+            finally { fitting = false; }
+        }
+
+        void Arrange(float width)
+        {
+            var sections = transform.Cast<Transform>().Where(child => child.gameObject.activeSelf).Select(child => (RectTransform)child).ToList();
+            int cards = sections.Sum(section => Cards(section).Count());
+            if (cards == 0) return;
+            float cardWidth = CardWidth(width, cards, sections.Count, Spacing, SectionSpacing, MinimumWidth);
+            float cardHeight = LobbyPlayCardGrid.HeightFor(cardWidth), top = CaptionHeight + CaptionGap, x = 0f;
+            foreach (var section in sections)
+            {
+                int count = Cards(section).Count();
+                float sectionWidth = count * cardWidth + Mathf.Max(0, count - 1) * Spacing, at = 0f;
+                Set(section, new Vector2(x, 0), new Vector2(sectionWidth, top + cardHeight));
+                foreach (Transform child in section)
+                {
+                    var item = (RectTransform)child;
+                    if (child.name == Caption) { Set(item, Vector2.zero, new Vector2(sectionWidth, CaptionHeight)); continue; }
+                    Set(item, new Vector2(at, -top), new Vector2(cardWidth, cardHeight));
+                    at += cardWidth + Spacing;
+                }
+                x += sectionWidth + SectionSpacing;
+            }
+            ((RectTransform)transform).Size(-1, top + cardHeight);
+        }
+
+        static IEnumerable<Transform> Cards(Transform section) => section.Cast<Transform>().Where(child => child.name != Caption);
+
+        static void Set(RectTransform rect, Vector2 position, Vector2 size)
+        {
+            var corner = new Vector2(0, 1);
+            if (rect.anchorMin != corner || rect.anchorMax != corner || rect.pivot != corner)
+            { rect.anchorMin = rect.anchorMax = rect.pivot = corner; }
+            if (rect.anchoredPosition != position) rect.anchoredPosition = position;
+            if (rect.sizeDelta != size) rect.sizeDelta = size;
+        }
+    }
+
     public sealed class LobbyPlayModeDock : MonoBehaviour
     {
         public RectTransform Choices, Goal;
@@ -176,7 +239,7 @@ namespace Wreckabulary
                 float height = Mathf.Max(44, layout ? layout.preferredHeight : row.rect.height);
                 float width = Mathf.Min(MaximumWidth, Mathf.Max(1, parent.rect.width));
                 Place(row, width, 0, height);
-                var families = GetComponent<LobbyPlayModeFamilies>();
+                var families = GetComponentInChildren<LobbyPlayModeFamilies>();
                 if (families) families.Fit();
                 height = Mathf.Max(44, layout ? layout.preferredHeight : row.rect.height);
                 Place(row, width, 0, height);
@@ -230,8 +293,8 @@ namespace Wreckabulary
     {
         public const string Caption = "Family caption";
         public float ButtonWidth = 104, ButtonHeight = 52, CaptionHeight = 22;
-        public float Spacing = 6, FamilySpacing = 28, LineSpacing = 8, OneLineScale = .8f;
-        public bool Stacked;
+        public float Spacing = 6, FamilySpacing = 28, LineSpacing = 8, OneLineScale = .8f, RowFooter = 10;
+        public bool OneRow;
         readonly Dictionary<Transform, float> natural = new Dictionary<Transform, float>();
         float arrangedWidth = -1f;
         int arrangedCount = -1;
@@ -241,9 +304,11 @@ namespace Wreckabulary
         void OnRectTransformDimensionsChange() => Fit();
         void LateUpdate() => Fit();
 
+        float Available => OneRow && transform.parent is RectTransform view ? view.rect.width : ((RectTransform)transform).rect.width;
+
         public void Fit()
         {
-            float width = ((RectTransform)transform).rect.width;
+            float width = Available;
             if (fitting || width <= 0) return;
             int count = ActiveFamilies();
             if (count == arrangedCount && Mathf.Approximately(width, arrangedWidth)) return;
@@ -268,9 +333,16 @@ namespace Wreckabulary
         {
             var families = transform.Cast<Transform>().Where(child => child.gameObject.activeSelf).Select(child => (RectTransform)child).ToList();
             if (families.Count == 0) return;
+            if (OneRow)
+            {
+                float sum = families.Sum(Natural), gaps = FamilySpacing * (families.Count - 1);
+                width = sum * Mathf.Clamp(Mathf.Max(0f, width - gaps) / Mathf.Max(1f, sum), OneLineScale, 1f) + gaps;
+                var own = (RectTransform)transform;
+                if (!Mathf.Approximately(own.rect.width, width)) own.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            }
             var lines = new List<List<RectTransform>>();
             int start = 0;
-            var sizes = Stacked ? Enumerable.Repeat(1, families.Count).ToArray() : Lines(families.Select(Natural).ToList(), FamilySpacing, width, OneLineScale);
+            var sizes = OneRow ? new[] { families.Count } : Lines(families.Select(Natural).ToList(), FamilySpacing, width, OneLineScale);
             foreach (int size in sizes)
             {
                 lines.Add(families.GetRange(start, size));
@@ -303,6 +375,11 @@ namespace Wreckabulary
             float height = y - LineSpacing;
             if (!TryGetComponent(out LayoutElement element)) element = gameObject.AddComponent<LayoutElement>();
             if (!Mathf.Approximately(element.preferredHeight, height)) { element.preferredHeight = height; element.minHeight = height; }
+            if (!OneRow) return;
+            var content = (RectTransform)transform;
+            if (!Mathf.Approximately(content.rect.height, height)) content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            if (transform.parent.TryGetComponent(out LayoutElement band) && !Mathf.Approximately(band.preferredHeight, height + RowFooter))
+                band.preferredHeight = band.minHeight = height + RowFooter;
         }
 
         public static int[] Lines(IReadOnlyList<float> widths, float spacing, float width, float minimumScale)

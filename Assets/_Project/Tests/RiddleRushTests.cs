@@ -49,6 +49,16 @@ namespace Wreckabulary.Tests
             }
         }
 
+        static string Standing(RiddleRushDirector director, PlayerJoinManager joins)
+        {
+            var race = director.Race;
+            var furniture = Object.FindObjectsByType<Smashable>(FindObjectsSortMode.None).Where(s => s && !s.IsBroken).Select(s => s.Word).OrderBy(w => w);
+            var loose = TilePool.Instance ? new string(TilePool.Instance.Active.Where(t => t).Select(t => t.Letter).OrderBy(c => c).ToArray()) : "";
+            var seats = joins.Players.Select(p =>
+                $"seat {p.Index} {race.Points(p.Index)} pt, bag '{new string(p.Inventory.Letters.ToArray())}', wants '{p.Summoner.WantedWord}', holds '{(p.Combat.Weapon ? p.Combat.Weapon.word : "")}', at {p.transform.position:0.0}, out {p.IsKnockedOut}");
+            return $"Riddle {race.Asked} '{race.Current?.Answer}' {race.Stage} for {race.Elapsed:0} s, time left {director.TimeLeft:0} s. {string.Join("; ", seats)}. Loose letters '{loose}'. Furniture: {string.Join(" ", furniture)}";
+        }
+
         static bool Holds(PlayerController p, string word) =>
             (p.Combat.Weapon && p.Combat.Weapon.word == word) || (p.Combat.StoredGear && p.Combat.StoredGear.word == word);
 
@@ -105,6 +115,28 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(1, race.Points(human.Index));
         }
 
+        [UnityTest]
+        public IEnumerator ARiddleNobodySolvesPassesAndTheNextIsAsked()
+        {
+            yield return Load("pinwheel", 11);
+            var director = RiddleRushDirector.Active;
+            var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
+            director.PassSeconds = 1.5f;
+            yield return Play(director, 5, .5f, .5f, 50f, 60f);
+            StopBots(joins);
+            var race = director.Race;
+            string first = race.Current.Answer;
+            yield return TestScenes.WaitUntil(() => race.Passes == 1, 15f, "the unsolved riddle to pass");
+            Assert.AreEqual(first, race.LastPassed);
+            Assert.AreEqual(2, race.Asked);
+            Assert.AreEqual(RiddleStage.Asking, race.Stage);
+            Assert.AreNotEqual(first, race.Current.Answer);
+            Assert.AreEqual(0, race.Solved, "a pass scores nothing");
+            Assert.IsTrue(director.Playing, "the match carries on");
+            Assert.IsEmpty(director.Pulsing, "the passed riddle's furniture stops pulsing");
+            yield return TestScenes.WaitUntil(() => director.Panel.ClueText == race.Current.Clue, 3f, "the next riddle on the panel");
+        }
+
         [UnityTest, Timeout(600000)]
         public IEnumerator BotsPlayRiddleRushToAWinnerOnPinwheel()
         {
@@ -113,7 +145,12 @@ namespace Wreckabulary.Tests
             var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
             var hud = Object.FindAnyObjectByType<GameHud>();
             yield return Play(director, 2, 20f, .5f, .5f, 1.5f);
-            yield return TestScenes.WaitUntil(() => director.Current == HouseRoundDirector.Stage.Over, 540f, "a bot to win Riddle Rush");
+            float until = Time.realtimeSinceStartup + 540f;
+            while (director.Current != HouseRoundDirector.Stage.Over)
+            {
+                if (Time.realtimeSinceStartup > until) Assert.Fail("Timed out waiting for: a bot to win Riddle Rush. " + Standing(director, joins));
+                yield return null;
+            }
             var race = director.Race;
             Assert.AreEqual(RiddleStage.Won, race.Stage);
             Assert.IsNull(SmashableLabel.Pulse, "the match end stops the label pulse");

@@ -108,7 +108,7 @@ namespace Wreckabulary.EditorTests
                         Assert.Greater(hat.max.y, head.max.y - .01f, piece + " sits on top of the head");
                     }
                 }
-                int active = rig.Attached.Count(id => rig.NodeFor(id).gameObject.activeInHierarchy);
+                int active = rig.Attached.Count(id => !CuteWear.Handles(id) && rig.NodeFor(id).gameObject.activeInHierarchy);
                 Assert.AreEqual(look.Exclusive.Count, active, look.Id + ": only this look's pieces show");
             }
         }
@@ -161,7 +161,7 @@ namespace Wreckabulary.EditorTests
             Assert.IsTrue(skins.First(s => s.name == "SK_Satchel").enabled);
             Assert.AreEqual(.012f * 1f, Vector3.Distance(lifted, stamp.localPosition) * stamp.parent.lossyScale.x, .004f, "the badge rides 12 mm out on the strap");
             PlayerAppearance.Dress(skins, wardrobe.Wear(satchel, "Badge", null));
-            Assert.AreEqual(0, rig.Attached.Count(id => rig.NodeFor(id).gameObject.activeSelf));
+            Assert.AreEqual(0, rig.Attached.Count(id => !CuteWear.Handles(id) && rig.NodeFor(id).gameObject.activeSelf));
             Assert.IsFalse(skins.First(s => s.name == "SK_Badge_T").enabled);
         }
 

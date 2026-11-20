@@ -163,7 +163,7 @@ namespace Wreckabulary.Rules
     public sealed class RiddleRace
     {
         public const int PointsToWin = 5;
-        public const float HintSeconds = 40f, BeatSeconds = 3f, BotKnowsMin = 8f, BotKnowsMax = 15f;
+        public const float HintSeconds = 40f, PassSeconds = 40f, BeatSeconds = 3f, BotKnowsMin = 8f, BotKnowsMax = 15f;
 
         readonly RiddleDeck deck;
         readonly int[] points;
@@ -186,6 +186,9 @@ namespace Wreckabulary.Rules
         public int Target { get; }
         public float HintAfter { get; }
         public float Beat { get; }
+        public float PassAfter { get; set; } = PassSeconds;
+        public int Passes { get; private set; }
+        public string LastPassed { get; private set; }
         public float KnowsMin { get; set; } = BotKnowsMin;
         public float KnowsMax { get; set; } = BotKnowsMax;
         public int Seats => points.Length;
@@ -208,6 +211,8 @@ namespace Wreckabulary.Rules
             Array.Clear(points, 0, points.Length);
             Asked = 0;
             Solver = -1;
+            Passes = 0;
+            LastPassed = null;
             return Ask(usable);
         }
 
@@ -246,6 +251,12 @@ namespace Wreckabulary.Rules
             bool hinted = HintShown;
             Elapsed += seconds;
             if (Stage == RiddleStage.Solved) return Elapsed >= Beat ? Ask(usable) : RiddleEvent.None;
+            if (Elapsed >= HintAfter + PassAfter)
+            {
+                Passes++;
+                LastPassed = Current.Answer;
+                return Ask(usable);
+            }
             return !hinted && HintShown ? RiddleEvent.Hint : RiddleEvent.None;
         }
 
@@ -331,6 +342,8 @@ namespace Wreckabulary.Rules
             : $"Starts with {riddle.Answer[0]}" + (riddle.Hint.Length > 0 ? ". " + riddle.Hint : "");
 
         public static string Spelled(string who, string answer) => $"{who} spelled {answer}!";
+
+        public static string Passed(string answer) => $"Nobody got it. It was {answer}.";
 
         public static string Points(int points) => points == 1 ? "1 point" : $"{points} points";
 

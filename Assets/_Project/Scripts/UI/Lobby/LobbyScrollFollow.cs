@@ -36,12 +36,23 @@ namespace Wreckabulary
             var content = scroll.content;
             var bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(view, target);
             var shown = view.rect;
-            float over = 0f;
-            if (bounds.max.y + Margin > shown.yMax) over = bounds.max.y + Margin - shown.yMax;
-            else if (bounds.min.y - Margin < shown.yMin) over = bounds.min.y - Margin - shown.yMin;
-            if (over == 0f) return;
             var position = content.anchoredPosition;
-            position.y = Mathf.Clamp(position.y - over, 0f, Mathf.Max(0f, content.rect.height - shown.height));
+            if (scroll.vertical)
+            {
+                float over = 0f;
+                if (bounds.max.y + Margin > shown.yMax) over = bounds.max.y + Margin - shown.yMax;
+                else if (bounds.min.y - Margin < shown.yMin) over = bounds.min.y - Margin - shown.yMin;
+                position.y = Mathf.Clamp(position.y - over, 0f, Mathf.Max(0f, content.rect.height - shown.height));
+            }
+            if (scroll.horizontal && content.rect.width > shown.width)
+            {
+                float over = 0f;
+                if (bounds.max.x + Margin > shown.xMax) over = bounds.max.x + Margin - shown.xMax;
+                else if (bounds.min.x - Margin < shown.xMin) over = bounds.min.x - Margin - shown.xMin;
+                var all = RectTransformUtility.CalculateRelativeRectTransformBounds(view, content);
+                position.x += Mathf.Clamp(-over, shown.xMax - all.max.x, shown.xMin - all.min.x);
+            }
+            if (position == content.anchoredPosition) return;
             content.anchoredPosition = position;
             scroll.velocity = Vector2.zero;
         }

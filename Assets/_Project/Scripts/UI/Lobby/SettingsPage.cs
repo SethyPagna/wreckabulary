@@ -349,6 +349,7 @@ namespace Wreckabulary
             {
                 var hint = LobbyKit.Text(words, help, 15, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
                 hint.textWrappingMode = TextWrappingModes.Normal;
+                hint.enableAutoSizing = true; hint.fontSizeMin = 13; hint.fontSizeMax = 15;
                 hint.Size(-1, 40);
             }
             var controls = LobbyKit.Row(row, "Controls", 8);

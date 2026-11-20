@@ -67,7 +67,6 @@ namespace Wreckabulary.Rules.Wordbound
         });
 
         public static readonly ReadOnlyCollection<string> Ids = Array.AsReadOnly(All.Select(list => list.Id).ToArray());
-        public static readonly ReadOnlyCollection<string> StartTicked = Array.AsReadOnly(Ids.Where(id => id != "freeplay").ToArray());
 
         public static QuickPlaylist Find(string id) => All.FirstOrDefault(list => list.Id == id);
 
@@ -77,29 +76,101 @@ namespace Wreckabulary.Rules.Wordbound
         public static bool IsTeamMode(string mode) => mode == "TeamRace" || mode == "BrawlRace";
     }
 
+    public sealed class QuickPlayCard
+    {
+        public string Id { get; }
+        public string Mode { get; }
+        public string Label { get; }
+        public string Group { get; }
+        public bool Sized => QuickPlaylists.IsTeamMode(Mode);
+        public IEnumerable<QuickPlaylist> Playlists => QuickPlaylists.All.Where(list => list.Mode == Mode);
+
+        internal QuickPlayCard(string id, string mode, string label, string group)
+        {
+            Id = id; Mode = mode; Label = label; Group = group;
+        }
+
+        public QuickPlaylist PlaylistFor(string teamSize) =>
+            QuickPlaylists.For(Mode, !Sized ? "Solo" : QuickPlayCards.TeamSizes.Contains(teamSize) ? teamSize : QuickPlayCards.Duo);
+
+        public string Detail(string teamSize) => PlaylistFor(teamSize).Detail;
+    }
+
+    public static class QuickPlayCards
+    {
+        public const string Duo = "Duo", Squad = "Squad";
+        public static readonly ReadOnlyCollection<string> TeamSizes = Array.AsReadOnly(new[] { Duo, Squad });
+
+        public static readonly ReadOnlyCollection<QuickPlayCard> All = Array.AsReadOnly(new[]
+        {
+            new QuickPlayCard("relay", "TeamRace", "Team Race", QuickPlaylists.Classic),
+            new QuickPlayCard("brawl", "BrawlRace", "Brawl Race", QuickPlaylists.Classic),
+            new QuickPlayCard("ffa", "FreeForAll", "Free-for-All · 8", QuickPlaylists.Classic),
+            new QuickPlayCard("coop", "TimeRun", "Time Trial · 4", QuickPlaylists.Arcade),
+            new QuickPlayCard("freeplay", "Freestyle", "Free Roam · 8", QuickPlaylists.Arcade)
+        });
+
+        public static readonly ReadOnlyCollection<string> Ids = Array.AsReadOnly(All.Select(card => card.Id).ToArray());
+        public static readonly ReadOnlyCollection<string> StartTicked = Array.AsReadOnly(Ids.Where(id => id != "freeplay").ToArray());
+
+        public static QuickPlayCard Find(string id) => All.FirstOrDefault(card => card.Id == id);
+
+        public static QuickPlayCard For(QuickPlaylist list) => list == null ? null : All.FirstOrDefault(card => card.Mode == list.Mode);
+
+        public static int Size(string teamSize) => teamSize == Squad ? 4 : 2;
+
+        public static string TeamLabel(string teamSize) => Size(teamSize) + "v" + Size(teamSize);
+
+        public static bool CanPlay(string teamSize, int partySize) =>
+            TeamSizes.Contains(teamSize) && partySize >= 1 && partySize <= Size(teamSize);
+    }
+
     public sealed class QuickPlayChoices
     {
         public const string DefaultName = "Player";
         public const int MaximumName = 32;
         public const string StorageKey = "wb.online.quickplay";
 
-        public TickSet Playlists { get; }
+        public TickSet Cards { get; }
+        public string TeamSize { get; private set; } = QuickPlayCards.Duo;
         public string Name { get; private set; } = DefaultName;
 
-        public string Summary(int shown = 2)
+        public string SizeFor(int partySize) => QuickPlayCards.CanPlay(TeamSize, partySize) ? TeamSize : QuickPlayCards.Squad;
+
+        public bool ChooseTeamSize(string teamSize)
         {
-            if (Playlists.All) return "All playlists";
-            return Brief(Playlists.Ticked.Select(id => QuickPlaylists.Find(id).Label).ToArray(), shown);
+            if (!QuickPlayCards.TeamSizes.Contains(teamSize)) return false;
+            TeamSize = teamSize;
+            return true;
+        }
+
+        public IReadOnlyList<QuickPlaylist> Searched(int partySize = 1)
+        {
+            string size = SizeFor(partySize);
+            return Cards.Ticked.Select(id => QuickPlayCards.Find(id).PlaylistFor(size)).ToArray();
+        }
+
+        public bool Searches(QuickPlaylist list, int partySize = 1) => list != null && Searched(partySize).Contains(list);
+
+        public bool SquadOnlyFor(int partySize) => !QuickPlayCards.CanPlay(QuickPlayCards.Duo, partySize) &&
+            QuickPlayCards.CanPlay(QuickPlayCards.Squad, partySize) && Cards.Ticked.Any(id => QuickPlayCards.Find(id).Sized);
+
+        public string Summary(int shown = 2, int partySize = 1)
+        {
+            if (Cards.All) return "All playlists" + MapCardText.Separator + QuickPlayCards.TeamLabel(SizeFor(partySize));
+            return Brief(Searched(partySize).Select(list => list.Label).ToArray(), shown);
         }
 
         public string PartyLine(int partySize)
         {
-            var ticked = Playlists.Ticked.Select(QuickPlaylists.Find).Where(list => list != null).ToArray();
-            var fits = ticked.Where(list => list.Fits(partySize)).Select(list => list.Label).ToArray();
-            var skips = ticked.Where(list => !list.Fits(partySize)).Select(list => list.Label).ToArray();
+            var searched = Searched(partySize);
+            var fits = searched.Where(list => list.Fits(partySize)).Select(list => list.Label).ToArray();
+            var skips = searched.Where(list => !list.Fits(partySize)).Select(list => list.Label).ToArray();
             if (fits.Length == 0) return QuickPlayPicker.Blocked(this, partySize, false);
-            string line = "Searches " + Brief(fits, 2);
-            return skips.Length == 0 ? line : line + MapCardText.Separator + "skips " + Brief(skips, 1) + " for a party of " + partySize;
+            bool forced = SquadOnlyFor(partySize);
+            string why = " for a party of " + partySize;
+            string line = (forced ? QuickPlayCards.TeamLabel(QuickPlayCards.Squad) + why + MapCardText.Separator : "") + "Searches " + Brief(fits, 2);
+            return skips.Length == 0 ? line : line + MapCardText.Separator + "skips " + Brief(skips, 1) + (forced ? "" : why);
         }
 
         static string Brief(string[] names, int shown)
@@ -112,9 +183,13 @@ namespace Wreckabulary.Rules.Wordbound
         {
             var values = Parse(saved);
             string lists = Value(values, "lists");
-            var ticked = string.IsNullOrEmpty(lists) ? Array.Empty<string>() :
-                lists.Split('+').Where(id => QuickPlaylists.Find(id) != null).ToArray();
-            Playlists = new TickSet(QuickPlaylists.Ids, ticked.Length > 0 ? ticked : QuickPlaylists.StartTicked.ToArray());
+            var ticked = (string.IsNullOrEmpty(lists) ? Array.Empty<string>() : lists.Split('+'))
+                .Select(QuickPlaylists.Find).Where(list => list != null).ToArray();
+            var cards = ticked.Select(QuickPlayCards.For).Distinct().Select(card => card.Id).ToArray();
+            Cards = new TickSet(QuickPlayCards.Ids, cards.Length > 0 ? cards : QuickPlayCards.StartTicked.ToArray());
+            if (!ChooseTeamSize(Value(values, "size")))
+                TeamSize = ticked.Any(list => list.Format == QuickPlayCards.Duo) || !ticked.Any(list => list.Format == QuickPlayCards.Squad)
+                    ? QuickPlayCards.Duo : QuickPlayCards.Squad;
             ChooseName(Value(values, "name"));
         }
 
@@ -125,7 +200,8 @@ namespace Wreckabulary.Rules.Wordbound
             Name = trimmed.Length == 0 ? DefaultName : trimmed;
         }
 
-        public string Save() => string.Join(";", "v2", "lists=" + Playlists.Save(), "name=" + Uri.EscapeDataString(Name));
+        public string Save() => string.Join(";", "v2", "lists=" + string.Join("+", Searched().Select(list => list.Id)),
+            "name=" + Uri.EscapeDataString(Name), "size=" + TeamSize);
 
         static Dictionary<string, string> Parse(string saved)
         {
@@ -182,7 +258,8 @@ namespace Wreckabulary.Rules.Wordbound
             if (maps == null) throw new ArgumentNullException(nameof(maps));
             if (offered == null) throw new ArgumentNullException(nameof(offered));
             var kept = keep?.Playlist;
-            if (kept != null && choices.Playlists.IsTicked(kept.Id) && kept.Fits(partySize) &&
+            var searched = choices.Searched(partySize);
+            if (kept != null && searched.Contains(kept) && kept.Fits(partySize) &&
                 offered(keep.Mode, keep.Format, keep.Seed) && (partySeed == null || keep.Seed == partySeed))
                 return new QuickPlayPick(keep.Mode, keep.Format, keep.Seed, region);
             var lists = QuickPlaylists.All;
@@ -190,7 +267,7 @@ namespace Wreckabulary.Rules.Wordbound
             for (int i = 0; i < lists.Count; i++)
             {
                 var list = lists[(start + i) % lists.Count];
-                if (!choices.Playlists.IsTicked(list.Id) || !list.Fits(partySize)) continue;
+                if (!searched.Contains(list) || !list.Fits(partySize)) continue;
                 string seed = partySeed != null ? offered(list.Mode, list.Format, partySeed) ? partySeed : null :
                     SeedFor(maps, list, slot, offered);
                 if (seed != null) return new QuickPlayPick(list.Mode, list.Format, seed, region);
@@ -200,13 +277,14 @@ namespace Wreckabulary.Rules.Wordbound
 
         public static string Blocked(QuickPlayChoices choices, int partySize, bool partyMap)
         {
-            var ticked = choices.Playlists.Ticked.Select(QuickPlaylists.Find).ToArray();
-            if (ticked.All(list => !list.Fits(partySize)))
+            var searched = choices.Searched(partySize);
+            if (searched.All(list => !list.Fits(partySize)))
             {
                 if (partySize > QuickPlaylists.MaximumParty) return "A party has room for " + QuickPlaylists.MaximumParty + " players.";
-                if (partySize > 1 && ticked.All(list => list.TeamSize == 1))
+                if (partySize > 1 && searched.All(list => list.TeamSize == 1))
                     return "Free-for-All is solo, and a party always plays on one team. Tick a team playlist, or play your friends in a Custom match.";
-                var room = QuickPlaylists.All.Where(list => list.Fits(partySize)).Select(list => list.Label).ToArray();
+                string size = choices.SizeFor(partySize);
+                var room = QuickPlayCards.All.Select(card => card.PlaylistFor(size)).Where(list => list.Fits(partySize)).Select(list => list.Label).ToArray();
                 return "A party of " + partySize + " needs bigger teams. Tick " + JoinOr(room) + ".";
             }
             return partyMap ? "Your party's map has no public match in the ticked playlists. Tick another playlist." :

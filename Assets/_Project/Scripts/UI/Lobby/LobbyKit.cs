@@ -28,7 +28,7 @@ namespace Wreckabulary
         public static Color Panel => Palette.Panel;
         public static Color PanelTop => Palette.Panel;
         public static Color PanelBottom => Palette.Panel;
-        public static Color ScrimNavy => Palette.Panel;
+        public static Color ScrimNavy => LobbyParcel.Ink;
         public static Color Card => Palette.Card;
         public static Color Raised => Palette.Raised;
         public static Color Line => Palette.Border;
@@ -99,7 +99,6 @@ namespace Wreckabulary
             return image;
         }
 
-        /// <summary>Corner radius for the soft, bubbly look: small radii stay crisp, the rest grow rounder.</summary>
         public static int Soft(int radius) => radius <= 2 ? radius : Mathf.RoundToInt(radius * 1.6f) + 4;
 
         public static TextMeshProUGUI Text(Transform parent, string text, float size, Color colour,

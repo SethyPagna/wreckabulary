@@ -91,7 +91,6 @@ namespace Wreckabulary
         public Transform ItemPreview => itemPreview;
         public LobbyRoom Room => room;
         public LobbyWreck Wreck => wreck;
-        /// <summary>Right edge of the room still visible beside an open side panel, as a viewport fraction.</summary>
         public float VisibleRight => cam && panel > 0f && targetSide > .5f ? Mathf.Clamp01(1f - panel / cam.aspect) : 1f;
         public bool IsPresenting => cameraTaken && isActiveAndEnabled;
         public bool IsEmoting => graph.IsValid() && emotePlayable.IsValid();
@@ -168,10 +167,6 @@ namespace Wreckabulary
             Dress(outfit);
         }
 
-        /// <summary>
-        /// Records the selected map. The lobby itself always stands you in its own moving-day room
-        /// (built once), so changing the map no longer rebuilds the backdrop.
-        /// </summary>
         public void SetMap(string mapId)
         {
             LoadCameraProfile();

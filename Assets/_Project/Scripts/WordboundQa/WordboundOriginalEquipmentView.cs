@@ -399,7 +399,7 @@ namespace Wreckabulary.Qa
                 ["bounds_inside_frame"] = true, ["occlusion_or_hand_contact_visually_approved"] = false };
         }
 
-        static Mesh[] Meshes(GameObject model) => model.GetComponentsInChildren<MeshFilter>(true).Select(filter => filter.sharedMesh)
+        static Mesh[] Meshes(GameObject model) => model.GetComponentsInChildren<MeshFilter>(true).Where(filter => !CuteFace.IsCodeBuilt(filter.transform)).Select(filter => filter.sharedMesh)
             .Concat(model.GetComponentsInChildren<SkinnedMeshRenderer>(true).Select(renderer => renderer.sharedMesh)).ToArray();
         static float[] V(Vector3 value) => new[] { value.x, value.y, value.z };
 

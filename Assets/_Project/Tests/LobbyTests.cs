@@ -361,11 +361,12 @@ namespace Wreckabulary.Tests
             Click("Queue " + LobbyMenu.Practice);
             yield return null;
             var page = menu.Page<PlayPage>().Root;
-            CollectionAssert.AreEqual(HouseModes.Families.Select(family => PlayPage.GroupTab + family).ToArray(),
-                page.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith(PlayPage.GroupTab)).Select(b => b.name).ToArray(),
-                "Classic, Co-op, Arcade and Training tabs come first");
+            CollectionAssert.AreEqual(HouseModes.Families.Select(HouseModes.FamilyName).ToArray(),
+                page.GetComponentsInChildren<RectTransform>().Single(r => r.name == PlayPage.ModeSections).Cast<Transform>().Select(r => r.name).ToArray(),
+                "Classic, Co-op, Arcade and Training sections run left to right");
             var posters = page.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("Mode ")).Select(b => b.name.Substring(5)).ToArray();
-            CollectionAssert.AreEqual(new[] { "Dibs", "Duos", HouseModes.FreeForAll, "War" }, posters, "only the chosen group's modes show");
+            CollectionAssert.AreEqual(HouseModes.Families.SelectMany(HouseModes.ModesIn).Where(HouseModes.Has).ToArray(), posters,
+                "every house mode is one press away");
             Assert.AreEqual(GameConfig.Current.Houses.Count, page.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("Map ")), "every house, without a Random card");
             Assert.IsFalse(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Rays"), "decorative rays are excluded from the redesigned choices");
             Assert.IsFalse(page.GetComponentsInChildren<RectTransform>().Any(r => r.name == "Start" || r.name == "Fitted plan"), "map cards show pictures, not floor-plan skeletons");
@@ -374,7 +375,7 @@ namespace Wreckabulary.Tests
             AssertNoEllipsis(page, "PLAY");
             Assert.AreEqual("Duos", LobbyMenu.ModeName("Duos"), "Use the same display name as the direct Play mode choice.");
 
-            Click(PlayPage.GroupTab + HouseModeFamily.Training);
+            Click("Mode " + LobbyMenu.TutorialMode);
             yield return null;
             Assert.AreEqual(LobbyMenu.TutorialMode, menu.Mode);
             Assert.AreEqual(LobbyMenu.Practice, menu.Queue, "the tutorial is the first Training choice");
@@ -838,11 +839,10 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(74f, Height("You", typeof(HorizontalLayoutGroup)), 1f, "your party card");
             Click("PLAY");
             yield return null;
-            var modes = LobbyMenu.Instance.Page<PlayPage>().Root.GetComponentsInChildren<LobbyPlayModeFamilies>().Single(row => row.name == "Modes");
+            var modes = LobbyMenu.Instance.Page<PlayPage>().Root.GetComponentsInChildren<LobbyPlayModeFamilies>().Single(row => row.name == PlayPage.ModeSections);
             var modeButtons = modes.GetComponentsInChildren<Button>();
-            CollectionAssert.AreEquivalent(HouseModes.Families.Select(family => PlayPage.GroupTab + family)
-                .Concat(HouseModes.ModesIn(HouseModes.FamilyOf(LobbyMenu.Instance.Mode)).Select(PlayPage.ModeButton)), modeButtons.Select(button => button.name),
-                "The four group tabs and the chosen group's modes are directly available.");
+            CollectionAssert.AreEquivalent(HouseModes.Families.SelectMany(HouseModes.ModesIn).Select(PlayPage.ModeButton), modeButtons.Select(button => button.name),
+                "Every section's modes are directly available.");
             float modeHeight = 0f;
             foreach (var button in modeButtons)
             {
@@ -1155,15 +1155,17 @@ namespace Wreckabulary.Tests
             var loadout = menu.Page<LoadoutPage>();
             var panel = loadout.Root.GetComponentsInChildren<RectTransform>().First(r => r.name == "Panel");
             Assert.AreEqual(LoadoutPage.Width, panel.rect.width, 1f, "the saved customization width");
-            foreach (string name in new[] { "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear", "Part Top", "Part Bottoms", "Colour tomato",
-                "Extra Face", "Satchel", "TBadge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
+            foreach (string name in new[] { "HairSwept", "HairBuns", "EyesSparkle", "EyesJelly", "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear",
+                "Glasses", "HeartShades", "StarShades", "No Face", "Part Top", "Part Bottoms", "Colour tomato",
+                "Satchel", "TBadge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
                 Find(name);
+            Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name == "No Hair" || b.name == "No Eyes"), "hair and eyes are always chosen");
             Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Slot ")),
                 "the full list stays available without extra modal slot pages");
             var list = loadout.Root.GetComponentsInChildren<ScrollRect>().Single();
             Assert.IsTrue(list.vertical && !list.horizontal);
             Assert.IsNotNull(list.verticalScrollbar, "long customization pages show their scroll position");
-            foreach (string name in new[] { "Extra Face", "Finish Classic", "Finish Candy", "Finish Arcade" })
+            foreach (string name in new[] { "Finish Classic", "Finish Candy", "Finish Arcade" })
                 Assert.GreaterOrEqual(((RectTransform)Find(name).transform).rect.height, 52f, "one readable option per row");
             var corners = new Vector3[4];
             panel.GetWorldCorners(corners);
@@ -1183,21 +1185,31 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator LockerExtrasHoodAndPartColours()
+        public IEnumerator LockerLookAccessoriesHoodAndPartColours()
         {
             yield return OpenLobby();
             var menu = LobbyMenu.Instance;
             Click("LOADOUT");
             yield return null;
             Assert.IsNull(menu.Outfit.PieceIn("Face"), "no glasses to start");
-            Click("Extra Face");
+            Click("Glasses");
             yield return null;
-            Assert.AreEqual("Glasses", menu.Outfit.PieceIn("Face"), "the card puts the glasses on");
+            Assert.AreEqual("Glasses", menu.Outfit.PieceIn("Face"), "the round specs go on");
             Assert.AreEqual("Glasses", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).PieceIn("Face"), "saved");
-            Assert.AreSame(Find("Extra Face").gameObject, Selected, "a keyboard or controller stays on the card");
-            Click("Extra Face");
+            Assert.AreSame(Find("Glasses").gameObject, Selected, "a keyboard or controller stays on the choice");
+            Click("HeartShades");
             yield return null;
-            Assert.IsNull(menu.Outfit.PieceIn("Face"), "a second click takes them off");
+            Assert.AreEqual("HeartShades", menu.Outfit.PieceIn("Face"), "one face piece at a time");
+            Click("No Face");
+            yield return null;
+            Assert.IsNull(menu.Outfit.PieceIn("Face"), "No Face takes them off");
+            Click("HairBuns");
+            yield return null;
+            Assert.AreEqual("HairBuns", menu.Outfit.PieceIn("Hair"));
+            Click("EyesJelly");
+            yield return null;
+            Assert.AreEqual("EyesJelly", menu.Outfit.PieceIn("Eyes"));
+            Assert.AreEqual("HairBuns", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).PieceIn("Hair"), "hair is saved with the look");
 
             Assert.AreEqual("Hood", menu.Outfit.PieceIn("Headwear"));
             Click("Crewneck");
@@ -1357,8 +1369,6 @@ namespace Wreckabulary.Tests
             Click("Mode Duos");
             yield return null;
             Assert.AreEqual(map, menu.SavedHome, "and Duos plays it too");
-            Click(PlayPage.GroupTab + HouseModeFamily.Coop);
-            yield return null;
             Click("Mode MovingOut");
             yield return null;
             Assert.IsNull(menu.SavedHome, "objective modes keep the original house");

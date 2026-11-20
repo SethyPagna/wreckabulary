@@ -4,11 +4,6 @@ using Wreckabulary.Art;
 
 namespace Wreckabulary
 {
-    /// <summary>
-    /// Every few seconds one piece of lobby furniture in view wobbles, bursts into the letter tiles of its
-    /// name (a TABLE drops T, A, B, L, E), lets them settle on the floor, then pulls them back together.
-    /// Purely visual: no physics bodies, no colliders, unscaled time so it also runs while paused.
-    /// </summary>
     [DisallowMultipleComponent]
     public sealed class LobbyWreck : MonoBehaviour
     {
@@ -46,7 +41,6 @@ namespace Wreckabulary
             this.stage = stage;
         }
 
-        /// <summary>Starts the next wreck now (used by the Home page tap and by tests).</summary>
         public bool Trigger()
         {
             if (Busy || !room) return false;
@@ -202,7 +196,6 @@ namespace Wreckabulary
             }
         }
 
-        /// <summary>Snaps a tumbling tile to the nearest resting face so it lies flat on the floor.</summary>
         static Quaternion Upright(Quaternion rotation)
         {
             var axes = new[] { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
@@ -248,7 +241,6 @@ namespace Wreckabulary
 
         void Next(Phase next) { phase = next; clock = 0f; }
 
-        /// <summary>Puts any half-wrecked furniture back at once, e.g. when the lobby closes.</summary>
         public void Settle()
         {
             foreach (var p in pieces) if (p.root) Destroy(p.root.gameObject);

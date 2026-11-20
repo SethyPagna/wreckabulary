@@ -145,13 +145,22 @@ namespace Wreckabulary.Tests
         {
             var stub = new StubParty { Active = true, Leader = true, Heading = "Party · 3 of 4",
                 Members = new[] { "You · leader · ready", "Player 2 · ready", "Player 3 · not ready" },
-                Status = "Searches Team Race 2v2, Team Race 4v4 + 3 more", CanCopy = true, CanLeave = true, CanFind = true };
+                Status = new QuickPlayChoices().PartyLine(3), CanCopy = true, CanLeave = true, CanFind = true };
+            Assert.IsTrue(Find(PlayPage.TeamSizeSwitch + " Duo").interactable, "one player picks either size");
             WordboundLobbyParty.Register(() => stub);
             Assert.AreSame(stub, WordboundLobbyParty.Open());
             yield return null;
             Assert.AreEqual("Party · 3 of 4", Text(PlayPage.PartyHeading));
             StringAssert.Contains("Player 3 · not ready", Text(PlayPage.PartyMembers));
             Assert.AreEqual(stub.Status, Text("Matchmaking detail"));
+            StringAssert.StartsWith("4v4 for a party of 3 · ", stub.Status);
+            Assert.IsFalse(Find(PlayPage.TeamSizeSwitch + " Duo").interactable, "a party of 3 cannot play 2v2");
+            Assert.IsTrue(Find(PlayPage.TeamSizeSwitch + " Squad").interactable);
+            Assert.IsTrue(Find(PlayPage.TeamSizeSwitch + " Squad").GetComponentsInChildren<Image>().Single(image => image.name == "Underline").enabled, "the switch shows 4v4");
+            Assert.AreEqual(PlayPage.PartyPlaysSquad(3), Text(PlayPage.TeamSizeNote));
+            Assert.AreEqual("Team Race 4v4, Brawl Race 4v4 + 2 more", Text("Matchmaking playlists"));
+            Assert.AreEqual("Teams of 4 race to the delivery", Find(PlayPage.PlaylistCard + "relay").GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Map detail").text);
+            StringAssert.Contains("size=Duo", PlayerPrefs.GetString(QuickPlayChoices.StorageKey, "size=Duo"), "the saved 2v2 is kept for later");
             Assert.IsEmpty(Page.GetComponentsInChildren<Button>().Where(button => button.name == PlayPage.InviteFriendsButton), "Invite steps aside for the party.");
             Submit(PlayPage.CopyPartyCode);
             Submit(PlayPage.FindMatch);

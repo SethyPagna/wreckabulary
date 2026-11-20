@@ -1,7 +1,9 @@
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Wreckabulary.Rules.Wordbound;
 
 namespace Wreckabulary
 {
@@ -16,6 +18,16 @@ namespace Wreckabulary
         Button copy, leave, go, custom, firstSolo;
         string summary, detail;
         bool available, ready, wasParty, counted;
+        int shownSize = 1;
+        Action resized;
+
+        public void WatchPartySize(int shown, Action rebuild)
+        {
+            shownSize = shown;
+            resized = rebuild;
+        }
+
+        static bool TwoFit(int partySize) => QuickPlayCards.CanPlay(QuickPlayCards.Duo, partySize);
 
         public void BindStrip(GameObject soloRow, GameObject partyRow, Button invite, TMP_Text partyHeading, TMP_Text partyMembers,
             Button copyButton, Button leaveButton)
@@ -65,6 +77,14 @@ namespace Wreckabulary
             if (!ready) return;
             var party = WordboundLobbyParty.Current;
             bool inParty = party != null && party.Active;
+            int size = inParty ? Mathf.Max(1, party.Members.Count) : 1;
+            if (resized != null && TwoFit(size) != TwoFit(shownSize))
+            {
+                var rebuild = resized;
+                resized = null;
+                rebuild();
+                return;
+            }
             if (solo.activeSelf == inParty) solo.SetActive(!inParty);
             if (group.activeSelf != inParty) group.SetActive(inParty);
             if (inParty != wasParty) { wasParty = inParty; KeepSelection(inParty); }
