@@ -26,6 +26,7 @@ namespace Wreckabulary
         public RiddleRushHud Panel { get; private set; }
         public int Target { get; set; }
         public float HintSeconds { get; set; }
+        public float PassSeconds { get; set; }
         public float BeatSeconds { get; set; }
         public float KnowsMin { get; set; }
         public float KnowsMax { get; set; }
@@ -44,6 +45,7 @@ namespace Wreckabulary
             var rules = Context.Rules;
             Target = Mathf.Max(1, rules.Setting("pointsToWin", RiddleRace.PointsToWin));
             HintSeconds = rules.Setting("hintSeconds", RiddleRace.HintSeconds);
+            PassSeconds = rules.Setting("passSeconds", RiddleRace.PassSeconds);
             BeatSeconds = rules.Setting("beatSeconds", RiddleRace.BeatSeconds);
             KnowsMin = rules.Setting("botKnowsMin", RiddleRace.BotKnowsMin);
             KnowsMax = rules.Setting("botKnowsMax", RiddleRace.BotKnowsMax);
@@ -89,7 +91,7 @@ namespace Wreckabulary
             int seats = Mathf.Max(Joins.MaxPlayers, Players.Count);
             Race = new RiddleRace(new RiddleDeck(HouseRiddles, seed), Mathf.Max(1, seats), seed, Target, HintSeconds, BeatSeconds)
             {
-                KnowsMin = KnowsMin, KnowsMax = Mathf.Max(KnowsMin, KnowsMax),
+                KnowsMin = KnowsMin, KnowsMax = Mathf.Max(KnowsMin, KnowsMax), PassAfter = Mathf.Max(0f, PassSeconds),
             };
             pulsing.Clear();
             foreach (var p in Players) Listen(p);
@@ -121,7 +123,9 @@ namespace Wreckabulary
         protected override void Tick()
         {
             if (Race == null) return;
+            int passes = Race.Passes;
             var happened = Race.Tick(Time.deltaTime, usable);
+            if (Race.Passes != passes) Hud.Toast(RiddleText.Passed(Race.LastPassed));
             if (happened == RiddleEvent.Hint) Pulse();
             else if (happened != RiddleEvent.None) Asked(happened);
             if (TimeLimit > 0f && TimeLeft <= 0f) Finish(Result(true));
