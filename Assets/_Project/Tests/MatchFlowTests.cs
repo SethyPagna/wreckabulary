@@ -12,11 +12,16 @@ namespace Wreckabulary.Tests
     public class MatchFlowTests
     {
         const float Slow = 30f, LongClock = 600f, ShortCountdown = .05f, CarriedHoldSeconds = 1.6f, LeftOnTheClock = 2.5f, PausedSeconds = .5f;
-        const float Slack = 1f, SmallCardWidth = 575.5f;
-        const int ReleaseFrames = 5;
+        const float Slack = 1f, SmallCardWidth = 575.5f, OldSeatMax = 170f, Tolerance = .01f, BigCoinFont = 30f;
+        const int ReleaseFrames = 5, PaidCoins = 25, PaidScore = 140;
 
         static readonly string[] LineUps = { HouseModes.Dibs, HouseModes.Duos, HouseModes.FreeForAll, HouseModes.War };
         static readonly string[] BothFlows = { HouseModes.Dibs, HouseModes.FreeForAll };
+        static readonly string[] Crews = { HouseModes.MovingOut, HouseModes.Escape, HouseModes.MovingDay };
+        static readonly string[] Wipeable = { HouseModes.MovingOut, HouseModes.Escape };
+        const string CrewMap = "flat", FurnishMap = "pinwheel";
+        const string CrewShowcase = "Showcase", CrewCountdown = "Countdown", CrewPlaying = "Playing", CrewFailed = "Failed";
+        const float FurnishFirstZ = -3f, FurnishStepZ = 1.8f, FurnishDrop = .3f, VanDrop = .3f, VanSpread = .8f, AlmostNoTime = .2f;
 
         [UnitySetUp] public IEnumerator SetUp() => TestScenes.Reset();
 
@@ -24,6 +29,7 @@ namespace Wreckabulary.Tests
         public IEnumerator TearDown()
         {
             RoundManager.WarmupRequested = false;
+            RoundManager.FinishBeatsRequested = false;
             Time.timeScale = 1f;
             yield return TestScenes.Reset();
         }
@@ -37,6 +43,9 @@ namespace Wreckabulary.Tests
         static Transform ResultCard => Hud.UiCanvas.transform.Find("Safe HUD/Result/Result card");
         static string Text(string path) => ResultCard.Find(path).GetComponent<TMP_Text>().text;
         static bool Active(string path) => ResultCard.Find(path).gameObject.activeSelf;
+        static GameObject HudPart(string path) => Hud.UiCanvas.transform.Find("Safe HUD/" + path).gameObject;
+        static bool BagAndHealthShown => HudPart("Letter bag").activeSelf && HudPart("Vitals").activeSelf;
+        static bool BagAndHealthCleared => !HudPart("Letter bag").activeSelf && !HudPart("Vitals").activeSelf && SmashableLabel.Covered;
 
         static IEnumerator Load(string mode, bool warmup, int humans = 1)
         {
@@ -110,6 +119,68 @@ namespace Wreckabulary.Tests
             return space >= 0 && int.TryParse(text.Substring(space + 1), out int left) ? left : 0;
         }
 
+        static string Columns(string numbers) => System.Text.RegularExpressions.Regex.Replace(numbers, @"\d+", "#");
+
+        static void AssertRoundRow(PlayerController winner, int wins)
+        {
+            Assert.IsTrue(Hud.RoundRowShown, "the round card lines up the seats");
+            Assert.AreEqual(Joins.Players.Count, Hud.RoundRowCount, "one portrait per seat");
+            Assert.IsFalse(Active("Players"), "no text lines under the portraits");
+            Assert.IsFalse(Active("Stats"), "and no small numbers");
+            for (int i = 0; i < Hud.RoundRowCount; i++)
+            {
+                string name = Hud.RoundRowSeatName(i);
+                var seat = Joins.Players.First(p => p.Name == name);
+                bool won = seat == winner;
+                Assert.AreEqual(won, Hud.RoundRowRaised(i), name + " is raised only when they won the round");
+                Assert.AreEqual(seat.Binding is BotBinding ? SeatTags.BotTag : SeatTags.YouTag, Hud.RoundRowSeatTag(i), name);
+                Assert.AreEqual(won ? wins : 0, Hud.RoundRowWins(i), name + " has a pip per round won");
+                if (won) Assert.Greater(OnScreen(Hud.RoundRowRect(i)).yMax, OnScreen(Hud.RoundRowRect((i + 1) % Hud.RoundRowCount)).yMax, "the winner stands higher");
+            }
+            AssertReadable(ResultCard.Find(GameHud.RoundRowName), GameHud.MatchEndMinFont);
+        }
+
+        static void AssertOneColumnSet()
+        {
+            string first = Columns(Hud.MatchEndCardNumbers(0));
+            for (int i = 1; i < Hud.MatchEndCardCount; i++)
+                Assert.AreEqual(first, Columns(Hud.MatchEndCardNumbers(i)), "every card has the same columns in the same order");
+            for (int i = 0; i < Hud.MatchEndCardCount; i++)
+                Assert.AreNotEqual(MatchAwards.DefaultTitle, Hud.MatchEndCardTitle(i), "no Good Sport over empty numbers");
+        }
+
+        static void AssertResultSaysItOnce()
+        {
+            Assert.IsFalse(Active("Eyebrow"), "the mode line and the banner say who won");
+            Assert.IsFalse(Active("Heading"));
+            Assert.IsFalse(Active("Flavour"));
+        }
+
+        static IEnumerator AssertPaidMatchEndShowsTheCoinChip(MatchEndBoard board)
+        {
+            Assert.IsNotNull(board, "the match end screen is up");
+            Hud.ShowResult(new HudResult { Round = Rounds.Round, Final = true, Won = board.Won, Board = board,
+                Reward = new MatchRecord { Coins = PaidCoins, Score = PaidScore } }, Rounds.StartMatch);
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            Assert.AreSame(board, Hud.ShownMatchEnd, "the same match end screen, now paying a person on the couch");
+            AssertResultSaysItOnce();
+            Assert.IsTrue(Active("Reward"), "the coins show at the end");
+            Assert.AreEqual("+" + PaidCoins, Text("Reward/Coins"));
+            var chip = (RectTransform)ResultCard.Find("Reward/Chip");
+            Assert.IsNotNull(chip, "the coins sit on a chip");
+            Assert.IsTrue(chip.gameObject.activeInHierarchy, "the chip is drawn");
+            Assert.Greater(chip.sizeDelta.x, ((RectTransform)ResultCard.Find("Reward/Coins")).rect.width, "the chip holds the coin count");
+            Assert.GreaterOrEqual(ResultCard.Find("Reward/Coins").GetComponent<TMP_Text>().fontSize, BigCoinFont, "a big coin number");
+            var card = OnScreen((RectTransform)ResultCard);
+            var onCard = OnScreen(chip);
+            Assert.That(onCard.xMin, Is.GreaterThanOrEqualTo(card.xMin - Slack), "the chip sits on the card");
+            Assert.That(onCard.xMax, Is.LessThanOrEqualTo(card.xMax + Slack), "the chip sits on the card");
+            Assert.That(onCard.yMin, Is.GreaterThanOrEqualTo(card.yMin - Slack), "the chip sits on the card");
+            Assert.That(onCard.yMax, Is.LessThanOrEqualTo(card.yMax + Slack), "the chip sits on the card");
+            StringAssert.Contains("PLAY AGAIN", Text("Next/Body/Label"));
+        }
+
         static void AssertReadable(Transform root, float smallest)
         {
             foreach (var text in root.GetComponentsInChildren<TextMeshProUGUI>(true))
@@ -175,11 +246,12 @@ namespace Wreckabulary.Tests
 
             var shown = Enumerable.Range(0, Hud.ShowcaseSeatCount).Select(Hud.ShowcaseSeatPlayer).ToArray();
             CollectionAssert.AreEquivalent(players.ToArray(), shown, "every seat is shown once");
+            if (players.Count <= 4) Assert.Greater(Hud.ShowcaseSeatSize, OldSeatMax, "the line-up cards are big");
             for (int i = 0; i < shown.Length; i++)
             {
                 bool bot = shown[i].Binding is BotBinding;
-                Assert.AreEqual(bot ? shown[i].Name : "You", Hud.ShowcaseSeatName(i));
-                Assert.AreEqual(bot ? MatchShowcase.BotTag : "", Hud.ShowcaseSeatTag(i), "bots are marked: " + shown[i].Name);
+                Assert.AreEqual(shown[i].Name, Hud.ShowcaseSeatName(i), "one naming rule: the seat name");
+                Assert.AreEqual(bot ? MatchShowcase.BotTag : SeatTags.YouTag, Hud.ShowcaseSeatTag(i), "bots are marked, the one person on the couch is YOU: " + shown[i].Name);
                 Assert.AreEqual(GameHud.ShowcaseSideColour(shown[i], players, sided), Hud.ShowcaseSeatColour(i), shown[i].Name);
                 for (int j = 0; j < i; j++)
                 {
@@ -199,6 +271,10 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(Hud.ShowcaseRoot.GetComponentsInChildren<Graphic>(true).All(g => !g.raycastTarget), "nothing on the showcase takes a click");
             Assert.IsEmpty(Hud.ShowcaseRoot.GetComponentsInChildren<Selectable>(true), "nothing on the showcase takes focus");
             AssertReadable(Hud.ShowcaseRoot, GameHud.ShowcaseMinFont);
+            yield return TestScenes.WaitUntil(() => Enumerable.Range(0, Hud.ShowcaseSeatCount).All(Hud.ShowcaseSeatLanded), Slow, "the cards to slide in from their sides");
+            Assert.IsTrue(Hud.LocalPlayer, "the couch player has a HUD");
+            Assert.IsTrue(Hud.FullCardShown);
+            yield return TestScenes.WaitUntil(() => BagAndHealthCleared, Slow, "the line-up to clear the letter bag, hands, health and furniture names");
             Canvas.ForceUpdateCanvases();
             var safe = SafeArea();
             for (int i = 0; i < shown.Length; i++)
@@ -217,6 +293,7 @@ namespace Wreckabulary.Tests
             Assert.IsNull(Rounds.Showcase);
             Assert.IsFalse(Hud.ShowcaseShown);
             Assert.AreEqual(0, Hud.ShowcaseSeatCount);
+            yield return TestScenes.WaitUntil(() => BagAndHealthShown && !SmashableLabel.Covered, Slow, "the bag, hands and health back after the line-up");
             Assert.IsTrue(players.All(p => p.Frozen), "everyone waits out the countdown as usual");
             Assert.IsTrue(players.All(p => p.Health.IsAlive && Mathf.Approximately(p.Health.Current, p.Health.Max)));
             if (Rounds.Directed) Assert.AreEqual(HouseRoundDirector.Stage.Countdown, Director.Current);
@@ -407,16 +484,20 @@ namespace Wreckabulary.Tests
                 int now = round;
                 yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Playing && Rounds.Round == now, Slow, "round " + now);
                 StopBots();
+                yield return TestScenes.WaitUntil(() => BagAndHealthShown && !SmashableLabel.Covered, Slow, "the bag, hands and health in round " + now);
                 foreach (var other in Joins.Players.Where(p => p != human)) other.Health.Eliminate();
                 yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.RoundOver || Rounds.Phase == Phase.MatchOver, Slow, "round " + now + " to end");
+                Assert.IsFalse(CameraRig.Instance && CameraRig.Instance.Pushing, "a direct start keeps the usual camera shot");
                 yield return TestScenes.WaitUntil(() => Hud.ResultShown, Slow, "the result card of round " + now);
+                yield return TestScenes.WaitUntil(() => BagAndHealthCleared, Slow, "the result card to clear the bag, hands, health and furniture names");
                 if (round == target) break;
                 Assert.AreEqual(Phase.RoundOver, Rounds.Phase);
                 Assert.IsFalse(Hud.MatchEndShown, "a round result stays the small card");
                 Assert.IsNull(ResultCard.Find(GameHud.MatchEndHeadName), "the match end parts are not even built yet");
                 Assert.IsTrue(Active("Spark"));
-                Assert.IsTrue(Active("Players"));
-                Assert.IsTrue(Active("Stats"));
+                AssertRoundRow(human, now);
+                Assert.IsNotEmpty(Text("Players"), "the seat lines stay filled for anything that reads them");
+                Assert.AreEqual(1f, Time.timeScale, "a direct start never slows time");
                 StringAssert.Contains("NEXT ROUND", Text("Next/Body/Label"));
                 Hud.ConfirmResult();
             }
@@ -427,16 +508,18 @@ namespace Wreckabulary.Tests
             StringAssert.StartsWith("LAST ONE STANDING", Hud.MatchEndModeLine);
             StringAssert.DoesNotContain("DIBS", Hud.MatchEndModeLine);
             Assert.AreEqual(Joins.Players.Count, Hud.MatchEndCardCount, "a card per seat");
-            Assert.AreEqual("You", Hud.MatchEndCardName(0), "the winner comes first");
+            Assert.AreEqual(human.Name, Hud.MatchEndCardName(0), "the winner comes first, by seat name");
             Assert.AreEqual(MatchAwards.MvpTitle, Hud.MatchEndCardTitle(0));
-            Assert.AreEqual(MatchEnd.WinnerTag, Hud.MatchEndCardTag(0));
+            Assert.AreEqual(MatchEnd.WinnerTag + MatchEnd.Dot + SeatTags.YouTag, Hud.MatchEndCardTag(0));
             StringAssert.StartsWith(MatchAwards.WinsLabel + " " + target, Hud.MatchEndCardNumbers(0));
             for (int i = 1; i < Hud.MatchEndCardCount; i++)
             {
                 Assert.AreEqual(MatchEnd.BotTag, Hud.MatchEndCardTag(i), "bots are marked and did not win");
-                Assert.IsNotEmpty(Hud.MatchEndCardTitle(i), "every seat gets a title");
                 StringAssert.StartsWith(MatchAwards.WinsLabel + " 0", Hud.MatchEndCardNumbers(i));
             }
+            AssertOneColumnSet();
+            AssertResultSaysItOnce();
+            Assert.IsFalse(Active("Reward"), "a scripted seat is nobody's career, so nothing is paid and no empty chip shows");
             Assert.IsTrue(MatchStats.Current.Lines.Where(l => l.Bot).All(l => l.Falls == target), "every bot fell once a round");
             Assert.AreEqual(0, MatchStats.Current.Of(human.Index).Falls);
             Assert.IsFalse(MatchTally.StatsLive, "the table closes with the match");
@@ -454,6 +537,8 @@ namespace Wreckabulary.Tests
             AssertReadable(ResultCard.Find(GameHud.MatchEndHeadName), GameHud.MatchEndMinFont);
             AssertReadable(ResultCard.Find(GameHud.MatchEndCardsName), GameHud.MatchEndMinFont);
 
+            yield return AssertPaidMatchEndShowsTheCoinChip(Hud.ShownMatchEnd);
+
             ResultCard.Find("Next").GetComponent<Button>().onClick.Invoke();
             yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Playing && Rounds.Round == 1, Slow, "the rematch to play");
             Assert.IsFalse(Hud.ResultShown);
@@ -468,9 +553,45 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(Active(GameHud.MatchEndHeadName));
             Assert.IsFalse(Active(GameHud.MatchEndCardsName));
             Assert.IsTrue(Active("Spark"));
-            Assert.IsTrue(Active("Players"));
-            Assert.IsTrue(Active("Stats"));
+            Assert.IsTrue(Active("Eyebrow"), "the round card keeps its words");
+            Assert.IsTrue(Active("Heading"));
+            AssertRoundRow(human, 1);
             Assert.LessOrEqual(((RectTransform)ResultCard).sizeDelta.x, SmallCardWidth, "and it is its old width again");
+        }
+
+        [UnityTest]
+        public IEnumerator ALobbyMatchSlowsTheLastKnockoutBrieflyAndGivesTimeBack()
+        {
+            RoundManager.FinishBeatsRequested = true;
+            yield return Load(HouseModes.Dibs, false);
+            yield return TestScenes.WaitUntil(() => Rounds && Rounds.Phase != Phase.Lobby, Slow, "the match to start");
+            Assert.IsTrue(Rounds.FinishBeats, "a lobby launch asks for the finishing beat");
+            Assert.IsFalse(RoundManager.FinishBeatsRequested, "the request is used once");
+            QuickCountdown();
+            var human = Human();
+            Hud.Follow(human);
+            yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Playing, Slow, "round one");
+            StopBots();
+            foreach (var other in Joins.Players.Where(p => p != human)) other.Health.Eliminate();
+            yield return TestScenes.WaitUntil(() => Rounds.FinishBeatPlaying, Slow, "the finishing beat");
+            Assert.AreEqual(RoundManager.BeatScale, Time.timeScale, Tolerance, "a third of the speed for a moment");
+            Assert.IsFalse(Hud.ResultShown, "the card waits for the beat");
+            var rig = CameraRig.Instance;
+            Assert.IsTrue(rig, "the house camera");
+            Assert.IsTrue(rig.Pushing, "the camera leans in on the winner for the beat");
+            Assert.Less(Vector3.Distance(rig.PushedToward, human.transform.position), Slack, "toward the winner");
+            Hud.TogglePause();
+            yield return TestScenes.WaitUntil(() => Hud.Paused && Time.timeScale == 0f, Slow, "the pause menu");
+            yield return new WaitForSecondsRealtime(RoundManager.BeatSeconds + PausedSeconds);
+            Assert.IsTrue(Rounds.FinishBeatPlaying, "the beat waits while paused");
+            Assert.AreEqual(0f, Time.timeScale, "pause wins over the beat");
+            Hud.TogglePause();
+            yield return TestScenes.WaitUntil(() => !Rounds.FinishBeatPlaying, Slow, "the beat to end");
+            Assert.AreEqual(1f, Time.timeScale, "time comes back exactly");
+            yield return TestScenes.WaitUntil(() => !rig.Pushing, Slow, "the camera to settle back");
+            Assert.AreEqual(0f, rig.PushAmount, "the usual shot again");
+            yield return TestScenes.WaitUntil(() => Hud.ResultShown, Slow, "the round card after the beat");
+            Assert.AreEqual(1f, Time.timeScale);
         }
 
         [UnityTest]
@@ -505,8 +626,10 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(MatchAwards.MvpTitle, Hud.MatchEndCardTitle(0));
             Assert.AreEqual(MatchEnd.WinnerTag + MatchEnd.Dot + MatchEnd.BotTag, Hud.MatchEndCardTag(0));
             StringAssert.StartsWith(MatchAwards.KnockoutsLabel + " 1", Hud.MatchEndCardNumbers(0), "the card shows the mode's own knockout count");
-            int you = Enumerable.Range(0, Hud.MatchEndCardCount).Single(i => Hud.MatchEndCardName(i) == "You");
-            Assert.AreEqual("", Hud.MatchEndCardTag(you), "a human who did not win carries no tag");
+            int you = Enumerable.Range(0, Hud.MatchEndCardCount).Single(i => Hud.MatchEndCardName(i) == human.Name);
+            Assert.AreEqual(SeatTags.YouTag, Hud.MatchEndCardTag(you), "a human who did not win carries only the YOU tag");
+            AssertOneColumnSet();
+            AssertResultSaysItOnce();
             Assert.AreEqual(1, MatchStats.Current.Of(winner.Index).Knockouts);
             Assert.AreEqual(1, MatchStats.Current.Of(loser.Index).Falls);
             StringAssert.StartsWith("MATCH OVER", Text("Eyebrow"));
@@ -548,9 +671,10 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(Joins.Players.Count, Hud.MatchEndCardCount, "a card per seat, all eight");
             for (int i = 0; i < Hud.MatchEndCardCount; i++)
                 Assert.AreEqual(i < mates, Hud.MatchEndCardTag(i).StartsWith(MatchEnd.WinnerTag), "the winning side comes first: card " + i);
-            Assert.AreEqual("You", Hud.MatchEndCardName(0));
+            Assert.AreEqual(you.Name, Hud.MatchEndCardName(0));
             Assert.AreEqual(MatchAwards.MvpTitle, Hud.MatchEndCardTitle(0));
             StringAssert.StartsWith(MatchAwards.KnockoutsLabel + " " + (them.Length + 1), Hud.MatchEndCardNumbers(0));
+            AssertOneColumnSet();
             Assert.AreEqual(them.Length + 1, MatchStats.Current.Of(you.Index).Knockouts, "the table agrees with the mode's count");
             Assert.AreEqual(2, MatchStats.Current.Of(them[0].Index).Falls);
             Assert.AreEqual("Your team wins!", Text("Heading"), "the old heading is untouched");
@@ -585,6 +709,331 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(next && next.isActiveAndEnabled, "Next is still there by name");
             Assert.IsTrue(home && home.isActiveAndEnabled, "so is the way home");
             Assert.That(OnScreen((RectTransform)next.transform).yMax, Is.LessThanOrEqualTo(boxes.Min(b => b.yMin) + Slack), "the buttons sit under the cards");
+        }
+
+        static MovingOutDirector Van => Object.FindAnyObjectByType<MovingOutDirector>();
+        static EscapeDirector Escape => Object.FindAnyObjectByType<EscapeDirector>();
+        static MovingDayDirector Furnish => Object.FindAnyObjectByType<MovingDayDirector>();
+
+        static string CrewState(string mode)
+        {
+            if (mode == HouseModes.MovingOut) return Van ? Van.Current.ToString() : "";
+            if (mode == HouseModes.Escape) return Escape ? Escape.Current.ToString() : "";
+            return Furnish ? Furnish.Current.ToString() : "";
+        }
+
+        static string CrewPlace(string mode) =>
+            mode == HouseModes.MovingDay ? Furnish.CurrentLevel.name : Object.FindAnyObjectByType<RoomBuilder>().Layout.Name;
+
+        static IEnumerator LoadCrew(string mode, bool warmup, int humans, string map = CrewMap)
+        {
+            Session.SelectMap(map);
+            Match.ModeOverride = mode;
+            for (int i = 0; i < humans; i++) Session.Remember(new ScriptedBinding());
+            RoundManager.WarmupRequested = warmup;
+            yield return TestScenes.Load(Session.SceneForMode(mode));
+            yield return TestScenes.ExploreHouse();
+        }
+
+        static IEnumerator LoadCrewShowcase(string mode, int humans)
+        {
+            yield return LoadCrew(mode, true, humans);
+            yield return TestScenes.WaitUntil(() => Rounds && Rounds.Phase == Phase.Warmup && Rounds.Warmup != null, Slow, "the warm-up to start in " + mode);
+            Rounds.Warmup.State.Length = LongClock;
+            Hud.Follow(Human());
+            EndWarmup();
+            yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Showcase && Rounds.Showcase != null, Slow, "the crew line-up in " + mode);
+            Rounds.Showcase.State.Length = LongClock;
+            yield return TestScenes.WaitUntil(() => CrewState(mode) == CrewShowcase, Slow, mode + " to show its line-up state");
+        }
+
+        static IEnumerator UntilCrewPlaying(string mode) =>
+            TestScenes.WaitUntil(() => CrewState(mode) == CrewPlaying, Slow, mode + " to start");
+
+        static void AssertOldCoopCardIsStillThere(string heading)
+        {
+            Assert.AreEqual(heading, Text("Heading"), "the old heading is untouched");
+            Assert.AreEqual("HOUSE PARTY COMPLETE", Text("Eyebrow"));
+            Assert.IsNotEmpty(Text("Flavour"));
+            foreach (string part in new[] { "Spark", "Detail", "Players", "Stats", "Reward", "Next", "Result home" })
+                Assert.IsNotNull(ResultCard.Find(part), part + " is still on the card by name");
+            StringAssert.Contains("PLAY AGAIN", Text("Next/Body/Label"));
+            Assert.AreEqual("Leave match", Text("Result home/Body/Label"));
+            var next = ResultCard.Find("Next").GetComponent<Button>();
+            var home = ResultCard.Find("Result home").GetComponent<Button>();
+            Assert.IsTrue(next && next.isActiveAndEnabled, "Next is still there by name");
+            Assert.IsTrue(home && home.isActiveAndEnabled, "so is the way home");
+        }
+
+        static void AssertCrewBoardFits()
+        {
+            AssertResultSaysItOnce();
+            Assert.IsTrue(Active(GameHud.MatchEndHeadName));
+            Assert.IsTrue(Active(GameHud.MatchEndCardsName));
+            Assert.IsFalse(Active("Stats"), "the player cards take the place of the shared numbers");
+            AssertReadable(ResultCard.Find(GameHud.MatchEndHeadName), GameHud.MatchEndMinFont);
+            AssertReadable(ResultCard.Find(GameHud.MatchEndCardsName), GameHud.MatchEndMinFont);
+            Canvas.ForceUpdateCanvases();
+            var safe = SafeArea();
+            var card = OnScreen((RectTransform)ResultCard);
+            Assert.That(card.xMin, Is.GreaterThanOrEqualTo(safe.xMin - Slack));
+            Assert.That(card.xMax, Is.LessThanOrEqualTo(safe.xMax + Slack));
+            if (safe.width >= safe.height)
+            {
+                Assert.That(card.yMin, Is.GreaterThanOrEqualTo(safe.yMin - Slack), "the card fits a wide screen");
+                Assert.That(card.yMax, Is.LessThanOrEqualTo(safe.yMax + Slack));
+            }
+            var boxes = Enumerable.Range(0, Hud.MatchEndCardCount).Select(i => OnScreen(Hud.MatchEndCardRect(i))).ToArray();
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                Assert.That(boxes[i].xMin, Is.GreaterThanOrEqualTo(card.xMin - Slack), "card " + i + " stays on the result card");
+                Assert.That(boxes[i].xMax, Is.LessThanOrEqualTo(card.xMax + Slack), "card " + i);
+                for (int j = 0; j < i; j++)
+                    Assert.IsTrue(boxes[i].xMin >= boxes[j].xMax - Slack || boxes[j].xMin >= boxes[i].xMax - Slack
+                        || boxes[i].yMin >= boxes[j].yMax - Slack || boxes[j].yMin >= boxes[i].yMax - Slack, $"cards {j} and {i} do not overlap");
+            }
+            var next = (RectTransform)ResultCard.Find("Next");
+            Assert.That(OnScreen(next).yMax, Is.LessThanOrEqualTo(boxes.Min(b => b.yMin) + Slack), "the buttons sit under the cards");
+        }
+
+        [UnityTest]
+        public IEnumerator ACrewLinesUpAsOneTeamBeforeACoopRun([ValueSource(nameof(Crews))] string mode)
+        {
+            yield return LoadCrewShowcase(mode, 2);
+            var players = Joins.Players;
+            Assert.AreEqual(2, players.Count, "a crew has no bots");
+            Assert.IsNull(Rounds.Warmup, "the warm-up is closed");
+            Assert.IsFalse(LetterInventory.FreeSpelling);
+            Assert.IsTrue(Rounds.isActiveAndEnabled, "the round manager holds the phase during the line-up");
+            Assert.IsTrue(players.All(p => p.Frozen), "everyone stands still for the line-up");
+            Assert.IsTrue(players.All(p => !p.IsKnockedOut), "everyone is on their feet");
+            Assert.IsFalse(Joins.AllowJoining);
+            Assert.IsFalse(Hud.ResultShown);
+            Assert.IsFalse(Hud.CountdownShown);
+            Assert.IsFalse(MatchTally.StatsLive, "nothing is tallied before the run");
+
+            Assert.IsTrue(Hud.ShowcaseShown);
+            Assert.AreEqual(2, Hud.ShowcaseSeatCount, "one card per crewmate");
+            Assert.AreEqual(1, Hud.ShowcaseRowCount, "one crew, one line");
+            Assert.AreEqual(MatchShowcase.YourCrew, Hud.ShowcaseRowTitle(0));
+            Assert.IsNull(Hud.ShowcaseRoot.Find("Line-up/Versus 1"), "a crew faces nobody");
+            StringAssert.StartsWith(HouseModes.Name(mode).ToUpperInvariant(), Hud.ShowcaseModeText);
+            StringAssert.IsMatch(@"^MATCH STARTS IN \d+$", Hud.ShowcaseCountText);
+            Assert.That(Count(), Is.InRange(1, (int)LongClock));
+            Assert.AreEqual(MatchShowcase.SkipPrompt(ControlHints.For(Human().Binding, PlayerControl.Start)), Hud.ShowcaseSkipText);
+
+            var shown = Enumerable.Range(0, Hud.ShowcaseSeatCount).Select(Hud.ShowcaseSeatPlayer).ToArray();
+            CollectionAssert.AreEquivalent(players.ToArray(), shown, "every crewmate is shown once");
+            for (int i = 0; i < shown.Length; i++)
+            {
+                Assert.AreEqual(shown[i].Name, Hud.ShowcaseSeatName(i), "a shared couch keeps seat names");
+                Assert.AreEqual("", Hud.ShowcaseSeatTag(i));
+                Assert.AreEqual(0, Hud.ShowcaseSeatRow(i));
+                Assert.AreEqual(GameHud.ShowcaseSideColour(shown[i], players, false), Hud.ShowcaseSeatColour(i), "each crewmate keeps their own colour");
+            }
+
+            Assert.IsTrue(Hud.ShowcaseRoot.GetComponentsInChildren<Graphic>(true).All(g => !g.raycastTarget), "nothing on the line-up takes a click");
+            Assert.IsEmpty(Hud.ShowcaseRoot.GetComponentsInChildren<Selectable>(true), "nothing on the line-up takes focus");
+            AssertReadable(Hud.ShowcaseRoot, GameHud.ShowcaseMinFont);
+            Canvas.ForceUpdateCanvases();
+            var safe = SafeArea();
+            for (int i = 0; i < shown.Length; i++)
+            {
+                var box = OnScreen(Hud.ShowcaseSeatRect(i));
+                Assert.That(box.xMin, Is.GreaterThanOrEqualTo(safe.xMin - Slack), "seat " + i);
+                Assert.That(box.xMax, Is.LessThanOrEqualTo(safe.xMax + Slack), "seat " + i);
+                Assert.That(box.yMin, Is.GreaterThanOrEqualTo(safe.yMin - Slack), "seat " + i);
+                Assert.That(box.yMax, Is.LessThanOrEqualTo(safe.yMax + Slack), "seat " + i);
+                if (i > 0) Assert.That(box.xMin, Is.GreaterThanOrEqualTo(OnScreen(Hud.ShowcaseSeatRect(i - 1)).xMax - Slack), "crewmates stand side by side");
+            }
+
+            EndShowcase();
+            yield return TestScenes.WaitUntil(() => CrewState(mode) == CrewCountdown || CrewState(mode) == CrewPlaying, Slow, "the usual countdown after the line-up in " + mode);
+            Assert.IsNull(Rounds.Showcase);
+            Assert.IsFalse(Hud.ShowcaseShown);
+            Assert.AreEqual(0, Hud.ShowcaseSeatCount);
+            Assert.AreEqual(Phase.Lobby, Rounds.Phase, "the round manager steps back");
+            Assert.IsFalse(Rounds.enabled);
+            Assert.IsTrue(players.All(p => p.Health.IsAlive && Mathf.Approximately(p.Health.Current, p.Health.Max)));
+            yield return UntilCrewPlaying(mode);
+            Assert.IsTrue(MatchTally.StatsLive);
+            Assert.IsFalse(Hud.ShowcaseShown);
+        }
+
+        [UnityTest]
+        public IEnumerator EveryCrewmateHoldingStartSkipsTheCrewLineUp()
+        {
+            yield return LoadCrewShowcase(HouseModes.Escape, 2);
+            var votes = Rounds.Showcase.State;
+            Assert.AreEqual(2, votes.Voters);
+            for (int i = 0; i < ReleaseFrames; i++) yield return null;
+            float deadline = Time.realtimeSinceStartup + Slow;
+            while (Rounds.Phase == Phase.Showcase && Time.realtimeSinceStartup < deadline)
+            {
+                HoldStart(Human(0));
+                HoldStart(Human(1));
+                yield return null;
+            }
+            Assert.AreNotEqual(Phase.Showcase, Rounds.Phase, "everyone holding Start skips the line-up");
+            Assert.IsTrue(votes.AllReady);
+            Assert.Greater(votes.TimeLeft, 0f, "it ended on the votes, not the count");
+            Assert.IsFalse(Hud.Paused, "Start never opened the pause menu");
+            yield return TestScenes.WaitUntil(() => CrewState(HouseModes.Escape) == CrewCountdown || CrewState(HouseModes.Escape) == CrewPlaying, Slow, "the countdown after the skip");
+            Assert.IsFalse(Hud.ShowcaseShown);
+        }
+
+        [UnityTest]
+        public IEnumerator ACoopWarmupWithALineUpTimeOfZeroGoesStraightToTheRun()
+        {
+            yield return LoadCrew(HouseModes.MovingOut, true, 1);
+            yield return TestScenes.WaitUntil(() => Rounds && Rounds.Phase == Phase.Warmup && Rounds.Warmup != null, Slow, "the warm-up to start");
+            Rounds.ShowcaseTime = 0f;
+            EndWarmup();
+            yield return TestScenes.WaitUntil(() => CrewState(HouseModes.MovingOut) == CrewCountdown || CrewState(HouseModes.MovingOut) == CrewPlaying, Slow, "the countdown");
+            Assert.IsNull(Rounds.Showcase);
+            Assert.IsFalse(Hud.ShowcaseShown);
+            Assert.IsNull(Hud.UiCanvas.transform.Find("Safe HUD/" + GameHud.ShowcaseRootName), "the line-up is not even built");
+        }
+
+        [UnityTest]
+        public IEnumerator ACoopRunEndsWithItsBannerAndACardPerPlayer()
+        {
+            yield return LoadCrew(HouseModes.MovingOut, false, 2);
+            var director = Van;
+            yield return UntilCrewPlaying(HouseModes.MovingOut);
+            PlayerController first = Human(0), second = Human(1);
+            Hud.Follow(first);
+            Assert.IsNull(Rounds.Showcase, "a direct start has no line-up");
+            Assert.Greater(director.KeepsakeCount, 0);
+            yield return TestScenes.WaitUntil(() => MatchStats.Current.Lines.Count == 2, Slow, "both crewmates on the table");
+            foreach (var keepsake in Object.FindObjectsByType<Keepsake>(FindObjectsSortMode.None))
+            {
+                keepsake.Carrier = second.Index;
+                keepsake.GetComponent<Rigidbody>().position = director.ExtractionPoint + Vector3.up * VanDrop;
+            }
+            yield return TestScenes.WaitUntil(() => director.PackedCount == director.KeepsakeCount, Slow, "the keepsakes to be packed");
+            Assert.AreEqual(director.KeepsakeCount, MatchStats.Current.Of(second.Index).Score, "whoever carried a keepsake last is credited");
+            Assert.AreEqual(0, MatchStats.Current.Of(first.Index).Score);
+            first.Respawn(director.ExtractionPoint + Vector3.left * VanSpread);
+            second.Respawn(director.ExtractionPoint + Vector3.right * VanSpread);
+            yield return TestScenes.WaitUntil(() => director.Current == MovingOutDirector.State.Complete, Slow, "the crew to reach the van");
+
+            Assert.IsTrue(Hud.ResultShown, "the result card comes straight away, as before");
+            Assert.IsTrue(Hud.MatchEndShown, "and now carries the banner and the player cards");
+            Assert.AreEqual(CrewEnd.Packed, Hud.MatchEndBanner);
+            Assert.AreEqual(MatchEnd.ModeLine(HouseModes.MovingOut, CrewPlace(HouseModes.MovingOut)), Hud.MatchEndModeLine);
+            StringAssert.StartsWith("PACK THE VAN", Hud.MatchEndModeLine);
+            var board = Hud.ShownMatchEnd;
+            Assert.IsTrue(board.Crew);
+            Assert.IsTrue(board.Won);
+            Assert.IsFalse(board.TwoSides);
+            Assert.AreEqual(2, Hud.MatchEndCardCount, "a card per player");
+            Assert.AreEqual(second.Name, Hud.MatchEndCardName(0), "the crewmate who did the most comes first");
+            Assert.AreEqual(MatchAwards.MvpTitle, Hud.MatchEndCardTitle(0));
+            StringAssert.StartsWith(MatchAwards.PackedLabel + " " + director.KeepsakeCount, Hud.MatchEndCardNumbers(0));
+            Assert.AreEqual(first.Name, Hud.MatchEndCardName(1));
+            StringAssert.StartsWith(MatchAwards.PackedLabel + " 0", Hud.MatchEndCardNumbers(1));
+            for (int i = 0; i < Hud.MatchEndCardCount; i++)
+            {
+                Assert.AreEqual("", Hud.MatchEndCardTag(i), "a crew has no winner tag and no bots");
+                Assert.AreNotEqual(MatchAwards.DefaultTitle, Hud.MatchEndCardTitle(i), "a title only with a number behind it");
+                StringAssert.DoesNotContain(MatchAwards.KnockoutsLabel + " ", Hud.MatchEndCardNumbers(i));
+                StringAssert.DoesNotContain(MatchAwards.DamageLabel, Hud.MatchEndCardNumbers(i));
+            }
+            Assert.IsFalse(MatchTally.StatsLive, "the table closes with the run");
+            AssertOldCoopCardIsStillThere("All packed. Everybody aboard!");
+            AssertCrewBoardFits();
+
+            ResultCard.Find("Next").GetComponent<Button>().onClick.Invoke();
+            yield return TestScenes.WaitUntil(() => director.Current == MovingOutDirector.State.Countdown, Slow, "play again");
+            Assert.IsFalse(Hud.ResultShown);
+            Assert.IsFalse(Hud.MatchEndShown);
+            Assert.AreEqual(0, director.PackedCount);
+            Assert.IsNull(Rounds.Warmup, "playing again has no warm-up");
+            Assert.IsNull(Rounds.Showcase);
+            Assert.AreEqual(0, MatchStats.Current.Lines.Sum(l => l.Score), "a new run starts a fresh table");
+        }
+
+        [UnityTest]
+        public IEnumerator ACrewThatGoesDownIsToldSo([ValueSource(nameof(Wipeable))] string mode)
+        {
+            yield return LoadCrew(mode, false, 2);
+            yield return UntilCrewPlaying(mode);
+            Hud.Follow(Human());
+            yield return TestScenes.WaitUntil(() => MatchStats.Current.Lines.Count == 2, Slow, "both crewmates on the table");
+            foreach (var p in Joins.Players.ToArray()) p.Health.Eliminate();
+            yield return TestScenes.WaitUntil(() => CrewState(mode) == CrewFailed, Slow, "the run to fail");
+            Assert.IsTrue(Hud.ResultShown);
+            Assert.IsTrue(Hud.MatchEndShown);
+            Assert.AreEqual(CrewEnd.Wiped, Hud.MatchEndBanner);
+            Assert.AreEqual(MatchEnd.ModeLine(mode, CrewPlace(mode)), Hud.MatchEndModeLine);
+            Assert.IsTrue(Hud.ShownMatchEnd.Lost);
+            Assert.IsFalse(Hud.ShownMatchEnd.Won);
+            Assert.AreEqual(2, Hud.MatchEndCardCount);
+            for (int i = 0; i < Hud.MatchEndCardCount; i++)
+            {
+                Assert.AreEqual("", Hud.MatchEndCardTag(i));
+                Assert.AreEqual("", Hud.MatchEndCardTitle(i), "nobody did anything worth a title");
+                StringAssert.StartsWith(MatchAwards.Label(MatchStatKind.Score, mode) + " 0", Hud.MatchEndCardNumbers(i));
+            }
+            AssertOldCoopCardIsStillThere(mode == HouseModes.Escape ? EscapeText.Wiped : "The Movers got your crew.");
+            AssertCrewBoardFits();
+        }
+
+        [UnityTest]
+        public IEnumerator FurnishTheHouseShowsItsBannerWhenTheTruckLeavesAndWhenTheHouseIsDone()
+        {
+            string savedStars = PlayerPrefs.HasKey(Session.StarsKey) ? PlayerPrefs.GetString(Session.StarsKey) : null;
+            try
+            {
+                yield return LoadCrew(HouseModes.MovingDay, false, 1, FurnishMap);
+                var director = Furnish;
+                yield return UntilCrewPlaying(HouseModes.MovingDay);
+                Hud.Follow(Human());
+                Assert.IsFalse(Rounds, "a direct start of Furnish the House has no round manager");
+                yield return TestScenes.WaitUntil(() => MatchStats.Current.Lines.Count == 1, Slow, "the player on the table");
+                director.TimeLeft = AlmostNoTime;
+                yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.OutOfTime, Slow, "out of time");
+                Assert.IsTrue(Hud.ResultShown, "the result card comes straight away, as before");
+                Assert.IsTrue(Hud.MatchEndShown);
+                Assert.AreEqual(CrewEnd.TimeUp, Hud.MatchEndBanner);
+                Assert.AreEqual(MatchEnd.ModeLine(HouseModes.MovingDay, director.CurrentLevel.name), Hud.MatchEndModeLine);
+                StringAssert.StartsWith("FURNISH THE HOUSE", Hud.MatchEndModeLine);
+                Assert.IsTrue(Hud.ShownMatchEnd.Lost);
+                Assert.AreEqual(1, Hud.MatchEndCardCount);
+                Assert.AreEqual(Human().Name, Hud.MatchEndCardName(0), "one naming rule: the seat name");
+                Assert.AreEqual(SeatTags.YouTag, Hud.MatchEndCardTag(0), "and the one person on the couch is tagged YOU");
+                StringAssert.StartsWith(MatchAwards.PlacedLabel + " 0", Hud.MatchEndCardNumbers(0));
+                AssertOldCoopCardIsStillThere("The truck is leaving. Try a faster route!");
+                Assert.IsFalse(Active("Detail"), "no stars line when the truck left");
+                AssertCrewBoardFits();
+
+                ResultCard.Find("Next").GetComponent<Button>().onClick.Invoke();
+                yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Countdown, Slow, "retry");
+                Assert.IsFalse(Hud.MatchEndShown);
+                yield return UntilCrewPlaying(HouseModes.MovingDay);
+                float z = FurnishFirstZ;
+                foreach (var item in director.CurrentLevel.items)
+                {
+                    FurnitureCatalog.Spawn(item.word, director.RoomNamed(item.room).Centre + new Vector3(0f, FurnishDrop, z), 0f, World.Transient);
+                    z += FurnishStepZ;
+                }
+                yield return TestScenes.WaitUntil(() => director.Current == MovingDayDirector.State.Complete, Slow, "the house to be furnished");
+                Assert.IsTrue(Hud.ResultShown);
+                Assert.IsTrue(Hud.MatchEndShown);
+                Assert.AreEqual(CrewEnd.Furnished, Hud.MatchEndBanner);
+                Assert.IsTrue(Hud.ShownMatchEnd.Won);
+                Assert.AreEqual(1, Hud.MatchEndCardCount);
+                AssertOldCoopCardIsStillThere("Home, sweet home!");
+                Assert.IsTrue(Active("Detail"), "the stars line stays");
+                StringAssert.Contains("3 stars", Text("Detail"));
+                AssertCrewBoardFits();
+            }
+            finally
+            {
+                if (savedStars == null) PlayerPrefs.DeleteKey(Session.StarsKey); else PlayerPrefs.SetString(Session.StarsKey, savedStars);
+                PlayerPrefs.Save();
+            }
         }
     }
 }

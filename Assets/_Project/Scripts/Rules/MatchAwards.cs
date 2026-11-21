@@ -5,25 +5,23 @@ using System.Linq;
 
 namespace Wreckabulary.Rules
 {
-    public enum MatchAwardKind { GoodSport, Mvp, Knockouts, Speller, Smasher, Hitter, Survivor }
+    public enum MatchAwardKind { GoodSport, Mvp, Knockouts, Speller, Smasher, Hitter, Survivor, Medic }
 
-    public enum MatchStatKind { Score, Knockouts, Crafted, Broken, Damage, Falls }
+    public enum MatchStatKind { Score, Knockouts, Crafted, Broken, Damage, Falls, Revives }
 
     public static class MatchAwards
     {
         public const int NumbersShown = 3;
         public const string MvpTitle = "Most Valuable Player", KnockoutsTitle = "Knockout Artist", SpellerTitle = "Word Wizard";
         public const string SmasherTitle = "Wrecking Ball", HitterTitle = "Heavy Hitter", SurvivorTitle = "Hard to Wreck", DefaultTitle = "Good Sport";
+        public const string MedicTitle = "Lifesaver";
         public const string KnockoutsLabel = "KO", CraftedLabel = "WORDS", BrokenLabel = "SMASHED", DamageLabel = "DAMAGE", FallsLabel = "FALLS";
         public const string ScoreLabelDefault = "SCORE", WinsLabel = "WINS", ItemsLabel = "ITEMS", RiddlesLabel = "RIDDLES";
+        public const string RevivesLabel = "REVIVES", PackedLabel = "PACKED", UnlockedLabel = "UNLOCKED", PlacedLabel = "PLACED";
 
         static readonly MatchAwardKind[] Trades = { MatchAwardKind.Knockouts, MatchAwardKind.Speller, MatchAwardKind.Smasher, MatchAwardKind.Hitter };
+        static readonly MatchAwardKind[] CrewTrades = { MatchAwardKind.Medic, MatchAwardKind.Speller, MatchAwardKind.Smasher };
         static readonly MatchStatKind[] Rounded = { MatchStatKind.Knockouts, MatchStatKind.Crafted, MatchStatKind.Broken, MatchStatKind.Damage };
-        static readonly MatchStatKind[] Brawler = { MatchStatKind.Knockouts, MatchStatKind.Damage, MatchStatKind.Falls, MatchStatKind.Crafted };
-        static readonly MatchStatKind[] Wordy = { MatchStatKind.Crafted, MatchStatKind.Broken, MatchStatKind.Knockouts, MatchStatKind.Damage };
-        static readonly MatchStatKind[] Smashing = { MatchStatKind.Broken, MatchStatKind.Crafted, MatchStatKind.Knockouts, MatchStatKind.Damage };
-        static readonly MatchStatKind[] Hitting = { MatchStatKind.Damage, MatchStatKind.Knockouts, MatchStatKind.Falls, MatchStatKind.Crafted };
-        static readonly MatchStatKind[] Steady = { MatchStatKind.Falls, MatchStatKind.Knockouts, MatchStatKind.Crafted, MatchStatKind.Broken };
 
         public static string Title(MatchAwardKind kind) => kind switch
         {
@@ -33,6 +31,7 @@ namespace Wreckabulary.Rules
             MatchAwardKind.Smasher => SmasherTitle,
             MatchAwardKind.Hitter => HitterTitle,
             MatchAwardKind.Survivor => SurvivorTitle,
+            MatchAwardKind.Medic => MedicTitle,
             _ => DefaultTitle,
         };
 
@@ -43,6 +42,7 @@ namespace Wreckabulary.Rules
             MatchAwardKind.Smasher => MatchStatKind.Broken,
             MatchAwardKind.Hitter => MatchStatKind.Damage,
             MatchAwardKind.Survivor => MatchStatKind.Falls,
+            MatchAwardKind.Medic => MatchStatKind.Revives,
             _ => MatchStatKind.Score,
         };
 
@@ -56,6 +56,7 @@ namespace Wreckabulary.Rules
                 MatchStatKind.Broken => line.Broken,
                 MatchStatKind.Damage => (int)Math.Round(line.Damage, MidpointRounding.AwayFromZero),
                 MatchStatKind.Falls => line.Falls,
+                MatchStatKind.Revives => line.Revives,
                 _ => line.Score,
             };
         }
@@ -63,14 +64,32 @@ namespace Wreckabulary.Rules
         public static bool Busy(MatchStatLine line) =>
             line != null && (line.Score > 0 || line.Knockouts > 0 || line.Crafted > 0 || line.Broken > 0 || line.Damage > 0f);
 
+        public static bool Earned(MatchAwardKind kind, MatchStatLine line) => kind switch
+        {
+            MatchAwardKind.GoodSport => false,
+            MatchAwardKind.Survivor => Busy(line),
+            _ => Value(line, Counted(kind)) > 0,
+        };
+
         public static IReadOnlyDictionary<int, MatchAwardKind> Pick(MatchStats stats, int winningTeam = Teams.NoTeam)
         {
-            var picked = new Dictionary<int, MatchAwardKind>();
-            if (stats == null) return picked;
+            if (stats == null) return new Dictionary<int, MatchAwardKind>();
             var ranked = stats.Ranked();
-            var best = winningTeam != Teams.NoTeam ? ranked.FirstOrDefault(l => l.Team == winningTeam) : ranked.FirstOrDefault(Busy);
+            return Hand(ranked, winningTeam != Teams.NoTeam ? ranked.FirstOrDefault(l => l.Team == winningTeam) : ranked.FirstOrDefault(Busy), Trades);
+        }
+
+        public static IReadOnlyDictionary<int, MatchAwardKind> PickCrew(MatchStats stats)
+        {
+            if (stats == null) return new Dictionary<int, MatchAwardKind>();
+            var ranked = stats.Ranked();
+            return Hand(ranked, ranked.Count > 1 ? ranked.FirstOrDefault(l => l.Score > 0) : null, CrewTrades);
+        }
+
+        static Dictionary<int, MatchAwardKind> Hand(IReadOnlyList<MatchStatLine> ranked, MatchStatLine best, MatchAwardKind[] trades)
+        {
+            var picked = new Dictionary<int, MatchAwardKind>();
             if (best != null) picked[best.Seat] = MatchAwardKind.Mvp;
-            foreach (var trade in Trades)
+            foreach (var trade in trades)
             {
                 var counted = Counted(trade);
                 var holder = ranked.Where(l => !picked.ContainsKey(l.Seat) && Value(l, counted) > 0)
@@ -96,10 +115,20 @@ namespace Wreckabulary.Rules
             HouseModes.RiddleRush => RiddlesLabel,
             HouseModes.FreeForAll => KnockoutsLabel,
             HouseModes.War => KnockoutsLabel,
+            HouseModes.MovingOut => PackedLabel,
+            HouseModes.Escape => UnlockedLabel,
+            HouseModes.MovingDay => PlacedLabel,
             _ => "",
         };
 
         public static bool ScoreCountsKnockouts(string modeId) => modeId == HouseModes.FreeForAll || modeId == HouseModes.War;
+
+        public static bool Shows(MatchStatKind kind, string modeId) => kind switch
+        {
+            MatchStatKind.Knockouts => !ScoreCountsKnockouts(modeId) && !Warmup.Crew(modeId),
+            MatchStatKind.Damage => !Warmup.Crew(modeId),
+            _ => true,
+        };
 
         public static string Label(MatchStatKind kind, string modeId = null)
         {
@@ -110,32 +139,21 @@ namespace Wreckabulary.Rules
                 case MatchStatKind.Broken: return BrokenLabel;
                 case MatchStatKind.Damage: return DamageLabel;
                 case MatchStatKind.Falls: return FallsLabel;
+                case MatchStatKind.Revives: return RevivesLabel;
                 default:
                     string label = ScoreLabel(modeId);
                     return label.Length > 0 ? label : ScoreLabelDefault;
             }
         }
 
-        static MatchStatKind[] Favoured(MatchAwardKind kind) => kind switch
-        {
-            MatchAwardKind.Knockouts => Brawler,
-            MatchAwardKind.Speller => Wordy,
-            MatchAwardKind.Smasher => Smashing,
-            MatchAwardKind.Hitter => Hitting,
-            MatchAwardKind.Survivor => Steady,
-            _ => Rounded,
-        };
-
-        public static IReadOnlyList<MatchStatKind> Numbers(MatchAwardKind kind, string modeId = null)
+        public static IReadOnlyList<MatchStatKind> Columns(string modeId = null)
         {
             var shown = new List<MatchStatKind>(NumbersShown);
-            bool scored = ScoreLabel(modeId).Length > 0, knockouts = ScoreCountsKnockouts(modeId);
-            if (scored) shown.Add(MatchStatKind.Score);
-            foreach (var number in Favoured(kind))
+            if (ScoreLabel(modeId).Length > 0) shown.Add(MatchStatKind.Score);
+            foreach (var number in Rounded)
             {
                 if (shown.Count == NumbersShown) break;
-                if (number == MatchStatKind.Knockouts && knockouts) continue;
-                shown.Add(number);
+                if (Shows(number, modeId)) shown.Add(number);
             }
             return shown;
         }
@@ -163,13 +181,15 @@ namespace Wreckabulary.Rules
         public bool Winner { get; }
         public bool You { get; }
         public MatchAwardKind Award { get; }
-        public string Title => MatchAwards.Title(Award);
+        public bool Titled { get; }
+        public string Title => Titled ? MatchAwards.Title(Award) : "";
         public IReadOnlyList<MatchEndNumber> Numbers { get; }
 
         public MatchEndCard(MatchStatLine line, string name, bool winner, bool you, MatchAwardKind award, IReadOnlyList<MatchEndNumber> numbers)
         {
             Seat = line.Seat; Team = line.Team; Bot = line.Bot;
             Name = name ?? ""; Winner = winner; You = you; Award = award;
+            Titled = MatchAwards.Earned(award, line);
             Numbers = numbers ?? Array.Empty<MatchEndNumber>();
         }
     }
@@ -183,13 +203,15 @@ namespace Wreckabulary.Rules
         public bool Won { get; }
         public int WinningTeam { get; }
         public int HomeTeam { get; }
-        public bool Lost => !Draw && HomeTeam != Teams.NoTeam && !Won;
+        public bool Crew { get; }
+        public bool Lost => !Draw && !Won && (Crew || HomeTeam != Teams.NoTeam);
         public IReadOnlyList<MatchEndCard> Cards { get; }
 
-        public MatchEndBoard(string banner, string modeLine, bool twoSides, bool draw, bool won, int winningTeam, int homeTeam, IReadOnlyList<MatchEndCard> cards)
+        public MatchEndBoard(string banner, string modeLine, bool twoSides, bool draw, bool won, int winningTeam, int homeTeam, IReadOnlyList<MatchEndCard> cards,
+            bool crew = false)
         {
             Banner = banner ?? ""; ModeLine = modeLine ?? ""; TwoSides = twoSides; Draw = draw; Won = won;
-            WinningTeam = winningTeam; HomeTeam = homeTeam; Cards = cards ?? Array.Empty<MatchEndCard>();
+            WinningTeam = winningTeam; HomeTeam = homeTeam; Cards = cards ?? Array.Empty<MatchEndCard>(); Crew = crew;
         }
     }
 
@@ -209,17 +231,25 @@ namespace Wreckabulary.Rules
             int home = Home(humans);
             var awards = MatchAwards.Pick(stats, winners);
             var cards = stats.Ranked().OrderByDescending(l => !draw && l.Team == winners)
-                .Select(l => Card(l, awards, modeId, !draw && l.Team == winners, l.Seat == you, humans.Count)).ToList();
+                .Select(l => Card(l, awards, modeId, !draw && l.Team == winners, l.Seat == you)).ToList();
             return new MatchEndBoard(Banner(stats, winners, humans), ModeLine(modeId, place), stats.Sides().Count == 2, draw,
                 !draw && home == winners, winners, home, cards);
         }
 
-        static MatchEndCard Card(MatchStatLine line, IReadOnlyDictionary<int, MatchAwardKind> awards, string modeId, bool winner, bool you, int humans)
+        internal static MatchEndCard Card(MatchStatLine line, IReadOnlyDictionary<int, MatchAwardKind> awards, string modeId, bool winner, bool you)
         {
             var award = awards.TryGetValue(line.Seat, out var given) ? given : MatchAwardKind.GoodSport;
-            var numbers = MatchAwards.Numbers(award, modeId)
+            var numbers = MatchAwards.Columns(modeId)
                 .Select(kind => new MatchEndNumber(kind, MatchAwards.Label(kind, modeId), MatchAwards.Value(line, kind))).ToList();
-            return new MatchEndCard(line, SeatTags.Name(line.Name, you, humans), winner, you, award, numbers);
+            return new MatchEndCard(line, line.Name, winner, you, award, numbers);
+        }
+
+        public static string Tag(MatchEndCard card, bool crew)
+        {
+            if (card == null) return "";
+            string seat = SeatTags.Tag(card.You, card.Bot);
+            if (!card.Winner || crew) return seat;
+            return seat.Length == 0 ? WinnerTag : WinnerTag + Dot + seat;
         }
 
         public static int Home(IReadOnlyList<MatchStatLine> humans) =>
@@ -253,5 +283,39 @@ namespace Wreckabulary.Rules
         static string Named(string who, bool plural) => who.ToUpperInvariant() + (plural ? " WIN" : " WINS");
 
         static string Count(int value) => value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public enum CrewOutcome { Won, TimeUp, Wiped }
+
+    public static class CrewEnd
+    {
+        public const string Packed = "ALL PACKED", Out = "EVERYBODY OUT", Furnished = "FURNISHED", Done = "WELL DONE";
+        public const string TimeUp = "OUT OF TIME", Wiped = "CREW DOWN";
+
+        public static CrewOutcome Outcome(bool won, bool wiped) => won ? CrewOutcome.Won : wiped ? CrewOutcome.Wiped : CrewOutcome.TimeUp;
+
+        public static string Banner(string modeId, CrewOutcome outcome) => outcome switch
+        {
+            CrewOutcome.TimeUp => TimeUp,
+            CrewOutcome.Wiped => Wiped,
+            _ => modeId switch
+            {
+                HouseModes.MovingOut => Packed,
+                HouseModes.Escape => Out,
+                HouseModes.MovingDay => Furnished,
+                _ => Done,
+            },
+        };
+
+        public static MatchEndBoard Build(MatchStats stats, CrewOutcome outcome, string modeId, string place = null)
+        {
+            stats ??= new MatchStats();
+            bool won = outcome == CrewOutcome.Won;
+            var humans = stats.Lines.Where(l => !l.Bot).ToList();
+            int you = humans.Count == 1 ? humans[0].Seat : -1;
+            var awards = MatchAwards.PickCrew(stats);
+            var cards = stats.Ranked().Select(l => MatchEnd.Card(l, awards, modeId, won, l.Seat == you)).ToList();
+            return new MatchEndBoard(Banner(modeId, outcome), MatchEnd.ModeLine(modeId, place), false, false, won, Teams.NoTeam, Teams.NoTeam, cards, crew: true);
+        }
     }
 }

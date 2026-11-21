@@ -15,6 +15,53 @@ namespace Wreckabulary.Rules
     {
         public const double SeatGap = 20, OtherSeatGap = 12;
 
+        public static string Pick(int seat, IReadOnlyList<string> options) =>
+            seat < 0 || options == null || options.Count == 0 ? null : options[seat % options.Count];
+
+        public static IReadOnlyList<string> FreePieces(WardrobeCatalogue catalogue, string slot, IEnumerable<string> allowed)
+        {
+            if (catalogue == null) throw new ArgumentNullException(nameof(catalogue));
+            var free = new HashSet<string>(allowed ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            return catalogue.PiecesFor(slot).Select(piece => piece.Id).Where(free.Contains).ToArray();
+        }
+
+        public static int Rank(int seat, IReadOnlyList<Outfit> saved)
+        {
+            if (seat < 0) return -1;
+            int rank = seat;
+            for (int other = 0; saved != null && other < seat && other < saved.Count; other++)
+                if (saved[other] != null) rank--;
+            return rank;
+        }
+
+        public static ISet<string> WornByOthers(WardrobeCatalogue catalogue, IReadOnlyList<Outfit> saved, int seat, string slot)
+        {
+            if (catalogue == null) throw new ArgumentNullException(nameof(catalogue));
+            var worn = new HashSet<string>(StringComparer.Ordinal);
+            for (int other = 0; saved != null && other < saved.Count; other++)
+                if (other != seat && Dressing.Worn(catalogue, saved[other], slot) is string piece) worn.Add(piece);
+            return worn;
+        }
+
+        public static Outfit WithSeatStyle(WardrobeCatalogue catalogue, Outfit look, int seat, IEnumerable<string> allowed,
+            IReadOnlyList<Outfit> saved = null)
+        {
+            if (catalogue == null) throw new ArgumentNullException(nameof(catalogue));
+            if (look == null) throw new ArgumentNullException(nameof(look));
+            var styled = look.Clone();
+            int rank = Rank(seat, saved);
+            foreach (string slot in catalogue.Slots)
+            {
+                if (!catalogue.FallbackSlots.Contains(slot) || styled.PieceIn(slot) != null) continue;
+                var free = FreePieces(catalogue, slot, allowed);
+                var taken = WornByOthers(catalogue, saved, seat, slot);
+                var open = free.Where(id => !taken.Contains(id)).ToArray();
+                string piece = Pick(rank, open.Length > 0 ? open : free);
+                if (piece != null) styled.Pieces[slot] = piece;
+            }
+            return catalogue.Fits(styled) ? styled : look;
+        }
+
         public static double DeltaE76(Srgb a, Srgb b)
         {
             var (l1, a1, b1) = Lab(a);

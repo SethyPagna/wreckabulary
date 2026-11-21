@@ -102,7 +102,7 @@ namespace Wreckabulary.Tests
             string before = keys.Map.SaveBindingOverridesAsJson();
             var jump = ButtonNamed(panel, "Rebind Jump");
             var title = panel.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Control legend title");
-            Assert.AreEqual("HOUSE CONTROLS", title.text);
+            Assert.AreEqual(ControlsPanel.HouseTitle, title.text);
             Assert.IsFalse(title.transform.IsChildOf(panel.GetComponentInChildren<ScrollRect>().content), "Mode context must remain outside the scrolling rows.");
             Assert.AreEqual("View / Share", ControllerLegend(panel, "Pause").text);
             Assert.AreEqual("—", ControllerLegend(panel, "Aim").text, "House controllers look with the stick, without an aim-held button.");
@@ -115,9 +115,21 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("Hold L3 + right stick", ControllerLegend(panel, "Look around").text);
             Assert.AreEqual("Hold D-pad up", ControllerLegend(panel, "Push to talk").text);
             Assert.AreEqual(17, panel.GetComponentsInChildren<Button>().Count(button => button.name.StartsWith("Rebind ")));
+            AssertNormalHeading(title);
+            AssertRowCards(panel);
+            AssertLegendShape(panel, "House controls");
+            var houseNames = ActionLabels(panel);
+            CollectionAssert.AreEqual(new[] { "Spell a word", "Hand 1", "Hand 2", "Bag", "Menu" },
+                new[] { "Spell", "Hand 1", "Hand 2", "Bag", "Pause" }.Select(action => houseNames[action]).ToArray());
             SubmitLegend(panel, "Wordbound controls");
             yield return null;
-            Assert.AreEqual("COURSE CONTROLS", title.text);
+            Assert.AreEqual(ControlsPanel.CourseTitle, title.text);
+            AssertNormalHeading(title);
+            AssertLegendShape(panel, "Wordbound controls");
+            var courseNames = ActionLabels(panel);
+            foreach (var pair in courseNames)
+                Assert.AreEqual(houseNames[pair.Key], pair.Value, pair.Key + " has one name in both lists");
+            Assert.IsFalse(courseNames.ContainsKey("Dodge"));
             Assert.AreEqual("RB / R1", ControllerLegend(panel, "Aim").text);
             Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text);
             Assert.AreEqual("Y / Triangle", ControllerLegend(panel, "Spell").text);
@@ -132,7 +144,7 @@ namespace Wreckabulary.Tests
             {
                 var slot = ButtonNamed(panel, "Rebind " + name);
                 Assert.IsTrue(slot.gameObject.activeInHierarchy, "Direct keyboard equipment selection is supported.");
-                Assert.AreEqual("Equipment " + name.Substring(name.Length - 1), slot.transform.parent.parent.GetComponentInChildren<TMP_Text>().text);
+                Assert.AreEqual(name, slot.transform.parent.parent.GetComponentInChildren<TMP_Text>().text);
                 Assert.AreEqual(name == "Hand 1" ? "D-pad left" : "D-pad right", ControllerLegend(panel, name).text,
                     "The controller selects each numbered equipment slot directly.");
             }
@@ -145,17 +157,17 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(ButtonNamed(panel, "House controls").interactable);
             Assert.IsFalse(ButtonNamed(panel, "Wordbound controls").interactable);
             ButtonNamed(panel, "House controls").onClick.Invoke();
-            Assert.AreEqual("COURSE CONTROLS", title.text);
+            Assert.AreEqual(ControlsPanel.CourseTitle, title.text);
             Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text, "Even a stale callback cannot switch legends while listening.");
             Assert.IsTrue(panel.CancelRebind());
             yield return null;
             Assert.IsFalse(panel.IsListening);
-            Assert.AreEqual("COURSE CONTROLS", title.text, "Cancel/Refresh must preserve the fixed mode context.");
+            Assert.AreEqual(ControlsPanel.CourseTitle, title.text, "Cancel/Refresh must preserve the fixed mode context.");
             Assert.AreEqual("Start / Options", ControllerLegend(panel, "Pause").text, "Cancel/Refresh preserves the displayed game family.");
             Assert.AreEqual(before, keys.Map.SaveBindingOverridesAsJson()); Assert.AreEqual(version, KeyBindings.Version);
             SubmitLegend(panel, "House controls");
             yield return null;
-            Assert.AreEqual("HOUSE CONTROLS", title.text);
+            Assert.AreEqual(ControlsPanel.HouseTitle, title.text);
             Assert.AreEqual("View / Share", ControllerLegend(panel, "Pause").text);
             Assert.AreEqual("Hold Y / Triangle", ControllerLegend(panel, "Spell").text);
             Assert.IsTrue(ButtonNamed(panel, "Rebind Dodge").gameObject.activeInHierarchy);
@@ -207,6 +219,43 @@ namespace Wreckabulary.Tests
 
         static TMP_Text ControllerLegend(ControlsPanel panel, string action) => panel.GetComponentsInChildren<TMP_Text>(true)
             .Single(text => text.name == "Controller " + action);
+
+        static System.Collections.Generic.Dictionary<string, string> ActionLabels(ControlsPanel panel) => KeyBindings.Rows(DesktopBinding.Shared)
+            .Where(row => row.action.name != "Move")
+            .Select(row => (row.action.name, button: ButtonNamed(panel, "Rebind " + row.label)))
+            .Where(row => row.button.gameObject.activeInHierarchy)
+            .ToDictionary(row => row.name, row => row.button.transform.parent.parent.GetComponentInChildren<TMP_Text>().text);
+
+        static void AssertNormalHeading(TMP_Text title)
+        {
+            Assert.AreEqual(ControlsPanel.TitleText, title.fontSize, .01f);
+            Assert.AreEqual(LobbyKit.Cyan, title.color, "the heading uses the accent colour of the other tabs' headings");
+            Assert.AreNotEqual(title.text.ToUpperInvariant(), title.text, "the heading is in sentence case");
+        }
+
+        static void AssertRowCards(ControlsPanel panel)
+        {
+            foreach (var button in panel.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Rebind ")))
+            {
+                var card = button.transform.parent.parent.GetComponent<Image>();
+                Assert.IsNotNull(card, button.name + " sits on a row card");
+                Assert.AreEqual(LobbyKit.Card, card.color, button.name);
+                Assert.IsFalse(card.raycastTarget);
+            }
+        }
+
+        static void AssertLegendShape(ControlsPanel panel, string picked)
+        {
+            Canvas.ForceUpdateCanvases();
+            foreach (string name in new[] { "House controls", "Wordbound controls" })
+            {
+                var button = ButtonNamed(panel, name);
+                Assert.GreaterOrEqual(((RectTransform)button.transform).rect.height, 44f - .5f, name + " is a full-size control");
+                var edge = button.Body().Find(LobbyChoiceShape.EdgeName).GetComponent<Image>();
+                Assert.AreEqual(name == picked ? LobbyKit.Selection : LobbyKit.Line, edge.color, name + " shows whether it is picked");
+                Assert.AreEqual(LobbyKit.Raised, button.FaceOf().color, name + " has a shape to click");
+            }
+        }
 
         static void SubmitLegend(ControlsPanel panel, string name)
         {

@@ -13,7 +13,7 @@ namespace Wreckabulary.Online
         List<RecipeCard> recipeCards = new List<RecipeCard>();
         LetterBag recipeLetters;
         GUIStyle wrappedLabel;
-        bool revealMenuSelection, menuHasFocus;
+        bool revealMenuSelection, menuHasFocus, menuButtonSelected;
         Action pendingMenuAction;
         string pendingSearch;
         string menuConnectionStatus = "", menuResultStatus = "", menuActionStatus = "";
@@ -21,7 +21,7 @@ namespace Wreckabulary.Online
         WordboundStoryEpilogue menuEpilogue;
         float recipeViewportHeight = 180;
         Vector2 menuStatusScroll;
-        GUIStyle quietMenuButton, activeMenuButton;
+        GUIStyle quietMenuButton, activeMenuButton, recipeCardStyle, outlinedMenuButton;
         int menuStyleGeneration = -1;
         GUIStyle WrappedLabel => wrappedLabel ??= new GUIStyle(GUI.skin.label) { wordWrap = true };
 
@@ -77,7 +77,7 @@ namespace Wreckabulary.Online
 
         void ReadMenuCommands(WordboundMenuCommands commands)
         {
-            if (!initialized || !view.MenuOpen) return;
+            if (!initialized || !view.MenuOpen || GuideBlocksMenu) return;
             if (commands.Back)
             {
                 ResetMenuInput();
@@ -113,23 +113,25 @@ namespace Wreckabulary.Online
             EnsureMenuStyles();
             if (Event.current.type == EventType.Layout && GUI.enabled) menuFocus.Register(id);
             bool selected = view.UsesGamepad && menuFocus.Selected == id;
+            menuButtonSelected = selected;
+            bool recipe = id.StartsWith("recipe:", StringComparison.Ordinal);
             bool chosenRecipe = id == "recipe:" + selectedRecipe;
             bool tab = id == "equipment" && ItemsPageOpen || id == "help" && helpOpen || id == "journal" && journalOpen ||
                 id == "results" && resultsOpen && !helpOpen && !journalOpen && !leaveConfirm;
             bool primary = id == "craft-selected" || id == "play-again";
-            var style = primary ? ui.Primary : selected || chosenRecipe || tab ? activeMenuButton : quietMenuButton;
+            bool outlined = OutlinedMenuButton(id);
+            var style = primary ? ui.Primary : recipe ? recipeCardStyle : outlined ? (selected ? ui.Selected : outlinedMenuButton) :
+                selected || tab ? activeMenuButton : quietMenuButton;
             GUI.SetNextControlName("wordbound:" + id);
             var content = new GUIContent((selected && label.Length != 0 ? "› " : "") + label);
             var layout = options.Length == 0 ? new[] { GUILayout.MinHeight(ui.RowHeight) } : options;
             bool clicked = primary ? ui.Button(content, style, layout) : GUILayout.Button(content, style, layout);
-            if (Event.current.type == EventType.Repaint && (selected || chosenRecipe || tab))
+            if (Event.current.type == EventType.Repaint && (selected || tab) && !recipe && !outlined)
             {
                 Rect row = GUILayoutUtility.GetLastRect();
                 Color before = GUI.color;
                 GUI.color = new Color(ui.Ink.r, ui.Ink.g, ui.Ink.b, .75f);
-                GUI.DrawTexture(id.StartsWith("recipe:", StringComparison.Ordinal)
-                    ? new Rect(row.x, row.y + 6, 3, Mathf.Max(1, row.height - 12))
-                    : new Rect(row.x + 8, row.yMax - 2, Mathf.Max(1, row.width - 16), 2), Texture2D.whiteTexture);
+                GUI.DrawTexture(new Rect(row.x + 8, row.yMax - 2, Mathf.Max(1, row.width - 16), 2), Texture2D.whiteTexture);
                 GUI.color = before;
             }
             if (clicked) menuFocus.CancelConfirmation();
@@ -161,8 +163,12 @@ namespace Wreckabulary.Online
                 state.textColor = ui.Ink;
             }
             activeMenuButton = new GUIStyle(quietMenuButton) { fontStyle = FontStyle.Bold };
+            recipeCardStyle = new GUIStyle(quietMenuButton) { margin = new RectOffset(0, 0, 0, 0), padding = new RectOffset(0, 0, 0, 0) };
+            outlinedMenuButton = new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleCenter };
             menuStyleGeneration = ui.Generation;
         }
+
+        static bool OutlinedMenuButton(string id) => id == "return" || id == "resume" || id == "leave-cancel" || id == "leave-confirm";
 
         void Menu(float width, float height, bool focused)
         {

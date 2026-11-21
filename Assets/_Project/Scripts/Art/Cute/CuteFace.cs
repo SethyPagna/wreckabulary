@@ -99,7 +99,7 @@ namespace Wreckabulary.Art
 
         void Eyes(string style)
         {
-            foreach (var old in eyes) if (old) { if (Application.isPlaying) Destroy(old.gameObject); else DestroyImmediate(old.gameObject); }
+            foreach (var old in eyes) if (old) Discard(old.gameObject);
             eyes.Clear();
             eyeStyle = style;
             var skin = skinTemplate;
@@ -187,28 +187,72 @@ namespace Wreckabulary.Art
         public void UseHair(string id)
         {
             if (!hairMaterial || !root) return;
-            if (fallbackHair) { if (Application.isPlaying) Destroy(fallbackHair.gameObject); else DestroyImmediate(fallbackHair.gameObject); }
+            if (fallbackHair) Discard(fallbackHair.gameObject);
             fallbackHair = CuteHair.Create(root, "Hair", id, hairMaterial);
         }
 
-        void LateUpdate()
+        static void Discard(GameObject piece)
         {
-            if (!head || !root) return;
-            bool shown = head.enabled && head.gameObject.activeInHierarchy;
+            piece.SetActive(false);
+            if (Application.isPlaying) Destroy(piece); else DestroyImmediate(piece);
+        }
+
+        public string EyeStyle => eyeStyle;
+        public CuteHair ShownHair { get; private set; }
+        public bool Shown => root && root.gameObject.activeInHierarchy;
+
+        public bool HidesOldFace
+        {
+            get
+            {
+                if (!head) return false;
+                foreach (var material in head.sharedMaterials)
+                {
+                    string canonical = material ? WardrobeRig.CanonicalMaterial(material.name) : "";
+                    if (canonical == "eyes" || canonical == "hair") return false;
+                    if (canonical == CuteShapes.HiddenName && !CuteShapes.DrawsNothing(material)) return false;
+                }
+                return true;
+            }
+        }
+
+        public static CuteFace Settle(SkinnedMeshRenderer[] meshes)
+        {
+            if (meshes == null) return null;
+            foreach (var mesh in meshes)
+            {
+                if (!mesh || mesh.name != "SK_Head") continue;
+                var face = mesh.GetComponent<CuteFace>();
+                if (face) face.Settle();
+                return face;
+            }
+            return null;
+        }
+
+        void LateUpdate() => Settle();
+
+        public void Settle()
+        {
+            if (!head || !root || !headBone) return;
+            bool modelHidden = !headBone.gameObject.activeInHierarchy;
+            bool shown = head.enabled && (modelHidden || head.gameObject.activeInHierarchy);
             if (root.gameObject.activeSelf != shown) root.gameObject.SetActive(shown);
             if (!shown) return;
             float closed = blink >= 0 ? Mathf.Clamp01(head.GetBlendShapeWeight(blink) / 100f) : 0f;
             var scale = new Vector3(1f, Mathf.Lerp(1f, .1f, closed), 1f);
             foreach (var eye in eyes) if (eye) eye.localScale = scale;
-            string wornHair = null, wornEyes = null;
+            Transform wornHair = null;
+            string wornEyes = null;
             for (int i = 0; i < headBone.childCount; i++)
             {
                 var child = headBone.GetChild(i);
                 if (!child.gameObject.activeSelf) continue;
-                if (child.name.StartsWith(CuteWear.HairPrefix, System.StringComparison.Ordinal)) wornHair = child.name;
+                if (child.name.StartsWith(CuteWear.HairPrefix, System.StringComparison.Ordinal)) wornHair = child;
                 else if (child.name.StartsWith(CuteWear.EyesPrefix, System.StringComparison.Ordinal)) wornEyes = child.name.Substring(CuteWear.EyesPrefix.Length);
             }
-            if (fallbackHair && fallbackHair.gameObject.activeSelf != (wornHair == null)) fallbackHair.gameObject.SetActive(wornHair == null);
+            if (fallbackHair && fallbackHair.gameObject.activeSelf != !wornHair) fallbackHair.gameObject.SetActive(!wornHair);
+            ShownHair = wornHair ? wornHair.GetComponent<CuteHair>() : fallbackHair;
+            if (ShownHair) ShownHair.Settle();
             string wantEyes = wornEyes ?? DefaultEyes;
             if (wantEyes != eyeStyle) UseEyes(wantEyes);
         }

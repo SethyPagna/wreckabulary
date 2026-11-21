@@ -240,11 +240,14 @@ namespace Wreckabulary
                 view = LobbyRuntimeTypography.Instantiate(layout.Page, Root, false);
             }
             else view = LobbyHomeDefaultLayout.Create(Root);
-            First = view.Bind(!PlayerPrefs.HasKey(LobbyMenu.TurnHintKey), Menu.Starting, Menu.PlayLast, Menu.LastMatch,
-                () => Menu.Open(LobbyMenu.Play));
+            string last = Menu.LastMatch;
+            First = view.Bind(!PlayerPrefs.HasKey(LobbyMenu.TurnHintKey), Menu.Starting, Menu.PlayLast, last,
+                () => Menu.Open(LobbyMenu.Play), LastMode(last));
             view.ShowCareer(PartyPlates.CareerLine(Menu.Career.Matches, Menu.Career.SecondsPlayed));
             LobbyPartyLineup.Show(Menu, Root, view.Dock);
         }
+
+        string LastMode(string last) => last != null && last == PlayPage.CourseTitle ? WordboundSoloEntry.SelectedMode : Menu.Mode;
     }
 
     public sealed class CareerScreen : LobbyPage
@@ -255,7 +258,7 @@ namespace Wreckabulary
         protected override void Build()
         {
             var career = Menu.Career;
-            var body = Side("Career", "Practice matches count. Online play will add ranked results.");
+            var body = Side("Career", "Matches on this screen count. Online play will add ranked results.");
             var column = LobbyKit.Column(body, "Column", 16).Fill();
 
             var level = LobbyKit.Row(column, "Level", 22);
@@ -360,7 +363,7 @@ namespace Wreckabulary
             if (art) art.rectTransform.Pin(new Vector2(0, .5f), new Vector2(30, 0), new Vector2(112, 112));
             var title = LobbyKit.Display(card, "No matches yet", 34, LobbyKit.Sun, TextAlignmentOptions.BottomLeft, LobbyKit.Ink.Stroke);
             title.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(172, -78), new Vector2(-24, -26));
-            var line = Wrapped(card, "Finish a local match to see your results here.", 19, LobbyKit.Muted);
+            var line = Wrapped(card, "Finish a match to see your results here.", 19, LobbyKit.Muted);
             line.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(172, -136), new Vector2(-24, -84));
             var go = LobbyKit.Button(card, "Play practice", LobbyKit.SunHi, () =>
             {
@@ -410,7 +413,7 @@ namespace Wreckabulary
             LobbyKit.Rect(column, "Gap").Size(-1, 4);
 
             var rows = Rows(career, board);
-            Note(column, "Records on this PC.");
+            Note(column, "Your best scores.");
             if (rows.Count == 0) Note(column, "No scores yet. Be the first!");
             for (int i = 0; i < rows.Count; i++) Entry(column, i + 1, rows[i].score, career.Name, rows[i].detail, i == 0);
             Grow(LobbyKit.Rect(column, "Space"));

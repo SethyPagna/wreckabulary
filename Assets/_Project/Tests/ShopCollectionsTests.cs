@@ -56,6 +56,22 @@ namespace Wreckabulary.Tests
         static string SelectedText(string name) => LobbyMenu.Instance.Page<ShopPage>().Root
             .GetComponentsInChildren<TMP_Text>().Single(text => text.name == name).text;
 
+        static bool Shown(string name) => LobbyMenu.Instance.Page<ShopPage>().Root
+            .GetComponentsInChildren<RectTransform>().Single(rect => rect.name == "Selected shop offer")
+            .GetComponentsInChildren<RectTransform>().Any(rect => rect.name == name);
+
+        static bool Marked(Component card, string mark) => card.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == mark);
+
+        static LobbyShopOfferView Card(string id) => LobbyMenu.Instance.Page<ShopPage>().Root
+            .GetComponentsInChildren<LobbyShopOfferView>().Single(card => card.name == "Offer " + id);
+
+        static void AssertWornFooter()
+        {
+            Assert.IsTrue(Shown(ShopPage.SelectedTick), "what you wear shows a tick");
+            Assert.IsFalse(Shown(ShopPage.SelectedPrice), "and no word");
+            Assert.IsFalse(LobbyMenu.Instance.Page<ShopPage>().Root.GetComponentsInChildren<Button>().Single(button => button.name == ShopPage.SelectedAction).interactable);
+        }
+
         static string AvatarPresentation()
         {
             var parts = new System.Collections.Generic.List<string>();
@@ -116,7 +132,9 @@ namespace Wreckabulary.Tests
             string[] before = Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray();
             Assert.AreEqual("look:sunroom", shop.Spotlit, "A custom outfit selects the first owned look for preview only.");
             Assert.AreEqual("Sunny-side Club", SelectedText("Selected shop name"));
-            Assert.AreEqual("Looks · Owned · Preview", SelectedText("Selected shop state"));
+            Assert.AreEqual("Looks", SelectedText("Selected shop state"));
+            Assert.AreEqual(LobbyShopOfferView.EquipLabel, SelectedText(ShopPage.SelectedPrice), "an owned look is one EQUIP press away");
+            Assert.IsFalse(Shown(ShopPage.SelectedTick));
             Assert.AreEqual(1000, menu.Career.Coins);
             Assert.AreEqual(outfit, menu.Outfit.Serialize());
             CollectionAssert.AreEqual(before, Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray());
@@ -124,14 +142,15 @@ namespace Wreckabulary.Tests
             shop.SelectRecipe("SHIELD");
             yield return null;
             Assert.AreEqual("skin:Classic", shop.Spotlit);
-            Assert.AreEqual("SHIELD finish · Equipped", SelectedText("Selected shop state"));
+            Assert.AreEqual("SHIELD finish", SelectedText("Selected shop state"));
             Assert.IsNotNull(menu.Stage.ItemPreview);
-            Assert.IsFalse(shop.Root.GetComponentsInChildren<Button>().Single(button => button.name == "Selected shop action").interactable);
+            AssertWornFooter();
             shop.ShowCategory(ShopPage.Rooms);
             yield return null;
             Assert.IsNull(menu.Stage.ItemPreview, "The prior shelf's miniature is released.");
             Assert.AreEqual("theme:sunroom", shop.Spotlit);
-            Assert.AreEqual("Rooms · Equipped", SelectedText("Selected shop state"));
+            Assert.AreEqual("Rooms", SelectedText("Selected shop state"));
+            AssertWornFooter();
             Assert.AreEqual(outfit, menu.Outfit.Serialize());
             CollectionAssert.AreEqual(before, Keys.Select(key => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null).ToArray());
             menu.Close();
@@ -149,7 +168,9 @@ namespace Wreckabulary.Tests
             yield return null;
             Assert.AreEqual("look:candy", shop.Spotlit);
             Assert.AreEqual("Sugar Rush", SelectedText("Selected shop name"));
-            Assert.AreEqual("Looks · Not owned · Preview", SelectedText("Selected shop state"));
+            Assert.AreEqual("Looks", SelectedText("Selected shop state"));
+            Assert.AreEqual("400", SelectedText(ShopPage.SelectedPrice), "the primary button carries the price");
+            Assert.IsTrue(Shown(LobbyShopActionView.PriceCoin));
             Assert.AreEqual(outfit, menu.Outfit.Serialize());
             Click("Selected shop action");
             yield return null;
@@ -157,17 +178,16 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(menu.Career.Owns("look", "candy"));
             Assert.AreEqual(outfit, menu.Outfit.Serialize(), "Buying does not automatically equip.");
             Assert.AreEqual("look:candy", shop.Spotlit);
-            Assert.AreEqual("Looks · Owned · Preview", SelectedText("Selected shop state"));
+            Assert.AreEqual(LobbyShopOfferView.EquipLabel, SelectedText(ShopPage.SelectedPrice));
             Click("Selected shop action");
             yield return null;
             Assert.AreEqual(600, menu.Career.Coins);
             Assert.AreEqual("bubblegum", menu.Outfit.ColourOf("Top"));
-            Assert.AreEqual("Looks · Equipped", SelectedText("Selected shop state"));
-            Assert.IsFalse(shop.Root.GetComponentsInChildren<Button>().Single(button => button.name == "Selected shop action").interactable);
+            AssertWornFooter();
             menu.Close(); menu.Open(LobbyMenu.Shop);
             yield return null;
             Assert.AreEqual("look:candy", shop.Spotlit, "A matching equipped look takes priority over the first owned look.");
-            Assert.AreEqual("Looks · Equipped", SelectedText("Selected shop state"));
+            AssertWornFooter();
         }
 
         [UnityTest]
@@ -217,7 +237,10 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(outfit, menu.Outfit.Serialize());
             Assert.AreEqual(careerSave, PlayerPrefs.GetString(MatchTally.CareerKey));
             Assert.AreEqual("look:candy", shop.Spotlit);
-            Assert.AreEqual("Looks · Not owned · Preview", SelectedText("Selected shop state"));
+            Assert.AreEqual("400", SelectedText(ShopPage.SelectedPrice));
+            Assert.Less(shop.Root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == ShopPage.SelectedPrice).color.a, 1f,
+                "a price you cannot pay is faded, as in Customize");
+            Assert.IsTrue(Card("look:candy").Action.Poor);
             Assert.IsNotEmpty(shop.Root.GetComponentInChildren<LobbyShopPageView>().Footnote.text);
             Click("Offer look:lantern");
             Assert.IsEmpty(shop.Root.GetComponentInChildren<LobbyShopPageView>().Footnote.text, "Selecting another offer clears stale checkout feedback.");
@@ -572,6 +595,132 @@ namespace Wreckabulary.Tests
             Assert.IsNull(menu.Outfit.PieceIn("Face"));
             Assert.AreEqual(menu.Outfit.Serialize(), Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).Serialize());
             Assert.IsTrue(MatchTally.LoadCareer().Owns("look", "candy"));
+        }
+
+        [UnityTest]
+        public IEnumerator EveryTabCarriesItsOwnIconBesideItsWord()
+        {
+            yield return null;
+            var page = LobbyMenu.Instance.Page<ShopPage>().Root.GetComponentInChildren<LobbyShopPageView>();
+            foreach (var binding in page.Categories)
+            {
+                Assert.IsTrue(binding.Action.Icon.gameObject.activeInHierarchy, binding.Id + " shows an icon");
+                Assert.AreSame(LobbyIcons.Get(ShopPage.IconFor(binding.Id)), binding.Action.Icon.sprite, binding.Id);
+                Assert.IsNotEmpty(binding.Action.Label.text, binding.Id + " keeps its word");
+                binding.Action.Label.ForceMeshUpdate();
+                Assert.IsFalse(binding.Action.Label.isTextTruncated, binding.Id);
+            }
+            Assert.AreEqual(page.Categories.Length, page.Categories.Select(binding => ShopPage.IconFor(binding.Id)).Distinct().Count(), "no two tabs share an icon");
+        }
+
+        [UnityTest]
+        public IEnumerator CardsTellOwnedLockedAffordableAndTooDearApartLikeCustomize()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            menu.Career.Coins = 130;
+            Assert.IsTrue(shop.ShowCategory(ShopPage.Colours));
+            yield return null;
+            var sky = Card("colour:sky");
+            var grape = Card("colour:grape");
+            Assert.IsTrue(Marked(sky, LoadoutPage.LockMark) && Marked(grape, LoadoutPage.LockMark), "a colour you do not own carries the lock");
+            Assert.IsTrue(sky.Action.Priced && !sky.Action.Poor, "Sky costs 120 of 130 coins");
+            Assert.IsTrue(grape.Action.Priced && grape.Action.Poor, "Grape costs 150 of 130 coins");
+            Assert.Less(grape.Action.Label.color.a, sky.Action.Label.color.a, "a price you cannot pay is faded");
+            Assert.IsTrue(grape.Action.Button.interactable, "pressing it still says how many coins are missing");
+            Click("Buy colour:sky");
+            yield return null;
+            Assert.AreEqual(10, menu.Career.Coins);
+            sky = Card("colour:sky");
+            Assert.IsFalse(Marked(sky, LoadoutPage.LockMark), "an owned colour loses the lock");
+            Assert.IsFalse(Marked(sky, LoadoutPage.CheckMark), "and is not worn yet");
+            Assert.AreEqual(LobbyShopOfferView.EquipLabel, sky.Action.Label.text);
+            Click("Wear colour:sky");
+            yield return null;
+            sky = Card("colour:sky");
+            Assert.IsTrue(Marked(sky, LoadoutPage.CheckMark), "what you wear carries the tick");
+            Assert.IsFalse(Marked(sky, LoadoutPage.LockMark));
+            Assert.IsFalse(sky.Action.gameObject.activeSelf, "and no EQUIPPED word");
+            Assert.IsTrue(sky.Outline.enabled);
+            Assert.AreEqual(sky.EquippedColour, sky.Outline.color);
+            Assert.IsFalse(shop.Root.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "EQUIPPED"));
+        }
+
+        [UnityTest]
+        public IEnumerator ExtrasShowAPictureOfEveryPieceWithCustomizeMarks()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            Assert.IsTrue(shop.ShowCategory(ShopPage.Extras));
+            yield return null;
+            var wardrobe = GameConfig.Current.Wardrobe;
+            foreach (var piece in wardrobe.Pieces.Where(piece => !wardrobe.RequiredSlots.Contains(piece.Slot)))
+            {
+                var card = shop.Root.GetComponentsInChildren<RectTransform>().Single(rect => rect.name == ShopPage.AccessoryPrefix + piece.Id);
+                var expected = Wreckabulary.UI.WardrobeArt.For(piece.Slot, piece.Id);
+                Assert.IsNotNull(expected, piece.Id + " has a wardrobe picture");
+                Assert.AreSame(expected, card.GetComponentsInChildren<Image>().Single(image => image.name == LoadoutPage.PiecePicture).sprite, piece.Id);
+                Assert.IsFalse(card.GetComponentsInChildren<Image>().Any(image => image.name == "Icon " + LobbyIcons.Locker), piece.Id + " is not the hanger icon");
+                bool worn = menu.Outfit.PieceIn(piece.Slot) == piece.Id, owned = menu.Career.Owns("piece", piece.Id);
+                Assert.AreEqual(worn, Marked(card, LoadoutPage.CheckMark), piece.Id + " tick");
+                Assert.AreEqual(!owned && !worn, Marked(card, LoadoutPage.LockMark), piece.Id + " lock");
+                Assert.IsFalse(card.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "EQUIP" || text.text == "REMOVE"), piece.Id + " has no action word");
+            }
+            Click(ShopPage.LookPrefix + "Headphones");
+            yield return null;
+            Assert.AreEqual(ShopPage.Looks, shop.Category, "a locked piece opens the look it comes with");
+            Assert.AreEqual("look:arcade", shop.Spotlit);
+            Assert.AreEqual(1000, menu.Career.Coins);
+        }
+
+        [UnityTest]
+        public IEnumerator GearShowsEveryRecipeAsAPictureAndKeepsThePickInFocus()
+        {
+            var menu = LobbyMenu.Instance;
+            var shop = menu.Page<ShopPage>();
+            string outfit = menu.Outfit.Serialize();
+            Assert.IsTrue(shop.ShowCategory(ShopPage.Gear));
+            yield return null;
+            var grid = shop.Root.GetComponentsInChildren<RectTransform>().Single(rect => rect.name == ShopPage.RecipeGridName);
+            var tiles = grid.GetComponentsInChildren<Button>();
+            CollectionAssert.AreEqual(GameConfig.Current.Items.Enabled.Select(item => ShopPage.RecipePrefix + item.Id).ToArray(),
+                tiles.Select(tile => tile.name).ToArray(), "every recipe is on the page, not behind a list");
+            foreach (var tile in tiles)
+            {
+                string word = tile.name.Substring(ShopPage.RecipePrefix.Length);
+                Assert.IsTrue(tile.GetComponentsInChildren<RawImage>().Any(image => image.name == "Art " + word && image.texture), word + " shows its picture");
+            }
+            var choose = shop.Root.GetComponentsInChildren<Button>().Single(button => button.name == ShopPage.ChooseRecipe);
+            Assert.IsTrue(choose.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == "Picture " + shop.SelectedRecipe), "the chooser shows the picture of the recipe");
+            Click(ShopPage.RecipePrefix + "SHIELD");
+            yield return null;
+            Assert.AreEqual("SHIELD", shop.SelectedRecipe);
+            Assert.AreEqual(ShopPage.RecipePrefix + "SHIELD", EventSystem.current.currentSelectedGameObject.name, "a controller stays on the picked recipe");
+            Assert.IsTrue(shop.Root.GetComponentsInChildren<LobbyShopOfferView>()
+                .All(card => card.Art.GetComponentsInChildren<RawImage>().Any(image => image.name == "Art SHIELD")), "the finishes now show the SHIELD");
+            Click(ShopPage.ChooseRecipe);
+            Assert.AreEqual(ShopPage.RecipePrefix + "SHIELD", EventSystem.current.currentSelectedGameObject.name, "the chooser jumps to the recipe pictures");
+            Assert.AreEqual(outfit, menu.Outfit.Serialize());
+            Assert.AreEqual(1000, menu.Career.Coins);
+        }
+
+        [UnityTest]
+        public IEnumerator CardTagsStayAtFifteenPointsOrMore()
+        {
+            var shop = LobbyMenu.Instance.Page<ShopPage>();
+            foreach (string category in new[] { ShopPage.Looks, ShopPage.Gear })
+            {
+                Assert.IsTrue(shop.ShowCategory(category));
+                yield return null;
+                Canvas.ForceUpdateCanvases();
+                foreach (var card in shop.Root.GetComponentsInChildren<LobbyShopOfferView>())
+                {
+                    var tag = card.GetComponentsInChildren<TMP_Text>().Single(text => text.name == LobbyPage.TagLine);
+                    Assert.GreaterOrEqual(tag.fontSizeMin, 15f, card.name);
+                    tag.ForceMeshUpdate();
+                    Assert.IsFalse(tag.isTextTruncated, card.name + ": " + tag.text);
+                }
+            }
         }
     }
 }

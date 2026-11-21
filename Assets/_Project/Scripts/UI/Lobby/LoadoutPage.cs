@@ -20,12 +20,16 @@ namespace Wreckabulary
         public const string SaveLookButton = "Save look", SaveLookHint = "Save what you are wearing", DoneButton = "Done";
         public const string Clash = "That doesn't go with what you're wearing.", NotYours = "That piece isn't yours yet.";
         public const string NotSold = "This isn't in the shop yet.";
+        public const string TitleArea = "Title area";
+        const string TitleName = "Title";
         const string PieceKind = "piece", ColourKind = "colour", SkinKind = "skin", LookKind = "look";
         const string Separator = " · ";
-        const float HeaderHeight = 48f, HeaderGap = 10f, SwitchWidth = 236f, ToggleSize = 48f, TitleGap = 12f;
+        const float HeaderHeight = 48f, HeaderGap = 10f, SwitchWidth = 236f, ToggleSize = 48f, HeaderInset = 12f;
         const float FooterBottom = 6f, FooterHeight = 60f, SaveWidth = 220f, FooterGap = 16f;
-        const float BarHeight = 56f, BarGap = 8f, DetailHeight = 26f, DetailGap = 8f, StripHeight = 50f, GridGap = 8f;
-        const float BarBuyWidth = 112f, BarTakeOffWidth = 104f, BarShopWidth = 124f, BarControlHeight = 40f, BarIcon = 22f;
+        const float BarHeight = 56f, BarGap = 8f, DetailHeight = 30f, DetailGap = 6f, StripHeight = 50f, GridGap = 6f;
+        const float BarBuyWidth = 112f, BarTakeOffWidth = 104f, BarShopWidth = 48f, BarControlHeight = 40f, BarIcon = 22f;
+        const float TitleGap = 14f, TitleCeiling = 2f, TitleFloor = 98f, TitleMinRoom = 160f;
+        public const float CaptionText = 20f;
         const float MinText = 15f, DetailText = 17f, TitleText = 16f;
         const int TileRadius = 14;
 
@@ -45,12 +49,14 @@ namespace Wreckabulary
 
         readonly LobbyLooksStore store = new LobbyLooksStore();
         readonly List<Selectable> tiles = new List<Selectable>();
+        readonly List<List<Selectable>> tileRows = new List<List<Selectable>>();
         readonly List<Selectable> railButtons = new List<Selectable>();
         HashSet<string> fresh = new HashSet<string>(StringComparer.Ordinal);
         RectTransform lockerList, detail;
         TMP_Text recipeFinish, detailLine;
         Selectable viewSwitch, stripFirst, saveLook, selectedRail;
-        float scrolled;
+        float scrolled, tileCell;
+        int tileBreak;
         string hovering, previewing, shownRecipe;
         bool rebuilding, replacing;
         Outfit tryOn;
@@ -67,7 +73,7 @@ namespace Wreckabulary
             ResetScroll();
             tryOn = null;
             replacing = false;
-            focusedLook = armedDelete = NoLook;
+            focusedLook = armedDelete = naming = NoLook;
             looks = store.Load();
             NoteSeen();
         }
@@ -87,8 +93,12 @@ namespace Wreckabulary
             recipeFinish = detailLine = null;
             viewSwitch = stripFirst = saveLook = selectedRail = null;
             deleteButton = null;
+            nameField = null;
+            naming = NoLook;
             hovering = previewing = shownRecipe = null;
             tiles.Clear();
+            tileRows.Clear();
+            tileBreak = 0;
             railButtons.Clear();
             looks ??= store.Load();
             if (tryOn != null && Menu.Career.Missing(tryOn).Count == 0) tryOn = null;
@@ -102,14 +112,17 @@ namespace Wreckabulary
                 authoredPage.Bind(ShowingRecipes, Menu.Close, ShowRecipes, CustomizeRecipe);
                 lockerBody = authoredPage.LockerBody;
                 recipesBody = authoredPage.RecipesBody;
+                ClearTitle(authoredPage.Panel, authoredPage.LockerTab.transform.parent as RectTransform);
             }
             else
             {
                 lockerBody = recipesBody = Side("Customize");
-                ((RectTransform)lockerBody.parent).offsetMin = new Vector2(-Width, 0);
-                var tabs = LobbyKit.Segmented(lockerBody.parent, "Tabs", new[] { (LockerTab, "Character"), (RecipesTab, "Equipment") },
+                var panel = (RectTransform)lockerBody.parent;
+                panel.offsetMin = new Vector2(-Width, 0);
+                var tabs = LobbyKit.Segmented(panel, "Tabs", new[] { (LockerTab, "Character"), (RecipesTab, "Equipment") },
                     ShowingRecipes ? RecipesTab : LockerTab, id => ShowRecipes(id == RecipesTab));
                 tabs.Place(Vector2.one, Vector2.one, new Vector2(-84 - 240, -74), new Vector2(-84, -26));
+                ClearTitle(panel, tabs);
             }
             BuildRail();
             if (ShowingRecipes) Recipes(recipesBody);
@@ -120,6 +133,23 @@ namespace Wreckabulary
             Stage.Dress(Shown);
             if (ShowingRecipes) HoldShown();
             else Stage.ClearHeldItem();
+        }
+
+        void ClearTitle(RectTransform panel, RectTransform tabs)
+        {
+            var title = panel.GetComponentsInChildren<TMP_Text>().FirstOrDefault(label => label.name == TitleName && label.transform.parent == panel);
+            if (!title || !tabs) return;
+            var frame = title.rectTransform;
+            if (frame.anchorMin.x != 0f || frame.anchorMax.x != 1f) return;
+            var corners = new Vector3[4];
+            tabs.GetWorldCorners(corners);
+            float left = frame.offsetMin.x, right = panel.InverseTransformPoint(corners[0]).x - panel.rect.xMin - TitleGap;
+            if (right - left < TitleMinRoom) return;
+            frame.offsetMax = new Vector2(right - panel.rect.width, frame.offsetMax.y);
+            var area = LobbyKit.Rect(panel, TitleArea).Place(new Vector2(0, 1), new Vector2(0, 1), new Vector2(left, -TitleFloor), new Vector2(right, -TitleCeiling));
+            area.SetSiblingIndex(frame.GetSiblingIndex());
+            var word = LobbyTileWord.Replace(title, LobbyParcel.TitleSize);
+            if (word) word.Within = area;
         }
 
         void Rebuild()
@@ -194,9 +224,9 @@ namespace Wreckabulary
                 if (ShowingLooks) LooksStrip(row);
                 else PieceStrip(row);
             }
-            detailLine = LobbyKit.Text(body, RestingDetail(), DetailText, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
+            detailLine = LobbyKit.Text(body, RestingDetail(), CaptionText, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
             detailLine.name = DetailLine;
-            detailLine.enableAutoSizing = true; detailLine.fontSizeMin = MinText; detailLine.fontSizeMax = DetailText;
+            detailLine.enableAutoSizing = true; detailLine.fontSizeMin = MinText; detailLine.fontSizeMax = CaptionText;
             detailLine.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(4, detailBottom), new Vector2(-4, detailBottom + DetailHeight));
             if (bar) BuildGetBar(body, FooterBottom + FooterHeight + BarGap);
             Footer(body);
@@ -214,12 +244,17 @@ namespace Wreckabulary
                 RaiseText(choice);
                 if (choice.name == picked) viewSwitch = choice;
             }
-            var title = LobbyKit.Caps(header, ShowingLooks ? "Looks" : SlotTitle(Category), TitleText, TextAlignmentOptions.Midline);
-            title.name = CategoryTitle;
-            title.enableAutoSizing = true; title.fontSizeMin = MinText; title.fontSizeMax = TitleText;
-            title.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(SwitchWidth + TitleGap, 0), new Vector2(-(ToggleSize + TitleGap), 0));
+            if (!ShowingLooks) HeaderTitle(header);
             var owned = IconTile(header, OwnedToggle, LobbyIcons.Filter, OwnedHint, OwnedOnly, () => ShowOwnedOnly(!OwnedOnly), 28f);
             ((RectTransform)owned.transform).Pin(new Vector2(1, .5f), Vector2.zero, new Vector2(ToggleSize, ToggleSize));
+        }
+
+        void HeaderTitle(RectTransform header)
+        {
+            var title = LobbyKit.Caps(header, SlotTitle(Category), TitleText, TextAlignmentOptions.Midline);
+            title.name = CategoryTitle;
+            title.enableAutoSizing = true; title.fontSizeMin = MinText; title.fontSizeMax = TitleText;
+            title.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(SwitchWidth + HeaderInset, 0), new Vector2(-(ToggleSize + HeaderInset), 0));
         }
 
         void Footer(RectTransform body)
@@ -329,9 +364,7 @@ namespace Wreckabulary
             off.Size(BarTakeOffWidth, BarControlHeight);
             RaiseText(off);
             if (offer == null) return;
-            var shop = LobbyKit.TextAction(bar, SeeInShop, "See in shop", MinText, () => Menu.OpenShop(offer.Id));
-            shop.Size(BarShopWidth, BarControlHeight);
-            RaiseText(shop);
+            LobbyKit.IconButton(bar, LobbyIcons.Cart, SeeInShop, () => Menu.OpenShop(offer.Id)).Size(BarShopWidth, BarControlHeight);
         }
 
         static string OfferLine(ShopOffer offer)

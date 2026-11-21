@@ -27,6 +27,7 @@ namespace Wreckabulary
         public bool AcceptsGameplayInput => StateController && StateController.CurrentState == UIState.GameplayHUD && !StateController.IsTransitioning;
         public static GameHud Active { get; private set; }
         public bool NeedsPointer => !AcceptsGameplayInput || pointerFreed || BagOpen || (craftRoot && craftRoot.activeSelf) || (typewriter && typewriter.User) || (modeActions && modeWanted) || ResultShown || LeaveAsked;
+        public bool FullCardShown => ResultShown || ShowcaseShown;
         public static bool? PauseOnFocusLossOverride;
         static bool PauseOnFocusLoss => PauseOnFocusLossOverride ?? !Application.isBatchMode;
 
@@ -51,6 +52,13 @@ namespace Wreckabulary
         static readonly ProfilerMarker RefreshMarker = new("Hud.Refresh");
         const float BagTop = 105f, BagSide = 35f, BagBottom = 35f, BagColumn = 375f, BookColumn = 840f, BagGap = 24f;
         const float Chip = 52f, ChipGap = 10f;
+        const float VitalsX = 39f, VitalsY = 38f, TrayY = 52f, AsideVitalsY = 276f;
+        const float SideGap = 12f, SideRowHeight = 54f, SideRowGap = 6f, RoomHeight = 64f, RoomGap = 16f;
+        const float ObjectiveWidth = 252f, ObjectiveMinHeight = 48f;
+        public const float BookTitleTop = 4f, BookTitleHeight = 40f, BookKeyGap = 4f, BookKeyHeight = 30f, BookCardsGap = 6f, BookTextLeft = 48f;
+        public const float BookKeyTop = BookTitleTop + BookTitleHeight + BookKeyGap, BookCardsTop = BookKeyTop + BookKeyHeight + BookCardsGap;
+        public const float BookCloseSize = 40f, BookCloseInset = 4f, BookCloseGap = 8f;
+        const float BookGlyphCentre = 21f, BookKeyStar = 18f, BookKeyFont = 20f, BookKeyMinFont = 15f;
         const int ChipsPerRow = 6;
         public const string FreeSpelling = "Free spelling", FreeBookLine = "Warm-up: every recipe is free";
 
@@ -94,7 +102,8 @@ namespace Wreckabulary
         Rect lastSafe;
         int lastWidth, lastHeight;
         float nextRefresh, resumeScale = 1f;
-        bool bagPinned;
+        bool bagPinned, trayAside;
+        int sideKey = -1;
         readonly List<CanvasGroup> bagHides = new();
         readonly List<(GameObject root, RawImage icon, GameObject badge, TextMeshProUGUI seconds)> effectChips = new();
         readonly List<BookCard> bookCards = new();
@@ -103,7 +112,6 @@ namespace Wreckabulary
         RectTransform bagColumn, bagLetters, bagHandsRow, bagEffectsRow, bagMapFrame, bagMapShadow, bagMapArea, bagBook, bagBackdrop, pauseShade;
         RectTransform spellCap, bagCap, roomBacking;
         TextMeshProUGUI bookLine;
-        GameObject bookLegend;
         string bookWord;
         bool bookFree;
         GridLayoutGroup recipeGrid;
@@ -127,6 +135,7 @@ namespace Wreckabulary
         PlayerController followed;
         bool pointerFreed;
         string checklistText = "", checklistSource;
+        float objectiveHeight = ObjectiveMinHeight;
         readonly Dictionary<PlayerController, bool> priorFrozen = new();
         bool simulationPaused;
 
@@ -330,8 +339,8 @@ namespace Wreckabulary
                 timer.fontStyle = FontStyles.Normal; timer.fontSize = 32f; timer.color = OnGame; timer.alignment = TextAlignmentOptions.Right;
                 timer.characterSpacing = 0f; timer.raycastTarget = false; timer.textWrappingMode = TextWrappingModes.NoWrap;
                 OnGameText(timer); AddHudShadow(timer);
-                timerPill.gameObject.SetActive(!string.IsNullOrEmpty(timer.text));
             }
+            timerPill.gameObject.SetActive(false);
             var room = Rect("Room", side, new Vector2(0f, 1f), new Vector2(0f, -324f), new Vector2(252f, 64f));
             room.pivot = new Vector2(0f, 1f);
             roomBacking = Panel("Backing", room, new Vector2(1f, .5f), Vector2.zero, new Vector2(120f, 42f), new Vector2(1f, .5f), KeyPill);
@@ -628,17 +637,12 @@ namespace Wreckabulary
             GlyphImage("Book glyph", book, new Vector2(0f, 1f), new Vector2(4f, -2f), 34f, "book", BagInk);
             bookLine = Text("Book line", book, new Vector2(0f, 1f), Vector2.zero, Vector2.zero, 23f, BagInk, TextAlignmentOptions.MidlineLeft);
             bookLine.rectTransform.anchorMax = Vector2.one; bookLine.rectTransform.pivot = new Vector2(0f, 1f);
-            bookLine.rectTransform.offsetMin = new Vector2(48f, -44f); bookLine.rectTransform.offsetMax = new Vector2(0f, -4f);
+            bookLine.rectTransform.offsetMin = new Vector2(BookTextLeft, -BookTitleTop - BookTitleHeight);
+            bookLine.rectTransform.offsetMax = new Vector2(-BookCloseInset - BookCloseSize - BookCloseGap, -BookTitleTop);
             bookLine.overflowMode = TextOverflowModes.Ellipsis; bookLine.text = "";
-            var legend = Rect("Legend", book, Vector2.one, new Vector2(0f, -4f), new Vector2(380f, 40f));
-            legend.pivot = Vector2.one;
-            bookLegend = legend.gameObject;
-            var legendText = Text("Text", legend, Vector2.one, Vector2.zero, new Vector2(340f, 40f), 20f, Hex(0xfff4e2, .8f), TextAlignmentOptions.MidlineRight);
-            legendText.rectTransform.pivot = Vector2.one; legendText.text = RecipeStars.Legend;
-            var legendStar = CreateImage("Star", legend, new Vector2(0f, .5f), new Vector2(26f, 0f), new Vector2(18f, 18f), TierColour(RecipeTier.Epic));
-            legendStar.sprite = SparkSprite(); legendStar.preserveAspect = true;
+            BuildBookKey(book);
             var view = Rect("View", book, Vector2.zero, Vector2.zero, Vector2.zero);
-            Stretch(view); view.offsetMax = new Vector2(0f, -50f);
+            Stretch(view); view.offsetMax = new Vector2(0f, -BookCardsTop);
             view.gameObject.AddComponent<RectMask2D>();
             view.gameObject.AddComponent<Image>().color = Color.clear;
             var cardsRoot = Rect("Cards", view, new Vector2(.5f, 1f), Vector2.zero, Vector2.zero);
@@ -652,13 +656,27 @@ namespace Wreckabulary
             foreach (var item in GameConfig.Current.Items.All)
                 if (item.Enabled) bookCards.Add(MakeBookCard(item.Id, cardsRoot));
 
-            var close = Panel("Close bag", rt, new Vector2(.5f, 1f), new Vector2(0f, -28f), new Vector2(40f, 40f), new Vector2(.5f, 1f), Hex(0xffffff, .12f), true);
+            var close = Panel("Close bag", rt, Vector2.one, new Vector2(-BagSide - BookCloseInset, -BagTop - BookTitleTop),
+                Vector2.one * BookCloseSize, Vector2.one, Hex(0xffffff, .12f), true);
             close.GetComponent<Image>().raycastTarget = true;
             close.gameObject.AddComponent<Button>().onClick.AddListener(() => SetBagPinned(false));
             var edge = CreateImage("Edge", close, Vector2.zero, Vector2.zero, Vector2.zero, Hex(0xffffff, .25f));
             Stretch(edge.rectTransform); edge.sprite = circleRing;
             Text("Label", close, new Vector2(.5f, .5f), new Vector2(0f, 2f), new Vector2(40f, 40f), 30f, BagInk).text = "×";
             bagPanel.SetActive(false);
+        }
+
+        void BuildBookKey(RectTransform book)
+        {
+            var key = Rect("Legend", book, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
+            key.anchorMax = Vector2.one; key.pivot = new Vector2(0f, 1f);
+            key.offsetMin = new Vector2(0f, -BookKeyTop - BookKeyHeight); key.offsetMax = new Vector2(0f, -BookKeyTop);
+            var text = Text("Text", key, Vector2.zero, Vector2.zero, Vector2.zero, BookKeyFont, Hex(0xfff4e2, .8f), TextAlignmentOptions.MidlineLeft);
+            Stretch(text.rectTransform); text.rectTransform.offsetMin = new Vector2(BookTextLeft, 0f);
+            text.enableAutoSizing = true; text.fontSizeMin = BookKeyMinFont; text.fontSizeMax = BookKeyFont;
+            text.text = RecipeStars.Legend;
+            var star = CreateImage("Star", key, new Vector2(0f, .5f), new Vector2(BookGlyphCentre, 0f), Vector2.one * BookKeyStar, TierColour(RecipeTier.Epic));
+            star.sprite = SparkSprite(); star.preserveAspect = true;
         }
 
         static void Stretch(RectTransform rt) { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero; }
@@ -840,7 +858,6 @@ namespace Wreckabulary
             bool free = word == null && bookFree;
             string effect = word == null ? null : GameConfig.Current.Tuning?.Describe(word);
             bookLine.text = word == null ? (free ? FreeBookLine : "") : $"{word} · {(string.IsNullOrEmpty(effect) ? "no extra effect" : effect)}";
-            if (bookLegend) bookLegend.SetActive(word == null && !free);
         }
 
         sealed class BookCardFocus : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, ISelectHandler, IDeselectHandler
@@ -919,6 +936,7 @@ namespace Wreckabulary
             bool crossed = aiming && !rig.Looking;
             if (crosshair && crosshair.activeSelf != crossed) crosshair.SetActive(crossed);
             bool thirdPerson = rig && rig.isActiveAndEnabled && rig.IsThirdPerson;
+            if (thirdPerson != trayAside) { trayAside = thirdPerson; ApplySafeArea(); }
             LearnTips(thirdPerson); FadeTip();
             if (BagOpen && bagFade.alpha < 1f) bagFade.alpha = Mathf.Clamp01((Time.unscaledTime - bagOpenedAt) / .12f);
             SyncComposer(); RefreshComposer();
@@ -1022,21 +1040,50 @@ namespace Wreckabulary
             if (current != null) foreach (var p in current) { if (!p) continue; all++; if (!p.IsDowned && !p.IsEliminated) up++; }
             int alive = all > 0 ? up * 64 + all : -1;
             if (alive != aliveShown) { aliveShown = alive; aliveText.text = all > 0 ? $"{up}/{all}" : "-"; }
-            aliveText.transform.parent.gameObject.SetActive(all > 1);
+            aliveText.transform.parent.gameObject.SetActive(all > 1 && !BarSeated);
             if (!ReferenceEquals(checklistText, objectiveShown))
             {
                 objectiveShown = checklistText;
                 objective.text = checklistText;
-                var goal = (RectTransform)objective.transform.parent;
-                goal.gameObject.SetActive(objective.text.Length > 0);
-                float height = Mathf.Max(48f, objective.GetPreferredValues(objective.text, 252f, 0f).y);
-                goal.sizeDelta = objective.rectTransform.sizeDelta = new Vector2(252f, height);
+                objective.transform.parent.gameObject.SetActive(objective.text.Length > 0);
+                objectiveHeight = Mathf.Max(ObjectiveMinHeight, objective.GetPreferredValues(objective.text, ObjectiveWidth, 0f).y);
+                objective.rectTransform.sizeDelta = new Vector2(ObjectiveWidth, objectiveHeight);
             }
+            SizeObjective();
+            LaySideColumn();
+        }
+
+        void SizeObjective()
+        {
+            var goal = (RectTransform)objective.transform.parent;
+            var size = GoalPlateShown ? GoalPlate.sizeDelta : new Vector2(ObjectiveWidth, objectiveHeight);
+            if (goal.sizeDelta != size) goal.sizeDelta = size;
+        }
+
+        void LaySideColumn()
+        {
+            var alive = (RectTransform)aliveText.transform.parent;
+            var clock = timer ? (RectTransform)timer.transform.parent : null;
+            var room = (RectTransform)roomPill.transform.parent;
+            var goal = (RectTransform)objective.transform.parent;
+            bool map = minimapRect.gameObject.activeSelf, row = alive.gameObject.activeSelf || (clock && clock.gameObject.activeSelf);
+            int key = (map ? 1 : 0) | (row ? 2 : 0) | (room.gameObject.activeSelf ? 4 : 0);
+            if (key == sideKey) return;
+            sideKey = key;
+            if (eyeRect && eyeRect.parent is RectTransform eye) eye.anchoredPosition = new Vector2(-EyeGap, map ? -MinimapSide : -EyeSize);
+            float y = map ? MinimapSide + SideGap : 0f;
+            alive.anchoredPosition = new Vector2(alive.anchoredPosition.x, -y);
+            if (clock) clock.anchoredPosition = new Vector2(clock.anchoredPosition.x, -y);
+            if (row) y += SideRowHeight + SideRowGap;
+            room.anchoredPosition = new Vector2(room.anchoredPosition.x, -y);
+            if (room.gameObject.activeSelf) y += RoomHeight + RoomGap;
+            goal.anchoredPosition = new Vector2(goal.anchoredPosition.x, -y);
         }
         void RefreshVitals()
         {
-            vitals.gameObject.SetActive(LocalPlayer);
-            if (!LocalPlayer) return;
+            bool shown = LocalPlayer && !FullCardShown;
+            vitals.gameObject.SetActive(shown);
+            if (!shown) return;
             var health = LocalPlayer.Health;
             int hp = health.IsDowned ? -1 - Mathf.CeilToInt(health.BleedOutLeft) : Mathf.CeilToInt(health.Current);
             if (hp != hpShown)
@@ -1091,8 +1138,9 @@ namespace Wreckabulary
         }
         void RefreshTray()
         {
-            tray.gameObject.SetActive(LocalPlayer);
-            if (!LocalPlayer) return;
+            bool shown = LocalPlayer && !FullCardShown;
+            tray.gameObject.SetActive(shown);
+            if (!shown) return;
             var inv = LocalPlayer.Inventory;
             FillCells(trayCells, inv);
             var summon = LocalPlayer.Summoner;
@@ -1353,12 +1401,12 @@ namespace Wreckabulary
             var coverMin = new Vector2(-lastSafe.xMin / safeWidth, -lastSafe.yMin / safeHeight);
             var coverMax = new Vector2(1f + (lastWidth - lastSafe.xMax) / safeWidth, 1f + (lastHeight - lastSafe.yMax) / safeHeight);
             foreach (var cover in new[] { bagBackdrop, resultShade }) if (cover) { cover.anchorMin = coverMin; cover.anchorMax = coverMax; }
-            bool portrait = lastWidth < lastHeight, touch = TouchControlsShown;
-            if (vitals) vitals.anchoredPosition = new Vector2(39f, touch ? (portrait ? 420f : 250f) : 38f);
+            bool portrait = lastWidth < lastHeight, touch = TouchControlsShown, aside = trayAside && !portrait && !touch;
+            if (vitals) vitals.anchoredPosition = new Vector2(VitalsX, touch ? (portrait ? 420f : 250f) : aside ? AsideVitalsY : VitalsY);
             if (tray)
             {
-                tray.anchorMin = tray.anchorMax = tray.pivot = portrait ? new Vector2(0f, 1f) : new Vector2(.5f, 0f);
-                tray.anchoredPosition = portrait ? new Vector2(38f, -134f) : new Vector2(0f, touch ? 24f : 52f);
+                tray.anchorMin = tray.anchorMax = tray.pivot = portrait ? new Vector2(0f, 1f) : aside ? Vector2.zero : new Vector2(.5f, 0f);
+                tray.anchoredPosition = portrait ? new Vector2(38f, -134f) : aside ? new Vector2(VitalsX, TrayY) : new Vector2(0f, touch ? 24f : TrayY);
                 float available = safeWidth / Mathf.Max(.01f, UiCanvas.scaleFactor) - 76f;
                 tray.localScale = Vector3.one * Mathf.Min(1f, Mathf.Max(.1f, available / tray.sizeDelta.x));
             }

@@ -12,19 +12,24 @@ namespace Wreckabulary.Rules.Tests
         };
 
         [Test]
-        public void ASoloPlayerGetsTheirOwnPlateAndOneOpenPlace()
+        public void ASoloPlayerGetsTheirOwnPlateAndAnOpenPlateInEachFreePlace()
         {
             var plates = PartyPlates.Lineup("Housemate", 0, null);
-            Assert.AreEqual(2, plates.Count);
+            Assert.AreEqual(PartyPlates.Places, plates.Count);
             Assert.AreEqual(PartyPlateKind.You, plates[0].Kind);
             Assert.AreEqual("Housemate", plates[0].Name);
             Assert.AreEqual("H", plates[0].Initial);
             Assert.AreEqual("", plates[0].Tag, "a couch has no leader or ready state");
-            Assert.AreEqual(PartyPlateKind.Open, plates[1].Kind);
-            Assert.AreEqual(PartyPlates.OpenLabel, plates[1].Name);
-            Assert.AreEqual(1, plates[1].Place, "the open place is the next one to fill");
-            Assert.IsFalse(plates[1].Stands);
+            for (int place = 1; place < PartyPlates.Places; place++)
+            {
+                Assert.AreEqual(PartyPlateKind.Open, plates[place].Kind);
+                Assert.AreEqual(PartyPlates.OpenLabel, plates[place].Name);
+                Assert.AreEqual(place, plates[place].Place, "open places follow in seat order");
+                Assert.AreEqual("+", plates[place].Initial);
+                Assert.IsFalse(plates[place].Stands);
+            }
             Assert.AreEqual(1, PartyPlates.Standing(plates));
+            Assert.AreEqual(3, PartyPlates.Free(plates));
         }
 
         [TestCase(1, 2, true)]
@@ -37,7 +42,8 @@ namespace Wreckabulary.Rules.Tests
             var plates = PartyPlates.Lineup("Sam", guests, null);
             Assert.AreEqual(standing, PartyPlates.Standing(plates));
             Assert.AreEqual(open, plates.Any(plate => plate.Kind == PartyPlateKind.Open));
-            Assert.LessOrEqual(plates.Count(plate => plate.Kind == PartyPlateKind.Open), 1, "one soft plate at most");
+            Assert.AreEqual(PartyPlates.Places - standing, PartyPlates.Free(plates), "one open plate in each free place");
+            Assert.AreEqual(PartyPlates.Places, plates.Count);
             for (int place = 1; place < standing; place++)
             {
                 Assert.AreEqual(PartyPlateKind.Couch, plates[place].Kind);
@@ -98,8 +104,8 @@ namespace Wreckabulary.Rules.Tests
         {
             var plates = PartyPlates.Lineup("  ", 0, new[] { "", "   ", " · ready" });
             Assert.AreEqual(PartyPlates.YouWord, plates[0].Name, "a missing name falls back to You");
-            Assert.AreEqual(2, plates.Count);
-            Assert.AreEqual(PartyPlateKind.Open, plates[1].Kind);
+            Assert.AreEqual(1, PartyPlates.Standing(plates));
+            Assert.IsTrue(plates.Skip(1).All(plate => plate.Kind == PartyPlateKind.Open));
         }
 
         [TestCase("Housemate", "H")]
@@ -136,6 +142,42 @@ namespace Wreckabulary.Rules.Tests
                 Assert.AreEqual(0f, offsets.Sum(), .001f, count + " players stay centred");
                 Assert.AreEqual(offsets[0] - PartyPlates.OpenGap, PartyPlates.OpenOffset(count), .001f, "the open place is one step left");
             }
+        }
+
+        [TestCase(1, new[] { -.86f, .86f, -1.72f })]
+        [TestCase(2, new[] { -1.34f, 1.34f })]
+        [TestCase(3, new[] { -1.72f })]
+        [TestCase(4, new float[0])]
+        public void EachFreePlaceStandsOneStepOutAlternatingLeftThenRight(int count, float[] expected)
+        {
+            var open = PartyPlates.OpenOffsets(count);
+            Assert.AreEqual(expected.Length, open.Length);
+            for (int i = 0; i < expected.Length; i++) Assert.AreEqual(expected[i], open[i], .001f, "free place " + i);
+            if (open.Length > 0) Assert.AreEqual(PartyPlates.OpenOffset(count), open[0], .001f, "the first free place is the old one");
+        }
+
+        [Test]
+        public void FreePlacesNeverShareASpotWithEachOtherOrAPlayer()
+        {
+            for (int count = 1; count <= PartyPlates.Places; count++)
+            {
+                var spots = Enumerable.Range(0, count).Select(place => PartyPlates.Offset(place, count))
+                    .Concat(PartyPlates.OpenOffsets(count)).OrderBy(x => x).ToArray();
+                Assert.AreEqual(PartyPlates.Places, spots.Length, count + " players leave " + (PartyPlates.Places - count) + " free places");
+                for (int i = 1; i < spots.Length; i++)
+                    Assert.GreaterOrEqual(spots[i] - spots[i - 1], .8f, count + " players: every place stands apart");
+            }
+            CollectionAssert.AreEqual(PartyPlates.OpenOffsets(1), PartyPlates.OpenOffsets(0), "an empty stage still offers the solo places");
+            CollectionAssert.IsEmpty(PartyPlates.OpenOffsets(9));
+        }
+
+        [Test]
+        public void TheOpenPlateNamesTheJoinKeysAndSpeaksPlainly()
+        {
+            CollectionAssert.AreEqual(new[] { "START", "." }, PartyPlates.JoinKeys(true));
+            CollectionAssert.AreEqual(new[] { "START" }, PartyPlates.JoinKeys(false), "with no keyboard only the controller key is shown");
+            Assert.AreEqual("Add a player", PartyPlates.OpenHint);
+            StringAssert.DoesNotContain("PC", PartyPlates.OpenHint, "the hint does not split local and online play");
         }
 
         [Test]

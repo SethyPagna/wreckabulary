@@ -189,19 +189,25 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitUntil(() => Standing(TutorialDirector.FirstFurniture), 2f, "a TABLE to smash");
         }
 
-        IEnumerator CompleteTutorial()
-        {
-            yield return TestScenes.Load(Session.TutorialScene);
-            var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
-            var director = Object.FindAnyObjectByType<TutorialDirector>();
-            var hud = Object.FindAnyObjectByType<GameHud>();
-            var input = new ScriptedBinding();
-            var p = joins.Join(input);
-            hud.Follow(p);
-            yield return TestScenes.WaitUntil(() => hud.LocalPlayer == p, 1f, "the HUD follows the tutorial seat");
-            Assert.AreEqual(0, p.Inventory.Count, "the tutorial starts empty-handed");
-            Assert.AreEqual(11, director.StepCount);
+        static int Index(TutorialStep step) => TutorialSteps.Order.ToList().IndexOf(step);
 
+        static IEnumerator Ready(PlayerController p, string what) =>
+            TestScenes.WaitUntil(() => p.CanAct && !p.IsDodging && !p.Combat.IsChanneling && !p.Summoner.IsCrafting, 3f, what);
+
+        static IEnumerator Vulnerable(PlayerController p) =>
+            TestScenes.WaitUntil(() => !p.Health.IsInvulnerable, 5f, "spawn protection to end");
+
+        static bool HudSays(GameHud hud, string words) =>
+            hud.GetComponentsInChildren<TMPro.TMP_Text>(true).Any(t => t.text != null && t.text.Contains(words));
+
+        static void StandInFrontOf(PlayerController p, PlayerController dummy)
+        {
+            p.Respawn(dummy.transform.position + Vector3.back * 1.2f);
+            p.FaceTowards(Vector3.forward);
+        }
+
+        static IEnumerator PlayToTheThrow(TutorialDirector director, GameHud hud, ScriptedBinding input, PlayerController p)
+        {
             yield return ReachTheTable(director, input);
             Assert.IsNull(Standing("BAT"), "no special BAT box: real furniture drops the letters of its name");
             Standing(TutorialDirector.FirstFurniture).Break();
@@ -234,18 +240,141 @@ namespace Wreckabulary.Tests
             p.Combat.Throw();
             yield return TestScenes.WaitUntil(() => director.StepIndex >= 8, 1f, "throw step");
             Assert.AreEqual("BAT", p.Combat.StoredGear?.word);
+            Assert.AreEqual(TutorialStep.Place, director.Current, "the new steps start once one hand is free");
+        }
 
+        static IEnumerator PlaceATable(TutorialDirector director, PlayerController p)
+        {
+            Assert.AreEqual(TutorialStep.Place, director.Current);
+            yield return TestScenes.WaitUntil(() => Standing(TutorialDirector.FirstFurniture), 3f, "a TABLE to spell and place");
+            Standing(TutorialDirector.FirstFurniture).Break();
+            p.Inventory.Set(TutorialDirector.PlaceWord);
+            yield return Ready(p, "ready to spell TABLE");
+            Assert.IsTrue(p.Summoner.Summon(TutorialDirector.PlaceWord), "TABLE fits the free hand");
+            Assert.AreEqual(TutorialDirector.PlaceWord, p.Combat.Weapon?.word);
+            yield return null;
+            Assert.AreEqual(Index(TutorialStep.Place), director.StepIndex, "holding the TABLE is not placing it");
+            yield return Ready(p, "ready to place the TABLE");
+            Assert.IsTrue(p.Combat.DeployHeld());
+            yield return TestScenes.WaitUntil(() => director.StepIndex > Index(TutorialStep.Place), 5f, "place step");
+            Assert.IsNull(p.Combat.Weapon, "the placed TABLE left the hand");
+            Assert.AreEqual(1, DeployedGear.CountFor(p));
+        }
+
+        static IEnumerator EatAnApple(TutorialDirector director, PlayerController p)
+        {
+            Assert.AreEqual(TutorialStep.Heal, director.Current);
+            yield return TestScenes.WaitUntil(() => Standing(TutorialDirector.HealWord), 3f, "an APPLE to smash");
+            yield return Vulnerable(p);
+            Assert.AreEqual(p.Health.Max, p.Health.Current, "unhurt so far");
+            Assert.IsTrue(p.Health.ApplyDamage(Hits.Of(director.Dummy, Vector3.forward, HitSource.Melee, TutorialDirector.DummyJab, 0f, hitStun: 0f)));
+            Assert.AreEqual(p.Health.Max - TutorialDirector.DummyJab, p.Health.Current, 0.01f);
+            Standing(TutorialDirector.HealWord).Break();
+            p.Inventory.Set(TutorialDirector.HealWord);
+            yield return Ready(p, "ready to spell APPLE");
+            Assert.IsTrue(p.Summoner.Summon(TutorialDirector.HealWord), "APPLE fits the free hand");
+            yield return null;
+            Assert.AreEqual(Index(TutorialStep.Heal), director.StepIndex, "holding the APPLE is not eating it");
+            yield return Ready(p, "ready to eat the APPLE");
+            p.Combat.Attack();
+            yield return TestScenes.WaitUntil(() => director.StepIndex > Index(TutorialStep.Heal), 5f, "heal step");
+            Assert.AreEqual(p.Health.Max, p.Health.Current, 0.01f, "the APPLE healed the punch");
+            Assert.IsNull(p.Combat.Weapon, "the eaten APPLE left the hand");
+        }
+
+        static IEnumerator SpellTheLampAndSwitchHands(TutorialDirector director, PlayerController p)
+        {
+            Assert.AreEqual(TutorialStep.Effect, director.Current);
             yield return TestScenes.WaitUntil(() => Standing(TutorialDirector.EffectWord), 2f, "a LAMP to smash");
             Standing(TutorialDirector.EffectWord).Break();
             p.Inventory.Set(TutorialDirector.EffectWord);
-            yield return TestScenes.WaitUntil(() => p.CanAct, 2f, "ready to spell LAMP");
+            yield return Ready(p, "ready to spell LAMP");
             Assert.IsTrue(p.Summoner.Summon(TutorialDirector.EffectWord), "LAMP fits the free hand");
-            yield return TestScenes.WaitUntil(() => director.StepIndex >= 9, 1f, "effect word step");
+            yield return TestScenes.WaitUntil(() => director.StepIndex > Index(TutorialStep.Effect), 1f, "effect word step");
             Assert.AreEqual(TutorialDirector.EffectWord, p.Combat.Weapon?.word);
 
             Assert.IsTrue(p.Combat.SelectSlot(1 - p.Combat.ActiveSlot));
-            yield return TestScenes.WaitUntil(() => director.StepIndex >= 10, 1f, "switch hands step");
+            yield return TestScenes.WaitUntil(() => director.StepIndex > Index(TutorialStep.Hands), 1f, "switch hands step");
             Assert.AreEqual("BAT", p.Combat.Weapon?.word, "switching hands brings the BAT back");
+            Assert.AreEqual(TutorialStep.KnockedOut, director.Current);
+        }
+
+        static void AssertEverythingWasDropped(PlayerController p)
+        {
+            Assert.IsTrue(p.IsEliminated);
+            Assert.AreEqual(0, p.Inventory.Count, "a knockout drops every letter");
+            Assert.IsNull(p.Combat.Weapon, "a knockout drops the item in hand");
+            Assert.IsNull(p.Combat.StoredGear, "and the item in the other hand");
+            var onTheFloor = Object.FindObjectsByType<HeldWeapon>().Where(g => !g.IsHeld).Select(g => g.word).ToArray();
+            CollectionAssert.IsSubsetOf(new[] { "BAT", TutorialDirector.EffectWord }, onTheFloor, "both items stay where the player fell");
+        }
+
+        static IEnumerator ComeBack(TutorialDirector director, PlayerController p)
+        {
+            Assert.AreEqual(Index(TutorialStep.KnockedOut), director.StepIndex, "the step waits for the return");
+            yield return TestScenes.WaitUntil(() => !p.IsKnockedOut, 6f, "the tutorial brings a knockout back");
+            Assert.AreEqual(p.Health.Max, p.Health.Current, "back at full health");
+            Assert.IsNull(p.Combat.Weapon, "back with empty hands");
+            Assert.AreEqual(Index(TutorialStep.KnockedOut), director.StepIndex, "a moment to read how you came back");
+            yield return TestScenes.WaitUntil(() => director.StepIndex > Index(TutorialStep.KnockedOut), TutorialDirector.ReturnLinger + 4f, "knocked out step");
+            Assert.AreEqual(TutorialStep.Block, director.Current);
+        }
+
+        static IEnumerator SpellAPlate(TutorialDirector director, PlayerController p)
+        {
+            Assert.AreEqual(TutorialStep.Block, director.Current);
+            yield return TestScenes.WaitUntil(() => Standing(TutorialDirector.ShieldWord), 3f, "a PLATE to smash");
+            Standing(TutorialDirector.ShieldWord).Break();
+            p.Inventory.Set(TutorialDirector.ShieldWord);
+            yield return Ready(p, "ready to spell PLATE");
+            Assert.IsTrue(p.Summoner.Summon(TutorialDirector.ShieldWord), "the knockout emptied both hands, so PLATE fits");
+            Assert.IsNotNull(p.Combat.Weapon?.Shield, "PLATE is a shield");
+            yield return null;
+            Assert.AreEqual(Index(TutorialStep.Block), director.StepIndex, "holding the PLATE is not blocking");
+        }
+
+        IEnumerator CompleteTutorial()
+        {
+            yield return TestScenes.Load(Session.TutorialScene);
+            var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
+            var director = Object.FindAnyObjectByType<TutorialDirector>();
+            var hud = Object.FindAnyObjectByType<GameHud>();
+            var input = new ScriptedBinding();
+            var p = joins.Join(input);
+            hud.Follow(p);
+            yield return TestScenes.WaitUntil(() => hud.LocalPlayer == p, 1f, "the HUD follows the tutorial seat");
+            Assert.AreEqual(0, p.Inventory.Count, "the tutorial starts empty-handed");
+            Assert.AreEqual(15, director.StepCount);
+            Assert.AreEqual(TutorialSteps.Order.Count, director.StepCount);
+
+            yield return PlayToTheThrow(director, hud, input, p);
+            var dummy = director.Dummy;
+
+            yield return TestScenes.WaitUntil(() => HudSays(hud, TutorialSteps.Text(TutorialStep.Place)), 2f, "the place step on the HUD");
+            Assert.IsTrue(HudSays(hud, $"{Index(TutorialStep.Place) + 1}/{director.StepCount}"), "the step counter counts the new steps");
+            yield return PlaceATable(director, p);
+            yield return EatAnApple(director, p);
+            Assert.AreEqual("BAT", p.Combat.StoredGear?.word, "placing and eating leave the BAT in the other hand");
+
+            yield return SpellTheLampAndSwitchHands(director, p);
+
+            p.Inventory.Set("LE");
+            yield return Vulnerable(p);
+            Assert.IsTrue(p.Health.ApplyDamage(Hits.Of(dummy, Vector3.forward, HitSource.Melee, 1000f, 1f)));
+            AssertEverythingWasDropped(p);
+            yield return ComeBack(director, p);
+
+            yield return SpellAPlate(director, p);
+            yield return Vulnerable(p);
+            StandInFrontOf(p, dummy);
+            input.Next.blockHeld = true;
+            yield return TestScenes.WaitUntil(() => p.Combat.IsBlocking, 3f, "the PLATE to come up");
+            float before = p.Health.Current;
+            p.Health.ApplyDamage(Hits.Melee(dummy, Vector3.back, dummy.Health.Rules.Unarmed, null));
+            yield return TestScenes.WaitUntil(() => director.StepIndex > Index(TutorialStep.Block), 3f, "block step");
+            input.Next.blockHeld = false;
+            Assert.AreEqual(before, p.Health.Current, 0.01f, "a blocked punch does no damage");
+            Assert.AreEqual(TutorialStep.Finish, director.Current);
 
             yield return new WaitForSeconds(0.7f);
             Assert.AreEqual(TutorialDirector.DummyHealth, dummy.Health.Max, "a short fight: the dummy has less health than a player");
@@ -291,6 +420,131 @@ namespace Wreckabulary.Tests
             Assert.IsNull(Standing(TutorialDirector.FirstFurniture));
             yield return TestScenes.WaitUntil(() => Standing(TutorialDirector.FirstFurniture), 2.5f, "a new TABLE once B, A and T are gone");
             Assert.AreEqual(3, director.StepIndex, "the step waits for the new letters");
+        }
+
+        static IEnumerator StartTutorialAtTheThrow(System.Action<PlayerJoinManager, TutorialDirector, ScriptedBinding, PlayerController> started)
+        {
+            yield return TestScenes.Load(Session.TutorialScene);
+            var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
+            var director = Object.FindAnyObjectByType<TutorialDirector>();
+            var hud = Object.FindAnyObjectByType<GameHud>();
+            var input = new ScriptedBinding();
+            var p = joins.Join(input);
+            hud.Follow(p);
+            yield return TestScenes.WaitUntil(() => hud.LocalPlayer == p, 1f, "the HUD follows the tutorial seat");
+            started(joins, director, input, p);
+            yield return PlayToTheThrow(director, hud, input, p);
+        }
+
+        [UnityTest]
+        public IEnumerator TheNewTutorialStepsGiveUpAndTheOldOnesStillWait()
+        {
+            TutorialDirector director = null;
+            yield return StartTutorialAtTheThrow((joins, d, input, p) => director = d);
+            Assert.AreEqual(TutorialSteps.GiveUpSeconds, director.GiveUpSeconds);
+            yield return new WaitForSeconds(1f);
+            Assert.AreEqual(TutorialStep.Place, director.Current, "a new step waits a good while before it gives up");
+
+            director.GiveUpSeconds = 0.5f;
+            yield return TestScenes.WaitUntil(() => director.Current == TutorialStep.Effect, 10f, "the place and heal steps to give up");
+            yield return new WaitForSeconds(1.5f);
+            Assert.AreEqual(TutorialStep.Effect, director.Current, "the old steps still wait for the player");
+            Assert.IsFalse(director.GiveUp(), "only the new steps can be given up");
+            Assert.IsFalse(director.Finished);
+        }
+
+        [UnityTest]
+        public IEnumerator TheTutorialDummyJabsOnlyWhenAStepAsksAndOnlyUntilSomeoneIsHurt()
+        {
+            TutorialDirector director = null;
+            PlayerController p = null;
+            yield return StartTutorialAtTheThrow((joins, d, input, player) => { director = d; p = player; });
+            var dummy = director.Dummy;
+            yield return Vulnerable(p);
+
+            StandInFrontOf(p, dummy);
+            yield return new WaitForSeconds(2.5f);
+            Assert.AreEqual(p.Health.Max, p.Health.Current, "the dummy leaves players alone until a step asks for punches");
+
+            Assert.IsTrue(director.GiveUp());
+            Assert.AreEqual(TutorialStep.Heal, director.Current);
+            StandInFrontOf(p, dummy);
+            yield return TestScenes.WaitUntil(() => p.Health.Current < p.Health.Max, 10f, "the dummy's jab");
+            Assert.AreEqual(p.Health.Max - TutorialDirector.DummyJab, p.Health.Current, 0.01f, "a little damage");
+            Assert.IsTrue(p.Health.IsAlive);
+
+            float hurt = p.Health.Current;
+            yield return TestScenes.WaitUntil(() => p.CanAct, 3f, "the jab's stagger to end");
+            StandInFrontOf(p, dummy);
+            yield return new WaitForSeconds(3.5f);
+            Assert.AreEqual(hurt, p.Health.Current, 0.01f, "one jab is enough: the dummy waits while someone is hurt");
+            Assert.AreEqual(TutorialStep.Heal, director.Current, "being hurt is only half of the heal step");
+        }
+
+        [UnityTest]
+        public IEnumerator TheTutorialDummyKnocksAPlayerOutThenItsPunchIsBlocked()
+        {
+            TutorialDirector director = null;
+            PlayerController p = null;
+            ScriptedBinding input = null;
+            yield return StartTutorialAtTheThrow((joins, d, binding, player) => { director = d; input = binding; p = player; });
+            var dummy = director.Dummy;
+            Assert.IsTrue(director.GiveUp());
+            Assert.IsTrue(director.GiveUp());
+            yield return SpellTheLampAndSwitchHands(director, p);
+
+            p.Inventory.Set("LE");
+            yield return Vulnerable(p);
+            StandInFrontOf(p, dummy);
+            yield return TestScenes.WaitUntil(() => p.IsEliminated, 10f, "the dummy's knockout punch");
+            AssertEverythingWasDropped(p);
+            yield return ComeBack(director, p);
+
+            yield return SpellAPlate(director, p);
+            yield return Vulnerable(p);
+            StandInFrontOf(p, dummy);
+            yield return TestScenes.WaitUntil(() => p.Health.Current < p.Health.Max, 10f, "a jab on the lowered PLATE");
+            Assert.AreEqual(TutorialStep.Block, director.Current, "a lowered PLATE stops nothing and finishes nothing");
+
+            yield return TestScenes.WaitUntil(() => p.CanAct, 3f, "the jab's stagger to end");
+            StandInFrontOf(p, dummy);
+            input.Next.blockHeld = true;
+            yield return TestScenes.WaitUntil(() => director.Current == TutorialStep.Finish, 10f, "the dummy's punch on the raised PLATE");
+            input.Next.blockHeld = false;
+            Assert.IsTrue(p.Health.IsAlive);
+        }
+
+        [UnityTest]
+        public IEnumerator AnySeatCanFinishANewTutorialStep()
+        {
+            TutorialDirector director = null;
+            PlayerJoinManager joins = null;
+            PlayerController p = null;
+            yield return StartTutorialAtTheThrow((j, d, input, player) => { joins = j; director = d; p = player; });
+            var second = joins.Join(new ScriptedBinding());
+            Assert.IsNotNull(second, "a second seat joins the tutorial");
+            yield return Ready(second, "the second seat");
+            yield return new WaitForSeconds(0.5f);
+            Assert.AreEqual(TutorialStep.Place, director.Current, "joining finishes nothing");
+
+            second.Inventory.Set(TutorialDirector.PlaceWord);
+            yield return Ready(second, "the second seat ready to spell TABLE");
+            Assert.IsTrue(second.Summoner.Summon(TutorialDirector.PlaceWord));
+            yield return Ready(second, "the second seat ready to place");
+            Assert.IsTrue(second.Combat.DeployHeld());
+            yield return TestScenes.WaitUntil(() => director.Current == TutorialStep.Heal, 5f, "the second seat's TABLE to finish the place step");
+            Assert.AreEqual(0, DeployedGear.CountFor(p), "the first seat placed nothing");
+
+            yield return Vulnerable(second);
+            Assert.IsTrue(second.Health.ApplyDamage(Hits.Of(director.Dummy, Vector3.forward, HitSource.Melee, TutorialDirector.DummyJab, 0f, hitStun: 0f)));
+            second.Inventory.Set(TutorialDirector.HealWord);
+            yield return Ready(second, "the second seat ready to spell APPLE");
+            Assert.IsTrue(second.Summoner.Summon(TutorialDirector.HealWord));
+            yield return Ready(second, "the second seat ready to eat");
+            second.Combat.Attack();
+            yield return TestScenes.WaitUntil(() => director.Current == TutorialStep.Effect, 5f, "the second seat's APPLE to finish the heal step");
+            Assert.AreEqual(p.Health.Max, p.Health.Current, "the first seat was never hurt");
+            Assert.AreEqual(second.Health.Max, second.Health.Current, 0.01f);
         }
 
         [UnityTest]

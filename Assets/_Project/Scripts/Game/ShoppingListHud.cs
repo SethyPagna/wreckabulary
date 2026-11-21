@@ -8,29 +8,33 @@ namespace Wreckabulary
 {
     public sealed class ShoppingListHud : MonoBehaviour
     {
-        const float Left = 38f, Width = 280f, Head = 30f, Row = 28f, Tile = 24f, TileStep = 28f, Gap = 8f;
-        static readonly Color Backing = Hex(0x10292b, .62f), Band = Hex(0xffd46a, .22f), Gold = Hex(0xffe7b8), OnGame = Hex(0xfff7e8);
-        static readonly Color Done = Hex(0xb7dfc8), Faded = Hex(0xfff7e8, .55f), Pending = Hex(0xfff7e8, .82f);
+        public const string RootName = "Shopping list";
+        const float Pad = 10f, Chip = 60f, ChipGap = 8f, Picture = 46f, Tick = 24f, Section = 18f, Tile = 28f, TileStep = 32f, TileHeight = 34f;
+        const float CountWidth = 56f, PromptWidth = 190f, Height = Chip + 2f * Pad, TopGap = 8f, MinFont = 15f, CountFont = 22f, PromptFont = 20f, LetterFont = 20f;
+        const float DoneAlpha = .5f;
+        const int PanelRadius = 16, ChipRadius = 12, TileRadius = 6, RingWidth = 3;
+        static readonly Color Backing = Hex(0x10292b, .62f), Gold = Hex(0xffe7b8), OnGame = Hex(0xfff7e8), ChipFill = Hex(0xffffff, .09f);
+        static readonly Color Done = Hex(0xb7dfc8), Ring = Hex(0xffd46a);
         static readonly Color TileGot = Hex(0xe8c48b), TileGotInk = Hex(0x3b2614), TileMissingInk = Hex(0xffffff, .65f), TileRim = Hex(0xfff4e2, .55f);
 
-        sealed class Line
+        sealed class Item
         {
             public RectTransform root;
-            public Image band, mark;
-            public TextMeshProUGUI word;
+            public RawImage picture;
+            public Image ring, tick;
+            public CanvasGroup fade;
+            public string word = "", text = "";
         }
 
         GameHud hud;
         IShoppingListSource source;
         RectTransform root, tray;
         TextMeshProUGUI heading, count, prompt;
-        readonly List<Line> lines = new();
+        readonly List<Item> items = new();
         readonly List<(Image face, Image rim, TextMeshProUGUI letter)> tiles = new();
         readonly List<char> spare = new();
-        readonly List<Object> owned = new();
-        Sprite panel, ring, dot;
         long shownKey = long.MinValue;
-        int builtFor = -1;
+        int builtFor = -1, shownTiles;
 
         public RectTransform Root => root;
         public string HeadingText => heading ? heading.text : "";
@@ -40,7 +44,7 @@ namespace Wreckabulary
             get
             {
                 var all = new List<string>();
-                foreach (var line in lines) if (line.root.gameObject.activeSelf) all.Add(line.word.text);
+                foreach (var item in items) if (item.root.gameObject.activeSelf) all.Add(item.text);
                 return all;
             }
         }
@@ -56,8 +60,6 @@ namespace Wreckabulary
         void OnDestroy()
         {
             if (root) Destroy(root.gameObject);
-            foreach (var o in owned) if (o) Destroy(o);
-            owned.Clear();
         }
 
         bool Build()
@@ -66,20 +68,15 @@ namespace Wreckabulary
             if (!hud.UiCanvas) return false;
             var canvas = hud.UiCanvas.transform;
             var parent = canvas.Find("Safe HUD") ?? canvas;
-            panel = Shape(0f);
-            ring = Shape(4.4f);
-            dot = Shape(0f, true);
-            root = Rect("Shopping list", parent, new Vector2(0f, 1f), new Vector2(Left, -hud.LeftColumnStart), new Vector2(Width, 200f));
-            root.pivot = new Vector2(0f, 1f);
-            var back = root.gameObject.AddComponent<Image>();
-            back.sprite = panel; back.type = Image.Type.Sliced; back.color = Backing; back.raycastTarget = false;
-            heading = Text("Heading", root, new Vector2(14f, -6f), new Vector2(180f, 22f), 16f, Gold, TextAlignmentOptions.Left);
-            heading.characterSpacing = 1f;
+            root = Rect(RootName, parent, new Vector2(.5f, 1f), new Vector2(.5f, 1f), Vector2.zero, new Vector2(400f, Height));
+            Paint(root.gameObject, LobbyIcons.RoundedSprite(PanelRadius), Backing);
+            heading = Text("Heading", root, LobbyFonts.Black, CountFont, Gold, TextAlignmentOptions.Center);
             heading.text = "YOUR LIST";
-            count = Text("Count", root, new Vector2(Width - 194f, -6f), new Vector2(180f, 22f), 18f, OnGame, TextAlignmentOptions.Right);
-            tray = Rect("Letters", root, new Vector2(0f, 1f), Vector2.zero, new Vector2(Width, Tile + 8f));
-            tray.pivot = new Vector2(0f, 1f);
-            prompt = Text("Prompt", root, Vector2.zero, new Vector2(Width - 28f, 22f), 17f, Gold, TextAlignmentOptions.Left);
+            heading.gameObject.SetActive(false);
+            count = Text("Count", root, LobbyFonts.Black, CountFont, Gold, TextAlignmentOptions.Center);
+            Place(count.rectTransform, Pad, new Vector2(CountWidth, Chip));
+            tray = Rect("Letters", root, new Vector2(0f, .5f), new Vector2(0f, .5f), Vector2.zero, new Vector2(0f, TileHeight));
+            prompt = Text("Prompt", root, LobbyFonts.Body, PromptFont, Gold, TextAlignmentOptions.MidlineLeft);
             root.gameObject.SetActive(false);
             return true;
         }
@@ -89,10 +86,10 @@ namespace Wreckabulary
             if (!hud || !Build()) return;
             var you = hud.LocalPlayer;
             var race = source?.Race;
-            bool shown = you && race != null && race.Items.Count > 0 && source.ShowsList && !hud.ResultShown;
+            bool shown = you && race != null && race.Items.Count > 0 && source.ShowsList && !hud.ResultShown && !hud.CountdownShown && !hud.BagOpen;
             if (root.gameObject.activeSelf != shown) root.gameObject.SetActive(shown);
             if (!shown) return;
-            var spot = new Vector2(Left, -hud.LeftColumnStart);
+            var spot = new Vector2(0f, -(hud.BarShown ? hud.BarBottom + PlayerBar.Clearance : hud.TopInset + TopGap));
             if (root.anchoredPosition != spot) root.anchoredPosition = spot;
             long key = Key(race, you);
             if (key == shownKey) return;
@@ -115,72 +112,84 @@ namespace Wreckabulary
         void Refresh(ShoppingRace race, PlayerController you)
         {
             int seat = you.Index, done = race.Done(seat), total = race.Items.Count;
-            if (builtFor != total) BuildLines(total);
+            if (builtFor != total) BuildItems(total);
             count.text = ShoppingList.Progress(done, total);
+            float x = Pad + CountWidth + ChipGap;
             for (int i = 0; i < total; i++)
             {
-                var line = lines[i];
-                var item = race.Items[i];
+                var item = items[i];
+                var wanted = race.Items[i];
                 bool ticked = i < done, current = i == done;
-                line.band.enabled = current;
-                line.mark.sprite = ticked ? dot : ring;
-                line.mark.color = ticked ? Done : current ? Gold : Faded;
-                line.word.text = ticked ? $"<s>{item.Word}</s>" : item.Word;
-                line.word.color = ticked ? Faded : current ? Gold : Pending;
+                if (item.word != wanted.Word) { item.word = wanted.Word; Wreckabulary.UI.ItemArt.Apply(item.picture, wanted.Word); }
+                item.text = ticked ? $"<s>{wanted.Word}</s>" : wanted.Word;
+                item.tick.enabled = ticked;
+                item.ring.enabled = current;
+                item.fade.alpha = ticked ? DoneAlpha : 1f;
+                item.root.anchoredPosition = new Vector2(x, 0f);
+                x += Chip + ChipGap;
             }
-            float y = -Head - total * Row - Gap * .5f;
-            var wanted = race.Current(seat);
-            tray.gameObject.SetActive(wanted != null);
-            if (wanted != null)
+            x += Section - ChipGap;
+            var next = race.Current(seat);
+            tray.gameObject.SetActive(next != null);
+            if (next != null)
             {
-                tray.anchoredPosition = new Vector2(0f, y);
-                ShowTiles(wanted.Value.Word, you.Inventory.Letters);
-                y -= Tile + 8f + 4f;
+                tray.anchoredPosition = new Vector2(x, 0f);
+                ShowTiles(next.Value.Word, you.Inventory.Letters);
+                x += shownTiles * TileStep + ChipGap;
             }
-            prompt.rectTransform.anchoredPosition = new Vector2(14f, y);
-            prompt.text = wanted != null ? ShoppingList.Prompt(wanted.Value, race.CurrentSpelled(seat)) : "List done!";
-            y -= 24f;
-            root.sizeDelta = new Vector2(Width, -y + Gap);
+            prompt.text = next != null ? ShoppingList.Prompt(next.Value, race.CurrentSpelled(seat)) : "List done!";
+            float wide = Mathf.Min(PromptWidth, prompt.GetPreferredValues(prompt.text).x + 4f);
+            Place(prompt.rectTransform, x, new Vector2(wide, Chip));
+            root.sizeDelta = new Vector2(x + wide + Pad, Height);
         }
 
-        void BuildLines(int total)
+        void BuildItems(int total)
         {
             builtFor = total;
-            for (int i = lines.Count; i < total; i++)
+            for (int i = items.Count; i < total; i++)
             {
-                var rt = Rect($"Item {i + 1}", root, new Vector2(0f, 1f), new Vector2(6f, -Head - i * Row), new Vector2(Width - 12f, Row - 2f));
-                rt.pivot = new Vector2(0f, 1f);
-                var band = rt.gameObject.AddComponent<Image>();
-                band.sprite = panel; band.type = Image.Type.Sliced; band.color = Band; band.raycastTarget = false;
-                var mark = NewImage("Mark", rt, new Vector2(10f, -(Row - 2f) * .5f + 7f), new Vector2(14f, 14f));
-                var word = Text("Word", rt, new Vector2(32f, -2f), new Vector2(Width - 60f, Row - 4f), 19f, Pending, TextAlignmentOptions.Left);
-                lines.Add(new Line { root = rt, band = band, mark = mark, word = word });
+                var item = new Item { root = Rect($"Item {i + 1}", root, new Vector2(0f, .5f), new Vector2(0f, .5f), Vector2.zero, Vector2.one * Chip) };
+                Paint(item.root.gameObject, LobbyIcons.RoundedSprite(ChipRadius), ChipFill);
+                item.fade = item.root.gameObject.AddComponent<CanvasGroup>();
+                item.fade.blocksRaycasts = item.fade.interactable = false;
+                var art = Rect("Picture", item.root, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, Vector2.one * Picture);
+                item.picture = art.gameObject.AddComponent<RawImage>();
+                item.picture.raycastTarget = false;
+                var ring = Rect("Ring", item.root, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+                ring.anchorMax = Vector2.one; ring.offsetMin = ring.offsetMax = Vector2.zero;
+                item.ring = Paint(ring.gameObject, LobbyIcons.FrameSprite(ChipRadius, RingWidth), Ring);
+                var tick = Rect("Tick", item.root, Vector2.one, Vector2.one, new Vector2(4f, 4f), Vector2.one * Tick);
+                item.tick = Paint(tick.gameObject, LobbyIcons.Get(LobbyIcons.Check), Done);
+                item.tick.type = Image.Type.Simple; item.tick.preserveAspect = true;
+                items.Add(item);
             }
-            for (int i = 0; i < lines.Count; i++) lines[i].root.gameObject.SetActive(i < total);
+            for (int i = 0; i < items.Count; i++) items[i].root.gameObject.SetActive(i < total);
         }
 
         void ShowTiles(string word, IReadOnlyList<char> letters)
         {
             while (tiles.Count < word.Length)
             {
-                var face = NewImage($"Tile {tiles.Count + 1}", tray, Vector2.zero, new Vector2(Tile, Tile + 6f));
-                face.sprite = panel; face.type = Image.Type.Sliced; face.pixelsPerUnitMultiplier = 11f / 3.75f;
-                var rim = NewImage("Rim", face.rectTransform, Vector2.zero, Vector2.zero);
-                rim.rectTransform.anchorMin = Vector2.zero; rim.rectTransform.anchorMax = Vector2.one;
-                rim.rectTransform.offsetMin = rim.rectTransform.offsetMax = Vector2.zero;
-                rim.sprite = ring; rim.type = Image.Type.Sliced; rim.pixelsPerUnitMultiplier = face.pixelsPerUnitMultiplier; rim.color = TileRim;
-                var letter = Text("Letter", face.rectTransform, Vector2.zero, new Vector2(Tile, Tile + 6f), 20f, TileMissingInk, TextAlignmentOptions.Center);
-                tiles.Add((face, rim, letter));
+                var face = Rect($"Tile {tiles.Count + 1}", tray, new Vector2(0f, .5f), new Vector2(0f, .5f), Vector2.zero, new Vector2(Tile, TileHeight));
+                var faceImage = Paint(face.gameObject, LobbyIcons.RoundedSprite(TileRadius), TileGot);
+                var rim = Rect("Rim", face, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+                rim.anchorMax = Vector2.one; rim.offsetMin = rim.offsetMax = Vector2.zero;
+                var rimImage = Paint(rim.gameObject, LobbyIcons.FrameSprite(TileRadius, 1), TileRim);
+                var letter = Text("Letter", face, LobbyFonts.Black, LetterFont, TileMissingInk, TextAlignmentOptions.Center);
+                letter.rectTransform.anchorMin = Vector2.zero; letter.rectTransform.anchorMax = Vector2.one;
+                letter.rectTransform.offsetMin = letter.rectTransform.offsetMax = Vector2.zero;
+                tiles.Add((faceImage, rimImage, letter));
             }
             spare.Clear();
             for (int i = 0; i < letters.Count; i++) spare.Add(char.ToUpperInvariant(letters[i]));
+            shownTiles = word.Length;
             for (int i = 0; i < tiles.Count; i++)
             {
                 var (face, rim, letter) = tiles[i];
                 bool used = i < word.Length;
                 face.gameObject.SetActive(used);
                 if (!used) continue;
-                face.rectTransform.anchoredPosition = new Vector2(14f + i * TileStep, -4f);
+                face.rectTransform.anchoredPosition = new Vector2(i * TileStep, 0f);
                 int at = spare.IndexOf(word[i]);
                 bool got = at >= 0;
                 if (got) spare.RemoveAt(at);
@@ -193,63 +202,45 @@ namespace Wreckabulary
 
         static Color Hex(int rgb, float a = 1f) => new(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, a);
 
-        static RectTransform Rect(string label, Transform parent, Vector2 anchor, Vector2 position, Vector2 size)
+        static RectTransform Rect(string label, Transform parent, Vector2 anchor, Vector2 pivot, Vector2 position, Vector2 size)
         {
             var rt = new GameObject(label, typeof(RectTransform)).GetComponent<RectTransform>();
             rt.SetParent(parent, false);
             rt.anchorMin = rt.anchorMax = anchor;
+            rt.pivot = pivot;
             rt.anchoredPosition = position;
             rt.sizeDelta = size;
             return rt;
         }
 
-        static Image NewImage(string label, Transform parent, Vector2 position, Vector2 size)
+        static void Place(RectTransform rt, float left, Vector2 size)
         {
-            var rt = Rect(label, parent, new Vector2(0f, 1f), position, size);
-            rt.pivot = new Vector2(0f, 1f);
-            var image = rt.gameObject.AddComponent<Image>();
-            image.raycastTarget = false;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, .5f);
+            rt.anchoredPosition = new Vector2(left, 0f);
+            rt.sizeDelta = size;
+        }
+
+        static Image Paint(GameObject host, Sprite sprite, Color colour)
+        {
+            var image = host.AddComponent<Image>();
+            image.sprite = sprite; image.type = Image.Type.Sliced; image.color = colour; image.raycastTarget = false;
             return image;
         }
 
-        static TextMeshProUGUI Text(string label, Transform parent, Vector2 position, Vector2 size, float fontSize, Color color, TextAlignmentOptions alignment)
+        static TextMeshProUGUI Text(string label, Transform parent, TMP_FontAsset font, float fontSize, Color color, TextAlignmentOptions alignment)
         {
-            var rt = Rect(label, parent, new Vector2(0f, 1f), position, size);
-            rt.pivot = new Vector2(0f, 1f);
+            var rt = Rect(label, parent, new Vector2(0f, .5f), new Vector2(0f, .5f), Vector2.zero, Vector2.zero);
             var text = rt.gameObject.AddComponent<TextMeshProUGUI>();
-            var font = LobbyFonts.Body ? LobbyFonts.Body : GameAssets.I ? GameAssets.I.font : TMP_Settings.defaultFontAsset;
-            if (font) text.font = font;
+            var chosen = font ? font : GameAssets.I ? GameAssets.I.font : TMP_Settings.defaultFontAsset;
+            if (chosen) text.font = chosen;
             text.fontSize = fontSize;
             text.color = color;
             text.alignment = alignment;
             text.textWrappingMode = TextWrappingModes.NoWrap;
+            text.overflowMode = TextOverflowModes.Overflow;
+            text.enableAutoSizing = true; text.fontSizeMin = Mathf.Min(MinFont, fontSize); text.fontSizeMax = fontSize;
             text.raycastTarget = false;
-            text.outlineWidth = .14f;
-            text.outlineColor = new Color32(0x0b, 0x1f, 0x1f, 0xb0);
             return text;
-        }
-
-        Sprite Shape(float rim, bool circle = false)
-        {
-            const int size = 64;
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "Shopping list shape", filterMode = FilterMode.Bilinear };
-            var pixels = new Color[size * size];
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = Mathf.Abs(x - 31.5f), dy = Mathf.Abs(y - 31.5f);
-                    float distance = circle ? Mathf.Sqrt(dx * dx + dy * dy) - 30f : new Vector2(Mathf.Max(dx - 20f, 0f), Mathf.Max(dy - 20f, 0f)).magnitude - 11f;
-                    float alpha = Mathf.Clamp01(.5f - distance);
-                    if (rim > 0f) alpha *= Mathf.Clamp01(.5f + distance + rim);
-                    pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
-                }
-            texture.SetPixels(pixels);
-            texture.Apply(false, true);
-            var sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 100f, 0, SpriteMeshType.FullRect,
-                circle ? Vector4.zero : new Vector4(14f, 14f, 14f, 14f));
-            owned.Add(sprite);
-            owned.Add(texture);
-            return sprite;
         }
     }
 

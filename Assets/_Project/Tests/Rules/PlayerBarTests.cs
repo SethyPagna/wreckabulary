@@ -106,6 +106,8 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual(260f + PlayerBar.Margin, PlayerBar.ClearTop(half, height, stacked), "Dropping under one button can meet the next.");
             Assert.AreEqual(PlayerBar.Shift, PlayerBar.ShiftFor(PlayerBar.Top, 1f));
             Assert.AreEqual(PlayerBar.Shift + 95f, PlayerBar.ShiftFor(105f, 1f), .01f);
+            Assert.AreEqual(PlayerBar.ShiftFor(PlayerBar.Top, 1f), PlayerBar.ShiftFor(PlayerBar.Top, 1f, PlayerBar.Height), .01f);
+            Assert.AreEqual(56f + PlayerBar.PlatePad + PlayerBar.Clearance, PlayerBar.ShiftFor(PlayerBar.Top, 1f, 56f), .01f, "A shorter plate moves the notices down less.");
             float pad = PlayerBar.PlatePad;
             Assert.AreEqual(97f + PlayerBar.Margin + pad, PlayerBar.ClearTop(half, height, pause, pad), "The plate, not just the cards, clears the button.");
             var nearEdge = new List<BarBlock> { new(half + 4f, half + 60f, 20f, 70f) };
@@ -142,14 +144,17 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
-        public void HealthTurnsCoralAtAThirdAndStatusesReadAsBefore()
+        public void HealthTurnsCoralAtAThirdAndStatusesFitThePortrait()
         {
             Assert.IsTrue(PlayerBar.Healthy(.36f));
             Assert.IsFalse(PlayerBar.Healthy(.35f));
-            Assert.AreEqual("WRECKED", PlayerBar.Status(true, true, 4f));
-            Assert.AreEqual("REVIVE ME 7s", PlayerBar.Status(false, true, 6.2f));
-            Assert.AreEqual("REVIVE ME 0s", PlayerBar.Status(false, true, -1f));
+            Assert.AreEqual("", PlayerBar.Status(true, true, 4f), "A wrecked seat is a grey portrait with a cross, no squeezed word.");
+            Assert.AreEqual("", PlayerBar.Status(true, false, 0f));
+            Assert.AreEqual("REVIVE\n7s", PlayerBar.Status(false, true, 6.2f), "Two short lines fit a portrait at a readable size.");
+            Assert.AreEqual("REVIVE\n0s", PlayerBar.Status(false, true, -1f));
             Assert.AreEqual("", PlayerBar.Status(false, false, 0f));
+            Assert.GreaterOrEqual(PlayerBar.StatusMin, 15f, "Never below the 15 pt floor.");
+            Assert.GreaterOrEqual(PlayerBar.StatusSize, PlayerBar.StatusMin);
             Assert.AreEqual("W", PlayerBar.Letter('w'));
             Assert.AreEqual("D", PlayerBar.Letter('D'));
         }

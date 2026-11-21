@@ -10,6 +10,8 @@ namespace Wreckabulary.Rules.Tests
 
         static string[] Board => HouseModes.Families.SelectMany(HouseModes.ModesIn).ToArray();
 
+        const int MostListedSteps = 4, LongestStep = 26;
+
         [Test]
         public void EveryHouseModeSaysWhoPlaysOnThisScreen()
         {
@@ -30,6 +32,50 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual("Online · 2v2 or 4v4", Line("TeamRace"));
             Assert.AreEqual("Online · 2v2 or 4v4", Line("BrawlRace"));
             Assert.AreEqual("Online · up to 8", Line("FreeForAll"));
+        }
+
+        [Test]
+        public void TheLastMatchLineReadsTheNewestResultForThatMode()
+        {
+            var history = new[]
+            {
+                new MatchRecord { Mode = HouseModes.Duos, Won = false },
+                new MatchRecord { Mode = HouseModes.Dibs, Won = true },
+                null,
+                new MatchRecord { Mode = HouseModes.Dibs, Won = false },
+            };
+            Assert.AreEqual(ModeAccess.LastWon, ModeAccess.LastMatch(history, HouseModes.Dibs), "the newest record comes first");
+            Assert.AreEqual(ModeAccess.LastLost, ModeAccess.LastMatch(history, HouseModes.Duos));
+            Assert.AreEqual("", ModeAccess.LastMatch(history, HouseModes.War), "nothing stored, nothing claimed");
+            Assert.AreEqual("", ModeAccess.LastMatch(null, HouseModes.Dibs));
+            Assert.AreEqual("", ModeAccess.LastMatch(history, null));
+            Assert.AreEqual("", ModeAccess.LastMatch(history, ""));
+            foreach (string line in new[] { ModeAccess.LastWon, ModeAccess.LastLost })
+            {
+                StringAssert.DoesNotContain("local", line.ToLowerInvariant());
+                StringAssert.DoesNotContain("offline", line.ToLowerInvariant());
+            }
+        }
+
+        [Test]
+        public void TheStepsAreTheGuideTitlesInOrderAndFitAShortList()
+        {
+            foreach (string id in Board.Concat(QuickPlaylists.Modes).Distinct())
+            {
+                var guide = ModeGuideBook.For(id);
+                Assert.IsNotNull(guide, id + " has a guide");
+                CollectionAssert.AreEqual(guide.Steps.Select(step => step.Title).ToArray(), ModeAccess.Steps(id), id);
+                Assert.That(ModeAccess.Steps(id).Count, Is.InRange(1, MostListedSteps), id + " fits the short list beside its card");
+                foreach (string step in ModeAccess.Steps(id))
+                {
+                    Assert.IsNotEmpty(step, id);
+                    Assert.LessOrEqual(step.Length, LongestStep, id + ": " + step);
+                    Assert.IsFalse(step.Contains("{"), id + ": a title needs no key filled in: " + step);
+                }
+            }
+            CollectionAssert.IsEmpty(ModeAccess.Steps(null));
+            CollectionAssert.IsEmpty(ModeAccess.Steps(""));
+            CollectionAssert.IsEmpty(ModeAccess.Steps("NoSuchMode"));
         }
 
         [Test]

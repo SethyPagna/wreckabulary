@@ -100,7 +100,8 @@ namespace Wreckabulary.Tests
             var host = WordboundPartyHost.Current;
             Assert.IsTrue(host && host.Active && !host.Adopted);
             Assert.AreEqual("Party · 1 of 4", Text(PlayPage.PartyHeading));
-            StringAssert.Contains("You · leader · ready", Text(PlayPage.PartyMembers));
+            CollectionAssert.AreEqual(new[] { "You" }, PlateNames(StripPlates), "the party shows as people");
+            CollectionAssert.AreEqual(new[] { LobbyKit.Upper(Wreckabulary.Rules.PartyPlates.Tag(true, true)) }, PlateTags(StripPlates));
             Assert.IsTrue(Find(PlayPage.CopyPartyCode).interactable); Assert.IsTrue(Find(PlayPage.LeaveParty).interactable);
             Assert.AreEqual(1, Menus(), "One coordinator, owned by the lobby party.");
 
@@ -151,15 +152,27 @@ namespace Wreckabulary.Tests
             Assert.AreSame(stub, WordboundLobbyParty.Open());
             yield return null;
             Assert.AreEqual("Party · 3 of 4", Text(PlayPage.PartyHeading));
-            StringAssert.Contains("Player 3 · not ready", Text(PlayPage.PartyMembers));
-            Assert.AreEqual(stub.Status, Text("Matchmaking detail"));
+            CollectionAssert.AreEqual(new[] { "You", "Player 2", "Player 3" }, PlateNames(StripPlates), "one plate per person");
+            CollectionAssert.AreEqual(new[] { LobbyKit.Upper(Wreckabulary.Rules.PartyPlates.Tag(true, true)), LobbyKit.Upper(Wreckabulary.Rules.PartyPlates.ReadyTag), "" },
+                PlateTags(StripPlates), "leader and ready tags like the Home plates");
+            AssertPlates(StripPlates, 3);
+            Assert.IsFalse(Page.GetComponentsInChildren<TMP_Text>().Any(text => text.name == PlayPage.PartyMembers), "no grey sentence of names");
+            string region = QuickPlayRegions.Name(QuickPlayRegions.Nearest(QuickPlayRegions.LocalOffsetMinutes()));
+            Assert.AreEqual(Wreckabulary.Rules.PlayPageText.PartyLine(3, region), Text("Matchmaking detail"), "the footer never repeats a mode list that contradicts the cards");
             StringAssert.StartsWith("4v4 for a party of 3 · ", stub.Status);
+            Assert.IsFalse(Page.GetComponentsInChildren<TMP_InputField>().Any(), "the code box steps aside while in a party");
             Assert.IsFalse(Find(PlayPage.TeamSizeSwitch + " Duo").interactable, "a party of 3 cannot play 2v2");
             Assert.IsTrue(Find(PlayPage.TeamSizeSwitch + " Squad").interactable);
             Assert.IsTrue(Find(PlayPage.TeamSizeSwitch + " Squad").GetComponentsInChildren<Image>().Single(image => image.name == "Underline").enabled, "the switch shows 4v4");
             Assert.AreEqual(PlayPage.PartyPlaysSquad(3), Text(PlayPage.TeamSizeNote));
-            Assert.AreEqual("Team Race 4v4, Brawl Race 4v4 + 2 more", Text("Matchmaking playlists"));
-            Assert.AreEqual("Teams of 4 race to the delivery", Find(PlayPage.PlaylistCard + "relay").GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Map detail").text);
+            Assert.AreEqual("3 modes · 4v4", Text("Matchmaking playlists"), "the summary counts only what the party can play");
+            Assert.AreEqual("Teams of 4 race to the delivery", Detail("relay"));
+            Assert.AreEqual(Wreckabulary.Rules.PlayPageText.SkipLine(Wreckabulary.Rules.PlayPageText.SoloOnly), Detail("ffa"), "a card the party cannot play says why");
+            Assert.AreEqual(LobbyKit.Hot, Find(PlayPage.PlaylistCard + "ffa").GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Map detail").color);
+            Assert.Less(Find(PlayPage.PlaylistCard + "ffa").GetComponent<CanvasGroup>().alpha, 1f, "and is dimmed");
+            Assert.IsFalse(Find(PlayPage.PlaylistCard + "relay").TryGetComponent(out CanvasGroup _), "a card the party can play stays lit");
+            Assert.AreEqual(LobbyPlayModeLabels.Name("FreeForAll"), Find(PlayPage.PlaylistCard + "ffa").GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Map title").text);
+            Assert.AreEqual("8", Find(PlayPage.PlaylistCard + "relay").GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.PlayersCount).text);
             StringAssert.Contains("size=Duo", PlayerPrefs.GetString(QuickPlayChoices.StorageKey, "size=Duo"), "the saved 2v2 is kept for later");
             Assert.IsEmpty(Page.GetComponentsInChildren<Button>().Where(button => button.name == PlayPage.InviteFriendsButton), "Invite steps aside for the party.");
             Submit(PlayPage.CopyPartyCode);
@@ -172,6 +185,29 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(LobbyKit.Upper(LobbyPartyStrip.CancelWord), Find(PlayPage.FindMatch).GetComponentInChildren<TMP_Text>().text);
             Assert.IsFalse(Find(PlayPage.CustomMatch).interactable, "No custom match while the party searches.");
             Assert.IsFalse(Card.gameObject.activeInHierarchy, "The Matchmaking footer shows the search, so the header card stays hidden.");
+            var band = Band;
+            Assert.IsTrue(band.gameObject.activeInHierarchy, "the search covers the playlist cards");
+            Assert.AreEqual("SEARCHING 0:42", band.GetComponentsInChildren<TMP_Text>().Single(text => text.name == LobbyMatchBand.TitleName).text);
+            Assert.IsFalse(band.Found);
+            CollectionAssert.AreEqual(new[] { "You", "Player 2", "Player 3" }, PlateNames(band.Plates), "the search shows who is coming");
+            Assert.IsFalse(Find(PlayPage.PlaylistCard + "relay").IsInteractable(), "the covered cards cannot be ticked mid-search");
+            Assert.IsTrue(Find(PlayPage.FindMatch).GetComponentsInChildren<Image>(true).Single(image => image.name == LobbyPartyStrip.QuietEdge).enabled, "Cancel is quiet");
+            int cues = LobbyMatchMoment.Cues;
+            stub.Found = true; stub.SearchTitle = "Match found · starting in 4";
+            yield return TestScenes.WaitUntil(() => band.Found, 2f, "the match found stamp");
+            Assert.IsTrue(band.transform.Find(LobbyMatchBand.StampName).gameObject.activeSelf, "the MATCH FOUND stamp shows");
+            Assert.AreEqual(LobbyKit.Upper(LobbyMatchBand.StampWord), band.GetComponentsInChildren<TMP_Text>().Single(text => text.name == LobbyMatchBand.StampWordName).text);
+            Assert.IsFalse(band.transform.Find(LobbyMatchBand.TitleName).gameObject.activeSelf, "the stamp replaces the searching line");
+            Assert.AreEqual("4", Count(band));
+            yield return TestScenes.WaitUntil(() => band.Landed, 2f, "the stamp landing");
+            Assert.AreEqual(cues + 1, LobbyMatchMoment.Cues, "the stamp lands with one thump");
+            Assert.AreEqual(GameCue.Craft, LobbyMatchMoment.Sound);
+            stub.SearchTitle = "Match found · starting in 3";
+            yield return TestScenes.WaitUntil(() => Count(band) == "3", 2f, "the count going down");
+            Assert.AreEqual(cues + 1, LobbyMatchMoment.Cues, "one thump per match found");
+            Assert.AreEqual("Match found · starting in 3", Text("Matchmaking playlists"));
+            stub.Found = false; stub.SearchTitle = "Searching 0:42";
+            yield return TestScenes.WaitUntil(() => !band.Found, 2f, "the search line again");
             Submit(PlayPage.FindMatch);
             Assert.AreEqual(1, stub.Cancels);
             LobbyMenu.Instance.Open(LobbyMenu.Home);
@@ -198,6 +234,46 @@ namespace Wreckabulary.Tests
         static RectTransform Page => LobbyMenu.Instance.Page<PlayPage>().Root;
 
         static RectTransform Card => (RectTransform)Object.FindAnyObjectByType<LobbyPartySearch>().transform.Find(LobbyPartySearch.CardName);
+
+        static LobbyMatchBand Band => Page.GetComponentsInChildren<LobbyMatchBand>(true).Single();
+
+        static LobbyPartyChips StripPlates => Page.GetComponentsInChildren<LobbyPartyChips>().Single(row => row.name == PlayPage.PartyPlatesRow);
+
+        static string Detail(string card) => Find(PlayPage.PlaylistCard + card).GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Map detail").text;
+
+        static string Count(LobbyMatchBand band) => band.transform.Find(LobbyMatchBand.CountName).GetComponentInChildren<TMP_Text>().text;
+
+        static RectTransform[] Plates(LobbyPartyChips row) => row.transform.Cast<Transform>().Select(child => (RectTransform)child)
+            .Where(child => child.name.StartsWith(LobbyPartyChips.PlatePrefix)).ToArray();
+
+        static string[] PlateNames(LobbyPartyChips row) => Plates(row)
+            .Select(plate => plate.GetComponentsInChildren<TMP_Text>().Single(text => text.name == LobbyPartyChips.NameName).text).ToArray();
+
+        static string[] PlateTags(LobbyPartyChips row) => Plates(row)
+            .Select(plate => plate.GetComponentsInChildren<TMP_Text>().SingleOrDefault(text => text.name == LobbyPartyChips.TagName)?.text ?? "").ToArray();
+
+        static void AssertPlates(LobbyPartyChips row, int count)
+        {
+            Canvas.ForceUpdateCanvases();
+            var plates = Plates(row);
+            Assert.AreEqual(count, plates.Length);
+            CollectionAssert.AreEqual(Enumerable.Range(1, count).Select(place => LobbyPartyChips.PlatePrefix + place).ToArray(), plates.Select(plate => plate.name).ToArray());
+            float right = float.NegativeInfinity;
+            foreach (var plate in plates)
+            {
+                Assert.GreaterOrEqual(plate.rect.height, LobbyPartyChips.Height - .01f, plate.name);
+                var corners = new Vector3[4];
+                plate.GetWorldCorners(corners);
+                Assert.GreaterOrEqual(corners[0].x, right - .5f, plate.name + " sits right of the plate before it");
+                right = corners[2].x;
+                foreach (var text in plate.GetComponentsInChildren<TMP_Text>())
+                {
+                    text.ForceMeshUpdate();
+                    Assert.IsFalse(text.isTextTruncated || text.isTextOverflowing, plate.name + ": " + text.text);
+                    Assert.GreaterOrEqual(text.fontSize, 15f - .01f, plate.name + ": " + text.text);
+                }
+            }
+        }
 
         static Button Find(string name) => Page.GetComponentsInChildren<Button>().Single(button => button.name == name);
 

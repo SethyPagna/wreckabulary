@@ -9,7 +9,7 @@ namespace Wreckabulary
 {
     public sealed class EscapeDirector : MonoBehaviour
     {
-        public enum State { Waiting, Countdown, Playing, Complete, Failed }
+        public enum State { Waiting, Countdown, Playing, Complete, Failed, Warmup, Showcase }
 
         sealed class LockedDoor
         {
@@ -71,7 +71,7 @@ namespace Wreckabulary
         int idleMask;
         readonly List<Combatant> combatants = new();
         readonly System.Text.StringBuilder noticeText = new();
-        float nextNotice, noticeTarget;
+        float nextNotice;
         int clockSeconds = -1;
         string clockText = "";
         string guideText = "", guideTextRoom;
@@ -79,10 +79,11 @@ namespace Wreckabulary
         int guideTextKeys = -1;
         bool guideTextOpen;
         string checklistText;
-        int checklistDoors = -1, checklistKeys = -1, checklistIdle = -1;
+        int checklistKeys = -1, checklistIdle = -1;
         string checklistKeyRoom;
         bool checklistOpen;
         string shownMain, shownHint;
+        CrewPrelude prelude;
 
         public State Current { get; private set; }
         public string Checklist => checklistText ?? "";
@@ -122,7 +123,34 @@ namespace Wreckabulary
             Debug.Log($"[Escape] build v11 (hinged doors, key exit, guide) needsKey={Match.Rules.EscapeNeedsKey}");
             Debug.Log($"[Escape] start house={room.Layout.Name} spawn={spawnRoom} exit={room.Layout.ExtractionRoom} layoutDoors={room.Layout.Doors.Count} humans={joins.HumanCount}");
             Current = State.Waiting;
-            if (joins.HumanCount > 0) Restart();
+            if (joins.HumanCount > 0) Open();
+        }
+
+        void Open()
+        {
+            prelude = CrewPrelude.Take(RoundManager.Instance, joins);
+            if (prelude == null) { Restart(); return; }
+            Current = State.Warmup;
+            prelude.Begin();
+        }
+
+        void TickPrelude()
+        {
+            if (!prelude.Tick())
+            {
+                Current = prelude.LinedUp ? State.Showcase : State.Warmup;
+                return;
+            }
+            prelude = null;
+            Current = State.Waiting;
+            Restart();
+        }
+
+        void ClosePrelude()
+        {
+            var open = prelude;
+            prelude = null;
+            open?.End();
         }
 
         string PickStartRoom()
@@ -231,7 +259,7 @@ namespace Wreckabulary
                 if (distance <= UnlockRadius || (i == closest && distance <= 8f))
                 {
                     Debug.Log($"[Escape] door '{door.Word}' opened by spelling it {distance:0.0}m away");
-                    OpenDoor(door, i);
+                    OpenDoor(door, i, p);
                     return;
                 }
             }
@@ -249,6 +277,7 @@ namespace Wreckabulary
         public void Restart()
         {
             if (Time.timeScale <= 0f || joins.HumanCount == 0) return;
+            ClosePrelude();
             room.ResetRoom();
             clearOut.ResetSchedule();
             hud.HideResult();
@@ -272,7 +301,7 @@ namespace Wreckabulary
             joins.RespawnKnockedOut = false;
             idle.Clear();
             idleMask = 0;
-            guideTextKeys = checklistDoors = clockSeconds = -1;
+            guideTextKeys = checklistKeys = clockSeconds = -1;
             shownMain = shownHint = null;
             Current = State.Countdown;
             began = Time.time;
@@ -689,6 +718,7 @@ namespace Wreckabulary
                     if (key.Beacon) Destroy(key.Beacon);
                     keys.RemoveAt(i);
                     keysFound++;
+                    MatchStats.Current.Point(p.Index);
                     Debug.Log($"[Escape] key {keysFound}/{keysNeeded} collected from {key.Room}");
 
                     if (AllKeysFound)
@@ -1188,7 +1218,13 @@ namespace Wreckabulary
             {
                 case State.Waiting:
                     Instruct(ControlHints.Join("join"), "");
-                    if (joins.HumanCount > 0) Restart();
+                    if (joins.HumanCount > 0) Open();
+                    break;
+
+                case State.Warmup:
+                case State.Showcase:
+                    Instruct("", "");
+                    TickPrelude();
                     break;
 
                 case State.Countdown:
@@ -1229,7 +1265,7 @@ namespace Wreckabulary
             TickDoors();
             TickExitDoor();
             UpdateNotice();
-            hud.SetChecklist(ChecklistText());
+            ShowChecklist();
             hud.SetScoreboard(joins.Players, _ => 0, 0, false);
         }
 
@@ -1263,30 +1299,65 @@ namespace Wreckabulary
 
         string ChecklistText()
         {
-            int left = 0;
-            foreach (var door in doors) if (!door.Open) left++;
             string keyRoom = NextKeyRoom;
-            if (checklistText != null && left == checklistDoors && keysFound == checklistKeys && exitOpen == checklistOpen
+            if (checklistText != null && keysFound == checklistKeys && exitOpen == checklistOpen
                 && idleMask == checklistIdle && string.Equals(keyRoom, checklistKeyRoom, System.StringComparison.Ordinal)) return checklistText;
-            checklistDoors = left; checklistKeys = keysFound; checklistOpen = exitOpen; checklistIdle = idleMask; checklistKeyRoom = keyRoom;
-            string key = !exitGated ? ""
-                : exitOpen ? $"\nKeys: {keysFound}/{keysNeeded} \u2014 the way out is open"
-                : AllKeysFound ? $"\nKeys: {keysFound}/{keysNeeded} \u2014 head for the exit"
-                : $"\nKeys: {keysFound}/{keysNeeded} \u2014 look in {RoomName(room.Layout, keyRoom)}";
-            string waiting = idleMask == 0 ? "" : "\n" + IdleWatch.Notice(idleMask);
-            return checklistText = "<b>" + HouseModes.Name(HouseModes.Escape).ToUpperInvariant() + "</b>\n"
-                 + "Goal: get the whole crew to the EXIT.\n"
-                 + (left > 0 ? $"Barred doors still shut: {left}" : "No barred doors left \u2014 head for the exit.")
-                 + key + waiting;
+            checklistKeys = keysFound; checklistOpen = exitOpen; checklistIdle = idleMask; checklistKeyRoom = keyRoom;
+            string keys = EscapeText.Keys(keysFound, keysNeeded);
+            string keyNote = EscapeText.KeyNote(keysFound, keysNeeded, exitOpen, AllKeysFound ? "" : RoomName(room.Layout, keyRoom));
+            string waiting = idleMask == 0 ? "" : IdleWatch.Notice(idleMask);
+            checklistText = "<b>" + HouseModes.Name(HouseModes.Escape).ToUpperInvariant() + "</b>\n"
+                 + "Goal: get the whole crew to the EXIT."
+                 + (exitGated ? $"\n{keys} · {keyNote}" : "")
+                 + (waiting.Length > 0 ? "\n" + waiting : "");
+            goals.Clear();
+            if (exitGated) goals.Add(new HudGoal(keys, keyNote, AllKeysFound, !AllKeysFound, LobbyIcons.Lock));
+            goals.Add(new HudGoal(EscapeText.Exit, EscapeText.CrewGoal, false, ExitRevealed, LobbyIcons.Home));
+            if (waiting.Length > 0) goals.Add(new HudGoal("", waiting, false));
+            hud.SetGoals(HouseModes.Name(HouseModes.Escape).ToUpperInvariant(), goals);
+            return checklistText;
         }
 
+        void ShowChecklist()
+        {
+            if (prelude == null) { hud.SetChecklist(ChecklistText()); return; }
+            hud.SetChecklist("");
+            if (checklistText == null) return;
+            checklistText = null;
+            hud.SetGoals("", null);
+        }
 
-        CanvasGroup notice;
-        TextMeshProUGUI noticeHead, noticeBody;
+        const float NoticeRange = 6.5f, NoticeNear = 1.6f, NoticeSpan = 4.9f, NoticeEvery = .25f, PromptFadeRate = 2.5f;
+        const float PromptLift = 2.6f, PromptPad = 12f, PromptPicture = 60f, PromptTile = 34f, PromptTileHeight = 42f, PromptTileGap = 5f, PromptGap = 10f;
+        const float PromptHeight = 78f, PromptLetterFont = 26f, PromptMinFont = 15f, PromptMargin = 24f, PromptMissingAlpha = .35f, PromptMatch = .5f;
+        const int PromptRadius = 16, PromptTileRadius = 8;
+        static readonly Color PromptFill = new(.09f, .231f, .235f, .94f), PromptTileFace = new(.957f, .863f, .655f), PromptInk = new(.09f, .231f, .235f);
+
+        sealed class DoorPrompt
+        {
+            public RectTransform root;
+            public CanvasGroup fade;
+            public RawImage picture;
+            public readonly List<(Image face, TextMeshProUGUI letter)> tiles = new();
+            public LockedDoor door;
+            public string word;
+            public float target;
+            public int missing;
+        }
+
+        RectTransform noticeRoot;
+        readonly List<DoorPrompt> prompts = new();
+        readonly List<HudGoal> goals = new();
+        readonly List<char> spareLetters = new();
+        string noticeLines = "";
+
+        public string NoticeLines => noticeLines;
+        public int PromptsShown => prompts.Count(p => p.root.gameObject.activeSelf);
+        public RectTransform PromptFor(string word) => prompts.FirstOrDefault(p => p.root.gameObject.activeSelf && p.word == word)?.root;
 
         void BuildNotice()
         {
-            var root = new GameObject("Escape notice", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster), typeof(CanvasGroup));
+            var root = new GameObject("Escape notice", typeof(Canvas), typeof(CanvasScaler));
             root.transform.SetParent(transform, false);
             var canvas = root.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -1294,84 +1365,165 @@ namespace Wreckabulary
             var scaler = root.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
-            notice = root.GetComponent<CanvasGroup>();
-            notice.alpha = 0f;
-            notice.blocksRaycasts = false;
-            notice.interactable = false;
-
-            var panel = new GameObject("Panel", typeof(RectTransform), typeof(Image));
-            panel.transform.SetParent(root.transform, false);
-            var rect = (RectTransform)panel.transform;
-            rect.anchorMin = rect.anchorMax = new Vector2(0f, .5f);
-            rect.pivot = new Vector2(0f, .5f);
-            rect.anchoredPosition = new Vector2(56f, 150f);
-            rect.sizeDelta = new Vector2(640f, 200f);
-            panel.GetComponent<Image>().color = new Color(.07f, .06f, .1f, .93f);
-
-            noticeHead = NoticeText(panel.transform, "Head", new Vector2(0f, 64f), new Vector2(620f, 46f), 32f, new Color(1f, .84f, .42f));
-            noticeBody = NoticeText(panel.transform, "Body", new Vector2(0f, -16f), new Vector2(620f, 120f), 27f, new Color(.98f, .95f, .9f));
-            noticeBody.enableAutoSizing = true;
-            noticeBody.fontSizeMin = 18f;
-            noticeBody.fontSizeMax = 27f;
+            scaler.matchWidthOrHeight = PromptMatch;
+            noticeRoot = (RectTransform)root.transform;
         }
 
-        static TextMeshProUGUI NoticeText(Transform parent, string name, Vector2 at, Vector2 size, float fontSize, Color colour)
+        DoorPrompt MakePrompt()
         {
-            var go = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
-            go.SetParent(parent, false);
-            go.anchorMin = go.anchorMax = new Vector2(.5f, .5f);
-            go.pivot = new Vector2(.5f, .5f);
-            go.anchoredPosition = at;
-            go.sizeDelta = size;
-            var text = go.gameObject.AddComponent<TextMeshProUGUI>();
-            text.font = GameAssets.I.font;
-            text.fontSize = fontSize;
-            text.color = colour;
-            text.alignment = TextAlignmentOptions.Center;
-            return text;
+            var prompt = new DoorPrompt { root = new GameObject("Door prompt " + (prompts.Count + 1), typeof(RectTransform)).GetComponent<RectTransform>() };
+            prompt.root.SetParent(noticeRoot, false);
+            prompt.root.anchorMin = prompt.root.anchorMax = new Vector2(.5f, .5f);
+            prompt.root.pivot = new Vector2(.5f, 0f);
+            var plate = prompt.root.gameObject.AddComponent<Image>();
+            plate.sprite = LobbyIcons.RoundedSprite(PromptRadius); plate.type = Image.Type.Sliced; plate.color = PromptFill; plate.raycastTarget = false;
+            prompt.fade = prompt.root.gameObject.AddComponent<CanvasGroup>();
+            prompt.fade.blocksRaycasts = prompt.fade.interactable = false;
+            prompt.fade.alpha = 0f;
+            var art = new GameObject("Picture", typeof(RectTransform)).GetComponent<RectTransform>();
+            art.SetParent(prompt.root, false);
+            art.anchorMin = art.anchorMax = art.pivot = new Vector2(0f, .5f);
+            art.anchoredPosition = new Vector2(PromptPad, 0f);
+            art.sizeDelta = Vector2.one * PromptPicture;
+            prompt.picture = art.gameObject.AddComponent<RawImage>();
+            prompt.picture.raycastTarget = false;
+            prompt.root.gameObject.SetActive(false);
+            prompts.Add(prompt);
+            return prompt;
         }
 
-        const float NoticeRange = 6.5f;
+        (Image face, TextMeshProUGUI letter) MakeTile(DoorPrompt prompt)
+        {
+            var tile = new GameObject("Tile " + (prompt.tiles.Count + 1), typeof(RectTransform)).GetComponent<RectTransform>();
+            tile.SetParent(prompt.root, false);
+            tile.anchorMin = tile.anchorMax = tile.pivot = new Vector2(0f, .5f);
+            tile.sizeDelta = new Vector2(PromptTile, PromptTileHeight);
+            var face = tile.gameObject.AddComponent<Image>();
+            face.sprite = LobbyIcons.RoundedSprite(PromptTileRadius); face.type = Image.Type.Sliced; face.color = PromptTileFace; face.raycastTarget = false;
+            var letter = new GameObject("Letter", typeof(RectTransform)).GetComponent<RectTransform>();
+            letter.SetParent(tile, false);
+            letter.anchorMin = Vector2.zero; letter.anchorMax = Vector2.one; letter.offsetMin = letter.offsetMax = Vector2.zero;
+            var text = letter.gameObject.AddComponent<TextMeshProUGUI>();
+            text.font = LobbyFonts.Display ? LobbyFonts.Display : GameAssets.I.font;
+            text.color = PromptInk; text.alignment = TextAlignmentOptions.Center; text.raycastTarget = false;
+            text.textWrappingMode = TextWrappingModes.NoWrap; text.overflowMode = TextOverflowModes.Overflow;
+            text.enableAutoSizing = true; text.fontSizeMin = PromptMinFont; text.fontSizeMax = PromptLetterFont;
+            prompt.tiles.Add((face, text));
+            return (face, text);
+        }
 
-        public string NoticeLines => noticeBody ? noticeBody.text : "";
+        DoorPrompt PromptAt(LockedDoor door)
+        {
+            DoorPrompt free = null;
+            foreach (var prompt in prompts)
+            {
+                if (prompt.door == door) return prompt;
+                if (free == null && prompt.target <= 0f && prompt.fade.alpha <= 0f) free = prompt;
+            }
+            free ??= MakePrompt();
+            free.door = door;
+            free.missing = int.MaxValue;
+            return free;
+        }
+
+        void ShowPrompt(DoorPrompt prompt, string word, IReadOnlyList<char> held)
+        {
+            if (prompt.word != word)
+            {
+                prompt.word = word;
+                bool pictured = Wreckabulary.UI.ItemArt.Apply(prompt.picture, word);
+                while (prompt.tiles.Count < word.Length) MakeTile(prompt);
+                float x = PromptPad + (pictured ? PromptPicture + PromptGap : 0f);
+                for (int i = 0; i < prompt.tiles.Count; i++)
+                {
+                    bool used = i < word.Length;
+                    prompt.tiles[i].face.gameObject.SetActive(used);
+                    if (!used) continue;
+                    prompt.tiles[i].face.rectTransform.anchoredPosition = new Vector2(x, 0f);
+                    prompt.tiles[i].letter.text = word[i].ToString();
+                    x += PromptTile + PromptTileGap;
+                }
+                prompt.root.sizeDelta = new Vector2(x - PromptTileGap + PromptPad, PromptHeight);
+            }
+            spareLetters.Clear();
+            spareLetters.AddRange(held);
+            for (int i = 0; i < word.Length; i++)
+            {
+                int at = spareLetters.IndexOf(word[i]);
+                bool got = at >= 0;
+                if (got) spareLetters.RemoveAt(at);
+                var (face, letter) = prompt.tiles[i];
+                face.color = got ? PromptTileFace : new Color(PromptTileFace.r, PromptTileFace.g, PromptTileFace.b, PromptMissingAlpha);
+                letter.alpha = got ? 1f : PromptMissingAlpha;
+            }
+        }
 
         void UpdateNotice()
         {
-            if (notice == null) return;
-            if (Current != State.Playing) noticeTarget = 0f;
-            else if (Time.time >= nextNotice) { nextNotice = Time.time + .25f; noticeTarget = RefreshNotice(); }
-            notice.alpha = Mathf.MoveTowards(notice.alpha, noticeTarget, Time.deltaTime * 2.5f);
+            if (!noticeRoot) return;
+            if (Current != State.Playing) { foreach (var prompt in prompts) prompt.target = 0f; noticeLines = ""; }
+            else if (Time.time >= nextNotice) { nextNotice = Time.time + NoticeEvery; RefreshNotice(); }
+            foreach (var prompt in prompts)
+            {
+                prompt.fade.alpha = Mathf.MoveTowards(prompt.fade.alpha, prompt.target, Time.deltaTime * PromptFadeRate);
+                bool on = prompt.fade.alpha > 0f || prompt.target > 0f;
+                if (prompt.root.gameObject.activeSelf != on) prompt.root.gameObject.SetActive(on);
+                if (!on) prompt.door = null;
+            }
         }
 
-        float RefreshNotice()
+        void RefreshNotice()
         {
             noticeText.Clear();
-            float closest = NoticeRange;
+            foreach (var prompt in prompts) { prompt.target = 0f; prompt.missing = int.MaxValue; }
             bool named = joins.Players.Count > 1;
             foreach (var p in joins.Players)
             {
                 if (!p || p.IsEliminated || !p.Inventory) continue;
                 var near = BarredDoorNear(p.transform.position, out float distance);
                 if (near == null) continue;
-                closest = Mathf.Min(closest, distance);
                 var missing = MissingLetters(p.Inventory.Letters, near.Word);
                 if (noticeText.Length > 0) noticeText.Append('\n');
                 if (named) NoticeLine(p, near.Word, missing);
                 else noticeText.Append("SPELL   <b>").Append(Spaced(near.Word)).Append("</b>\n").Append(missing.Count == 0
-                    ? "You have every letter \u2014 spell it right here."
+                    ? "You have every letter — spell it right here."
                     : "Missing   <b>" + Spaced(missing) + "</b>");
+                var prompt = PromptAt(near);
+                prompt.target = Mathf.Max(prompt.target, Mathf.Clamp01(1f - (distance - NoticeNear) / NoticeSpan));
+                if (missing.Count >= prompt.missing) continue;
+                prompt.missing = missing.Count;
+                ShowPrompt(prompt, near.Word, p.Inventory.Letters);
             }
-            if (noticeText.Length == 0) return 0f;
-            noticeHead.text = "BARRED DOOR";
-            noticeBody.text = noticeText.ToString();
-            return Mathf.Clamp01(1f - (closest - 1.6f) / 4.9f);
+            noticeLines = noticeText.ToString();
         }
 
         void NoticeLine(PlayerController p, string word, List<char> missing)
         {
-            noticeText.Append('P').Append(p.Index + 1).Append(" \u00b7 SPELL <b>").Append(Spaced(word)).Append("</b> \u00b7 ");
+            noticeText.Append('P').Append(p.Index + 1).Append(" · SPELL <b>").Append(Spaced(word)).Append("</b> · ");
             if (missing.Count == 0) noticeText.Append("you have every letter");
             else noticeText.Append("missing <b>").Append(Spaced(missing)).Append("</b>");
+        }
+
+        void LateUpdate() => PlacePrompts();
+
+        void PlacePrompts()
+        {
+            if (!noticeRoot || prompts.Count == 0) return;
+            var lens = Camera.main;
+            if (!lens) return;
+            var area = noticeRoot.rect;
+            foreach (var prompt in prompts)
+            {
+                if (!prompt.root.gameObject.activeSelf || prompt.door == null) continue;
+                var screen = lens.WorldToScreenPoint(DoorCentre(prompt.door.Door) + Vector3.up * PromptLift);
+                bool ahead = screen.z > 0f;
+                prompt.root.localScale = ahead ? Vector3.one : Vector3.zero;
+                if (!ahead || !RectTransformUtility.ScreenPointToLocalPointInRectangle(noticeRoot, screen, null, out var local)) continue;
+                float half = prompt.root.sizeDelta.x * .5f;
+                local.x = Mathf.Clamp(local.x, area.xMin + PromptMargin + half, area.xMax - PromptMargin - half);
+                local.y = Mathf.Clamp(local.y, area.yMin + PromptMargin, area.yMax - PromptMargin - PromptHeight);
+                prompt.root.anchoredPosition = local;
+            }
         }
 
         LockedDoor BarredDoorNear(Vector3 at, out float distance)
@@ -1453,16 +1605,17 @@ namespace Wreckabulary
                     if (p == null || p.IsEliminated || !p.Inventory) continue;
                     if (Vector3.Distance(p.transform.position, centre) > UnlockRadius) continue;
                     if (!HoldingWord(p, door.Word)) continue;
-                    OpenDoor(door, i);
+                    OpenDoor(door, i, p);
                     break;
                 }
             }
         }
 
-        void OpenDoor(LockedDoor door, int index)
+        void OpenDoor(LockedDoor door, int index, PlayerController opener = null)
         {
             if (door.Open) return;
             door.Open = true;
+            if (opener) MatchStats.Current.Point(opener.Index);
             var visual = VisualFor(door.Door);
             if (visual == null) return;
             visual.Open = true;
@@ -1507,7 +1660,9 @@ namespace Wreckabulary
             joins.AllowJoining = false;
             hud.SetTimer("");
             string heading = EscapeText.Result(won, wiped, Mathf.CeilToInt(TimeLeft));
-            hud.ShowResult(HudResult.Of(1, true, won, heading, MatchTally.Finish(won)), Restart);
+            var result = HudResult.Of(1, true, won, heading, MatchTally.Finish(won));
+            result.Board = CrewResult.Board(CrewEnd.Outcome(won, wiped), HouseModes.Escape, room.Layout.Name);
+            hud.ShowResult(result, Restart);
         }
 
         void CreateExitMarker()

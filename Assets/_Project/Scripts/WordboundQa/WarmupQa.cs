@@ -16,7 +16,7 @@ namespace Wreckabulary.Qa
     public sealed class WarmupQa : IQaScenario
     {
         public const string Scenario = "warmup";
-        const string Map = "pinwheel", PreferredWord = "BAT", SecondSuffix = "_free_for_all";
+        const string Map = "pinwheel", PreferredWord = "BAT", SecondSuffix = "_free_for_all", VanSuffix = "_pack_the_van", EscapeSuffix = "_escape";
         const float OpenSeconds = 60f, ModeSeconds = 240f, ReturnSeconds = 60f;
         const float LoadSeconds = 40f, EnterSeconds = 30f, StripSeconds = 15f, SettleSeconds = 2f, ActSeconds = 10f, CraftSeconds = 15f;
         const float ProtectionSeconds = 6f, ComeBackSeconds = 8f, ReadySeconds = 15f, ReadyLineSeconds = 5f, MinReadyLeft = 12f;
@@ -33,7 +33,7 @@ namespace Wreckabulary.Qa
         Warmup state;
         string word, career, broke, originalMap;
         int loads, pieces;
-        bool opened, launched, savedSwitch;
+        bool opened, launched, savedSwitch, crew;
         InputBinding[] originalBindings;
         Saved[] preferences;
         readonly List<string> errors = new();
@@ -48,6 +48,8 @@ namespace Wreckabulary.Qa
             yield return QaStep.Named("warmup_open").Timeout(OpenSeconds).When(_ => Object.FindAnyObjectByType<LobbyMenu>() != null).Do(Open);
             yield return QaStep.Named("warmup_duos").Timeout(ModeSeconds).Do(c => Play(c, HouseModes.Duos, 2, ""));
             yield return QaStep.Named("warmup_free_for_all").Timeout(ModeSeconds).Do(c => Play(c, HouseModes.FreeForAll, 1, SecondSuffix));
+            yield return QaStep.Named("warmup_pack_the_van").Timeout(ModeSeconds).Do(c => PlayCrew(c, HouseModes.MovingOut, 2, VanSuffix));
+            yield return QaStep.Named("warmup_escape").Timeout(ModeSeconds).Do(c => PlayCrew(c, HouseModes.Escape, 1, EscapeSuffix));
             yield return QaStep.Named("warmup_return").Timeout(ReturnSeconds).Do(Return);
         }
 
@@ -93,6 +95,46 @@ namespace Wreckabulary.Qa
             yield return RoundOne(context, mode, suffix);
         }
 
+        IEnumerator PlayCrew(QaContext context, string mode, int seatCount, string suffix)
+        {
+            if (!opened) throw new QaFailException("The warm-up scenario did not open, so " + HouseModes.Name(mode) + " was not run.");
+            crew = true;
+            try
+            {
+                yield return Launch(context, mode, seatCount);
+                yield return Banner(context, mode, suffix);
+                yield return FreeSpell(context, suffix);
+                yield return ReadyUp(context, suffix);
+                yield return CrewRun(context, mode, suffix);
+            }
+            finally { crew = false; }
+        }
+
+        bool CrewPlaying(string mode) => mode switch
+        {
+            HouseModes.MovingOut => Object.FindAnyObjectByType<MovingOutDirector>() is { } van && van.Current == MovingOutDirector.State.Playing,
+            HouseModes.Escape => Object.FindAnyObjectByType<EscapeDirector>() is { } escape && escape.Current == EscapeDirector.State.Playing,
+            _ => false,
+        };
+
+        IEnumerator CrewRun(QaContext context, string mode, string suffix)
+        {
+            yield return Until(() => CrewPlaying(mode), RoundOneSeconds, HouseModes.Name(mode) + " to start its run after the warm-up and line-up");
+            bool spelling = LetterInventory.FreeSpelling || Humans().Any(p => p.Inventory.SpellsFree);
+            var armed = Humans().Where(p => Held(p) != null || Stored(p) != null).Select(p => p.Name).ToArray();
+            bool careerKept = PlayerPrefs.GetString(MatchTally.CareerKey, "") == career;
+            context.Note("warmup_crew_run" + suffix, new Dictionary<string, object>
+            {
+                ["mode"] = Match.Mode, ["map"] = Session.MapId, ["round_manager_phase"] = rounds ? rounds.Phase.ToString() : "none",
+                ["free_spelling"] = spelling, ["holding_gear"] = armed, ["career_unchanged"] = careerKept,
+            });
+            yield return Realtime(RoundSeconds);
+            yield return Capture(context, "warmup_round_one" + suffix);
+            Check(context, !spelling, "Free spelling is still on when the " + HouseModes.Name(mode) + " run starts.");
+            Check(context, armed.Length == 0, "Warm-up gear was carried into the run by " + string.Join(", ", armed) + ".");
+            Check(context, careerKept, "The career save changed during the warm-up.");
+        }
+
         IEnumerator Launch(QaContext context, string mode, int seatCount)
         {
             string name = HouseModes.Name(mode), scene = Session.SceneForMode(mode);
@@ -116,7 +158,7 @@ namespace Wreckabulary.Qa
             human = Seated(0);
             partner = seatCount > 1 ? Seated(1) : null;
             if (!human || (seatCount > 1 && !partner)) throw new QaFailException("Not every local seat joined " + name + ". " + Dump());
-            if (Match.Mode != mode || Session.MapId != Map) throw new QaFailException($"Expected {mode} on {Map}, got {Match.Mode} on {Session.MapId}.");
+            if (Match.Mode != mode || (!crew && Session.MapId != Map)) throw new QaFailException($"Expected {mode} on {Map}, got {Match.Mode} on {Session.MapId}.");
             bool free = Humans().All(p => !p.Frozen);
             var parked = ParkBots();
             hud.Follow(human);
@@ -138,7 +180,7 @@ namespace Wreckabulary.Qa
             Check(context, rounds.Round == 0, "Round " + rounds.Round + " had begun when the warm-up started.");
             Check(context, LetterInventory.FreeSpelling, "Free spelling is off in the warm-up.");
             Check(context, state.Voters == seatCount, $"{state.Voters} seats vote in the warm-up; {seatCount} local seats joined.");
-            Check(context, joins.Players.Count == HouseModes.BotSeats(mode), $"{joins.Players.Count} players are in the warm-up; {name} seats {HouseModes.BotSeats(mode)}.");
+            Check(context, crew || joins.Players.Count == HouseModes.BotSeats(mode), $"{joins.Players.Count} players are in the warm-up; {name} seats {HouseModes.BotSeats(mode)}.");
             Check(context, free, "A local seat was frozen when the warm-up started.");
             Check(context, !joins.AllowJoining, "Joining is still open in the warm-up.");
             NothingScored(context, "at the start of the warm-up");
@@ -233,8 +275,8 @@ namespace Wreckabulary.Qa
             var summoner = human.Summoner;
             var inventory = human.Inventory;
             inventory.Set("");
-            word = ChooseWord(summoner);
-            if (word == null) throw new QaFailException("The recipe list has no melee item to spell.");
+            word = ChooseWord(summoner) ?? (crew ? summoner.Words.Select(w => w.word).OrderBy(w => w.Length).ThenBy(w => w, System.StringComparer.Ordinal).FirstOrDefault() : null);
+            if (word == null) throw new QaFailException("The recipe list has no item to spell.");
             yield return Until(() => human.CanAct && !human.IsDodging && !summoner.IsCrafting, ActSeconds, "P1 to be free to spell");
             bool empty = inventory.Count == 0, free = inventory.SpellsFree;
             seat.Next.spellHeld = true;

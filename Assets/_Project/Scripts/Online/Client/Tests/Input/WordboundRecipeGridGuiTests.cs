@@ -13,7 +13,7 @@ namespace Wreckabulary.Online.Tests
         [TestCase(1280, 720, 14)]
         [TestCase(1920, 1080, 14)]
         [TestCase(854, 480, 22)]
-        public void ActualMenuSeparatesRecipeListPreviewAndPinnedActionsAndDefersSelection(int width, int height, int font)
+        public void ActualMenuShowsAPictureGridOverAPinnedDetailLineAndDefersSelection(int width, int height, int font)
         {
             using var f = new WordboundRecipeGridFixture(font);
             var previous = Gamepad.current; Gamepad pad = null; GridWindow window = null;
@@ -32,8 +32,10 @@ namespace Wreckabulary.Online.Tests
                 window.SendEvent(new Event { type = EventType.Layout }); window.SendEvent(new Event { type = EventType.Repaint });
                 Assert.IsNull(window.Failure); Assert.Greater(window.Repaints, 0); Assert.Greater(window.Layouts, 0);
                 Assert.IsFalse(window.SelectionChangedDuringGui); Assert.AreNotEqual("STOOL", f.Get("selectedRecipe"));
-                if (height <= 720) Assert.Greater(((Vector2)f.Get("recipeScroll")).y, 0,
-                    "Earlier chosen BAT must not consume the controller's request to reveal the lower STOOL row.");
+                float scrolled = ((Vector2)f.Get("recipeScroll")).y;
+                if (height < 720) Assert.Greater(scrolled, 0,
+                    "Earlier chosen BAT must not consume the controller's request to reveal the lower STOOL card.");
+                else Assert.AreEqual(0, scrolled, .5f, "When every recipe fits, the grid does not scroll.");
                 f.Call("ExecuteMenuAction", true); Assert.AreEqual("STOOL", f.Get("selectedRecipe"));
                 window.SendEvent(new Event { type = EventType.Layout }); window.SendEvent(new Event { type = EventType.Repaint });
                 Assert.IsNull(window.Failure); Assert.IsTrue(f.View.MenuOpen);
@@ -74,25 +76,27 @@ namespace Wreckabulary.Online.Tests
                     var craft = (Rect)Fixture.Get("recipeCraftRect");
                     var styles = (WordboundUiStyles)Fixture.Get("ui");
                     Rect area = styles.MenuRect(Size.x, Size.y);
-                    Assert.GreaterOrEqual(viewport.height, 30, "At least one scrollable inspection area remains at maximum text size.");
-                    Assert.LessOrEqual(viewport.xMax + styles.Gap, detail.xMin);
-                    Assert.AreEqual(viewport.yMin, detail.yMin, .01f);
-                    Assert.AreEqual(viewport.yMax, detail.yMax, .01f);
-                    Assert.GreaterOrEqual(viewport.width, 180, "Recipe icons and maximum-size names retain a useful list width.");
-                    Assert.GreaterOrEqual(detail.width, 200, "The selected-item preview has its own usable column.");
+                    Assert.GreaterOrEqual(viewport.height, 30, "At least one scrollable area remains at maximum text size.");
+                    Assert.LessOrEqual(viewport.yMax + styles.Gap, detail.yMin + .5f, "The grid sits above the pinned detail line.");
+                    Assert.AreEqual(viewport.xMin, detail.xMin, .5f);
+                    Assert.AreEqual(viewport.xMax, detail.xMax, .5f);
+                    Assert.GreaterOrEqual(viewport.width, 400, "The grid uses the whole page width.");
                     Assert.GreaterOrEqual(craft.height, styles.RowHeight);
                     Assert.GreaterOrEqual(craft.xMin, detail.xMin);
-                    Assert.LessOrEqual(craft.xMax, detail.xMax);
-                    Assert.LessOrEqual(craft.yMax, detail.yMax);
-                    Assert.GreaterOrEqual(craft.yMin, detail.yMin);
+                    Assert.LessOrEqual(craft.xMax, detail.xMax + .5f);
+                    Assert.LessOrEqual(craft.yMax, detail.yMax + .5f);
+                    Assert.GreaterOrEqual(craft.yMin, detail.yMin - .5f);
                     Assert.LessOrEqual(detail.yMax, back.yMin + 1);
                     Assert.LessOrEqual(back.yMax, area.height - styles.Padding + 1);
                     Assert.LessOrEqual(detail.xMax, area.width - styles.Padding + 1);
                     Assert.GreaterOrEqual(viewport.xMin, styles.Padding);
-                    Assert.AreEqual(1, (int)Fixture.Get("recipeColumns"), "One recipe per row keeps browsing readable.");
-                    var name = (GUIStyle)Fixture.Get("recipeName");
-                    Assert.AreEqual(Fixture.Theme.BodySize, name.fontSize);
-                    Assert.AreEqual(styles.SingleLine.normal.textColor, name.normal.textColor);
+                    Assert.AreEqual(5, (int)Fixture.Get("recipeColumns"), "Five pictures across, as in the house recipe book.");
+                    if (Size.y >= 720) Assert.LessOrEqual((float)Fixture.Get("recipeContentBottom"), viewport.height + .5f,
+                        "All thirteen course recipes fit without scrolling.");
+                    var tiles = (GUIStyle)Fixture.Get("recipeTileStyle");
+                    Assert.GreaterOrEqual(tiles.fontSize, 10, "Letter tiles stay readable.");
+                    var line = (GUIStyle)Fixture.Get("recipeLineStyle");
+                    Assert.AreEqual(styles.Wrapped.normal.textColor, line.normal.textColor);
                     var iconArea = new Rect(0, 0, 120, 60);
                     var fit = (Rect)typeof(WordboundMatchHud).GetMethod("FitRecipeIcon", BindingFlags.Static | BindingFlags.NonPublic)
                         .Invoke(null, new object[] { iconArea, 192f, 192f });

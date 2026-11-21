@@ -15,6 +15,9 @@ namespace Wreckabulary.Workshop
         WorkshopShareImport pendingImport;
         string pendingImportTitle = "";
         Vector2 libraryScroll;
+        GUIStyle starterCard, starterCardOn;
+        int starterCardGeneration = -1;
+        const float ModalWidth = 760, StarterPictureWidth = 56, StarterPictureInset = 5, StarterTextGap = 8, StarterDisabledAlpha = .45f;
         IReadOnlyList<WorkshopMapEntry> libraryEntries = Array.Empty<WorkshopMapEntry>();
         IReadOnlyList<WorkshopFileEntry> fileEntries = Array.Empty<WorkshopFileEntry>();
         const string TemplatesFolder = "templates/", FlagshipSource = "templates/Flagship",
@@ -230,7 +233,8 @@ namespace Wreckabulary.Workshop
 
         void LibraryPanel()
         {
-            GUILayout.BeginArea(ModalRect(760), panel);
+            var sheet = ModalRect(ModalWidth);
+            BeginSheet(sheet);
             GUILayout.Label(startScreen ? "Map editor" : "My maps", heading);
             libraryScroll = GUILayout.BeginScrollView(libraryScroll);
             padScroll = 2;
@@ -254,6 +258,7 @@ namespace Wreckabulary.Workshop
             if (Button(startScreen ? CloseLabel ?? "Exit" : "Close", startScreen ? "Leave the map editor" : "Back to your map"))
             { if (startScreen) LeaveStart(); else libraryOpen = false; }
             GUILayout.EndArea();
+            paper.Tape(sheet);
         }
 
         void ContinueButton(WorkshopMapEntry entry)
@@ -269,7 +274,12 @@ namespace Wreckabulary.Workshop
             var shown = Starters.Where(starter => (starter != WorkshopStarter.ParcelDepot || HasParcelService) &&
                 (starter != WorkshopStarter.LostAddress || flagshipContent != null)).ToList();
             int extra = QaBuild && HasAssignedCourse ? 1 : 0, count = shown.Count + extra;
-            int columns = Mathf.Max(1, Mathf.Min(3, Mathf.FloorToInt((ModalRect(760).width - 40) / 200)));
+            var modal = ModalRect(ModalWidth);
+            int columns = Mathf.Max(1, Mathf.Min(3, Mathf.FloorToInt((modal.width - 40) / 200)));
+            float spacing = Mathf.Max(GUI.skin.button.margin.left, GUI.skin.button.margin.right);
+            float inner = modal.width - panel.padding.horizontal - GUI.skin.verticalScrollbar.fixedWidth - GUI.skin.verticalScrollbar.margin.horizontal;
+            float each = Mathf.Max(1, Mathf.Floor((inner - spacing * (columns + 1)) / columns));
+            float high = Mathf.Max(ui.RowHeight, ui.ModuleHeight);
             for (int i = 0; i < count; i++)
             {
                 if (i % columns == 0) GUILayout.BeginHorizontal();
@@ -277,15 +287,51 @@ namespace Wreckabulary.Workshop
                 {
                     var starter = shown[i]; string blocker = StarterBlocker(starter);
                     GUI.enabled = blocker.Length == 0;
-                    if (PadButton(new GUIContent(StarterLabel(starter), blocker.Length == 0 ? StarterHint(starter) : blocker), null,
-                        GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true))) QueueStarter(starter);
+                    if (PadButton(new GUIContent(StarterLabel(starter), blocker.Length == 0 ? StarterHint(starter) : blocker), StarterCardStyle(false),
+                        GUILayout.MinHeight(high), GUILayout.Width(each))) QueueStarter(starter);
+                    StarterPicture(StarterArt(starter), StarterSnapshot(starter));
                     GUI.enabled = true;
                 }
-                else if (PadButton(new GUIContent("Assigned course", "QA · opens the assigned course as it is"), UsesAssignedCourse ? ui.Selected : null,
-                    GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
-                { libraryOpen = startScreen = false; if (!UsesAssignedCourse) QueueSourceChoice(1); }
+                else
+                {
+                    if (PadButton(new GUIContent("Assigned course", "QA · opens the assigned course as it is"), StarterCardStyle(UsesAssignedCourse),
+                        GUILayout.MinHeight(high), GUILayout.Width(each)))
+                    { libraryOpen = startScreen = false; if (!UsesAssignedCourse) QueueSourceChoice(1); }
+                    StarterPicture(AssignedArt, null);
+                }
                 if (i % columns == columns - 1 || i == count - 1) GUILayout.EndHorizontal();
             }
+        }
+
+        GUIStyle StarterCardStyle(bool chosen)
+        {
+            if (!paper.Dressed) return chosen ? ui.Selected : null;
+            if (starterCard == null || starterCardGeneration != styleGeneration)
+            {
+                int indent = Mathf.RoundToInt(StarterPictureWidth + StarterPictureInset * 2 + StarterTextGap);
+                starterCard = new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleLeft, wordWrap = true };
+                starterCard.padding = new RectOffset(indent, starterCard.padding.right, starterCard.padding.top, starterCard.padding.bottom);
+                starterCardOn = new GUIStyle(ui.Selected) { alignment = TextAnchor.MiddleLeft, wordWrap = true, padding = starterCard.padding };
+                starterCardGeneration = styleGeneration;
+            }
+            return chosen ? starterCardOn : starterCard;
+        }
+
+        void StarterPicture(string itemId, string snapshotId)
+        {
+            if (!paper.Dressed || Event.current.type != EventType.Repaint) return;
+            var card = GUILayoutUtility.GetLastRect();
+            float high = Mathf.Max(1, card.height - StarterPictureInset * 2);
+            var spot = new Rect(card.x + StarterPictureInset, card.y + StarterPictureInset, StarterPictureWidth, high);
+            float alpha = GUI.enabled ? 1 : StarterDisabledAlpha;
+            var snapshot = snapshotId == null ? null : LobbyMapSnapshots.For(snapshotId);
+            if (snapshot && snapshot.texture)
+            {
+                var region = snapshot.textureRect;
+                paper.Picture(spot, snapshot.texture, new Rect(region.x / snapshot.texture.width, region.y / snapshot.texture.height,
+                    region.width / snapshot.texture.width, region.height / snapshot.texture.height), true, alpha);
+            }
+            else if (itemId != null && Wreckabulary.UI.ItemArt.TryGet(itemId, out var art, out var uv)) paper.Picture(spot, art, uv, false, alpha);
         }
 
         void MapRow(WorkshopMapEntry entry)
@@ -331,7 +377,7 @@ namespace Wreckabulary.Workshop
 
         void FilesPanel()
         {
-            GUILayout.BeginArea(ModalRect(760), panel);
+            BeginSheet(ModalRect(ModalWidth));
             GUILayout.Label("Open a map file", heading);
             if (pendingImport != null) { ImportConfirmation(); GUILayout.EndArea(); return; }
             GUILayout.Label("Map files in your map folder. To open a file from a friend, put it in this folder and refresh:", ui.Wrapped);
@@ -404,7 +450,7 @@ namespace Wreckabulary.Workshop
 
         void SharePanel()
         {
-            GUILayout.BeginArea(new Rect(ScreenWidth * .12f, ScreenHeight * .1f, ScreenWidth * .76f, ScreenHeight * .8f), panel);
+            BeginSheet(new Rect(ScreenWidth * .12f, ScreenHeight * .1f, ScreenWidth * .76f, ScreenHeight * .8f));
             GUILayout.Label("Share map", heading);
             if (pendingImport != null) { ImportConfirmation(); GUILayout.EndArea(); return; }
             int selected = shareDraftOnly ? 1 : 0;

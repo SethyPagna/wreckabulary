@@ -583,12 +583,21 @@ namespace Wreckabulary.Tests
             yield return null;
             Click("Queue " + LobbyMenu.Workshop);
             yield return null;
-            Click("Create house");
-            yield return null;
             Assert.IsTrue(HomeDesigner.Supports(menu.Map), "the workshop took you to a house it builds in");
-            Assert.IsFalse(Find("Map flat").interactable, "the others are off");
-            Assert.IsTrue(Find("Map courtyard").interactable);
-            StringAssert.Contains(GameConfig.Current.HouseFor(menu.Map).Name, menu.Describe(), "and GO says which");
+            Assert.IsFalse(menu.Page<PlayPage>().Root.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Map ")), "Create shows its two tools, not houses");
+            StringAssert.Contains(GameConfig.Current.HouseFor(menu.Map).Name, menu.Describe(), "and the footer says which");
+            Click(PlayPage.CreateHouse);
+            yield return TestScenes.WaitUntil(() => CreativeWorkshop.Instance, 3f, "the workshop to open");
+            yield return null;
+            var workshop = CreativeWorkshop.Instance;
+            var texts = workshop.GetComponentsInChildren<TMPro.TMP_Text>(true);
+            Assert.IsTrue(texts.Any(text => text.text == CreativeWorkshop.HouseHeading), "the builder labels its house choice");
+            var closed = GameConfig.Current.Houses.Where(house => !HomeDesigner.Supports(house.Key)).Select(house => house.Value.Name).ToArray();
+            Assert.AreEqual(PlayPageText.BuilderNote(closed), texts.Single(text => text.name == CreativeWorkshop.HouseNoteName).text,
+                "and names the houses it cannot use yet");
+            workshop.Close();
+            yield return null;
+            yield return null;
         }
 
         [UnityTest]
@@ -1113,12 +1122,9 @@ namespace Wreckabulary.Tests
             yield return null;
             Assert.AreEqual("Duos", menu.Mode);
             Assert.IsTrue(menu.Maps.All, "every house starts ticked, so each match picks one at random");
-            foreach (string id in GameConfig.Current.Houses.Keys.Where(id => id != other))
-            {
-                Click("Map " + id);
-                yield return null;
-            }
-            CollectionAssert.AreEqual(new[] { other }, menu.Maps.Ticked, "untick the others to play one house");
+            Click("Map " + other);
+            yield return null;
+            CollectionAssert.AreEqual(new[] { other }, menu.Maps.Ticked, "from Any house, one tap plays that one house");
             Assert.AreEqual(other, menu.Map);
             Assert.AreEqual(other, Session.MapId);
             Assert.AreEqual(other, menu.Stage.Map, "the stage records the new map");
@@ -1624,13 +1630,11 @@ namespace Wreckabulary.Tests
             yield return null;
             Click("Queue " + LobbyMenu.Workshop);
             yield return null;
-            Click("Create house");
-            yield return null;
             var lobbyLook = menu.Stage.Camera.backgroundColor;
             var daylight = Wreckabulary.Art.EnvironmentLighting.Active;
             Assert.IsNotNull(daylight);
             float sunIntensity = daylight.Sun.intensity;
-            Click("GO");
+            Click(PlayPage.CreateHouse);
             yield return TestScenes.WaitUntil(() => CreativeWorkshop.Instance, 3f, "the workshop to open");
             yield return null;
             var menuVisibility = menu.GetComponent<CanvasGroup>();
@@ -1675,9 +1679,7 @@ namespace Wreckabulary.Tests
             yield return null;
             Click("Queue " + LobbyMenu.Workshop);
             yield return null;
-            Click("Create house");
-            yield return null;
-            Click("GO");
+            Click(PlayPage.CreateHouse);
             yield return TestScenes.WaitUntil(() => CreativeWorkshop.Instance, 3f, "the workshop to open");
             yield return null;
             var workshop = CreativeWorkshop.Instance;

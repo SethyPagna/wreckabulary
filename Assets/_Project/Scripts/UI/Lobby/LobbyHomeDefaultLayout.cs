@@ -29,7 +29,7 @@ namespace Wreckabulary
                 view.Dock.Pin(new Vector2(1, 0), Vector2.zero, new Vector2(HomePage.DockWidth, 0));
                 view.Dock.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
                 LobbyKit.PanelFace(view.Dock, 14, 1, 0);
-                view.Start = Action(view.Dock, "GO", "LOCAL PLAY", typography, 42); view.Start.Size(-1, 64);
+                view.Start = Action(view.Dock, "GO", LobbyHomePageView.PlayLabel, typography, 42); view.Start.Size(-1, 64);
                 view.Start.Underline.enabled = true; view.Start.Label.color = view.Start.ActiveInk;
                 view.Mode = Action(view.Dock, "Choose mode", Rules.HouseModes.Name(Rules.HouseModes.Dibs), typography, 22); view.Mode.Size(-1, 38);
                 view.House = Action(view.Dock, "Change house", "House", typography, 20); view.House.Size(-1, 36);

@@ -416,11 +416,31 @@ namespace Wreckabulary.Online.Tests
             menu.JoinFriendRoom("wb-room:" + Code + ":NoSuchMode:Solo:asia:p1:" + Seed + ":pad-tests");
             Assert.IsTrue(menu.InRoom); Assert.IsEmpty(http.Requests);
             Draw(EventType.Layout); Draw(EventType.Repaint);
-            CollectionAssert.AreEqual(new[] { "room-leave" }, Controls());
+            CollectionAssert.AreEqual(new[] { "room-leave", "room-paste" }, Controls());
             Assert.AreEqual(WordboundPartyMenu.BadRoomCode, Call(menu, "RoomProblem"));
             yield return Activate("room-leave");
             Assert.IsEmpty(http.Requests, "With no party there is nothing to cancel or leave.");
             Assert.AreEqual(1, closed); Assert.IsTrue(WordboundRoomEntry.TakeReturn()); Assert.IsFalse(WordboundQuickPlayEntry.TakeReturn());
+        }
+
+        [UnityTest]
+        public IEnumerator ABrokenRoomCodeOffersPastingTheCodeAgainAndJoinsWithTheNewCode()
+        {
+            string before = GUIUtility.systemCopyBuffer;
+            try
+            {
+                menu.JoinFriendRoom("wb-room:" + Code + ":NoSuchMode:Solo:asia:p1:" + Seed + ":pad-tests");
+                Draw(EventType.Layout); Draw(EventType.Repaint);
+                Assert.AreEqual("room-paste", Get<WordboundMenuFocus>(menu, "partyFocus").Selected, "The pad lands on Paste the code again.");
+                GUIUtility.systemCopyBuffer = WordboundRoomInvite.Encode(Code, coordinator.Settings("Freestyle", "Solo", false, "us"), Seed);
+                yield return Activate("room-paste");
+                Assert.IsTrue(menu.InRoom); Assert.AreEqual(0, closed);
+                Assert.IsNotEmpty(http.Requests, "The pasted code joins like a fresh room code.");
+                var queued = OnlineJson.Parse(http.Requests.Last().JsonBody);
+                Assert.AreEqual("PrivateJoin", queued["channel"].String()); Assert.AreEqual(Code, queued["code"].String());
+                Assert.AreNotEqual(WordboundPartyMenu.BadRoomCode, Call(menu, "RoomProblem"));
+            }
+            finally { GUIUtility.systemCopyBuffer = before; }
         }
 
         [UnityTest]

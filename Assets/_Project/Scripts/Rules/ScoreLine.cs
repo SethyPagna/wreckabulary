@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Wreckabulary.Rules
 {
-    public enum ScoreCentre { None, Score, Target }
+    public enum ScoreCentre { None, Score, Target, Clock }
 
     public readonly struct ScoreSeat
     {
@@ -59,7 +59,7 @@ namespace Wreckabulary.Rules
     public static class ScoreLine
     {
         public const int NoLead = -1, Left = 0, Right = 1;
-        public const float CentreWidth = 212f, CentreGap = 10f;
+        public const float CentreWidth = 212f, CentreGap = 10f, ClockWidth = 132f, ClockRow = 56f;
         public const string Separator = ":";
         public static readonly IReadOnlyList<string> Columns = new[] { "KO", "FALLS", "SPELLED", "SMASHED", "SCORE" };
 
@@ -89,6 +89,19 @@ namespace Wreckabulary.Rules
             return scored && TwoSides(teams) ? ScoreCentre.Score : ScoreCentre.None;
         }
 
+        public static ScoreCentre Centre(IReadOnlyList<int> teams, bool scored, bool target, bool clocked)
+        {
+            var centre = Centre(teams, scored, target);
+            return centre == ScoreCentre.None && clocked && teams != null ? ScoreCentre.Clock : centre;
+        }
+
+        public static float Width(ScoreCentre centre) => centre switch
+        {
+            ScoreCentre.None => 0f,
+            ScoreCentre.Clock => ClockWidth,
+            _ => CentreWidth,
+        };
+
         public static int Split(IReadOnlyList<int> teams, int[] order, int count)
         {
             if (teams == null || order == null || count < 2) return 0;
@@ -98,15 +111,19 @@ namespace Wreckabulary.Rules
             return (count + 1) / 2;
         }
 
-        public static float Arrange(IReadOnlyList<int> teams, int[] order, float[] centres, bool centred, out int split)
+        public static float Arrange(IReadOnlyList<int> teams, int[] order, float[] centres, bool centred, out int split) =>
+            Arrange(teams, order, centres, centred ? CentreWidth : 0f, out split);
+
+        public static float Arrange(IReadOnlyList<int> teams, int[] order, float[] centres, float centreWidth, out int split)
         {
             split = 0;
             float width = PlayerBar.Arrange(teams, order, centres);
-            if (!centred || teams == null || order == null || centres == null) return width;
+            if (!(centreWidth > 0f) || teams == null || order == null || centres == null) return width;
             int n = Math.Min(teams.Count, Math.Min(order.Length, centres.Length));
+            if (n == 0) return centreWidth;
             if (n < 2) return width;
             split = Split(teams, order, n);
-            float half = PlayerBar.CardWidth(n) * .5f, reach = CentreWidth * .5f + CentreGap;
+            float half = PlayerBar.CardWidth(n) * .5f, reach = centreWidth * .5f + CentreGap;
             float left = centres[split - 1] + half, right = centres[split] - half;
             float leftSpan = left - (centres[0] - half), rightSpan = centres[n - 1] + half - right;
             for (int i = 0; i < n; i++) centres[i] += i < split ? -reach - left : reach - right;

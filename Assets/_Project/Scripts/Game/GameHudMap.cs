@@ -66,7 +66,7 @@ namespace Wreckabulary
 
         static HouseLayout PracticeLayout()
         {
-            string name = FindAnyObjectByType<BeltRangeDirector>() ? "BELT range" : FindAnyObjectByType<TutorialDirector>() ? "Practice room" : null;
+            string name = FindAnyObjectByType<BeltRangeDirector>() ? "BELT range" : FindAnyObjectByType<TutorialDirector>() ? PracticeRoomName : null;
             var floor = name != null ? GameObject.Find("Room/Floor") : null;
             if (!floor || !floor.TryGetComponent<Collider>(out var collider)) return null;
             var bounds = collider.bounds;
@@ -92,7 +92,7 @@ namespace Wreckabulary
         {
             if (map == null) return;
             var layout = Layout;
-            bool visible = layout != null && layout.Rooms.Count > 0;
+            bool visible = layout != null && layout.Rooms.Count > 0 && (map.full || !InPracticeRoom(layout));
             if (map.content.parent.gameObject.activeSelf != visible) map.content.parent.gameObject.SetActive(visible);
             if (!visible) return;
             if (map.layout != layout)
@@ -373,6 +373,9 @@ namespace Wreckabulary
         }
 
         const float MiniLabel = 18f;
+        const string PracticeRoomName = "Practice room";
+
+        bool InPracticeRoom(HouseLayout layout) => layout != null && ReferenceEquals(layout, practice) && layout.Name == PracticeRoomName;
 
         static string MapRoomName(string name) => Spaced(name).ToUpperInvariant();
 

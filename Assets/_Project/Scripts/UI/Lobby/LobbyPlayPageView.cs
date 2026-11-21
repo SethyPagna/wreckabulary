@@ -270,7 +270,7 @@ namespace Wreckabulary
 
     public sealed class LobbyPlayGoalInfo : MonoBehaviour
     {
-        public const float Size = 34, Gap = 6;
+        public const float Size = 44, Gap = 2;
         public TMP_Text Line;
         public RectTransform Icon;
         public float IconWidth = Size;
@@ -299,7 +299,7 @@ namespace Wreckabulary
     public sealed class LobbyPlayModeFamilies : MonoBehaviour
     {
         public const string Caption = "Family caption";
-        public const float NoteWidth = 200f;
+        public const float NoteWidth = 200f, ButtonSlack = 12f, ContentPadding = 16f;
         public const int NoteRows = 2;
         public float ButtonWidth = 104, ButtonHeight = 52, CaptionHeight = 22;
         public float Spacing = 6, StackSpacing = 0, FamilySpacing = 28, LineSpacing = 8, OneLineScale = .8f;
@@ -356,7 +356,7 @@ namespace Wreckabulary
             if (families.Count == 0) return;
             float y = 0f;
             int start = 0;
-            foreach (int size in Lines(families.Select(Natural).ToList(), FamilySpacing, width, OneLineScale))
+            foreach (int size in Lines(families.Select(Natural).ToList(), FamilySpacing, width, OneLineScale, families.Select(NaturalHeight).ToList()))
             {
                 y += ArrangeLine(families.GetRange(start, size), width, y) + LineSpacing;
                 start += size;
@@ -403,40 +403,65 @@ namespace Wreckabulary
             {
                 var item = (RectTransform)child;
                 if (child.name == Caption) { Set(item, Vector2.zero, new Vector2(familyWidth, CaptionHeight)); continue; }
-                int rows = item.GetComponent<Selectable>() ? 1 : NoteRows;
-                float itemHeight = rows * ButtonHeight + (rows - 1) * StackSpacing;
+                float itemHeight = ItemHeight(item);
                 Set(item, new Vector2(0, -at), new Vector2(familyWidth, itemHeight));
                 at += itemHeight + StackSpacing;
             }
             return Mathf.Max(CaptionHeight, at - StackSpacing);
         }
 
-        public static int[] Lines(IReadOnlyList<float> widths, float spacing, float width, float minimumScale)
+        float ItemHeight(Transform item)
+        {
+            int rows = item.GetComponent<Selectable>() ? 1 : NoteRows;
+            return rows * ButtonHeight + (rows - 1) * StackSpacing;
+        }
+
+        float NaturalHeight(Transform family)
+        {
+            if (!Stacked) return CaptionHeight + ButtonHeight;
+            float at = CaptionHeight;
+            foreach (Transform child in family)
+                if (child.name != Caption) at += ItemHeight(child) + StackSpacing;
+            return Mathf.Max(CaptionHeight, at - StackSpacing);
+        }
+
+        public static int[] Lines(IReadOnlyList<float> widths, float spacing, float width, float minimumScale, IReadOnlyList<float> heights = null)
         {
             int count = widths.Count;
             if (count == 0) return new int[0];
             int[] best = null;
-            float widestBest = float.MaxValue;
+            float widestBest = float.MaxValue, blockBest = float.MaxValue;
             for (int mask = 0; mask < 1 << (count - 1); mask++)
             {
                 var sizes = new List<int>();
-                float line = widths[0], widest = 0f;
+                float line = widths[0], widest = 0f, tallest = HeightAt(heights, 0), block = 0f;
                 int members = 1;
                 bool fits = true;
                 for (int i = 1; i <= count && fits; i++)
                 {
-                    if (i < count && (mask & (1 << (i - 1))) == 0) { line += widths[i]; members++; continue; }
+                    if (i < count && (mask & (1 << (i - 1))) == 0)
+                    { line += widths[i]; tallest = Mathf.Max(tallest, HeightAt(heights, i)); members++; continue; }
                     float gaps = spacing * (members - 1);
                     fits = members == 1 || line * minimumScale + gaps <= width;
                     widest = Mathf.Max(widest, line + gaps);
+                    block += tallest;
                     sizes.Add(members);
-                    if (i < count) { line = widths[i]; members = 1; }
+                    if (i < count) { line = widths[i]; tallest = HeightAt(heights, i); members = 1; }
                 }
                 if (!fits) continue;
-                if (best == null || sizes.Count < best.Length || sizes.Count == best.Length && widest < widestBest)
-                { best = sizes.ToArray(); widestBest = widest; }
+                if (best == null || Better(sizes.Count, block, widest, best.Length, blockBest, widestBest))
+                { best = sizes.ToArray(); widestBest = widest; blockBest = block; }
             }
             return best;
+        }
+
+        static float HeightAt(IReadOnlyList<float> heights, int index) => heights != null && index < heights.Count ? heights[index] : 0f;
+
+        static bool Better(int lines, float block, float widest, int bestLines, float bestBlock, float bestWidest)
+        {
+            if (lines != bestLines) return lines < bestLines;
+            if (!Mathf.Approximately(block, bestBlock)) return block < bestBlock;
+            return widest < bestWidest;
         }
 
         float Natural(Transform family)
@@ -457,9 +482,24 @@ namespace Wreckabulary
         float Choice(RectTransform item)
         {
             if (natural.TryGetValue(item, out float known)) return known;
-            float result = item.GetComponent<Selectable>() ? Mathf.Max(ButtonWidth, Preferred(item) + 28f) : Stacked ? NoteWidth : Preferred(item) + 4f;
+            float result = item.GetComponent<Selectable>() ? Mathf.Max(ButtonWidth, Content(item) + ButtonSlack) : Stacked ? NoteWidth : Preferred(item) + 4f;
             natural[item] = result;
             return result;
+        }
+
+        static float Content(Transform item)
+        {
+            var row = item.GetComponentInChildren<HorizontalLayoutGroup>(true);
+            if (!row) return Preferred(item) + ContentPadding;
+            float width = row.padding.horizontal;
+            int parts = 0;
+            foreach (Transform child in row.transform)
+            {
+                if (!child.gameObject.activeSelf || child.TryGetComponent(out LayoutElement element) && element.ignoreLayout) continue;
+                width += LayoutUtility.GetPreferredWidth((RectTransform)child);
+                parts++;
+            }
+            return width + row.spacing * Mathf.Max(0, parts - 1);
         }
 
         static float Preferred(Transform item)
@@ -475,6 +515,32 @@ namespace Wreckabulary
             { rect.anchorMin = rect.anchorMax = rect.pivot = corner; }
             if (rect.anchoredPosition != position) rect.anchoredPosition = position;
             if (rect.sizeDelta != size) rect.sizeDelta = size;
+        }
+    }
+
+    public sealed class LobbyPlayGoalSwap : MonoBehaviour, ISelectHandler, IDeselectHandler, IPointerEnterHandler, IPointerExitHandler
+    {
+        public TMP_Text Goal;
+        public string Original = "", Reason = "";
+        bool selected;
+
+        public bool Showing => Goal && Goal.text == Reason;
+
+        public void OnSelect(BaseEventData data) { selected = true; Swap(true); }
+        public void OnDeselect(BaseEventData data) { selected = false; Swap(false); }
+        public void OnPointerEnter(PointerEventData data) => Swap(true);
+        public void OnPointerExit(PointerEventData data) { if (!selected) Swap(false); }
+
+        void OnDisable() { selected = false; Swap(false); }
+
+        void Swap(bool on)
+        {
+            if (!Goal || string.IsNullOrEmpty(Reason)) return;
+            if (!on && Goal.text != Reason) return;
+            Goal.text = on ? Reason : Original;
+            Goal.color = on ? LobbyKit.Hot : LobbyKit.Muted;
+            if (Goal.TryGetComponent(out LobbyPlayGoalInfo info) && info.Icon && info.Icon.gameObject.activeSelf == on)
+                info.Icon.gameObject.SetActive(!on);
         }
     }
 }

@@ -134,7 +134,7 @@ namespace Wreckabulary.Workshop
         void RecoveryPanel()
         {
             float width = Mathf.Min(620, ScreenWidth - 32);
-            GUILayout.BeginArea(new Rect((ScreenWidth - width) * .5f, 60, width, Mathf.Min(460, ScreenHeight - 80)), panel);
+            BeginSheet(new Rect((ScreenWidth - width) * .5f, 60, width, Mathf.Min(460, ScreenHeight - 80)));
             recoveryScroll = GUILayout.BeginScrollView(recoveryScroll);
             if (recoveryText == null) recoveryText = new GUIStyle(GUI.skin.label) { wordWrap = true };
             if (recoveryUnreadable)

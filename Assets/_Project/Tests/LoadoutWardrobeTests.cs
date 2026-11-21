@@ -17,7 +17,7 @@ namespace Wreckabulary.Tests
         static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, LobbyThemes.PreferenceKey,
             LobbyLooksStore.LooksKey, LobbyLooksStore.SeenKey, LastPlayChoice.StorageKey };
         static readonly Vector2[] Windows = { new Vector2(1920, 1080), new Vector2(1280, 720), new Vector2(1248, 576) };
-        const float Wait = 5f, Slack = .5f;
+        const float Wait = 5f, Slack = .5f, TiltSlack = 2f, OldCaption = 17f;
         const int StartCoins = 1000;
         const string NewerLooks = "99/Later,later";
         string[] saved;
@@ -98,6 +98,32 @@ namespace Wreckabulary.Tests
         }
 
         bool Marked(string tile, string mark) => Find(tile).GetComponentsInChildren<RectTransform>().Any(rect => rect.name == mark);
+
+        bool RailChosen() => page.Root.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith(LoadoutPage.CategoryPrefix))
+            .Any(button => button.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == LoadoutPage.ChosenRing));
+
+        LobbyTileWord TitleWord() => page.Root.GetComponentsInChildren<LobbyTileWord>().FirstOrDefault(word => word.Within);
+
+        TMP_InputField NameField() => page.Root.GetComponentsInChildren<TMP_InputField>().Single(field => field.name == LoadoutPage.LookName);
+
+        string[] LooksTiles() => page.Root.GetComponentsInChildren<ScrollRect>().Single().content.GetComponentsInChildren<Button>()
+            .Select(button => button.name).ToArray();
+
+        static void AssertTitleClear(LobbyTileWord word, RectTransform panel, Bounds tabs)
+        {
+            var area = OwnBounds(panel, word.Within);
+            foreach (Transform child in word.transform)
+            {
+                var tile = (RectTransform)child;
+                if (tile.lossyScale.x <= 0f) continue;
+                var bounds = OwnBounds(panel, tile);
+                Assert.LessOrEqual(bounds.max.x, tabs.min.x + Slack, tile.name + " stays left of the tabs");
+                Assert.GreaterOrEqual(bounds.min.x, area.min.x - TiltSlack, tile.name + " stays in the title area");
+                Assert.LessOrEqual(bounds.max.x, area.max.x + TiltSlack, tile.name + " stays in the title area");
+                Assert.GreaterOrEqual(bounds.min.y, area.min.y - TiltSlack, tile.name + " stays in the title area");
+                Assert.LessOrEqual(bounds.max.y, area.max.y + TiltSlack, tile.name + " stays under the panel's top edge");
+            }
+        }
 
         string Hint(string name) => Find(name).GetComponent<LobbyHint>().Text;
 
@@ -532,6 +558,7 @@ namespace Wreckabulary.Tests
                 Assert.AreEqual(i, page.Looks.Count);
                 Assert.AreSame(Find(LoadoutPage.SavedPrefix + i).gameObject, Selected);
             }
+            Assert.IsFalse(Has(LoadoutPage.AddLook), "a full set has no + tile");
             Click(LoadoutPage.SavedPrefix + "1");
             yield return null;
             Assert.AreEqual(first, menu.Outfit.Serialize(), "a saved look is worn on click");
@@ -700,6 +727,202 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheTitleTilesStayInTheirAreaLeftOfTheTabs()
+        {
+            menu.Open(LobbyMenu.Home);
+            yield return null;
+            menu.Open(LobbyMenu.Loadout);
+            var word = TitleWord();
+            Assert.IsNotNull(word, "the panel title is a tile word kept to its own area");
+            Assert.AreEqual(LoadoutPage.TitleArea, word.Within.name);
+            Assert.IsFalse(word.Settled, "coming from another page the title animates");
+            var panel = (RectTransform)word.Within.parent;
+            var tabs = panel.Cast<Transform>().Single(child => child.name == "Tabs");
+            var tabBounds = OwnBounds(panel, (RectTransform)tabs);
+            Assert.LessOrEqual(OwnBounds(panel, word.Within).max.x, tabBounds.min.x - Slack, "the title area ends before the tabs");
+            float until = Time.realtimeSinceStartup + Wait;
+            do
+            {
+                yield return null;
+                AssertTitleClear(word, panel, tabBounds);
+            }
+            while (!word.Settled && Time.realtimeSinceStartup < until);
+            Assert.IsTrue(word.Settled, "the title settles");
+            Canvas.ForceUpdateCanvases();
+            AssertTitleClear(word, panel, tabBounds);
+        }
+
+        [UnityTest]
+        public IEnumerator SpareTitleLettersFallBehindTheNextPageAndAreCleared()
+        {
+            var pages = page.Root.parent;
+            menu.Open(LobbyMenu.CareerPage);
+            var known = pages.parent.Find(LobbyLooseTiles.Name);
+            var layer = known ? known.GetComponent<LobbyLooseTiles>() : null;
+            Assert.IsNotNull(layer, "letters CAREER does not reuse fall on their own layer");
+            Assert.Greater(layer.Count, 0, "CUSTOMIZE leaves spare letters");
+            Assert.AreEqual(pages.GetSiblingIndex() - 1, layer.transform.GetSiblingIndex(), "just behind the pages, so an open panel always covers them");
+            Assert.IsFalse(layer.GetComponent<CanvasGroup>().blocksRaycasts, "and they never take a click");
+            menu.Open(LobbyMenu.Play);
+            yield return TestScenes.WaitUntil(() => layer.Count == 0 && layer.transform.childCount == 0, LobbyLooseTiles.Life + Wait,
+                "they fall and are cleared even on a page without a tile title");
+            Assert.AreEqual(pages.GetSiblingIndex() - 1, layer.transform.GetSiblingIndex(), "the layer stays behind the pages");
+        }
+
+        [UnityTest]
+        public IEnumerator YourOwnLooksComeFirstThenTheShopLooks()
+        {
+            page.ShowLooks(true);
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            string[] names = LooksTiles();
+            Assert.AreEqual(LoadoutPage.AddLook, names[0], "with nothing saved the first tile saves a look");
+            Assert.AreSame(Find(LoadoutPage.AddLook), page.First, "and is where a controller starts");
+            Assert.IsTrue(names.Skip(1).All(name => name.StartsWith(LoadoutPage.LookPrefix)), "the shop looks follow");
+            Assert.AreEqual("0 of " + SavedLooks.Slots + " looks saved", Detail);
+            Assert.IsFalse(page.Root.GetComponentsInChildren<TMP_InputField>().Any(), "no name field until a look is saved");
+            Assert.IsFalse(page.Root.GetComponentsInChildren<TMP_Text>().Any(text => text.name == LoadoutPage.CategoryTitle), "the header says LOOKS once");
+            Assert.IsFalse(RailChosen(), "no category looks chosen while the looks show");
+            var content = page.Root.GetComponentsInChildren<ScrollRect>().Single().content;
+            var label = content.GetComponentsInChildren<TMP_Text>().Single(text => text.name == LoadoutPage.ShopLooksTitle);
+            var add = OwnBounds(content, (RectTransform)Find(LoadoutPage.AddLook).transform);
+            var title = OwnBounds(content, label.rectTransform);
+            var shop = OwnBounds(content, (RectTransform)Find(names[1]).transform);
+            Assert.LessOrEqual(title.max.y, add.min.y + Slack, "the Shop looks label sits under your looks");
+            Assert.LessOrEqual(shop.max.y, title.min.y + Slack, "and over the shop looks");
+
+            string worn = menu.Outfit.Serialize();
+            Click(LoadoutPage.AddLook);
+            yield return null;
+            Assert.AreEqual(1, page.Looks.Count, "the + tile saves what you wear");
+            Assert.AreEqual(worn, page.Looks[0].OutfitText);
+            names = LooksTiles();
+            CollectionAssert.AreEqual(new[] { LoadoutPage.SavedPrefix + "1", LoadoutPage.AddLook }, names.Take(2).ToArray(), "your look first, then the + tile");
+            Assert.AreSame(Find(LoadoutPage.SavedPrefix + "1").gameObject, Selected);
+            var mine = Find(LoadoutPage.SavedPrefix + "1");
+            var firstShop = Find(names[2]);
+            Assert.AreSame(firstShop, mine.navigation.selectOnDown, "down from your looks reaches the shop looks");
+            Assert.AreSame(mine, firstShop.navigation.selectOnUp, "and up comes back");
+            Assert.AreSame(Find(LoadoutPage.LooksView), mine.navigation.selectOnUp, "above your looks is the Looks switch");
+        }
+
+        [UnityTest]
+        public IEnumerator ASavedLookIsRenamedFromItsNameField()
+        {
+            page.SaveLook();
+            yield return null;
+            var field = NameField();
+            Assert.AreEqual("Look 1", field.text, "the field names the chosen look");
+            Assert.IsTrue(field.interactable);
+            Assert.AreEqual(SavedLooks.NameLength, field.characterLimit);
+            string worn = menu.Outfit.Serialize();
+            EventSystem.current.SetSelectedGameObject(field.gameObject);
+            yield return TestScenes.WaitUntil(() => Detail == "Wearing Look 1", Wait, "with the name field chosen the caption rests on the worn look");
+            field.onEndEdit.Invoke("Beach day");
+            yield return null;
+            Assert.AreEqual("Beach day", page.Looks[0].Name);
+            Assert.IsTrue(menu.Messages.Contains("Look 1 is now Beach day."));
+            Assert.IsTrue(Find(LoadoutPage.SavedPrefix + "1").GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Beach day"), "the tile shows the new name");
+            StringAssert.StartsWith("Beach day", Hint(LoadoutPage.SavedPrefix + "1"));
+            Assert.AreEqual("Wearing Beach day", Detail);
+            Assert.AreEqual(worn, menu.Outfit.Serialize(), "renaming wears nothing");
+            Assert.AreEqual(worn, page.Looks[0].OutfitText, "and keeps the look");
+            Assert.IsFalse(PlayerPrefs.HasKey(LobbyLooksStore.LooksKey), "tests keep saved looks in memory");
+
+            NameField().onEndEdit.Invoke("   ");
+            yield return null;
+            Assert.AreEqual("Beach day", page.Looks[0].Name, "a blank name changes nothing");
+            Assert.AreEqual("Beach day", NameField().text, "and the field shows the name again");
+
+            var tile = Find(LoadoutPage.SavedPrefix + "1");
+            Point(tile, true);
+            yield return TestScenes.WaitUntil(() => Detail == "Beach day", Wait, "the caption names the look under the pointer");
+            NameField().onEndEdit.Invoke("Pool day");
+            yield return null;
+            Assert.IsTrue(menu.Messages.Contains("Beach day is now Pool day."));
+            Assert.AreEqual("Pool day", Detail, "a rename reaches the caption of the look under the pointer");
+            Point(tile, false);
+            yield return TestScenes.WaitUntil(() => Detail == "Wearing Pool day", Wait, "and the caption rests on the renamed look");
+        }
+
+        [UnityTest]
+        public IEnumerator AControllerCanAlwaysLeaveTheNameField()
+        {
+            page.SaveLook();
+            yield return null;
+            var field = NameField();
+            EventSystem.current.SetSelectedGameObject(field.gameObject);
+            field.ActivateInputField();
+            yield return TestScenes.WaitUntil(() => field.isFocused, Wait, "the name field takes typing");
+            if (pad == null) pad = InputSystem.AddDevice<Gamepad>();
+            InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = Vector2.down });
+            yield return TestScenes.WaitUntil(() => !field || !field.isFocused, Wait, "the stick leaves the field");
+            InputSystem.QueueStateEvent(pad, new GamepadState());
+            yield return null;
+            Assert.AreEqual(LobbyMenu.Loadout, menu.Current, "leaving the field stays on the page");
+            Assert.AreEqual("Look 1", page.Looks[0].Name, "and keeps the name");
+        }
+
+        [UnityTest]
+        public IEnumerator EquipmentShowsThreeWholeRecipeRowsUnderAOneLineCard()
+        {
+            using var window = new Window(menu);
+            foreach (var size in Windows)
+            {
+                window.Set(size.x, size.y);
+                yield return Reopen();
+                string where = " at " + size.x + "x" + size.y;
+                page.ShowRecipes(true);
+                yield return null;
+                var scroll = page.Root.GetComponentsInChildren<ScrollRect>().Single();
+                Canvas.ForceUpdateCanvases();
+                scroll.verticalNormalizedPosition = 1f;
+                Canvas.ForceUpdateCanvases();
+                Assert.IsFalse(RailChosen(), "no category looks chosen on the Equipment tab" + where);
+                var detail = page.Root.GetComponentsInChildren<RectTransform>().Single(rect => rect.name == "Recipe detail");
+                Assert.AreEqual(LoadoutPage.DetailCard, detail.rect.height, Slack, "the recipe card is one line" + where);
+                Assert.AreEqual(1, detail.GetComponentsInChildren<TMP_Text>().Count(text => text.name == "Blurb"));
+                Assert.IsFalse(page.Root.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Spell this word in a match"), "without the line every recipe shared");
+                var view = scroll.viewport ? scroll.viewport : (RectTransform)scroll.transform;
+                Assert.GreaterOrEqual(OwnBounds(page.Root, view).min.y, OwnBounds(page.Root, detail).max.y - Slack, "the card sits under the recipes" + where);
+                var tiles = page.Root.GetComponentsInChildren<LobbyRecipeTileView>().Select(tile => (RectTransform)tile.transform).ToArray();
+                var top = OwnBounds(view, tiles[0]);
+                int columns = tiles.Count(tile => Mathf.Abs(OwnBounds(view, tile).center.y - top.center.y) < Slack);
+                Assert.GreaterOrEqual(columns, 2);
+                int whole = tiles.Count(tile =>
+                {
+                    var bounds = OwnBounds(view, tile);
+                    return bounds.min.y >= view.rect.yMin - Slack && bounds.max.y <= view.rect.yMax + Slack;
+                });
+                Assert.GreaterOrEqual(whole, 3 * columns, "three whole rows of recipes show under the finishes" + where + " in a view " + view.rect.height + " high");
+                float recipesRight = tiles.Take(columns).Max(tile => OwnBounds(view, tile).max.x);
+                float finishesRight = page.Root.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith(LoadoutPage.FinishPrefix))
+                    .Max(button => OwnBounds(view, (RectTransform)button.transform).max.x);
+                Assert.AreEqual(recipesRight, finishesRight, 1f, "the finishes end where the recipe columns end" + where);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator TheCaptionIsLargeAndSwatchesShowALockOrATick()
+        {
+            page.ShowCategory("Top");
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            Assert.IsTrue(RailChosen(), "the open category is chosen on the rail");
+            var caption = page.Root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == LoadoutPage.DetailLine);
+            caption.ForceMeshUpdate();
+            Assert.AreEqual(LoadoutPage.CaptionText, caption.fontSizeMax, .01f, "the caption may grow to 20 pt");
+            Assert.Greater(caption.fontSize, OldCaption, "and is larger than the old caption");
+            Assert.IsFalse(caption.isTextTruncated, "\"" + caption.text + "\" fits");
+            string worn = GameConfig.Current.Wardrobe.ColourFor(menu.Outfit, "Top").Id;
+            Assert.IsTrue(Marked(LoadoutPage.ColourPrefix + worn, LoadoutPage.CheckMark), "the worn colour is ticked");
+            Assert.IsFalse(menu.Career.Owns("colour", "sky"));
+            Assert.IsTrue(Marked(LoadoutPage.ColourPrefix + "sky", LoadoutPage.LockMark), "a colour you do not own shows a lock");
+            Assert.IsFalse(Marked(LoadoutPage.ColourPrefix + "sky", "Coin"), "not a coin too small to read");
+            StringAssert.Contains("coins", Hint(LoadoutPage.ColourPrefix + "sky"), "its price is in the hint");
+        }
+
+        [UnityTest]
         public IEnumerator TheWardrobeFitsThreeWindowSizes()
         {
             using var window = new Window(menu);
@@ -719,9 +942,19 @@ namespace Wreckabulary.Tests
                     var panelBounds = OwnBounds(safe, panel);
                     Assert.AreEqual(LoadoutPage.Width, panelBounds.size.x, 1f, "the panel keeps its width" + where);
                     var rail = page.Root.GetComponentsInChildren<RectTransform>().Single(rect => rect.name == LoadoutPage.RailName);
-                    var railBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(safe, rail);
+                    var railBounds = OwnBounds(safe, rail);
                     Assert.AreEqual(LoadoutPage.RailWidth, railBounds.size.x, Slack, "the rail keeps its width" + where);
                     Assert.AreEqual(panelBounds.min.x + LoadoutPage.RailTuck, railBounds.max.x, Slack, "the rail tucks under the panel edge" + where);
+                    var categories = rail.GetComponentsInChildren<Button>();
+                    Assert.AreEqual(LoadoutPage.RailOrder.Length, categories.Length, "every category is on the rail" + where);
+                    foreach (var category in categories)
+                    {
+                        var bounds = OwnBounds(safe, (RectTransform)category.transform);
+                        Assert.GreaterOrEqual(bounds.min.x, railBounds.min.x - Slack, category.name + " sits inside the rail" + where);
+                        Assert.LessOrEqual(bounds.max.x, railBounds.max.x + Slack, category.name + " sits inside the rail" + where);
+                        Assert.GreaterOrEqual(bounds.min.y, railBounds.min.y - Slack, category.name + " sits inside the rail" + where);
+                        Assert.LessOrEqual(bounds.max.y, railBounds.max.y + Slack, category.name + " sits inside the rail" + where);
+                    }
                     foreach (var control in page.Root.GetComponentsInChildren<Button>())
                     {
                         var bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(safe, control.transform);

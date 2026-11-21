@@ -13,7 +13,9 @@ namespace Wreckabulary.Online
         public const string BadRoomCode = "That room code is incomplete. Ask your friend to copy it again.";
         const string NoRoomMap = "No map is open for this mode yet. Go back and pick another mode.";
         const string RoomClosed = "The room closed. Go back and make or join a new one.";
-        bool roomFlow, roomHost, roomBusy, roomLeaving, roomCopied, roomCodeShown, returnToFriends;
+        const string PasteRoomCode = "Paste the code again";
+        const float RoomCardWidth = 820, RoomCardRows = 8.6f, RoomProblemRows = 6.2f, RoomButtonWidth = 240, RoomButtonRows = 1.4f;
+        bool roomFlow, roomHost, roomBusy, roomLeaving, roomCopied, roomCodeShown, roomPasteShown, returnToFriends;
         Action roomBack;
 
         public bool InRoom => roomFlow;
@@ -79,7 +81,7 @@ namespace Wreckabulary.Online
         bool OpenRoom(bool host)
         {
             if (coordinator == null || roomFlow || lobbySearch || launching || returning || coordinator.MatchActive) return false;
-            roomFlow = true; roomHost = host; roomCopied = false; roomCodeShown = false; roomBack = null; matchFoundAt = -1;
+            roomFlow = true; roomHost = host; roomCopied = false; roomCodeShown = false; roomPasteShown = false; roomBack = null; matchFoundAt = -1;
             returnToFriends = true; localError = null;
             partyFocus.Reset("room-leave"); revealPartySelection = true;
             return true;
@@ -203,20 +205,41 @@ namespace Wreckabulary.Online
             catch (Exception error) { localError = WordboundPartyCoordinator.Friendly(error); }
         }
 
+        bool CanPasteRoomAgain(string code, string problem) => !roomHost && code == null && problem != null && coordinator.Party == null &&
+            !coordinator.RetryRequired && !coordinator.Busy && !coordinator.MatchActive && !roomBusy && !roomLeaving && !lobbySearch &&
+            !launching && !returning;
+
+        void PasteRoomAgain()
+        {
+            if (!CanPasteRoomAgain(RoomCode(), RoomProblem())) return;
+            roomFlow = false;
+            JoinFriendRoom(GUIUtility.systemCopyBuffer ?? "");
+        }
+
         void DrawRoom(Vector2 viewport)
         {
             string code = RoomCode();
+            string problem = RoomProblem();
+            bool pasteAgain = CanPasteRoomAgain(code, problem);
             if (code != null && !roomCodeShown && Event.current.type == EventType.Layout)
             {
                 roomCodeShown = true;
                 partyFocus.Reset("room-copy");
             }
-            float width = Mathf.Min(viewport.x - 32, 820), height = Mathf.Min(viewport.y - 32, ui.RowHeight * 8.6f);
-            GUILayout.BeginArea(new Rect((viewport.x - width) * .5f, (viewport.y - height) * .5f, width, height), ui.Panel);
+            if (pasteAgain && !roomPasteShown && Event.current.type == EventType.Layout)
+            {
+                roomPasteShown = true;
+                partyFocus.Reset("room-paste"); revealPartySelection = true;
+            }
+            bool shortCard = code == null && problem != null;
+            float width = Mathf.Min(viewport.x - 32, RoomCardWidth),
+                height = Mathf.Min(viewport.y - 32, ui.RowHeight * (shortCard ? RoomProblemRows : RoomCardRows));
+            var card = new Rect((viewport.x - width) * .5f, (viewport.y - height) * .5f, width, height);
+            GUILayout.BeginArea(card, ui.Panel);
+            paper.Sheet(new Rect(Vector2.zero, card.size));
             GUILayout.Label(RoomTitle(), ui.Heading);
-            GUILayout.Label(RoomStatus(code), ui.Wrapped);
-            string problem = RoomProblem();
-            if (problem != null) GUILayout.Label(problem, ui.Wrapped);
+            if (!shortCard) GUILayout.Label(RoomStatus(code), ui.Wrapped);
+            if (problem != null) GUILayout.Label(problem, paper.Problem ?? ui.Wrapped);
             GUILayout.Space(ui.Gap);
             foreach (string line in RoomMembers()) GUILayout.Label(line, ui.Wrapped);
             GUILayout.FlexibleSpace();
@@ -226,7 +249,7 @@ namespace Wreckabulary.Online
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Room code  " + FriendRooms.ShortCode(code), ui.Heading);
                 GUILayout.FlexibleSpace();
-                GUILayout.BeginVertical(GUILayout.Width(240));
+                GUILayout.BeginVertical(GUILayout.Width(RoomButtonWidth));
                 GUI.enabled = enabled && coordinator.Party != null;
                 PartyControl("room-copy", roomCopied ? "Copied ✓" : "Copy code", () => CopyRoomCode(code));
                 GUI.enabled = enabled;
@@ -235,30 +258,37 @@ namespace Wreckabulary.Online
             }
             GUILayout.Space(ui.Gap);
             GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical(GUILayout.Width(240));
+            GUILayout.BeginVertical(GUILayout.Width(RoomButtonWidth));
             if (coordinator.RetryRequired)
             {
                 GUI.enabled = enabled && !coordinator.Busy;
-                PartyControl("room-retry", "Retry", () => Invoke(() => coordinator.Retry()), height: ui.RowHeight * 1.4f);
+                PartyControl("room-retry", "Retry", () => Invoke(() => coordinator.Retry()), height: ui.RowHeight * RoomButtonRows);
             }
             else
             {
                 GUI.enabled = enabled && CanLeaveRoom;
-                PartyControl("room-leave", problem == null ? "Leave" : "Back", () => { _ = LeaveRoom(); }, height: ui.RowHeight * 1.4f);
+                PartyControl("room-leave", problem == null ? "Leave" : "Back", () => { _ = LeaveRoom(); }, height: ui.RowHeight * RoomButtonRows);
             }
             GUI.enabled = enabled;
             GUILayout.EndVertical();
             GUILayout.FlexibleSpace();
             if (roomHost)
             {
-                GUILayout.BeginVertical(GUILayout.Width(240));
+                GUILayout.BeginVertical(GUILayout.Width(RoomButtonWidth));
                 GUI.enabled = enabled && CanStartRoom(code);
-                PartyControl("room-start", "Start", () => Invoke(() => coordinator.StartPrivate()), height: ui.RowHeight * 1.4f);
+                PartyControl("room-start", "Start", () => Invoke(() => coordinator.StartPrivate()), height: ui.RowHeight * RoomButtonRows);
                 GUI.enabled = enabled;
+                GUILayout.EndVertical();
+            }
+            else if (pasteAgain)
+            {
+                GUILayout.BeginVertical(GUILayout.Width(RoomButtonWidth));
+                PartyControl("room-paste", PasteRoomCode, PasteRoomAgain, height: ui.RowHeight * RoomButtonRows);
                 GUILayout.EndVertical();
             }
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
+            paper.Tape(card);
         }
 
         async Task LeaveRoom()

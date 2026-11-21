@@ -13,6 +13,16 @@ namespace Wreckabulary
             _ => id
         };
 
+        public static string Emblem(string id) => id switch
+        {
+            "TeamRace" => "BALL",
+            "BrawlRace" => "BAT",
+            "FreeForAll" => "SPEAR",
+            "TimeRun" => "CLOCK",
+            "Freestyle" => "SOFA",
+            _ => LobbyKit.ModeArt(id)
+        };
+
         public static string Goal(string id) => id switch
         {
             "TimeRun" => "Solve the delivery circuit",

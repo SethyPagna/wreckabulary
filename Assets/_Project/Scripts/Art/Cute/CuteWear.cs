@@ -13,6 +13,10 @@ namespace Wreckabulary.Art
 
         public static bool Handles(string rigid) => !string.IsNullOrEmpty(rigid) && rigid.StartsWith(Prefix, System.StringComparison.Ordinal);
 
+        public static readonly string[] HairCovers = { "SK_Hood", "SK_Cap", "Sig_Beanie", "Sig_Headphones" };
+
+        public static bool CoversHair(string name) => !string.IsNullOrEmpty(name) && System.Array.IndexOf(HairCovers, name) >= 0;
+
         public static bool IsHeadDecor(string rigid) => Handles(rigid) &&
             !rigid.StartsWith(HairPrefix, System.StringComparison.Ordinal) && !rigid.StartsWith(EyesPrefix, System.StringComparison.Ordinal) &&
             !rigid.Contains("Specs") && !rigid.Contains("Shades");

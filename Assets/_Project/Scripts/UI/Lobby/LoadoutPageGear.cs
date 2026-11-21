@@ -12,8 +12,12 @@ namespace Wreckabulary
     {
         public const string StylesRow = "Styles", FinishTiles = "Finish tiles", FinishPrefix = "Finish ", FinishState = "Gear finish state";
         public const string RecipePrefix = "Recipe ", MixedFinishes = "Mixed recipe finishes · choose below to match all.", AllRecipes = "All recipes: ";
-        const float FinishTileHeight = 144f, FinishDiscSize = 64f, FinishNameHeight = 26f, FinishPriceHeight = 24f, FinishStateHeight = 28f;
-        const float FinishText = 18f, FinishPriceText = 16f;
+        const float FinishTileHeight = 112f, FinishDiscSize = 44f, FinishNameHeight = 24f, FinishPriceHeight = 22f, FinishStateHeight = 30f;
+        const float FinishText = 18f, FinishPriceText = 16f, FinishTop = 8f, FinishNameGap = 4f, FinishPriceBottom = 6f;
+        public const float DetailCard = 72f;
+        const float DetailCardGap = 12f, DetailArt = 56f, DetailPad = 14f, DetailEdge = 6f, DetailLetter = 32f, DetailWord = 268f;
+        const float DetailLetterGap = 4f, BlurbText = 20f, FinishActionTop = 56f;
+        const int DetailRadius = 18;
 
         ItemDefinition ShownRecipe()
         {
@@ -28,6 +32,7 @@ namespace Wreckabulary
             {
                 recipeFinish = authoredPage.Finish.Label;
                 detail = authoredPage.RecipeDetail;
+                ShortenDetail(detail, (RectTransform)authoredPage.RecipeScroll.transform);
                 FinishRow(authoredPage.RecipeScroll.content);
                 foreach (var item in GameConfig.Current.Items.Enabled) RecipeCard(authoredPage.RecipeGrid.transform, item, item == shown);
                 Detail(shown);
@@ -47,8 +52,9 @@ namespace Wreckabulary
             var finish = LobbyKit.TextAction(body, "Recipe finish", "Finish", 18, CustomizeRecipe, icon: LobbyIcons.Chevron);
             ((RectTransform)finish.transform).Place(Vector2.zero, new Vector2(1, 0), new Vector2(0, foot), new Vector2(0, foot + 44));
             recipeFinish = finish.GetComponentInChildren<TMP_Text>();
-            detail = LobbyKit.Rect(body, "Recipe detail").Place(Vector2.zero, new Vector2(1, 0), new Vector2(0, foot + 56), new Vector2(0, foot + 252));
-            var view = LobbyKit.Rect(body, "Recipes").Place(Vector2.zero, Vector2.one, new Vector2(0, foot + 268), Vector2.zero);
+            detail = LobbyKit.Rect(body, "Recipe detail").Place(Vector2.zero, new Vector2(1, 0), new Vector2(0, foot + FinishActionTop),
+                new Vector2(0, foot + FinishActionTop + DetailCard));
+            var view = LobbyKit.Rect(body, "Recipes").Place(Vector2.zero, Vector2.one, new Vector2(0, foot + FinishActionTop + DetailCard + DetailCardGap), Vector2.zero);
             var list = LobbyKit.Scroll(view, ScrollName, 0);
             list.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(4, 4, 8, 12);
             FinishRow(list);
@@ -57,23 +63,45 @@ namespace Wreckabulary
             Detail(shown);
         }
 
+        static void ShortenDetail(RectTransform card, RectTransform scroll)
+        {
+            float spare = card.rect.height - DetailCard;
+            if (spare <= 0f) return;
+            card.offsetMax = new Vector2(card.offsetMax.x, card.offsetMax.y - spare);
+            scroll.offsetMin = new Vector2(scroll.offsetMin.x, scroll.offsetMin.y - spare);
+        }
+
         void FinishRow(RectTransform content)
         {
             var styles = LobbyKit.Column(content, StylesRow, 8);
             styles.SetAsFirstSibling();
             styles.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(0, 0, 0, 14);
             string wornSkin = SkinOf(Menu.Outfit);
-            var state = LobbyKit.Text(styles, wornSkin == null ? MixedFinishes : AllRecipes + FinishName(wornSkin), 16, LobbyKit.Muted,
+            var state = LobbyKit.Text(styles, wornSkin == null ? MixedFinishes : AllRecipes + FinishName(wornSkin), CaptionText, LobbyKit.Muted,
                 TextAlignmentOptions.MidlineLeft);
             state.name = FinishState;
-            state.enableAutoSizing = true; state.fontSizeMin = MinText; state.fontSizeMax = 16;
+            state.enableAutoSizing = true; state.fontSizeMin = MinText; state.fontSizeMax = CaptionText;
             state.Size(-1, FinishStateHeight);
             var row = LobbyKit.Row(styles, FinishTiles, 12);
             row.Size(-1, FinishTileHeight);
-            row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+            var spread = row.GetComponent<HorizontalLayoutGroup>();
+            spread.childForceExpandWidth = true;
+            spread.padding = new RectOffset(0, Mathf.RoundToInt(SpareBesideRecipes(content)), 0, 0);
             string triedSkin = tryOn == null ? null : SkinOf(tryOn);
             foreach (var finish in CustomizeFinishes)
                 FinishTile(row, finish, wornSkin == finish.Id, tryOn != null && triedSkin == finish.Id && wornSkin != finish.Id);
+        }
+
+        float SpareBesideRecipes(RectTransform content)
+        {
+            if (!authoredPage) return 0f;
+            var grid = authoredPage.RecipeGrid;
+            float cell = grid.cellSize.x, gap = grid.spacing.x, width = content.rect.width - grid.padding.horizontal;
+            if (content.TryGetComponent(out LayoutGroup frame)) width -= frame.padding.horizontal;
+            if (width <= cell) return 0f;
+            int columns = Mathf.FloorToInt((width + gap) / (cell + gap));
+            float spare = width - (columns * cell + (columns - 1) * gap);
+            return spare > 0f && spare < cell ? spare : 0f;
         }
 
         void FinishTile(Transform parent, Finish finish, bool worn, bool tried)
@@ -86,11 +114,11 @@ namespace Wreckabulary
             var press = card.GetComponent<LobbyPress>();
             press.Lift = 3f; press.Tilt = 0f;
             var body = card.Body();
-            FinishDisc(body, skin, FinishDiscSize).Pin(new Vector2(.5f, 1), new Vector2(0, -10), new Vector2(FinishDiscSize, FinishDiscSize));
+            FinishDisc(body, skin, FinishDiscSize).Pin(new Vector2(.5f, 1), new Vector2(0, -FinishTop), new Vector2(FinishDiscSize, FinishDiscSize));
             var name = LobbyKit.Text(body, finish.Name, FinishText, LobbyKit.Navy, TextAlignmentOptions.Center);
             name.name = CardName;
             name.enableAutoSizing = true; name.fontSizeMin = MinText; name.fontSizeMax = FinishText;
-            float nameTop = 10 + FinishDiscSize + 6;
+            float nameTop = FinishTop + FinishDiscSize + FinishNameGap;
             name.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(6, -(nameTop + FinishNameHeight)), new Vector2(-6, -nameTop));
             if (worn) WornMark(body);
             else if (tried) TriedMark(body);
@@ -101,7 +129,7 @@ namespace Wreckabulary
                 if (offer != null)
                 {
                     var tag = LobbyKit.Row(body, PricePill, 4);
-                    tag.Place(Vector2.zero, new Vector2(1, 0), new Vector2(6, 8), new Vector2(-6, 8 + FinishPriceHeight));
+                    tag.Place(Vector2.zero, new Vector2(1, 0), new Vector2(6, FinishPriceBottom), new Vector2(-6, FinishPriceBottom + FinishPriceHeight));
                     var layout = tag.GetComponent<HorizontalLayoutGroup>();
                     layout.childAlignment = TextAnchor.MiddleCenter;
                     layout.childForceExpandHeight = false;
@@ -228,25 +256,26 @@ namespace Wreckabulary
             if (recipeFinish) recipeFinish.text = "Finish · " + FinishName(skin);
             LobbyKit.Clear(detail);
             var strip = LobbyKit.Rect(detail, "Strip").Fill();
-            LobbyKit.Face(strip, LobbyKit.Track, 18);
-            var art = LobbyKit.Rect(strip, "Art").Pin(new Vector2(0, .5f), new Vector2(16, 0), new Vector2(150, 150));
-            Burst(art, 150, 150, 16);
-            FinishedItem(art, item.Id, skin, 118);
-            var words = LobbyKit.Column(strip, "Words", 10);
-            words.Place(Vector2.zero, Vector2.one, new Vector2(184, 16), new Vector2(-16, -16));
-            words.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
-            var letters = LobbyKit.Row(words, "Word", 5);
-            letters.Size(-1, 44);
-            letters.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            LobbyKit.Face(strip, LobbyKit.Track, DetailRadius);
+            var art = LobbyKit.Rect(strip, "Art").Pin(new Vector2(0, .5f), new Vector2(DetailPad, 0), new Vector2(DetailArt, DetailArt));
+            FinishedItem(art, item.Id, skin, DetailArt);
+            var words = LobbyKit.Row(strip, "Words", DetailPad);
+            words.Place(Vector2.zero, Vector2.one, new Vector2(DetailPad * 2f + DetailArt, DetailEdge), new Vector2(-DetailPad, -DetailEdge));
+            var line = words.GetComponent<HorizontalLayoutGroup>();
+            line.childAlignment = TextAnchor.MiddleLeft;
+            line.childForceExpandHeight = false;
             string word = item.Id;
-            float size = Mathf.Min(38f, (320f - 5f * (word.Length - 1)) / word.Length);
+            float size = Mathf.Min(DetailLetter, (DetailWord - DetailLetterGap * (word.Length - 1)) / word.Length);
+            var letters = LobbyKit.Row(words, "Word", DetailLetterGap);
+            letters.Size(size * word.Length + DetailLetterGap * (word.Length - 1), size + DetailEdge);
+            letters.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
             for (int i = 0; i < word.Length; i++) LobbyKit.LetterTile(letters, word[i], size, (i - (word.Length - 1) / 2f) * 2f);
-            var blurb = LobbyKit.Display(words, Blurb(item), 22, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
+            var blurb = LobbyKit.Display(words, Blurb(item), BlurbText, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft);
             blurb.name = "Blurb";
-            blurb.enableAutoSizing = true; blurb.fontSizeMin = 15; blurb.fontSizeMax = 22;
-            blurb.Size(-1, 30);
-            LobbyKit.Text(words, "Spell this word in a match", 16, LobbyKit.Muted,
-                TextAlignmentOptions.MidlineLeft).Size(-1, 30);
+            blurb.textWrappingMode = TextWrappingModes.Normal;
+            blurb.enableAutoSizing = true; blurb.fontSizeMin = MinText; blurb.fontSizeMax = BlurbText;
+            blurb.Size(-1, DetailCard - DetailEdge * 2f, 1);
+            blurb.GetComponent<LayoutElement>().minWidth = 0;
         }
 
         public static string Blurb(ItemDefinition item)

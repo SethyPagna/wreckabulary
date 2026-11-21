@@ -8,7 +8,7 @@ namespace Wreckabulary
     public sealed class LobbyTileWord : MonoBehaviour
     {
         public const string Name = "Tile word";
-        const float Travel = .42f, Drop = .38f, Stagger = .045f, Gap = .1f;
+        const float Travel = .42f, Drop = .38f, Stagger = .045f, Gap = .1f, Rise = 2.2f;
 
         sealed class Tile
         {
@@ -19,17 +19,10 @@ namespace Wreckabulary
             public float delay, tilt;
         }
 
-        sealed class Loose
-        {
-            public RectTransform rect;
-            public Vector2 velocity;
-            public float spin, age;
-        }
-
         static readonly List<(char letter, Vector3 at, float size)> last = new();
+        static readonly Vector3[] Corners = new Vector3[4];
         static bool pending;
-        static readonly List<Loose> falling = new();
-        static RectTransform fallLayer;
+        static Transform pages;
 
         readonly List<Tile> tiles = new();
         string word;
@@ -37,6 +30,8 @@ namespace Wreckabulary
         public string Word => word;
         public int Count => tiles.Count;
         public bool Settled => clock < 0f;
+        public RectTransform Within;
+        public float TileSize => size * Fit;
 
         public static LobbyTileWord Create(RectTransform parent, string word, float size)
         {
@@ -95,25 +90,41 @@ namespace Wreckabulary
 
         void Settle()
         {
+            var scale = Vector3.one * Fit;
             for (int i = 0; i < tiles.Count; i++)
-                if (tiles[i].rect) { tiles[i].rect.anchoredPosition = Slot(i); tiles[i].rect.localRotation = Quaternion.Euler(0f, 0f, -tiles[i].tilt); }
+            {
+                if (!tiles[i].rect) continue;
+                tiles[i].rect.anchoredPosition = Slot(i);
+                tiles[i].rect.localRotation = Quaternion.Euler(0f, 0f, -tiles[i].tilt);
+                tiles[i].rect.localScale = scale;
+            }
         }
 
         float Width => tiles.Count == 0 ? 0f : tiles.Count * size + (tiles.Count - 1) * size * Gap;
 
+        float Fit
+        {
+            get
+            {
+                float room = ((RectTransform)transform).rect.width, wanted = Width;
+                return room > 0f && wanted > room ? room / wanted : 1f;
+            }
+        }
+
         Vector2 Slot(int index)
         {
             var rect = ((RectTransform)transform).rect;
+            float fit = Fit, shown = size * fit, width = Width * fit;
             float start = align switch
             {
                 TMPro.TextAlignmentOptions.Center or TMPro.TextAlignmentOptions.Midline or TMPro.TextAlignmentOptions.Top
-                    or TMPro.TextAlignmentOptions.Bottom => (rect.width - Width) * .5f,
+                    or TMPro.TextAlignmentOptions.Bottom => (rect.width - width) * .5f,
                 TMPro.TextAlignmentOptions.Right or TMPro.TextAlignmentOptions.MidlineRight or TMPro.TextAlignmentOptions.TopRight
-                    or TMPro.TextAlignmentOptions.BottomRight => rect.width - Width,
+                    or TMPro.TextAlignmentOptions.BottomRight => rect.width - width,
                 _ => 0f,
             };
-            float lift = ((index * 5) % 3 - 1) * size * .04f;
-            return new Vector2(start + index * size * (1f + Gap), lift);
+            float lift = ((index * 5) % 3 - 1) * shown * .04f;
+            return new Vector2(start + index * shown * (1f + Gap), lift);
         }
 
         void Layout(bool begin)
@@ -125,6 +136,7 @@ namespace Wreckabulary
                 var t = tiles[i];
                 if (!t.rect) continue;
                 t.rect.anchoredPosition = Slot(i);
+                t.rect.localScale = Vector3.one * Fit;
                 if (!begin) continue;
                 int reuse = pool.FindIndex(p => p.letter == t.letter);
                 if (reuse >= 0) { t.from = pool[reuse].at; t.dropped = false; pool.RemoveAt(reuse); }
@@ -144,10 +156,10 @@ namespace Wreckabulary
 
         void Update()
         {
-            UpdateLoose(Time.unscaledDeltaTime);
             if (clock < 0f) return;
             clock += Time.unscaledDeltaTime;
             bool done = true;
+            float fit = Fit, shown = size * fit;
             for (int i = 0; i < tiles.Count; i++)
             {
                 var t = tiles[i];
@@ -158,9 +170,9 @@ namespace Wreckabulary
                 if (t.dropped)
                 {
                     float fall = 1f - Bounce(k);
-                    t.rect.anchoredPosition = slot + Vector2.up * size * 2.2f * fall;
+                    t.rect.anchoredPosition = slot + Vector2.up * shown * Rise * fall;
                     t.rect.localRotation = Quaternion.Euler(0f, 0f, -t.tilt + fall * 25f);
-                    t.rect.localScale = Vector3.one * (k <= 0f ? 0f : 1f);
+                    t.rect.localScale = Vector3.one * (k <= 0f ? 0f : fit);
                 }
                 else
                 {
@@ -169,12 +181,41 @@ namespace Wreckabulary
                     var hop = Vector3.up * Mathf.Sin(k * Mathf.PI) * size * .9f * t.rect.lossyScale.y;
                     t.rect.position = Vector3.LerpUnclamped(t.from, target, ease) + hop;
                     t.rect.localRotation = Quaternion.Euler(0f, 0f, -t.tilt + Mathf.Sin(k * Mathf.PI) * 18f);
-                    t.rect.localScale = Vector3.one;
+                    t.rect.localScale = Vector3.one * fit;
                 }
+                Keep(t.rect, shown);
             }
             if (!done) return;
             clock = -1f;
             Settle();
+        }
+
+        void Keep(RectTransform tile, float shown)
+        {
+            var frame = Within ? Within : (RectTransform)transform;
+            var area = Within ? Within.rect : Strip(frame.rect, shown);
+            if (area.width < shown || area.height < shown) return;
+            tile.GetWorldCorners(Corners);
+            Vector2 low = frame.InverseTransformPoint(Corners[0]), high = low;
+            for (int i = 1; i < Corners.Length; i++)
+            {
+                Vector2 point = frame.InverseTransformPoint(Corners[i]);
+                low = Vector2.Min(low, point);
+                high = Vector2.Max(high, point);
+            }
+            var push = new Vector3(Push(low.x, high.x, area.xMin, area.xMax), Push(low.y, high.y, area.yMin, area.yMax), 0f);
+            if (push != Vector3.zero) tile.position = frame.TransformPoint(frame.InverseTransformPoint(tile.position) + push);
+        }
+
+        static float Push(float low, float high, float floor, float ceiling) =>
+            low < floor ? floor - low : high > ceiling ? ceiling - high : 0f;
+
+        Rect Strip(Rect own, float shown)
+        {
+            float middle = own.center.y;
+            float left = own.xMin, right = Mathf.Max(own.xMax, own.xMin + Width * Fit);
+            float bottom = Mathf.Min(own.yMin, middle - shown), top = Mathf.Max(own.yMax, middle + shown) + shown * Rise;
+            return Rect.MinMaxRect(left, bottom, right, top);
         }
 
         public static RectTransform Square(Transform parent, char letter, float size)
@@ -206,54 +247,20 @@ namespace Wreckabulary
         {
             last.Clear();
             pending = true;
+            pages = outgoing ? outgoing.parent : null;
             if (!outgoing) return;
             foreach (var word in outgoing.GetComponentsInChildren<LobbyTileWord>())
                 foreach (var t in word.tiles)
-                    if (t.rect && t.letter != ' ') last.Add((t.letter, t.rect.position, word.size));
+                    if (t.rect && t.letter != ' ') last.Add((t.letter, t.rect.position, word.TileSize));
         }
 
-        void Tumble(char letter, Vector3 at, float tileSize)
+        static void Tumble(char letter, Vector3 at, float tileSize)
         {
-            var canvas = GetComponentInParent<Canvas>();
-            if (!canvas) return;
-            if (!fallLayer || fallLayer.root != canvas.rootCanvas.transform)
-            {
-                fallLayer = LobbyKit.Rect(canvas.rootCanvas.transform, "Falling tiles").Fill();
-                var group = fallLayer.gameObject.AddComponent<CanvasGroup>();
-                group.blocksRaycasts = false; group.interactable = false;
-            }
-            fallLayer.SetAsLastSibling();
-            var rect = Square(fallLayer, letter, tileSize);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, .5f);
-            rect.sizeDelta = new Vector2(tileSize, tileSize);
-            rect.position = at;
-            falling.Add(new Loose
-            {
-                rect = rect,
-                velocity = new Vector2(((letter * 31) % 7 - 3) * 60f, 260f + (letter % 5) * 40f),
-                spin = ((letter * 17) % 11 - 5) * 70f,
-            });
-        }
-
-        static void UpdateLoose(float dt)
-        {
-            for (int i = falling.Count - 1; i >= 0; i--)
-            {
-                var loose = falling[i];
-                loose.age += dt;
-                if (!loose.rect || loose.age > 1.4f)
-                {
-                    if (loose.rect) Destroy(loose.rect.gameObject);
-                    falling.RemoveAt(i);
-                    continue;
-                }
-                loose.velocity += Vector2.down * 1900f * dt;
-                loose.rect.anchoredPosition += loose.velocity * dt;
-                loose.rect.localRotation = Quaternion.Euler(0f, 0f, loose.rect.localEulerAngles.z + loose.spin * dt);
-            }
+            var layer = LobbyLooseTiles.Behind(pages);
+            if (layer) layer.Toss(letter, at, tileSize);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetRuntime() { last.Clear(); falling.Clear(); fallLayer = null; pending = false; }
+        static void ResetRuntime() { last.Clear(); pages = null; pending = false; }
     }
 }

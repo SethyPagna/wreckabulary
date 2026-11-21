@@ -109,9 +109,9 @@ namespace Wreckabulary.OfflineGameplayTests
             Assert.AreEqual("courtyard", lobby.Map, "Use a supported non-default home-builder map before entering Wordbound.");
             second = new KeyboardBinding(KeyboardBinding.Side.Right); lobby.Join(second);
             lobby.Open(LobbyMenu.Play);
-            Submit(lobby, "Create Wordbound"); yield return null;
+            yield return null;
             Assert.AreEqual(2, lobby.PartySize);
-            Submit(lobby, "Workshop OPEN");
+            Submit(lobby, "Create Wordbound");
             seated = Session.Bindings.ToArray();
             Assert.AreEqual(2, seated.Length); Assert.AreSame(second, seated[1]);
             WordboundLauncher launcher = null;

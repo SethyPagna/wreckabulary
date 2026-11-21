@@ -21,6 +21,7 @@ namespace Wreckabulary.Workshop
         public bool Visible { get; set; } = true;
         public WordboundUiTheme Theme;
         readonly WordboundUiStyles ui = new WordboundUiStyles();
+        readonly WordboundPaperLook paper = new WordboundPaperLook();
         int styleGeneration;
         Rect ToolbarRect
         {
@@ -427,7 +428,7 @@ namespace Wreckabulary.Workshop
             selectedBox = new GUIStyle(normalBox); selectedBox.normal.textColor = ui.Ink;
             ghostBox = new GUIStyle(normalBox); ghostBox.normal.textColor = new Color(.6f, .6f, .6f);
             issueBox = new GUIStyle(normalBox); issueBox.normal.textColor = ui.Error;
-            cardStyle = new GUIStyle(ui.Panel) { padding = new RectOffset(10, 10, 8, 8), margin = new RectOffset(0, 0, 4, 6) };
+            cardStyle = new GUIStyle(paper.CardFace ?? ui.Panel) { padding = new RectOffset(10, 10, 8, 8), margin = new RectOffset(0, 0, 4, 6) };
             cardTitle = new GUIStyle(sectionStyle) { wordWrap = true, clipping = TextClipping.Overflow };
             hintStyle = new GUIStyle(ui.Wrapped);
             singleLineButton = new GUIStyle(GUI.skin.button) { wordWrap = false };
@@ -444,8 +445,10 @@ namespace Wreckabulary.Workshop
         {
             if (!Visible || History == null) return;
             using var themeScope = ui.Apply(Theme);
+            paper.Dress(ui);
             uiScale = WordboundUiStyles.ScreenScale(Screen.width, Screen.height);
             GUI.matrix = Matrix4x4.Scale(new Vector3(uiScale, uiScale, 1));
+            paper.Backdrop(new Rect(0, 0, ScreenWidth, ScreenHeight));
             if (RecoveryChoicePending) { Styles(); RecoveryPanel(); return; }
             Styles(); Refresh();
             bool repaint = Event.current.type == EventType.Repaint;
@@ -466,7 +469,7 @@ namespace Wreckabulary.Workshop
             inspectorWidth = side;
             viewport = new Rect(side + 16, top, Mathf.Max(1, ScreenWidth - side - 24), Mathf.Max(1, bottom - top));
             TopBar();
-            GUILayout.BeginArea(new Rect(8, viewport.y, side, viewport.height), panel); StepPanel(); GUILayout.EndArea();
+            BeginSheet(new Rect(8, viewport.y, side, viewport.height)); StepPanel(); GUILayout.EndArea();
             WorldView();
             Footer();
             CaptureWorkshopTextFocus();
@@ -475,23 +478,20 @@ namespace Wreckabulary.Workshop
         }
         void TopBar()
         {
-            GUILayout.BeginArea(new Rect(8, 8, ScreenWidth - 16, ui.ChromeHeight), panel); GUILayout.BeginHorizontal();
+            BeginSheet(new Rect(8, 8, ScreenWidth - 16, ui.ChromeHeight)); GUILayout.BeginHorizontal();
             TitleField(Mathf.Round(Mathf.Clamp(ScreenWidth * .22f, 160, 380)));
             GUILayout.Space(ui.Gap);
             GUILayout.Label(new GUIContent(SaveState, saveError.Length == 0 ? "Your map saves itself a moment after each change." : saveError),
                 rowLabel, GUILayout.Width(savedWidth), GUILayout.MinHeight(ui.RowHeight));
             GUILayout.FlexibleSpace();
-            string blocker = TestBlocker;
-            if (blocker.Length != 0 && PlaytestRequested != null && Button(blocker + " ›", "Choose a mode you can test on your own"))
-                ShowStep(WorkshopStep.Rules);
             if (Button("My maps", "Open, copy or start another map")) Attempt(OpenLibrary);
-            GUI.enabled = blocker.Length == 0;
-            if (Button("Test", "Play this map on your own · runs the check first"))
-                Attempt(() => { RequestPlaytest(); if (LastPlaytestDraft == null) ShowStep(WorkshopStep.Share); });
-            GUI.enabled = true;
-            if (Button("Share", "Share code and map files")) OpenShare();
             if (Button(CloseLabel ?? "Exit", "Leave the map editor · your map is saved")) RequestClose();
             GUILayout.EndHorizontal(); GUILayout.EndArea();
+        }
+        void BeginSheet(Rect rect)
+        {
+            GUILayout.BeginArea(rect, panel);
+            paper.Sheet(new Rect(Vector2.zero, rect.size));
         }
         static readonly string LocalTestNeed = "Test needs " + WorkshopModes.Name("TimeRun") + " or " + WorkshopModes.Name("Freestyle");
         string TestBlocker => PlaytestRequested == null ? "Testing isn't available here" :
@@ -526,7 +526,7 @@ namespace Wreckabulary.Workshop
         }
         void Footer()
         {
-            GUILayout.BeginArea(ui.FooterRect(new Vector2(ScreenWidth, ScreenHeight)), panel); GUILayout.BeginHorizontal();
+            BeginSheet(ui.FooterRect(new Vector2(ScreenWidth, ScreenHeight))); GUILayout.BeginHorizontal();
             GUI.enabled = History.CanUndo; if (ToolButton("Undo", LobbyIcons.Undo, "Undo · Ctrl+Z")) StepHistory(false); GUI.enabled = true;
             GUI.enabled = History.CanRedo; if (ToolButton("Redo", LobbyIcons.Redo, "Redo · Ctrl+Y")) StepHistory(true); GUI.enabled = true;
             GUILayout.Space(ui.Gap);
@@ -538,7 +538,7 @@ namespace Wreckabulary.Workshop
         }
         void MapToolbar()
         {
-            GUILayout.BeginArea(new Rect(viewport.position + ToolbarRect.position, ToolbarRect.size), panel);
+            BeginSheet(new Rect(viewport.position + ToolbarRect.position, ToolbarRect.size));
             GUILayout.BeginHorizontal();
             if (Button("Grid " + Metres(History.Current.GridMm) + " m", "Change how far things snap when you move them"))
                 Edit("Grid", draft => draft.GridMm = draft.GridMm == 500 ? 1000 : draft.GridMm == 1000 ? 100 : 500);
