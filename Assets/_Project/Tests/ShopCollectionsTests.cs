@@ -487,7 +487,7 @@ namespace Wreckabulary.Tests
             string outfit = menu.Outfit.Serialize();
             string savedOutfit = PlayerPrefs.GetString(LobbyMenu.OutfitKey);
             int coins = menu.Career.Coins;
-            Click("Per-recipe finishes");
+            Click("RECIPES");
             yield return null;
             Click("Recipe SHIELD");
             yield return null;
@@ -522,17 +522,26 @@ namespace Wreckabulary.Tests
             menu.Open(LobbyMenu.Loadout);
             yield return null;
             var locker = menu.Page<LoadoutPage>();
+            Assert.IsFalse(locker.Root.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Finish ")), "the Character tab holds only what the character wears");
+            locker.ShowRecipes(true);
+            yield return null;
             var state = locker.Root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Gear finish state");
             Assert.IsTrue(state.text.StartsWith("Mixed recipe finishes"));
-            foreach (var card in locker.Root.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Finish ")))
-                Assert.IsFalse(card.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "WEARING"), card.name + " is not the uniform finish");
+            var finishCards = locker.Root.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Finish ")).ToArray();
+            Assert.AreEqual(LobbyPage.CustomizeFinishes.Count(), finishCards.Length, "every finish is offered on the Equipment tab");
+            foreach (var card in finishCards)
+            {
+                Assert.IsFalse(card.GetComponentsInChildren<RectTransform>().Any(mark => mark.name == LoadoutPage.CheckMark), card.name + " is not the uniform finish");
+                Assert.IsFalse(card.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "WEARING"), card.name + " marks wearing with a tick, not a word");
+            }
             Assert.AreEqual(before, menu.Outfit.Serialize(), "opening the locker preserves per-recipe choices");
             Click("Finish Candy");
             yield return null;
             Assert.IsTrue(GameConfig.Current.Items.Enabled.Where(item => item.HasSkin("Candy")).All(item => menu.Outfit.SkinFor(item.Id) == "Candy"));
             Assert.AreEqual(menu.Outfit.Serialize(), Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).Serialize());
             var selected = locker.Root.GetComponentsInChildren<Button>().Single(button => button.name == "Finish Candy");
-            Assert.IsTrue(selected.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "WEARING"));
+            Assert.IsTrue(selected.GetComponentsInChildren<RectTransform>().Any(mark => mark.name == LoadoutPage.CheckMark), "the worn finish carries the tick");
+            Assert.IsFalse(selected.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "WEARING"));
             Assert.AreEqual("All recipes: Candy", locker.Root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Gear finish state").text);
         }
 

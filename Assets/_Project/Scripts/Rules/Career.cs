@@ -62,7 +62,7 @@ namespace Wreckabulary.Rules
             return text.ToString().Trim();
         }
 
-        public int Coins, Xp, Matches, Wins;
+        public int Coins, Xp, Matches, Wins, SecondsPlayed;
         public readonly List<string> Owned = new List<string>();
         public readonly Dictionary<string, int> Bests = new Dictionary<string, int>();
         public readonly List<MatchRecord> History = new List<MatchRecord>();
@@ -162,7 +162,9 @@ namespace Wreckabulary.Rules
         {
             var s = new StringBuilder("{");
             s.Append("\"name\":").Append(Quote(Name)).Append(",\"coins\":").Append(Coins).Append(",\"xp\":").Append(Xp)
-                .Append(",\"matches\":").Append(Matches).Append(",\"wins\":").Append(Wins).Append(",\"owned\":[")
+                .Append(",\"matches\":").Append(Matches).Append(",\"wins\":").Append(Wins);
+            if (SecondsPlayed > 0) s.Append(",\"seconds\":").Append(SecondsPlayed);
+            s.Append(",\"owned\":[")
                 .Append(string.Join(",", Owned.Select(Quote))).Append("],\"bests\":{")
                 .Append(string.Join(",", Bests.OrderBy(b => b.Key, StringComparer.Ordinal).Select(b => Quote(b.Key) + ":" + b.Value)))
                 .Append("},\"history\":[");
@@ -200,6 +202,7 @@ namespace Wreckabulary.Rules
             career.Xp = Math.Max(0, Read(() => root["xp"].Int(0)));
             career.Matches = Math.Max(0, Read(() => root["matches"].Int(0)));
             career.Wins = Math.Min(career.Matches, Math.Max(0, Read(() => root["wins"].Int(0))));
+            career.SecondsPlayed = Math.Max(0, Read(() => root["seconds"].Int(0)));
             foreach (string id in Read(() => root["owned"].Strings()) ?? new List<string>())
                 career.Grant(id);
             var bests = Read(() => root["bests"].IsObject ? root["bests"] : null);

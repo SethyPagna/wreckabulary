@@ -20,7 +20,7 @@ namespace Wreckabulary
         }
         public static void Select(string mode)
         {
-            if (!Supports(mode)) throw new ArgumentException("Choose Time Trial or Freeplay for solo play.", nameof(mode));
+            if (!Supports(mode)) throw new ArgumentException("Choose Time Trial or Free Roam for solo play.", nameof(mode));
             SelectedMode = mode;
         }
         public static void Request(string mode)

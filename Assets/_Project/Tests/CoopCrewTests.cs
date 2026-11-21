@@ -89,6 +89,54 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator EscapeGuidesToTheKeysAndNeverWarnsAboutMoversThatDoNoHarmThere()
+        {
+            yield return LoadCrew("Escape");
+            var director = Object.FindAnyObjectByType<EscapeDirector>();
+            yield return Playing(director);
+            var movers = director.GetComponent<ClearOutController>();
+            Assert.IsNotNull(movers, "the house layout still reaches the HUD map through it");
+            Assert.IsFalse(movers.Harms, "the Movers cannot hurt anyone in Escape");
+            if (director.KeysNeeded > 0)
+                yield return TestScenes.WaitUntil(() => director.Guide.Length > 0, 4f, "the guide line");
+            yield return new WaitForSecondsRealtime(.5f);
+            Assert.AreEqual(EscapeDirector.State.Playing, director.Current);
+            Assert.IsFalse(movers.Running, "a schedule that cannot hurt anyone stays off, so nothing warns about it");
+            Assert.AreEqual("", movers.Message);
+            foreach (string stale in new[] { "VAN", "MOVERS", "LEAVE " })
+                StringAssert.DoesNotContain(stale, director.Guide.ToUpperInvariant(), "the guide line only talks about keys, doors and the exit");
+            if (director.KeysNeeded > 0)
+                StringAssert.StartsWith(EscapeText.KeyLead(director.KeysFound, director.KeysNeeded), director.Guide);
+            if (director.Guide.Length == 0) yield break;
+            string guide = director.Guide;
+            var shown = Object.FindAnyObjectByType<GameHud>().GetComponentsInChildren<TMPro.TMP_Text>(true)
+                .Where(text => text.text != null && text.text.Contains(guide)).Select(text => text.text).ToArray();
+            Assert.IsNotEmpty(shown, "the HUD shows the guide line");
+            CollectionAssert.Contains(shown, guide, "the guide line stands alone, with no second line under it");
+            foreach (string text in shown) StringAssert.DoesNotContain("MOVERS", text.ToUpperInvariant());
+        }
+
+        [UnityTest]
+        public IEnumerator TheCoopCountdownsNameTheModeByItsPlayerName()
+        {
+            foreach (string mode in new[] { HouseModes.Escape, HouseModes.MovingOut })
+            {
+                yield return LoadCrew(mode);
+                var hud = Object.FindAnyObjectByType<GameHud>();
+                TMPro.TMP_Text line = null;
+                yield return TestScenes.WaitUntil(() =>
+                {
+                    var chip = hud ? hud.transform.Find("Safe HUD/Round chip/Line") : null;
+                    line = chip ? chip.GetComponent<TMPro.TMP_Text>() : null;
+                    return line && hud.CountdownShown && line.text.Length > 0;
+                }, 6f, "the " + mode + " countdown");
+                Assert.AreEqual(HouseCountdown.Line(mode, Layout.Name), line.text, mode);
+                StringAssert.StartsWith(HouseModes.Name(mode).ToUpperInvariant(), line.text, mode);
+                yield return TestScenes.Reset();
+            }
+        }
+
+        [UnityTest]
         public IEnumerator AnIdleCrewmateNoLongerKeepsTheOthersFromLeaving()
         {
             yield return LoadCrew("Escape");

@@ -25,7 +25,7 @@ namespace Wreckabulary
         public const string SavedHomeCard = "Saved home ";
         public const string ModeBoard = "Modes", ModeSections = "Sections", SoloNote = "Solo only note";
         public const string KeepOneMap = "Keep at least one map ticked.";
-        public const string GoalLine = "Mode goal";
+        public const string GoalLine = "Mode goal", AccessLine = "Mode access", PlayOnline = "Play online";
         public const string NameScrim = "Map name scrim";
         public const string GuideIcon = "Guide icon", GuideHint = "How to play";
         static readonly Vector2 HouseSize = new Vector2(280, 300);
@@ -34,11 +34,13 @@ namespace Wreckabulary
         const int PictureRadius = 10, GuideRadius = 13;
         const float GuideInset = 4f;
         const float TitleInset = 12f;
+        const float AccessTarget = 44f, AccessLabelRoom = 28f, SmallestLabel = 15f;
+        const int WidestMapRow = 5;
 
         static readonly (string id, string label)[] Queues =
         {
-            ("Queue " + LobbyMenu.Practice, "Practice (Offline)"),
-            ("Queue " + LobbyMenu.Matchmaking, "Matchmaking"),
+            ("Queue " + LobbyMenu.Practice, "Same screen"),
+            ("Queue " + LobbyMenu.Matchmaking, "Online"),
             ("Queue " + LobbyMenu.Workshop, "Create"),
         };
 
@@ -127,7 +129,7 @@ namespace Wreckabulary
             SoloMapCard(maps, WordboundSoloEntry.ParcelHallMap, "Parcel Hall", "Furnished hall");
             var bar = SummaryFrame(body, "Solo summary");
             SummaryLine(bar);
-            string blocked = Menu.PartySize != 1 ? "Solo only. Leave extra local seats to start." :
+            string blocked = Menu.PartySize != 1 ? "One player only. Remove the extra seats to start." :
                 !Session.CanLoad(Session.WordboundScene) ? "Courses are unavailable in this build." : null;
             var heading = LobbyKit.Text(bar, CourseTitle, 26, LobbyKit.Navy, TextAlignmentOptions.BottomLeft);
             heading.enableAutoSizing = true; heading.fontSizeMin = 20; heading.fontSizeMax = 26;
@@ -185,8 +187,8 @@ namespace Wreckabulary
         }
 
         static string QueueLine(string queue) => queue == LobbyMenu.Matchmaking
-            ? "Human players online."
-            : queue == LobbyMenu.Workshop ? "Build homes and maps." : "Play on this PC.";
+            ? "Play with people online."
+            : queue == LobbyMenu.Workshop ? "Build homes and maps." : "1 to 4 players on this screen. Bots fill empty seats.";
 
         string ShownMode => WordboundSolo ? WordboundSoloEntry.SelectedMode : Menu.Mode;
 
@@ -201,7 +203,7 @@ namespace Wreckabulary
             var families = LobbyKit.Rect(board, ModeSections).gameObject.AddComponent<LobbyPlayModeFamilies>();
             families.Stacked = true;
             families.ButtonWidth = playLayout ? playLayout.ModeMinimumWidth : 104;
-            families.ButtonHeight = LobbyPlayModeFamilies.StackedHeight;
+            families.ButtonHeight = playLayout ? playLayout.ModeHeight : ModeHeight;
             foreach (var family in HouseModes.Families)
             {
                 var section = Family(families.transform, HouseModes.FamilyName(family));
@@ -212,8 +214,39 @@ namespace Wreckabulary
             var line = Goal(board, LobbyPlayModeLabels.Line(shown));
             GuideButton(line, shown);
             var fit = board.gameObject.AddComponent<LobbyPlayModeBoard>();
-            fit.Sections = families; fit.Goal = line;
+            fit.Sections = families; fit.Goal = line; fit.Access = Access(board, shown);
             fit.Fit();
+        }
+
+        TextMeshProUGUI Access(Transform parent, string mode)
+        {
+            var access = ModeAccess.For(mode);
+            if (access.Line.Length == 0) return null;
+            var line = LobbyKit.Text(parent, access.Line, 16, LobbyKit.Muted, TextAlignmentOptions.Center);
+            line.name = AccessLine;
+            line.enableAutoSizing = true; line.fontSizeMin = SmallestLabel; line.fontSizeMax = 16;
+            if (access.SameScreen && access.OnlineCard != null) PlayOnlineButton(line, PlaylistCard + access.OnlineCard);
+            return line;
+        }
+
+        void PlayOnlineButton(TextMeshProUGUI line, string card)
+        {
+            var button = LobbyKit.TextAction(line.transform, PlayOnline, PlayOnline, 16, () => OpenOnline(card));
+            var label = button.GetComponentInChildren<TMP_Text>();
+            label.fontSizeMin = SmallestLabel;
+            float width = label.GetPreferredValues(PlayOnline).x + AccessLabelRoom;
+            var rect = ((RectTransform)button.transform).Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(width, AccessTarget));
+            var info = line.gameObject.AddComponent<LobbyPlayGoalInfo>();
+            info.Line = line; info.Icon = rect; info.IconWidth = width;
+        }
+
+        void OpenOnline(string card)
+        {
+            Online = true; Friends = false;
+            Aim = card;
+            Menu.NoteChoice();
+            Refresh();
+            Reselect(card);
         }
 
         static RectTransform Family(Transform sections, string name)
@@ -329,7 +362,7 @@ namespace Wreckabulary
             var rect = LobbyKit.Grid(parent, name, new Vector2(width, height), 12).Size(-1, height);
             var grid = rect.gameObject.AddComponent<LobbyPlayCardGrid>();
             grid.MinimumWidth = playLayout ? playLayout.MapMinimumWidth : 264;
-            grid.MaximumColumns = playLayout ? playLayout.MapColumns : 3;
+            grid.MaximumColumns = playLayout ? playLayout.MapColumns : WidestMapRow;
             return rect;
         }
 
@@ -451,6 +484,21 @@ namespace Wreckabulary
             text.name = "Map detail";
             text.enableAutoSizing = true; text.fontSizeMin = 12; text.fontSizeMax = 17;
             text.rectTransform.Place(Vector2.zero, new Vector2(1, 0), new Vector2(inset, 4), new Vector2(-inset, LobbyPlayCardGrid.CaptionHeight - 2));
+        }
+
+        static void RowWords(Selectable card, RectTransform picture, string title, string detail)
+        {
+            var name = LobbyKit.Text(card.Body(), title, 24, LobbyKit.Navy, TextAlignmentOptions.BottomLeft, FontStyles.Bold);
+            name.name = "Map title";
+            name.textWrappingMode = TextWrappingModes.Normal;
+            name.enableAutoSizing = true; name.fontSizeMin = SmallestLabel; name.fontSizeMax = 24;
+            var text = LobbyKit.Text(card.Body(), detail, 17, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
+            text.name = "Map detail";
+            text.textWrappingMode = TextWrappingModes.Normal;
+            text.enableAutoSizing = true; text.fontSizeMin = SmallestLabel; text.fontSizeMax = 17;
+            var row = card.gameObject.AddComponent<LobbyPlayRowCard>();
+            row.Picture = (RectTransform)picture.parent; row.Title = name.rectTransform; row.Detail = text.rectTransform;
+            row.Fit();
         }
 
         void HouseCard(Transform parent, string id, HouseLayout layout)

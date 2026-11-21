@@ -41,12 +41,17 @@ namespace Wreckabulary
             public Transform root;
             public PlayableGraph graph;
             public RawImage shadow;
+            public SkinnedMeshRenderer[] meshes;
+            public bool friend;
         }
 
         readonly List<Guest> guests = new();
-        int partySize = 1;
+        int partySize = 1, partyFriends;
         bool partyVisible = true;
-        public int PresentedPartySize => partyVisible ? partySize : 1;
+        int Standing => Mathf.Min(LobbyMenu.PartyMax, partySize + partyFriends);
+        public int PresentedPartySize => partyVisible ? Standing : 1;
+        public int PartyFriends => Standing - partySize;
+        public bool PartyShown => IsPresenting && charactersVisible && partyVisible && avatarRoot;
 
         Transform set, avatarRoot;
         Transform itemPreview;
@@ -351,16 +356,49 @@ namespace Wreckabulary
         public void SetPartySize(int count)
         {
             partySize = Mathf.Clamp(count, 1, LobbyMenu.PartyMax);
-            while (guests.Count < partySize - 1)
+            SeatGuests();
+        }
+
+        public void SetPartyFriends(int count)
+        {
+            count = Mathf.Clamp(count, 0, LobbyMenu.PartyMax - 1);
+            if (count == partyFriends) return;
+            partyFriends = count;
+            SeatGuests();
+        }
+
+        public Vector3 PartyPoint(float metres) => spot + PartyRight * metres;
+
+        public bool PartyFoot(int place, out Vector3 foot)
+        {
+            var root = place == 0 ? avatarRoot : place > 0 && place <= guests.Count ? guests[place - 1].root : null;
+            bool standing = PartyShown && root && root.gameObject.activeSelf && place < PresentedPartySize;
+            foot = standing ? root.position : spot;
+            return standing;
+        }
+
+        Vector3 PartyRight => Vector3.Cross(Vector3.up, -toCamera.normalized);
+
+        static void DressGuest(Guest guest, int seat, bool friend)
+        {
+            var colour = GameAssets.I.PlayerColor(seat);
+            guest.friend = friend;
+            PlayerAppearance.Dress(guest.meshes, friend
+                ? PlayerAppearance.SeatDefault(GameConfig.Current.Wardrobe, seat, colour)
+                : PlayerAppearance.PresentationOutfit(seat, colour));
+        }
+
+        void SeatGuests()
+        {
+            while (guests.Count < Standing - 1)
             {
                 int seat = guests.Count + 1;
                 var root = new GameObject("Lobby guest " + (seat + 1)).transform;
                 root.SetParent(transform, false);
                 var model = ModelVisual.Spawn(AvatarKey, root);
                 if (!model) { Destroy(root.gameObject); break; }
-                var guest = new Guest { root = root };
-                PlayerAppearance.Dress(model.GetComponentsInChildren<SkinnedMeshRenderer>(true),
-                    PlayerAppearance.PresentationOutfit(seat, GameAssets.I.PlayerColor(seat)));
+                var guest = new Guest { root = root, meshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(true) };
+                DressGuest(guest, seat, seat >= partySize);
                 var animator = model.GetComponentInChildren<Animator>(true);
                 var idle = ModelLibrary.Load().FindClip(AvatarKey, "Idle");
                 if (animator && idle)
@@ -380,6 +418,11 @@ namespace Wreckabulary
                 guest.shadow.transform.SetSiblingIndex(contactShadow.transform.GetSiblingIndex() + 1);
                 guests.Add(guest);
             }
+            for (int i = 0; i < guests.Count && i < Standing - 1; i++)
+            {
+                bool friend = i + 1 >= partySize;
+                if (guests[i].friend != friend) DressGuest(guests[i], i + 1, friend);
+            }
             PlaceParty();
         }
 
@@ -387,15 +430,15 @@ namespace Wreckabulary
         {
             if (!avatarRoot) return;
             int count = PresentedPartySize;
-            float scale = count == 4 ? .82f : count == 3 ? .90f : 1f;
-            var right = Vector3.Cross(Vector3.up, -toCamera.normalized);
+            float scale = PartyPlates.Scale(count);
+            var right = PartyRight;
             var rotation = Quaternion.LookRotation(toCamera.sqrMagnitude > 0 ? toCamera.normalized : Vector3.back) * Quaternion.Euler(0f, yaw, 0f);
             avatarRoot.SetPositionAndRotation(spot + right * PartyOffset(0, count), rotation);
             avatarRoot.localScale = Vector3.one * scale;
             for (int i = 0; i < guests.Count; i++)
             {
                 var guest = guests[i];
-                bool show = IsPresenting && charactersVisible && partyVisible && i < partySize - 1;
+                bool show = IsPresenting && charactersVisible && partyVisible && i < Standing - 1;
                 if (guest.root.gameObject.activeSelf != show) guest.root.gameObject.SetActive(show);
                 if (guest.graph.IsValid() && guest.graph.IsPlaying() != show)
                 {
@@ -408,13 +451,7 @@ namespace Wreckabulary
             }
         }
 
-        static float PartyOffset(int seat, int count) => count switch
-        {
-            2 => seat == 0 ? -.48f : .48f,
-            3 => seat == 0 ? 0f : seat == 1 ? -.86f : .86f,
-            4 => seat == 0 ? -.41f : seat == 1 ? -1.23f : seat == 2 ? .41f : 1.23f,
-            _ => 0f,
-        };
+        static float PartyOffset(int seat, int count) => PartyPlates.Offset(seat, count);
 
         bool SpawnAvatar()
         {

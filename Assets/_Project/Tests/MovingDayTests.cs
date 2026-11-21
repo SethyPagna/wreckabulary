@@ -63,6 +63,29 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheCountdownAndChecklistNameTheModeAndHouseWithoutALevelNumber()
+        {
+            var hud = Object.FindAnyObjectByType<GameHud>();
+            var layout = Object.FindAnyObjectByType<RoomBuilder>().Layout;
+            TMPro.TMP_Text line = null;
+            yield return TestScenes.WaitUntil(() =>
+            {
+                var chip = hud.transform.Find("Safe HUD/Round chip/Line");
+                line = chip ? chip.GetComponent<TMPro.TMP_Text>() : null;
+                return line && hud.CountdownShown && line.text.Length > 0;
+            }, 5f, "the countdown chip");
+            Assert.AreEqual(HouseCountdown.Line(HouseModes.MovingDay, layout.Name), line.text);
+            StringAssert.StartsWith(HouseModes.Name(HouseModes.MovingDay).ToUpperInvariant(), line.text);
+            StringAssert.DoesNotContain("LEVEL", line.text);
+            yield return UntilPlaying();
+            yield return new WaitForSecondsRealtime(.2f);
+            string checklist = hud.transform.Find("Safe HUD/Side column/Objective/Objective text").GetComponent<TMPro.TMP_Text>().text;
+            StringAssert.Contains(FurnishText.Checklist, checklist);
+            StringAssert.Contains(layout.Name, checklist);
+            StringAssert.DoesNotContain("Level", checklist);
+        }
+
+        [UnityTest]
         public IEnumerator BoxesForTheChecklistArrive()
         {
             yield return UntilPlaying();

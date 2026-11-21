@@ -10,8 +10,10 @@ namespace Wreckabulary
     {
         public const string PlayButton = "Home PLAY", PlayLabel = "PLAY";
         public const string LastLine = "Last match", ChangeButton = "Home CHANGE", ChangeLabel = "Change";
+        public const string CareerLine = "Play time";
         public const float PlayHeight = 88f, PlayText = 56f;
         const float LastHeight = 24f, LastText = 17f, LastTextMinimum = 12f, ChangeHeight = 32f, ChangeText = 18f;
+        const float CareerHeight = 22f, CareerText = 16f, CareerTextMinimum = 15f;
         public RectTransform TurnHint;
         public RectTransform Dock;
         public LobbyShopActionView Start;
@@ -82,6 +84,17 @@ namespace Wreckabulary
             var button = LobbyKit.TextAction(Dock, ChangeButton, ChangeLabel, ChangeText, change);
             button.Size(-1, ChangeHeight);
             button.transform.SetSiblingIndex(slot.GetSiblingIndex() + 1);
+        }
+
+        public void ShowCareer(string career)
+        {
+            Remove(CareerLine);
+            if (string.IsNullOrEmpty(career)) return;
+            var line = LobbyKit.Text(Dock, career, CareerText, LobbyKit.Muted, TextAlignmentOptions.Center);
+            line.name = CareerLine;
+            line.enableAutoSizing = true; line.fontSizeMin = CareerTextMinimum; line.fontSizeMax = CareerText;
+            line.Size(-1, CareerHeight);
+            line.transform.SetAsLastSibling();
         }
 
         void Remove(string child)

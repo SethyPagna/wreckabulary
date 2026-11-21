@@ -116,6 +116,8 @@ namespace Wreckabulary
 
         public void Forget(PlayerController p) { if (p) lastHitBy.Remove(p.Index); }
 
+        public void ForgetAll() => lastHitBy.Clear();
+
         public void Clear()
         {
             foreach (var entry in watched)
@@ -164,6 +166,7 @@ namespace Wreckabulary
         {
             if (Running) return;
             Running = true;
+            MatchTally.Idle();
             LetterInventory.FreeSpelling = true;
             joins.RespawnKnockedOut = false;
             foreach (var p in joins.Players)
@@ -202,10 +205,10 @@ namespace Wreckabulary
             Strip = null;
         }
 
-        static bool Votes(PlayerController p) =>
-            p.Binding != null && p.Binding is not BotBinding && ControlHints.Device(p.Binding) != ControlDevice.Touch;
+        internal static bool Votes(PlayerController p) =>
+            p.Binding != null && p.Binding is not BotBinding && p.Binding is not TouchBinding;
 
-        static bool StartHeld(PlayerController p)
+        internal static bool StartHeld(PlayerController p)
         {
             if (p.Commands.start) return true;
             if (KeyBindings.GameplayBlocked) return false;
@@ -223,21 +226,110 @@ namespace Wreckabulary
         {
             if (keyVersion == KeyBindings.Version) return startKey;
             keyVersion = KeyBindings.Version;
-            startKey = null;
-            foreach (var p in joins.Players)
+            startKey = SharedStartKey(joins.Players);
+            return startKey;
+        }
+
+        internal static string SharedStartKey(IReadOnlyList<PlayerController> players)
+        {
+            string shared = null;
+            foreach (var p in players)
             {
                 if (!p || !Votes(p)) continue;
                 string key = ControlHints.For(p.Binding, PlayerControl.Start);
-                if (startKey == null) startKey = key;
-                else if (startKey != key) { startKey = ""; break; }
+                if (shared == null) shared = key;
+                else if (shared != key) return "";
             }
+            return shared;
+        }
+    }
+
+    public sealed class HouseShowcase
+    {
+        readonly PlayerJoinManager joins;
+        readonly GameHud hud;
+        readonly string modeId;
+        readonly HashSet<int> released = new();
+        string startKey;
+        int keyVersion = -1;
+        bool painting = true;
+
+        public Warmup State { get; }
+        public bool Running { get; private set; }
+
+        public HouseShowcase(PlayerJoinManager joins, GameHud hud, string modeId, float seconds)
+        {
+            this.joins = joins; this.hud = hud; this.modeId = modeId;
+            State = new Warmup(seconds);
+        }
+
+        public void Begin()
+        {
+            if (Running) return;
+            Running = true;
+            World.FreezeTransient();
+            foreach (var p in joins.Players)
+            {
+                if (!p) continue;
+                State.Join(p.Index, HouseWarmup.Votes(p));
+                if (p.IsKnockedOut) joins.Place(p);
+                p.Frozen = true;
+            }
+            if (!hud) return;
+            hud.HideCountdown();
+            hud.SetInstruction("", "");
+            hud.SetTimer("");
+            Paint(true);
+        }
+
+        public bool Tick(float seconds)
+        {
+            if (!Running) return false;
+            State.Tick(seconds);
+            foreach (var p in joins.Players)
+            {
+                if (!p) continue;
+                bool held = HouseWarmup.StartHeld(p);
+                if (!held) released.Add(p.Index);
+                State.Hold(p.Index, held && released.Contains(p.Index), seconds);
+            }
+            Paint(false);
+            return State.Ends;
+        }
+
+        public void End()
+        {
+            Running = false;
+            if (hud) hud.HideShowcase();
+        }
+
+        void Paint(bool opening)
+        {
+            if (!painting || !hud) return;
+            try
+            {
+                if (opening) hud.ShowShowcase(joins.Players, modeId);
+                hud.TickShowcase(State, StartKey());
+            }
+            catch (Exception problem)
+            {
+                painting = false;
+                Debug.LogException(problem);
+            }
+        }
+
+        string StartKey()
+        {
+            if (keyVersion == KeyBindings.Version) return startKey;
+            keyVersion = KeyBindings.Version;
+            startKey = HouseWarmup.SharedStartKey(joins.Players);
             return startKey;
         }
     }
 
     public abstract class HouseRoundDirector : MonoBehaviour
     {
-        public enum Stage { Lobby, Countdown, Playing, Over, Warmup }
+        public enum Stage { Lobby, Countdown, Playing, Over, Warmup, Showcase }
 
         string joinLine;
         int joinVersion = -1, clockSeconds = -1;
@@ -289,6 +381,7 @@ namespace Wreckabulary
             if (Time.timeScale <= 0f || Joins.HumanCount == 0) return;
             Round = 0;
             Context.Rounds.CloseWarmup();
+            Context.Rounds.CloseShowcase();
             if (Context.Rounds.TakeWarmup()) EnterWarmup();
             else BeginMatch();
         }
@@ -317,6 +410,23 @@ namespace Wreckabulary
         void EndWarmup()
         {
             Context.Rounds.CloseWarmup();
+            if (Context.Rounds.WantsShowcase) EnterShowcase();
+            else BeginMatch();
+        }
+
+        void EnterShowcase()
+        {
+            StopAllCoroutines();
+            Deliveries.Running = false;
+            Current = Stage.Showcase;
+            Context.Phase = Phase.Showcase;
+            stageAt = Time.time;
+            Context.Rounds.OpenShowcase();
+        }
+
+        void EndShowcase()
+        {
+            Context.Rounds.CloseShowcase();
             BeginMatch();
         }
 
@@ -372,6 +482,9 @@ namespace Wreckabulary
                     break;
                 case Stage.Warmup:
                     if (Context.Rounds.TickWarmup(RoundManager.FrameStep)) EndWarmup();
+                    break;
+                case Stage.Showcase:
+                    if (Context.Rounds.TickShowcase(RoundManager.FrameStep)) EndShowcase();
                     break;
                 case Stage.Countdown:
                     float since = Time.time - stageAt;

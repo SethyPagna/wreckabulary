@@ -18,7 +18,7 @@ MonoBehaviour:
   ModeHeight: 52
   MapMinimumWidth: 264
   MapMinimumHeight: 340
-  MapColumns: 3
+  MapColumns: 5
   LostAddressPreview: {fileID: 21300000, guid: f9cfc5143b0703541b5550308e070e80, type: 3}
   ParcelHallPreview: {fileID: 21300000, guid: c8a37725225e2f84ca0dc74a3f2f3e52, type: 3}
   ParcelServicePreview: {fileID: 21300000, guid: 3f343fff6fee12944a8b67ba0644f96a, type: 3}

@@ -121,6 +121,9 @@ namespace Wreckabulary.Tests
             yield return null;
             Canvas.ForceUpdateCanvases();
             var page = menu.Page<LoadoutPage>();
+            page.ShowRecipes(true);
+            yield return null;
+            Canvas.ForceUpdateCanvases();
             var cards = page.Root.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Finish ")).ToArray();
             CollectionAssert.AreEqual(LobbyPage.CustomizeFinishes.Select(finish => "Finish " + finish.Id).ToArray(), cards.Select(card => card.name).ToArray());
             foreach (var finish in LobbyPage.CustomizeFinishes)
@@ -138,9 +141,25 @@ namespace Wreckabulary.Tests
                 var icon = Wreckabulary.UI.ItemArt.FinishIcon(word, finish.Id);
                 if (icon) Assert.AreSame(icon, art.texture, card.name + " shows the item in its finish");
             }
-            var colours = page.Root.GetComponentsInChildren<RectTransform>().Where(rect => rect.name.StartsWith("Swatch ")).ToArray();
-            Assert.Greater(colours.Length, 0);
-            foreach (var swatch in colours) Visible(Line(swatch, LobbyPage.CardName), swatch.name + " colour name");
+            page.ShowCategory("Top");
+            yield return null;
+            var palette = GameConfig.Current.Wardrobe.Palettes["Top"];
+            var colours = page.Root.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith(LoadoutPage.ColourPrefix)).ToArray();
+            CollectionAssert.AreEqual(palette.Select(colour => LoadoutPage.ColourPrefix + colour.Id).ToArray(), colours.Select(swatch => swatch.name).ToArray());
+            var detail = page.Root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == LoadoutPage.DetailLine);
+            foreach (var swatch in colours)
+            {
+                string colourName = palette.Single(colour => LoadoutPage.ColourPrefix + colour.Id == swatch.name).Name;
+                StringAssert.StartsWith(colourName, swatch.GetComponent<LobbyHint>().Text, swatch.name + " names its colour in a hint");
+                Assert.IsFalse(swatch.GetComponentsInChildren<TMP_Text>().Any(), swatch.name + " is a swatch, not a word");
+                var pointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current);
+                swatch.GetComponent<LobbyPress>().OnPointerEnter(pointer);
+                yield return null;
+                StringAssert.Contains(colourName, detail.text, swatch.name + " names its colour in the detail line while it is focused");
+                Visible(detail, "the detail line");
+                swatch.GetComponent<LobbyPress>().OnPointerExit(pointer);
+                yield return null;
+            }
         }
 
         [UnityTest]

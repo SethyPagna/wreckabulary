@@ -165,7 +165,7 @@ namespace Wreckabulary
                         break;
                     }
                     int left = Mathf.CeilToInt(countdownTime - t);
-                    hud.ShowCountdown(Mathf.Max(1, left), $"LEVEL {LevelIndex + 1} · {CurrentLevel.name.ToUpperInvariant()}");
+                    hud.ShowCountdown(Mathf.Max(1, left), HouseCountdown.Line(HouseModes.MovingDay, CurrentLevel.name));
                     if (t >= countdownTime) BeginPlay();
                     break;
 
@@ -333,7 +333,7 @@ namespace Wreckabulary
         string ChecklistText()
         {
             sb.Clear();
-            sb.Append("<b>CHECKLIST</b>\n<size=75%>Level ").Append(LevelIndex + 1).Append(": ").Append(CurrentLevel.name).Append("</size>\n");
+            sb.Append(FurnishText.ChecklistHeading(CurrentLevel.name));
             var house = layoutBuilder ? layoutBuilder.Layout : null;
             foreach (var item in CurrentLevel.items)
             {

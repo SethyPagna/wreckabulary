@@ -23,6 +23,8 @@ namespace Wreckabulary.Qa
         static readonly string[] ProcWords = { "CRUSH!", "DEEP CUT", "DAZED" };
 
         LocalSeat attackerSeat, defenderSeat;
+        const int FinalRounds = 6;
+        const float FinalSeconds = 240f;
         PlayerController attacker, defender, roundWinner;
         PlayerJoinManager joins;
         RoundManager rounds;
@@ -53,6 +55,7 @@ namespace Wreckabulary.Qa
             yield return QaStep.Named("house_match_craft").Timeout(12).Do(Craft);
             yield return QaStep.Named("house_match_hit").Timeout(15).Do(Hit);
             yield return QaStep.Named("house_match_round_end").Timeout(15).Do(RoundEnd);
+            yield return QaStep.Named("house_match_final").Timeout(FinalSeconds).Do(Final);
             yield return QaStep.Named("house_match_return").Timeout(40).Do(Return);
         }
 
@@ -426,6 +429,27 @@ namespace Wreckabulary.Qa
             });
             yield return Capture(context, "house_match_round_end");
             if (roundWinner != attacker) throw new QaFailException("P1 should have won the round after the others were eliminated.");
+        }
+
+        IEnumerator Final(QaContext context)
+        {
+            for (int round = 0; round < FinalRounds && rounds.Phase != Phase.MatchOver; round++)
+            {
+                yield return context.WaitUntil(() => hud && hud.ResultShown, 15, "a round result before the next round");
+                hud.ConfirmResult();
+                yield return context.WaitUntil(() => rounds.Phase == Phase.Playing, 30, "the next round to start");
+                foreach (var p in joins.Players.Where(p => p && p != attacker && !p.IsEliminated).ToArray()) p.Health.Eliminate();
+                yield return context.WaitUntil(() => rounds.Phase is Phase.RoundOver or Phase.MatchOver, 15, "the next round to end");
+            }
+            if (rounds.Phase != Phase.MatchOver) throw new QaFailException("The match should be over once P1 has won every round.");
+            yield return context.WaitUntil(() => hud && hud.ResultShown, 15, "the final result");
+            float settled = Time.realtimeSinceStartup + 1f;
+            yield return context.WaitUntil(() => Time.realtimeSinceStartup >= settled, 10, "the final result to settle");
+            context.Note("house_match_final", new Dictionary<string, object>
+            {
+                ["phase"] = rounds.Phase.ToString(), ["round"] = rounds.Round, ["p1_wins"] = rounds.WinsOf(attacker),
+            });
+            yield return Capture(context, "house_match_final");
         }
 
         IEnumerator Return(QaContext context)

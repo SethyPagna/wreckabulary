@@ -14,7 +14,7 @@ namespace Wreckabulary
         [Range(44, 80)] public float ModeHeight = 52;
         [Range(220, 420)] public float MapMinimumWidth = 264;
         [Range(300, 520)] public float MapMinimumHeight = 340;
-        [Range(2, 5)] public int MapColumns = 3;
+        [Range(2, 5)] public int MapColumns = 5;
         [Header("Solo map previews")]
         [Tooltip("Actual Lost Address course preview. Leave empty to use the original object artwork.")]
         public Sprite LostAddressPreview;

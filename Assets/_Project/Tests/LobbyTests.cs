@@ -1306,8 +1306,9 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(Find("GO").interactable, "House modes cannot launch an unsupported online session");
             menu.Go();
             Assert.IsFalse(menu.Starting);
-            StringAssert.Contains("house modes are local", menu.Messages[0]);
-            StringAssert.Contains("choose Matchmaking", menu.Messages[0]);
+            StringAssert.Contains("House modes are played on this screen", menu.Messages[0]);
+            StringAssert.Contains("choose " + Find("Queue " + LobbyMenu.Matchmaking).GetComponentInChildren<TMPro.TMP_Text>().text, menu.Messages[0]);
+            StringAssert.Contains("choose Online", menu.Messages[0]);
             Assert.IsFalse(menu.Messages[0].Contains("Online Play"), "the message names the control that exists");
             Click("Home");
             yield return null;
@@ -1329,27 +1330,34 @@ namespace Wreckabulary.Tests
             var menu = LobbyMenu.Instance;
             Click("LOADOUT");
             yield return null;
-            Click("Part Top");
+            Click("Category Top");
             yield return null;
             Click("Colour mint");
             yield return null;
             Assert.AreEqual("mint", menu.Outfit.ColourOf("Top"));
             Assert.AreEqual("mint", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).ColourOf("Top"), "saved");
 
+            string savedLook = PlayerPrefs.GetString(LobbyMenu.OutfitKey);
             Click("Colour sky");
             yield return null;
-            Assert.AreEqual(LobbyMenu.Shop, menu.Current, "a colour you don't own opens the shop");
-            Assert.AreEqual("mint", menu.Outfit.ColourOf("Top"));
+            var loadout = menu.Page<LoadoutPage>();
+            Assert.AreEqual(LobbyMenu.Loadout, menu.Current, "a colour you don't own is tried on where you are");
+            Assert.AreEqual("mint", menu.Outfit.ColourOf("Top"), "trying on wears nothing");
+            Assert.AreEqual(savedLook, PlayerPrefs.GetString(LobbyMenu.OutfitKey), "and saves nothing");
+            Assert.AreEqual("sky", loadout.TryOn.ColourOf("Top"), "the avatar keeps it on");
 
             Click("Buy colour:sky");
             yield return null;
-            Assert.AreEqual(380, menu.Career.Coins);
+            Assert.AreEqual(380, menu.Career.Coins, "Sky costs 120");
             Assert.IsTrue(menu.Career.Owns("colour", "sky"));
             Assert.AreEqual(380, MatchTally.LoadCareer().Coins, "the purchase is saved");
-            Click("Wear colour:sky");
-            yield return null;
-            Assert.AreEqual("sky", menu.Outfit.ColourOf("Top"));
+            Assert.AreEqual(LobbyMenu.Loadout, menu.Current, "buying keeps you on the page");
+            Assert.IsNull(loadout.TryOn, "nothing is left to buy");
+            Assert.AreEqual("sky", menu.Outfit.ColourOf("Top"), "what you tried on is worn once it is yours");
+            Assert.AreEqual("sky", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).ColourOf("Top"), "and saved");
 
+            menu.Open(LobbyMenu.Shop);
+            yield return null;
             Click("Shop category gear");
             Click("Buy skin:Arcade");
             yield return null;
@@ -1366,25 +1374,114 @@ namespace Wreckabulary.Tests
             yield return new WaitForSeconds(1f);
             Canvas.ForceUpdateCanvases();
             var loadout = menu.Page<LoadoutPage>();
+            var wardrobe = GameConfig.Current.Wardrobe;
             var panel = loadout.Root.GetComponentsInChildren<RectTransform>().First(r => r.name == "Panel");
             Assert.AreEqual(LoadoutPage.Width, panel.rect.width, 1f, "the saved customization width");
-            foreach (string name in new[] { "HairSwept", "HairBuns", "EyesSparkle", "EyesJelly", "Hoodie", "Crewneck", "Cap", "Hood", "No Headwear",
-                "Glasses", "HeartShades", "StarShades", "No Face", "Part Top", "Part Bottoms", "Colour tomato",
-                "Satchel", "TBadge", "Finish Classic", "Finish Candy", "Finish Arcade", "Done" })
-                Find(name);
-            Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name == "No Hair" || b.name == "No Eyes"), "hair and eyes are always chosen");
-            Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Slot ")),
-                "the full list stays available without extra modal slot pages");
-            var list = loadout.Root.GetComponentsInChildren<ScrollRect>().Single();
-            Assert.IsTrue(list.vertical && !list.horizontal);
-            Assert.IsNotNull(list.verticalScrollbar, "long customization pages show their scroll position");
-            foreach (string name in new[] { "Finish Classic", "Finish Candy", "Finish Arcade" })
-                Assert.GreaterOrEqual(((RectTransform)Find(name).transform).rect.height, 52f, "one readable option per row");
             var corners = new Vector3[4];
             panel.GetWorldCorners(corners);
+            float panelLeft = corners[0].x;
+
+            var rail = loadout.Root.GetComponentsInChildren<RectTransform>().Single(r => r.name == LoadoutPage.RailName);
+            var categories = rail.GetComponentsInChildren<Button>();
+            CollectionAssert.AreEqual(LoadoutPage.RailOrder.Select(slot => LoadoutPage.CategoryPrefix + slot).ToArray(),
+                categories.Select(category => category.name).ToArray(), "ten categories: the head column, then the body column");
+            Assert.AreEqual(LoadoutPage.RailRows * LoadoutPage.RailColumns, categories.Length);
+            var spots = new Vector3[categories.Length];
+            for (int i = 0; i < categories.Length; i++)
+            {
+                ((RectTransform)categories[i].transform).GetWorldCorners(corners);
+                spots[i] = (corners[0] + corners[2]) * .5f;
+                Assert.GreaterOrEqual(corners[0].x, -.5f, categories[i].name + " is on the screen");
+                Assert.GreaterOrEqual(corners[0].y, -.5f, categories[i].name + " is on the screen");
+                Assert.LessOrEqual(corners[2].y, Screen.height + .5f, categories[i].name + " is on the screen");
+                Assert.LessOrEqual(corners[2].x, panelLeft + .5f, categories[i].name + " sits left of the panel");
+                Assert.IsFalse(categories[i].GetComponentsInChildren<TMPro.TMP_Text>().Any(), categories[i].name + " is an icon, not a word");
+                Assert.IsTrue(categories[i].GetComponentsInChildren<Image>().Any(image => image.name.StartsWith("Icon ")), categories[i].name + " has its icon");
+                if (i % LoadoutPage.RailRows == 0) continue;
+                Assert.AreEqual(spots[i - 1].x, spots[i].x, .5f, categories[i].name + " continues its column");
+                Assert.Less(spots[i].y, spots[i - 1].y, categories[i].name + " sits under the one before");
+            }
+            Assert.Less(spots[0].x, spots[LoadoutPage.RailRows].x, "two columns side by side");
+            Assert.AreEqual(spots[0].y, spots[LoadoutPage.RailRows].y, .5f, "that start level");
+            rail.GetWorldCorners(corners);
             var cam = menu.Stage.Camera;
-            Assert.Less(cam.WorldToViewportPoint(menu.Stage.Spot).x * cam.pixelWidth, corners[0].x, "you stand in the room left of the panel");
-            AssertNoEllipsis(loadout.Root, "the locker");
+            Assert.Less(cam.WorldToViewportPoint(menu.Stage.Spot).x * cam.pixelWidth, corners[0].x, "you stand in the room left of the rail");
+
+            foreach (string slot in LoadoutPage.RailOrder)
+            {
+                Click(LoadoutPage.CategoryPrefix + slot);
+                yield return null;
+                Canvas.ForceUpdateCanvases();
+                Assert.AreEqual(slot, loadout.Category);
+                var list = loadout.Root.GetComponentsInChildren<ScrollRect>().Single();
+                Assert.IsTrue(list.vertical && !list.horizontal, slot + " scrolls one way");
+                Assert.IsNotNull(list.verticalScrollbar, slot + " shows its scroll position");
+                var tiles = list.content.GetComponentsInChildren<Button>();
+                CollectionAssert.AreEqual(Dressing.Choices(wardrobe, slot).Select(choice => LoadoutPage.TileName(slot, choice)).ToArray(),
+                    tiles.Select(tile => tile.name).ToArray(), slot + " offers every choice as a tile");
+                Assert.IsFalse(tiles.Any(tile => tile.name == "No Hair" || tile.name == "No Eyes"), "hair and eyes are always chosen");
+                var places = new Vector3[tiles.Length];
+                for (int i = 0; i < tiles.Length; i++)
+                {
+                    var rect = (RectTransform)tiles[i].transform;
+                    Assert.AreEqual(rect.rect.width, rect.rect.height, .5f, tiles[i].name + " is square");
+                    places[i] = rect.TransformPoint(rect.rect.center);
+                    if (i % LoadoutPage.Columns != 0)
+                    {
+                        Assert.AreEqual(places[i - 1].y, places[i].y, .5f, tiles[i].name + " continues its row");
+                        Assert.Greater(places[i].x, places[i - 1].x, tiles[i].name + " sits right of the one before");
+                    }
+                    else if (i > 0)
+                    {
+                        Assert.AreEqual(places[0].x, places[i].x, .5f, tiles[i].name + " starts a row of three");
+                        Assert.Less(places[i].y, places[i - LoadoutPage.Columns].y, tiles[i].name + " starts the next row");
+                    }
+                    string piece = tiles[i].name == LoadoutPage.NoPrefix + slot ? null : tiles[i].name;
+                    var art = piece == null ? null : Wreckabulary.UI.WardrobeArt.For(slot, piece);
+                    var picture = tiles[i].GetComponentsInChildren<Image>().FirstOrDefault(image => image.name == LoadoutPage.PiecePicture);
+                    var words = tiles[i].GetComponentsInChildren<TMPro.TMP_Text>().Where(text => text.transform.parent.name != LoadoutPage.PricePill).ToArray();
+                    if (art)
+                    {
+                        Assert.IsNotNull(picture, tiles[i].name + " shows its picture");
+                        Assert.AreSame(art, picture.sprite, tiles[i].name + " shows its own picture");
+                        Assert.IsEmpty(words, tiles[i].name + " is a picture, not a word");
+                    }
+                    else if (piece != null)
+                    {
+                        Assert.IsNull(picture, tiles[i].name);
+                        Assert.IsTrue(tiles[i].GetComponentsInChildren<RectTransform>().Any(r => r.name == LoadoutPage.PieceFallback), tiles[i].name + " falls back to an icon");
+                        Assert.AreEqual(wardrobe.NameOf(piece), words.Single().text, tiles[i].name + " is named when it has no picture");
+                    }
+                    else Assert.IsEmpty(words, tiles[i].name + " is an icon, not the word None");
+                }
+            }
+            Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Finish ")), "gear finishes live on the Equipment tab");
+            Assert.IsFalse(loadout.Root.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Slot ")), "categories switch in place without modal slot pages");
+
+            bool Marked(string tile, string mark) => Find(tile).GetComponentsInChildren<RectTransform>().Any(r => r.name == mark);
+            foreach (var (slot, piece) in new[] { ("Hair", "HairSwept"), ("Eyes", "EyesSparkle") })
+            {
+                Click(LoadoutPage.CategoryPrefix + slot);
+                yield return null;
+                Assert.IsNull(menu.Outfit.PieceIn(slot), "the default outfit stores no " + slot);
+                Assert.IsTrue(Marked(piece, LoadoutPage.CheckMark), piece + " is shown as chosen, not as None");
+                Assert.AreSame(Find(piece).gameObject, loadout.First.gameObject, "and is where a controller starts");
+                string before = PlayerPrefs.GetString(LobbyMenu.OutfitKey, "");
+                Click(piece);
+                yield return null;
+                Assert.IsNull(menu.Outfit.PieceIn(slot), "choosing what you already wear changes nothing");
+                Assert.AreEqual(before, PlayerPrefs.GetString(LobbyMenu.OutfitKey, ""), "and writes nothing");
+            }
+            foreach (string slot in new[] { "Bottoms", "Gloves", "Footwear" })
+            {
+                Click(LoadoutPage.CategoryPrefix + slot);
+                yield return null;
+                var list = loadout.Root.GetComponentsInChildren<ScrollRect>().Single();
+                Assert.AreEqual(1, list.content.GetComponentsInChildren<Button>().Length, slot + " has one piece");
+                Assert.AreEqual(wardrobe.Palettes[slot].Count, loadout.Root.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith(LoadoutPage.ColourPrefix)),
+                    slot + " shows its colours under the tile");
+            }
+            AssertNoEllipsis(loadout.Root, "the wardrobe");
 
             Click("RECIPES");
             yield return null;
@@ -1394,7 +1491,7 @@ namespace Wreckabulary.Tests
             yield return null;
             Click("Done");
             yield return null;
-            Assert.AreEqual(LobbyMenu.Home, menu.Current, "THAT'S MY LOOK closes the locker");
+            Assert.AreEqual(LobbyMenu.Home, menu.Current, "Done closes the wardrobe");
         }
 
         [UnityTest]
@@ -1405,6 +1502,8 @@ namespace Wreckabulary.Tests
             Click("LOADOUT");
             yield return null;
             Assert.IsNull(menu.Outfit.PieceIn("Face"), "no glasses to start");
+            Click("Category Face");
+            yield return null;
             Click("Glasses");
             yield return null;
             Assert.AreEqual("Glasses", menu.Outfit.PieceIn("Face"), "the round specs go on");
@@ -1416,38 +1515,55 @@ namespace Wreckabulary.Tests
             Click("No Face");
             yield return null;
             Assert.IsNull(menu.Outfit.PieceIn("Face"), "No Face takes them off");
+            Click("Category Hair");
+            yield return null;
             Click("HairBuns");
             yield return null;
             Assert.AreEqual("HairBuns", menu.Outfit.PieceIn("Hair"));
+            Click("Category Eyes");
+            yield return null;
             Click("EyesJelly");
             yield return null;
             Assert.AreEqual("EyesJelly", menu.Outfit.PieceIn("Eyes"));
             Assert.AreEqual("HairBuns", Outfit.Deserialize(PlayerPrefs.GetString(LobbyMenu.OutfitKey)).PieceIn("Hair"), "hair is saved with the look");
 
             Assert.AreEqual("Hood", menu.Outfit.PieceIn("Headwear"));
+            Click("Category Top");
+            yield return null;
             Click("Crewneck");
             yield return null;
             Assert.AreEqual("Crewneck", menu.Outfit.PieceIn("Top"));
             Assert.IsNull(menu.Outfit.PieceIn("Headwear"), "the hood only fits the hoodie, so it comes off");
+            Assert.IsTrue(menu.Messages.Contains("Hood taken off."), "and the page says so");
+            Click("Category Headwear");
+            yield return null;
             Click("Hood");
             yield return null;
             Assert.AreEqual("Hood", menu.Outfit.PieceIn("Headwear"));
             Assert.AreEqual("Hoodie", menu.Outfit.PieceIn("Top"), "and the hood brings the hoodie back, as on the web");
+            Assert.IsTrue(menu.Messages.Contains("Hoodie put on to go with the Hood."), "and the page says so");
 
-            Click("Part Bottoms");
+            Click("Category Bottoms");
             yield return null;
             Click("Colour navy");
             yield return null;
             Assert.AreEqual("navy", menu.Outfit.ColourOf("Bottoms"));
             Assert.AreEqual("tomato", menu.Outfit.ColourOf("Top"), "only the part picked changes");
 
+            Click("RECIPES");
+            yield return null;
+            string worn = menu.Outfit.Serialize(), savedLook = PlayerPrefs.GetString(LobbyMenu.OutfitKey);
             Click("Finish Arcade");
             yield return null;
-            Assert.AreEqual(LobbyMenu.Shop, menu.Current, "a gear style you don't own opens the shop");
-            var shop = menu.Page<ShopPage>();
-            Assert.AreEqual("skin:Arcade", shop.Spotlit, "on that style");
-            Assert.AreSame(Find("Buy skin:Arcade").gameObject, Selected, "with a keyboard or controller on what buys it");
-            AssertNoEllipsis(shop.Root, "the shop");
+            var loadout = menu.Page<LoadoutPage>();
+            Assert.AreEqual(LobbyMenu.Loadout, menu.Current, "a gear style you don't own is tried on where you are");
+            Assert.AreEqual(worn, menu.Outfit.Serialize(), "trying on wears nothing");
+            Assert.AreEqual(savedLook, PlayerPrefs.GetString(LobbyMenu.OutfitKey), "and saves nothing");
+            Assert.IsTrue(loadout.ShowingRecipes, "still on the Equipment tab");
+            Assert.IsTrue(menu.Stage.IsHoldingItem, "the avatar holds the gear in that style");
+            Assert.IsTrue(Find("Buy skin:Arcade").gameObject.activeInHierarchy, "with what buys it on the same page");
+            Assert.AreSame(Find("Finish Arcade").gameObject, Selected, "a keyboard or controller stays on the style");
+            AssertNoEllipsis(loadout.Root, "the equipment tab");
         }
 
         [UnityTest]

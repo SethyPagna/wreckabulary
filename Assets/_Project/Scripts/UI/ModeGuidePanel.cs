@@ -54,6 +54,8 @@ namespace Wreckabulary
             if (current == panel) current = null;
         }
 
+        public static string Eyebrow(string modeId) => ModeGuideBook.Eyebrow(modeId, LobbyPlayModeLabels.Name(modeId));
+
         internal static string Line(ModeGuideStep step, ControlDevice device) =>
             ModeGuideBook.Fill(step.Line, device, control => ControlHints.For(device, control));
 
@@ -85,8 +87,9 @@ namespace Wreckabulary
     [DefaultExecutionOrder(100)]
     public sealed class ModeGuidePanel : MonoBehaviour
     {
-        public const string RootName = "Mode guide";
+        public const string RootName = "Mode guide", EyebrowName = "Guide eyebrow";
         const int SortingOrder = 600;
+        const float EyebrowFont = 20f, EyebrowMinFont = 15f;
         const float CardWidth = 1280f, CardHeight = 1000f, Header = 84f, Chrome = 344f, Stick = .6f;
 
         ModeGuide guide;
@@ -97,7 +100,7 @@ namespace Wreckabulary
         GameObject returnFocus;
         RectTransform canvasRect, card, picture, fallback, dots, titleRect, lineRect;
         Image photo;
-        TextMeshProUGUI title, line, nextLabel;
+        TextMeshProUGUI title, line, nextLabel, eyebrow;
         Button back, next;
         readonly List<Image> dotImages = new List<Image>();
         Vector2 laidOut;
@@ -110,6 +113,7 @@ namespace Wreckabulary
         public bool Showing => this && !closing && gameObject.activeInHierarchy;
         public string TitleText => title ? title.text : "";
         public string LineText => line ? line.text : "";
+        public string EyebrowText => eyebrow ? eyebrow.text : "";
         public bool PictureShown => photo && photo.enabled && photo.sprite;
         public string FallbackArt => fallback && fallback.gameObject.activeSelf ? fallbackArt : "";
         public int ActiveDot => dotImages.FindIndex(d => d.TryGetComponent(out LayoutElement size) && size.preferredWidth > 20f);
@@ -145,8 +149,9 @@ namespace Wreckabulary
             card.anchorMin = card.anchorMax = card.pivot = new Vector2(.5f, .5f);
             LobbyKit.PanelFace(card, 28).raycastTarget = true;
 
-            var eyebrow = LobbyKit.Caps(card, LobbyPlayModeLabels.Name(guide.Mode) + " · How to play", 20);
-            eyebrow.name = "Guide eyebrow";
+            eyebrow = LobbyKit.Caps(card, ModeGuides.Eyebrow(guide.Mode), EyebrowFont);
+            eyebrow.name = EyebrowName;
+            eyebrow.enableAutoSizing = true; eyebrow.fontSizeMin = EyebrowMinFont; eyebrow.fontSizeMax = EyebrowFont;
             eyebrow.rectTransform.Place(new Vector2(0, 1), Vector2.one, new Vector2(36, -64), new Vector2(-104, -22));
 
             var close = LobbyKit.IconButton(card, LobbyIcons.Close, "Close", Close);
