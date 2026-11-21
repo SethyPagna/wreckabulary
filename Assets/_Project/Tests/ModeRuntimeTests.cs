@@ -83,6 +83,26 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator DuosPutsTwoCouchPlayersOnOneTeamAgainstTheBots()
+        {
+            Session.SelectMap("pinwheel");
+            Match.ModeOverride = "Duos";
+            Session.Remember(new ScriptedBinding());
+            Session.Remember(new ScriptedBinding());
+            yield return TestScenes.Load(Session.DibsScene);
+            yield return BeginBattle();
+            var joins = Object.FindAnyObjectByType<PlayerJoinManager>();
+            Assert.AreEqual(2, joins.HumanCount);
+            Assert.AreEqual(4, joins.Players.Count);
+            Assert.AreEqual(new[] { 0, 0, 1, 1 }, joins.Players.Select(p => p.Team).ToArray());
+            Assert.AreEqual(new[] { 0, 2, 1, 3 }, joins.Players.Select(p => joins.SpawnSeat(p)).ToArray(), "Each team keeps its start rooms.");
+            Assert.IsTrue(joins.Players.Where(p => p.Team == 1).All(p => p.Binding is BotBinding));
+            foreach (var p in joins.Players.Where(p => p.Team == 1)) p.Health.ApplyDamage(HitInfo.Hazard(1000f));
+            yield return TestScenes.WaitUntil(() => RoundManager.Instance.Phase == Phase.RoundOver, 5f, "the bots' team to lose");
+            Assert.IsTrue(joins.Players.Where(p => p.Team == 0).All(p => RoundManager.Instance.WinsOf(p) == 1));
+        }
+
+        [UnityTest]
         public IEnumerator AiPartnerStartsAndFinishesAHeldRevive()
         {
             yield return LoadBattle("Duos");

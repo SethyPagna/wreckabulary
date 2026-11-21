@@ -46,9 +46,12 @@ namespace Wreckabulary
             initialHealth = health;
         }
 
+        public int LastAttacker { get; private set; } = -1;
+
         public bool ApplyDamage(in HitInfo hit)
         {
             if (IsBroken || Invulnerable || hit.BreakPower <= 0f) return false;
+            if (hit.AttackerId >= 0) LastAttacker = hit.AttackerId;
             TakeHit(hit.BreakPower * HealthPerBreakPower);
             return true;
         }

@@ -20,6 +20,7 @@ namespace Wreckabulary.Qa
         public const int Width = 1280, Height = 720;
         const string Map = "pinwheel";
         const float ModeSeconds = 95f, CourseSeconds = 160f;
+        static readonly string[] NotPictured = { ModeGuideBook.TeamRace, ModeGuideBook.BrawlRace, ModeGuideBook.ArenaFreeForAll };
 
         QaContext context;
         GuideSeat[] seats = Array.Empty<GuideSeat>();
@@ -88,7 +89,9 @@ namespace Wreckabulary.Qa
             qa.Note("mode_guides_screen", new Dictionary<string, object> { ["width"] = Screen.width, ["height"] = Screen.height, ["saved"] = Width + "x" + Height });
             qa.Note("mode_guides_scope", "Offline Windows House modes through Session.LoadMode with scripted local seats and the game's own AI seats parked, " +
                 "plus both solo courses through the lobby's solo route. Each picture stages one guide step with real game objects; " +
-                "some moments are shortened (instant breaks, direct knockouts, packed keepsakes, ticked list items). No network or human-feel claim.");
+                "some moments are shortened (instant breaks, direct knockouts, packed keepsakes, ticked list items). No network or human-feel claim. " +
+                "Not pictured, because they need a live room, so their cards show item art: " +
+                string.Join(", ", NotPictured.Select(id => ModeGuideBook.Name(id) + " [" + id + "]")) + ".");
             yield return null;
         }
 

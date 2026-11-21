@@ -110,6 +110,61 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheRaceAndArenaGuidesOpenWithTheirOwnHeadingAndItemArt()
+        {
+            foreach (string mode in new[] { ModeGuideBook.TeamRace, ModeGuideBook.BrawlRace, ModeGuideBook.ArenaFreeForAll })
+            {
+                Assert.IsTrue(ModeGuides.Has(mode), mode);
+                var panel = ModeGuides.Show(mode, new ScriptedBinding());
+                Assert.IsNotNull(panel, mode);
+                yield return null;
+                var steps = ModeGuideBook.For(mode).Steps;
+                Assert.AreEqual(mode, ModeGuides.Mode);
+                Assert.AreEqual(steps.Count, panel.PageCount, mode);
+                Assert.AreEqual(LobbyKit.Upper(ModeGuides.Eyebrow(mode)), panel.EyebrowText, mode);
+                StringAssert.StartsWith(LobbyKit.Upper(LobbyPlayModeLabels.Name(mode)), panel.EyebrowText, mode + " is headed by its player name");
+                for (int i = 0; i < steps.Count; i++)
+                {
+                    panel.GoTo(i);
+                    string where = steps[i].Image;
+                    Assert.AreEqual(steps[i].Title, panel.TitleText, where);
+                    Assert.IsNotEmpty(panel.LineText, where);
+                    StringAssert.DoesNotContain("{", panel.LineText, where + " fills in its keys");
+                    if (ModeGuides.Picture(steps[i].Image)) { Assert.IsTrue(panel.PictureShown, where); continue; }
+                    Assert.IsFalse(panel.PictureShown, where);
+                    Assert.AreEqual(steps[i].Art, panel.FallbackArt, where + " shows item art until it has a picture");
+                    Assert.Greater(panel.transform.Find("Card/Picture/Fallback").childCount, 0, where);
+                }
+                ModeGuides.Close();
+                yield return null;
+                Assert.IsFalse(ModeGuides.Open, mode);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator TheTwoFreeForAllGuidesAreToldApartInTheHeading()
+        {
+            var house = ModeGuides.Show(HouseModes.FreeForAll, new ScriptedBinding());
+            yield return null;
+            string inHouse = house.EyebrowText;
+            ModeGuides.Close();
+            yield return null;
+            var arena = ModeGuides.Show(ModeGuideBook.ArenaFreeForAll, new ScriptedBinding());
+            yield return null;
+            string inArena = arena.EyebrowText;
+            Assert.AreNotEqual(inHouse, inArena, "the two Free-for-All guides read differently");
+            StringAssert.Contains(LobbyKit.Upper(ModeGuideBook.House), inHouse);
+            StringAssert.Contains(LobbyKit.Upper(ModeGuideBook.Arena), inArena);
+            StringAssert.StartsWith(LobbyKit.Upper(HouseModes.Name(HouseModes.FreeForAll)), inHouse);
+            StringAssert.StartsWith(LobbyKit.Upper(HouseModes.Name(HouseModes.FreeForAll)), inArena, "both keep the one player name");
+            var eyebrow = arena.transform.Find("Card/" + ModeGuidePanel.EyebrowName).GetComponent<TMP_Text>();
+            eyebrow.ForceMeshUpdate();
+            Assert.IsFalse(eyebrow.isTextTruncated, "the longer heading still fits");
+            Assert.GreaterOrEqual(eyebrow.fontSize, 15f - .5f);
+            ModeGuides.Close();
+        }
+
+        [UnityTest]
         public IEnumerator KeysFollowTheViewersDevice()
         {
             var panel = ModeGuides.Show(HouseModes.Dibs, TouchBinding.Shared);

@@ -7,6 +7,19 @@ namespace Wreckabulary.Rules.Tests
     public class CareerTests
     {
         [Test]
+        public void TimePlayedIsSavedOnlyOnceThereIsSome()
+        {
+            var career = new Career();
+            Assert.IsFalse(career.Serialize().Contains("\"seconds\""), "a save with no time played keeps the old shape");
+            career.SecondsPlayed = 3725;
+            var loaded = Career.Deserialize(career.Serialize());
+            Assert.AreEqual(3725, loaded.SecondsPlayed);
+            Assert.AreEqual(career.Serialize(), loaded.Serialize());
+            Assert.IsTrue(Career.TryDeserialize("{\"matches\":2,\"seconds\":-9}", out var broken));
+            Assert.AreEqual(0, broken.SecondsPlayed);
+        }
+
+        [Test]
         public void AMatchPaysCoinsAndXpAndKeepsTheBestScore()
         {
             var career = new Career();

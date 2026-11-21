@@ -194,8 +194,8 @@ namespace Wreckabulary.Tests
             var teams = cards.Select(c => teamOf[c.Find("Name").GetComponent<TMP_Text>().text]).ToArray();
             CollectionAssert.AreEqual(new[] { 0, 0, 0, 0, 1, 1, 1, 1 }, teams, "Cards sort by team: one side left, the other right.");
             for (int i = 1; i < 8; i++) Assert.Greater(cards[i].anchoredPosition.x, cards[i - 1].anchoredPosition.x, "left to right");
-            float split = cards[4].anchoredPosition.x - cards[3].anchoredPosition.x, step = cards[1].anchoredPosition.x - cards[0].anchoredPosition.x;
-            Assert.AreEqual(PlayerBar.TeamGap - PlayerBar.SnugGap, split - step, .5f, "A 36 px gap splits the teams.");
+            float split = cards[4].anchoredPosition.x - cards[3].anchoredPosition.x;
+            Assert.AreEqual(PlayerBar.SnugCard + ScoreLine.CentreWidth + 2f * ScoreLine.CentreGap, split, .5f, "The lives and the clock sit between the teams.");
             Assert.AreEqual(PlayerBar.SnugCard, cards[0].rect.width, .01f);
             Assert.AreEqual(0, plate.GetSiblingIndex(), "The plate sits behind the cards.");
             var span = new Vector3[4];

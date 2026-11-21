@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
@@ -17,26 +18,28 @@ namespace Wreckabulary.EditorTools
     {
         const string AvatarKey = "Avatar/Avatar", IdleClip = "Idle";
         const string ResourcesRoot = "Assets/_Project/Resources/", Extension = ".png";
-        const string HeadMesh = "SK_Head", ChestBone = "chest", HandBone = "hand_R";
+        const string HeadMesh = "SK_Head", HandBone = "hand_R";
         const string HairSlot = "Hair", EyesSlot = "Eyes", TopSlot = "Top", BottomsSlot = "Bottoms", GlovesSlot = "Gloves",
             FootwearSlot = "Footwear", HeadwearSlot = "Headwear", FaceSlot = "Face", BackSlot = "Back", BadgeSlot = "Badge";
-        const string OcclusionKeyword = "_SCREEN_SPACE_OCCLUSION";
-        const int Size = 256, Supersample = 2, Seat = 0, MinPixels = 1000, Percent = 100;
-        const float FrontYaw = 160f, BackYaw = 340f, Margin = 1.1f, FaceZoom = .72f, HandMargin = 1.25f;
-        const float ChestSize = .26f, ChestForward = .1f, ChestDrop = .06f;
+        const string OcclusionKeyword = "_SCREEN_SPACE_OCCLUSION", SettleMethod = "LateUpdate";
+        const int Size = 256, Supersample = 2, Seat = 0, MinPixels = 1000, Percent = 100, Renders = 2;
+        const float FrontYaw = 160f, BackYaw = 340f, Margin = 1.1f, FaceZoom = .72f, PieceMargin = 1.15f;
         const float CameraDistance = 5f, NearPlane = .01f, FarPlane = 30f;
         const float KeyIntensity = .8f, FillIntensity = .4f, Ambient = .45f;
         static readonly Color Background = new Color(.97f, .94f, .85f, 0f);
         static readonly Quaternion KeyTurn = Quaternion.Euler(25f, -25f, 0f), FillTurn = Quaternion.Euler(10f, 35f, 0f);
         static readonly string[] UncoveredSlots = { HeadwearSlot, FaceSlot };
+        static readonly Region[] PieceOnly = { Region.Torso, Region.Chest, Region.Back, Region.Legs, Region.Hand, Region.Feet };
 
         enum Region { Body, Head, Face, Torso, Chest, Back, Legs, Hand, Feet }
 
         sealed class Shot
         {
             public WardrobePiece Piece;
+            public Region Region;
             public byte[] Png;
             public int Transparent, Opaque;
+            public bool Alone;
         }
 
         [MenuItem("Wreckabulary/Art/Capture wardrobe thumbnails")]
@@ -51,6 +54,7 @@ namespace Wreckabulary.EditorTools
             var shots = CaptureAll(GameConfig.Current.Wardrobe, idle);
             if (!shots.Any(shot => shot.Transparent >= MinPixels))
                 throw new InvalidOperationException("No thumbnail kept a transparent background; nothing was written.");
+            RequireDistinct(shots);
             int written = 0;
             foreach (var shot in shots)
                 if (Write(shot)) written++;
@@ -58,7 +62,23 @@ namespace Wreckabulary.EditorTools
             foreach (var shot in shots) ImportAsSprite(AssetPath(shot.Piece));
             WardrobeArt.Forget();
             Debug.Log("[Wreckabulary] WARDROBE_THUMBNAILS: count=" + shots.Count + "; written=" + written + "; unchanged=" + (shots.Count - written)
-                + "; size=" + Size + "; folder=" + ResourcesRoot + WardrobeArt.Folder + "; pending owner review");
+                + "; size=" + Size + "; piece_only=" + shots.Count(shot => shot.Alone)
+                + "; filled_frames=" + string.Join(",", shots.Where(shot => shot.Transparent < MinPixels).Select(shot => shot.Piece.Id))
+                + "; folder=" + ResourcesRoot + WardrobeArt.Folder + "; pending owner review");
+        }
+
+        static void RequireDistinct(List<Shot> shots)
+        {
+            var seen = new Dictionary<string, string>(StringComparer.Ordinal);
+            var same = new List<string>();
+            foreach (var shot in shots)
+            {
+                string key = Hash128.Compute(shot.Png).ToString();
+                if (seen.TryGetValue(key, out string first)) same.Add(shot.Piece.Id + "=" + first);
+                else seen[key] = shot.Piece.Id;
+            }
+            if (same.Count > 0)
+                throw new InvalidOperationException("Thumbnails came out identical (" + string.Join(", ", same) + "); nothing was written.");
         }
 
         static List<Shot> CaptureAll(WardrobeCatalogue wardrobe, AnimationClip idle)
@@ -66,14 +86,18 @@ namespace Wreckabulary.EditorTools
             var shots = new List<Shot>();
             var active = RenderTexture.active;
             bool asyncShaders = EditorSettings.asyncShaderCompilation, occlusion = Shader.IsKeywordEnabled(OcclusionKeyword);
+            bool asyncVariants = ShaderUtil.allowAsyncCompilation;
             try
             {
                 if (asyncShaders) EditorSettings.asyncShaderCompilation = false;
+                ShaderUtil.allowAsyncCompilation = false;
+                if (wardrobe.Pieces.Count > 0) Capture(wardrobe, wardrobe.Pieces[0], idle);
                 foreach (var piece in wardrobe.Pieces) shots.Add(Capture(wardrobe, piece, idle));
             }
             finally
             {
                 RenderTexture.active = active;
+                ShaderUtil.allowAsyncCompilation = asyncVariants;
                 if (asyncShaders) EditorSettings.asyncShaderCompilation = true;
                 if (occlusion) Shader.EnableKeyword(OcclusionKeyword); else Shader.DisableKeyword(OcclusionKeyword);
             }
@@ -98,12 +122,19 @@ namespace Wreckabulary.EditorTools
                 if (worn.PieceIn(piece.Slot) != piece.Id) throw new InvalidOperationException(piece.Id + " was not worn for its thumbnail.");
                 var region = RegionFor(piece.Slot);
                 holder.transform.rotation = Quaternion.Euler(0f, region == Region.Back ? BackYaw : FrontYaw, 0f);
-                Aim(preview, Focus(region, piece, worn, wardrobe, model, holder.transform, skins));
+                Settle(model);
+                var own = PieceRenderers(piece, skins, model.GetComponentInChildren<WardrobeRig>());
+                bool alone = own.Count > 0 && Array.IndexOf(PieceOnly, region) >= 0;
+                if (alone) ShowOnly(model, own);
+                Aim(preview, alone ? Alone(region, own, model) : Focus(region, own, model, skins), alone ? PieceMargin : Margin);
                 preview.BeginStaticPreview(new Rect(0, 0, Size * Supersample, Size * Supersample));
                 begun = true;
-                preview.Render(true);
+                for (int pass = 0; pass < Renders; pass++) preview.Render(true);
                 image = ReadRgba(preview.camera.targetTexture);
-                return Describe(piece, image);
+                var shot = Describe(piece, image);
+                shot.Region = region;
+                shot.Alone = alone;
+                return shot;
             }
             finally
             {
@@ -140,38 +171,101 @@ namespace Wreckabulary.EditorTools
             _ => Region.Body,
         };
 
-        static Bounds Focus(Region region, WardrobePiece piece, Outfit worn, WardrobeCatalogue wardrobe, GameObject model, Transform holder,
-            SkinnedMeshRenderer[] skins)
+        static void Settle(GameObject model)
         {
-            var rig = model.GetComponentInChildren<WardrobeRig>();
-            var body = Encapsulate(model.GetComponentsInChildren<Renderer>().Where(Visible))
-                ?? throw new InvalidOperationException("Nothing visible to capture.");
-            Bounds Worn(string slot) => PieceBounds(wardrobe.Piece(worn.PieceIn(slot) ?? ""), skins, rig) ?? body;
-            var own = PieceBounds(piece, skins, rig);
-            var head = Encapsulate(skins.Where(skin => skin.name == HeadMesh && Visible(skin))) ?? body;
-            switch (region)
-            {
-                case Region.Head: return Join(head, own);
-                case Region.Face: return new Bounds(head.center, head.size * FaceZoom);
-                case Region.Torso:
-                case Region.Back: return Join(Worn(TopSlot), own);
-                case Region.Chest: return Join(Chest(model, holder, body), own);
-                case Region.Legs: return Join(Worn(BottomsSlot), own);
-                case Region.Feet: return Join(Worn(FootwearSlot), own);
-                case Region.Hand: return Hand(model, Worn(GlovesSlot));
-                default: return body;
-            }
+            var face = model.GetComponentInChildren<CuteFace>(true);
+            if (!face) throw new InvalidOperationException("The avatar has no code-built face to settle.");
+            RunLateUpdate(face);
+            foreach (var hair in model.GetComponentsInChildren<CuteHair>(false)) RunLateUpdate(hair);
         }
 
-        static Bounds? PieceBounds(WardrobePiece piece, SkinnedMeshRenderer[] skins, WardrobeRig rig)
+        static void RunLateUpdate(MonoBehaviour behaviour)
         {
-            if (piece == null) return null;
+            var method = behaviour.GetType().GetMethod(SettleMethod, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null, Type.EmptyTypes, null);
+            if (method == null) throw new InvalidOperationException(behaviour.GetType().Name + " no longer settles in " + SettleMethod + ".");
+            method.Invoke(behaviour, null);
+        }
+
+        static List<Renderer> PieceRenderers(WardrobePiece piece, SkinnedMeshRenderer[] skins, WardrobeRig rig)
+        {
             var renderers = new List<Renderer>();
             var node = rig && !string.IsNullOrEmpty(piece.Rigid) ? rig.NodeFor(piece.Rigid) : null;
             if (node) renderers.AddRange(node.GetComponentsInChildren<Renderer>());
             foreach (var skin in skins)
                 if (skin.name == piece.Mesh) renderers.Add(skin);
-            return Encapsulate(renderers.Where(Visible));
+            renderers.RemoveAll(renderer => !Visible(renderer));
+            return renderers;
+        }
+
+        static void ShowOnly(GameObject model, List<Renderer> kept)
+        {
+            foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+                renderer.forceRenderingOff = !kept.Contains(renderer);
+        }
+
+        static Bounds Focus(Region region, List<Renderer> own, GameObject model, SkinnedMeshRenderer[] skins)
+        {
+            var body = Encapsulate(model.GetComponentsInChildren<Renderer>().Where(Visible))
+                ?? throw new InvalidOperationException("Nothing visible to capture.");
+            var head = Encapsulate(skins.Where(skin => skin.name == HeadMesh && Visible(skin))) ?? body;
+            switch (region)
+            {
+                case Region.Head: return Join(head, Encapsulate(own));
+                case Region.Face: return new Bounds(head.center, head.size * FaceZoom);
+                default: return body;
+            }
+        }
+
+        static Bounds Alone(Region region, List<Renderer> own, GameObject model)
+        {
+            var whole = Tight(own, null) ?? throw new InvalidOperationException("The piece has nothing to frame.");
+            if (region != Region.Hand) return whole;
+            var hand = ModelVisual.FindNamed(model, HandBone);
+            if (!hand) return whole;
+            bool right = hand.position.x >= whole.center.x;
+            return Tight(own, point => point.x >= whole.center.x == right) ?? whole;
+        }
+
+        static Bounds? Tight(List<Renderer> renderers, Func<Vector3, bool> keep)
+        {
+            Bounds? all = null;
+            var baked = new Mesh { hideFlags = HideFlags.HideAndDontSave };
+            var points = new List<Vector3>();
+            try
+            {
+                foreach (var renderer in renderers)
+                {
+                    if (!(renderer is SkinnedMeshRenderer skin) || !skin.sharedMesh)
+                    {
+                        if (keep == null || keep(renderer.bounds.center)) all = Grow(all, renderer.bounds.min, renderer.bounds.max);
+                        continue;
+                    }
+                    skin.BakeMesh(baked, true);
+                    baked.GetVertices(points);
+                    var toWorld = Matrix4x4.TRS(skin.transform.position, skin.transform.rotation, Vector3.one);
+                    Bounds? posed = null, kept = null;
+                    foreach (var local in points)
+                    {
+                        var point = toWorld.MultiplyPoint3x4(local);
+                        posed = Grow(posed, point, point);
+                        if (keep == null || keep(point)) kept = Grow(kept, point, point);
+                    }
+                    bool trusted = posed.HasValue && posed.Value.Intersects(skin.bounds);
+                    if (trusted && kept.HasValue) all = Grow(all, kept.Value.min, kept.Value.max);
+                    else if (!trusted && (keep == null || keep(skin.bounds.center))) all = Grow(all, skin.bounds.min, skin.bounds.max);
+                }
+            }
+            finally { Object.DestroyImmediate(baked); }
+            return all;
+        }
+
+        static Bounds Grow(Bounds? all, Vector3 min, Vector3 max)
+        {
+            var grown = all ?? new Bounds((min + max) * .5f, max - min);
+            grown.Encapsulate(min);
+            grown.Encapsulate(max);
+            return grown;
         }
 
         static bool Visible(Renderer renderer) => renderer && renderer.enabled && renderer.gameObject.activeInHierarchy;
@@ -194,24 +288,9 @@ namespace Wreckabulary.EditorTools
             return anchor;
         }
 
-        static Bounds Chest(GameObject model, Transform holder, Bounds body)
+        static void Aim(PreviewRenderUtility preview, Bounds focus, float margin)
         {
-            var chest = ModelVisual.FindNamed(model, ChestBone);
-            var centre = chest ? chest.position + holder.forward * ChestForward - Vector3.up * ChestDrop : body.center;
-            return new Bounds(centre, Vector3.one * ChestSize);
-        }
-
-        static Bounds Hand(GameObject model, Bounds gloves)
-        {
-            var hand = ModelVisual.FindNamed(model, HandBone);
-            if (!hand) return gloves;
-            var centre = new Vector3(hand.position.x, gloves.center.y, hand.position.z);
-            return new Bounds(centre, Vector3.one * (gloves.size.y * HandMargin));
-        }
-
-        static void Aim(PreviewRenderUtility preview, Bounds focus)
-        {
-            float half = Mathf.Max(focus.extents.x, focus.extents.y) * Margin;
+            float half = Mathf.Max(focus.extents.x, focus.extents.y) * margin;
             if (!(half > 0f) || float.IsInfinity(half)) throw new InvalidOperationException("The thumbnail has nothing to frame.");
             var camera = preview.camera;
             camera.orthographic = true;
@@ -292,7 +371,8 @@ namespace Wreckabulary.EditorTools
                 Directory.CreateDirectory(Path.GetDirectoryName(file));
                 File.WriteAllBytes(file, shot.Png);
             }
-            Debug.Log("[Wreckabulary] WARDROBE_THUMBNAIL: " + asset + "; bytes=" + shot.Png.Length
+            Debug.Log("[Wreckabulary] WARDROBE_THUMBNAIL: " + asset + "; bytes=" + shot.Png.Length + "; frame=" + shot.Region
+                + (shot.Alone ? " piece only" : " on the avatar")
                 + "; transparent=" + shot.Transparent * Percent / (Size * Size) + "%; " + (same ? "unchanged" : "written"));
             return !same;
         }

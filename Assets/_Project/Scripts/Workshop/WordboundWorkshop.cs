@@ -669,6 +669,6 @@ namespace Wreckabulary.Workshop
             return checked((int)Math.Round(metres * 1000));
         }
         static string TemplateLabel(WorkshopTemplate template) => template == WorkshopTemplate.RaceCircuit ? "Race circuit" :
-            template == WorkshopTemplate.CombatArena ? "Arena" : "Freeplay world";
+            template == WorkshopTemplate.CombatArena ? "Arena" : "Free Roam world";
     }
 }

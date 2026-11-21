@@ -12,16 +12,35 @@ namespace Wreckabulary
         public const string CareerKey = "wv.career";
         static MatchTally current;
         readonly HashSet<PlayerController> watched = new HashSet<PlayerController>();
+        readonly KnockoutWatch knockouts = new KnockoutWatch();
+        readonly Dictionary<PlayerController, Action<string>> spellers = new Dictionary<PlayerController, Action<string>>();
+        readonly Dictionary<Smashable, int> lastToHit = new Dictionary<Smashable, int>();
+        readonly List<Smashable> justBroken = new List<Smashable>();
         PlayerController local;
         RoomBuilder room;
-        float damage, roundDamage;
+        float damage, roundDamage, matchStarted;
         int crafted, broken, roundCrafted, roundBroken;
+        bool live;
 
         public static MatchRecord LastResult { get; set; }
         public static bool LastWasBest { get; private set; }
         public static int RoundBroken => current ? current.roundBroken : 0;
         public static int RoundCrafted => current ? current.roundCrafted : 0;
         public static int RoundDamage => current ? Mathf.CeilToInt(current.roundDamage) : 0;
+        public static bool StatsLive => current && current.live;
+        public static bool StatsRecording => current && current.Recording;
+
+        static bool WarmingUp => RoundManager.Instance && RoundManager.Instance.Phase == Phase.Warmup;
+
+        bool Recording
+        {
+            get
+            {
+                if (!live) return false;
+                var rounds = RoundManager.Instance;
+                return !rounds || !rounds.isActiveAndEnabled || rounds.Phase == Phase.Playing;
+            }
+        }
 
         public const string CorruptKey = CareerKey + ".corrupt";
 
@@ -67,46 +86,113 @@ namespace Wreckabulary
         {
             if (scene.name == Session.HubScene || scene.name == Session.TutorialScene) return;
             if (!FindAnyObjectByType<PlayerJoinManager>()) return;
+            MatchStats.Begin();
             current = new GameObject("Match tally").AddComponent<MatchTally>();
         }
 
         void Update()
         {
+            bool joined = false;
             foreach (var player in World.Players)
             {
                 if (!player || watched.Contains(player)) continue;
                 watched.Add(player);
+                joined = true;
                 if (player.Health) player.Health.Damaged += OnDamaged;
+                if (player.Summoner) HearSpells(player);
                 if (!local && player.Binding is not BotBinding && player.Binding is not ScriptedBinding)
                 {
                     local = player;
                     if (player.Summoner) player.Summoner.Summoned += OnSummoned;
                 }
             }
+            if (joined) knockouts.Watch(World.Players);
+            if (!live) return;
+            var stats = MatchStats.Current;
+            if (stats.Lines.Count != World.Players.Count) EnterSeats();
+            var rounds = RoundManager.Instance;
+            if (rounds) rounds.FeedScores(stats);
         }
 
-        void OnEnable() => Smashable.AnyBroken += OnBroken;
-        void OnDisable() => Smashable.AnyBroken -= OnBroken;
+        void LateUpdate()
+        {
+            if (justBroken.Count == 0) return;
+            foreach (var piece in justBroken)
+            {
+                if (lastToHit.TryGetValue(piece, out int seat) || (seat = piece ? piece.LastAttacker : -1) >= 0) MatchStats.Current.Break(seat);
+                lastToHit.Remove(piece);
+            }
+            justBroken.Clear();
+        }
+
+        void HearSpells(PlayerController player)
+        {
+            int seat = player.Index;
+            Action<string> heard = _ => { if (Recording) MatchStats.Current.Craft(seat); };
+            player.Summoner.Summoned += heard;
+            spellers[player] = heard;
+        }
+
+        void OnEnable()
+        {
+            Smashable.AnyBroken += OnBroken;
+            PlayerCombat.Contacted += OnContact;
+            knockouts.KnockedOut += OnKnockedOut;
+        }
+
+        void OnDisable()
+        {
+            Smashable.AnyBroken -= OnBroken;
+            PlayerCombat.Contacted -= OnContact;
+            knockouts.KnockedOut -= OnKnockedOut;
+        }
 
         void OnBroken(Smashable smashable)
         {
             if (!room) room = FindAnyObjectByType<RoomBuilder>();
             if (!room) return;
             foreach (var original in room.Originals)
-                if (original == smashable) { broken++; roundBroken++; return; }
+                if (original == smashable)
+                {
+                    broken++; roundBroken++;
+                    if (Recording) justBroken.Add(smashable);
+                    return;
+                }
+        }
+
+        void OnContact(MeleeContact contact)
+        {
+            if (!live || !contact.Attacker || !contact.Target || !contact.Target.TryGetComponent(out Smashable piece)) return;
+            if (justBroken.Remove(piece))
+            {
+                MatchStats.Current.Break(contact.Attacker.Index);
+                lastToHit.Remove(piece);
+            }
+            else if (!piece.IsBroken) lastToHit[piece] = contact.Attacker.Index;
+        }
+
+        void OnKnockedOut(PlayerController victim, PlayerController attacker)
+        {
+            if (Recording && victim) MatchStats.Current.Knockout(victim.Index, attacker ? attacker.Index : -1);
         }
 
         void OnDestroy()
         {
             foreach (var player in watched)
                 if (player && player.Health) player.Health.Damaged -= OnDamaged;
+            foreach (var entry in spellers)
+                if (entry.Key && entry.Key.Summoner) entry.Key.Summoner.Summoned -= entry.Value;
+            spellers.Clear();
+            knockouts.Clear();
             if (local && local.Summoner) local.Summoner.Summoned -= OnSummoned;
             if (current == this) current = null;
         }
 
         void OnDamaged(PlayerHealth victim, HitInfo hit, HitResult result)
         {
-            if (!local || hit.AttackerId != local.Index || victim == local.Health || result.Damage <= 0f) return;
+            if (result.Damage > 0f && hit.AttackerId >= 0 && Recording && !(victim.TryGetComponent(out PlayerController hurt) && hurt.Index == hit.AttackerId))
+                MatchStats.Current.Hurt(hit.AttackerId, result.Damage);
+            if (!local || hit.AttackerId != local.Index || victim == local.Health || result.Damage <= 0f || WarmingUp) return;
             int before = Mathf.RoundToInt(damage);
             damage += result.Damage;
             roundDamage += result.Damage;
@@ -118,23 +204,64 @@ namespace Wreckabulary
 
         public static void BeginRound()
         {
-            if (!current) return;
-            current.roundBroken = current.roundCrafted = 0;
-            current.roundDamage = 0f;
+            EnterSeats();
+            if (current) current.ResetRound();
         }
 
         public static void BeginMatch()
         {
+            MatchStats.Begin();
             if (!current) return;
-            BeginRound();
+            current.ResetRound();
             current.broken = current.crafted = 0;
             current.damage = 0f;
+            current.matchStarted = Time.realtimeSinceStartup;
+            current.live = true;
         }
 
-        public static MatchRecord Finish(bool won) => current ? current.Record(won) : null;
+        public static void Idle()
+        {
+            MatchStats.Begin();
+            if (current) current.live = false;
+        }
 
-        public static MatchRecord FinishFor(PlayerController winner) =>
-            current ? current.Record(winner && current.local && winner.Team == current.local.Team) : null;
+        public static void EnterSeats()
+        {
+            var stats = MatchStats.Current;
+            foreach (var player in World.Players)
+                if (player) stats.Enter(player.Index, player.Name, player.Team, player.Binding is BotBinding);
+        }
+
+        void ResetRound()
+        {
+            roundBroken = roundCrafted = 0;
+            roundDamage = 0f;
+            justBroken.Clear();
+            lastToHit.Clear();
+            knockouts.ForgetAll();
+        }
+
+        public static MatchRecord Finish(bool won)
+        {
+            if (!current) return null;
+            current.live = false;
+            return current.Record(won);
+        }
+
+        public static MatchRecord FinishFor(PlayerController winner)
+        {
+            if (!current) return null;
+            current.live = false;
+            return current.Record(winner && current.local && winner.Team == current.local.Team);
+        }
+
+        int SecondsSinceStart()
+        {
+            if (matchStarted <= 0f) return 0;
+            int seconds = Mathf.Max(0, Mathf.FloorToInt(Time.realtimeSinceStartup - matchStarted));
+            matchStarted = 0f;
+            return seconds;
+        }
 
         MatchRecord Record(bool won)
         {
@@ -143,6 +270,7 @@ namespace Wreckabulary
             var record = Career.Reward(Match.Mode, Session.MapId, true, won, broken, crafted, Mathf.RoundToInt(damage),
                 DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             LastWasBest = career.Record(record);
+            career.SecondsPlayed += SecondsSinceStart();
             LastResult = record;
             SaveCareer(career);
             damage = 0; crafted = 0; broken = 0;

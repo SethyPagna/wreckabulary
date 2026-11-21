@@ -12,7 +12,7 @@ namespace Wreckabulary.Tests
 {
     public class WarmupTests
     {
-        const float Slow = 30f, LongWarmup = 600f, ShortCountdown = .05f, SpawnSlack = 2f;
+        const float Slow = 30f, AfterWarmup = 45f, LongWarmup = 600f, ShortCountdown = .05f, SpawnSlack = 2f, WatchSeconds = 1.5f;
 
         static readonly string[] VersusModes =
         {
@@ -20,6 +20,7 @@ namespace Wreckabulary.Tests
         };
         static readonly string[] BothFlows = { HouseModes.Dibs, HouseModes.FreeForAll };
         static readonly string[] CoopModes = { HouseModes.MovingOut, HouseModes.Escape };
+        static readonly string[] OwnScenes = { Session.MovingDayScene, Session.TutorialScene };
 
         [UnitySetUp] public IEnumerator SetUp() => TestScenes.Reset();
 
@@ -40,24 +41,36 @@ namespace Wreckabulary.Tests
         static PlayerController Human(int nth = 0) => Joins.Players.Where(p => p.Binding is ScriptedBinding).ElementAt(nth);
         static PlayerController Bot => Joins.Players.First(p => p.Binding is BotBinding);
 
-        static IEnumerator Load(string mode, bool warmup, int humans = 1, string map = "pinwheel")
+        static IEnumerator Load(string mode, bool warmup, int humans = 1, string map = "pinwheel", InputBinding extra = null)
         {
             Session.SelectMap(map);
             Match.ModeOverride = mode;
             for (int i = 0; i < humans; i++) Session.Remember(new ScriptedBinding());
+            if (extra != null) Session.Remember(extra);
             RoundManager.WarmupRequested = warmup;
             yield return TestScenes.Load(Session.DibsScene);
             yield return TestScenes.ExploreHouse();
         }
 
-        static IEnumerator LoadWarmup(string mode, int humans = 1)
+        static IEnumerator LoadWarmup(string mode, int humans = 1, InputBinding extra = null)
         {
-            yield return Load(mode, true, humans);
+            yield return Load(mode, true, humans, extra: extra);
+            yield return UntilWarmup(mode);
+            if (humans > 0) Hud.Follow(Human());
+        }
+
+        static IEnumerator UntilWarmup(string mode)
+        {
             yield return TestScenes.WaitUntil(() => Rounds && Rounds.Phase == Phase.Warmup && Rounds.Warmup != null, Slow, "the warm-up to start in " + mode);
             Rounds.Warmup.State.Length = LongWarmup;
+            Rounds.ShowcaseTime = 0f;
             StopBots();
-            Hud.Follow(Human());
         }
+
+        static IEnumerator UntilCountdown(string what) =>
+            TestScenes.WaitUntil(() => Rounds.Phase == Phase.Countdown, AfterWarmup, what);
+
+        static PlayerController Seated(InputBinding binding) => Joins.Players.First(p => p.Binding == binding);
 
         static IEnumerator UntilFree(PlayerController player) =>
             TestScenes.WaitUntil(() => player.CanAct && !player.IsDodging, Slow, "the player to be free to act");
@@ -140,16 +153,18 @@ namespace Wreckabulary.Tests
 
             EndByTimer();
             yield return TestScenes.WaitUntil(() => Rounds.Phase != Phase.Warmup, Slow, "the timer to end the warm-up");
-            Assert.AreEqual(Phase.Countdown, Rounds.Phase, "the usual countdown follows");
+            Assert.IsNull(Rounds.Warmup);
+            Assert.IsFalse(LetterInventory.FreeSpelling);
+            yield return null;
+            Assert.IsNull(Strip, "the strip goes with the warm-up");
+            Assert.IsNull(Hud.UiCanvas.transform.Find("Safe HUD/" + WarmupGuideStrip.RootName));
+            yield return UntilCountdown("the usual countdown after the warm-up in " + mode);
             Assert.AreEqual(1, Rounds.Round);
             Assert.IsNull(Rounds.Warmup);
             Assert.IsFalse(LetterInventory.FreeSpelling);
             Assert.IsTrue(Joins.Players.All(p => p.Frozen), "everyone waits out the countdown as usual");
             Assert.IsTrue(Joins.Players.All(p => p.Health.IsAlive && Mathf.Approximately(p.Health.Current, p.Health.Max)));
             if (Rounds.Directed) Assert.AreEqual(HouseRoundDirector.Stage.Countdown, Director.Current);
-            yield return null;
-            Assert.IsNull(Strip, "the strip goes with the warm-up");
-            Assert.IsNull(Hud.UiCanvas.transform.Find("Safe HUD/" + WarmupGuideStrip.RootName));
 
             QuickCountdown();
             yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Playing, Slow, mode + " to reach Playing");
@@ -243,7 +258,7 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitUntil(() => Joins.Players.All(p => !p.IsKnockedOut), Slow, "everyone to come back");
 
             EndByTimer();
-            yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Countdown, Slow, "round one");
+            yield return UntilCountdown("round one");
             Assert.AreEqual(0, MatchTally.RoundBroken, "the match tally starts after the warm-up");
             Assert.AreEqual(0, MatchTally.RoundCrafted);
             Assert.AreEqual(0, MatchTally.RoundDamage);
@@ -286,11 +301,14 @@ namespace Wreckabulary.Tests
                 ((ScriptedBinding)second.Binding).Next.start = true;
                 yield return null;
             }
-            Assert.AreEqual(Phase.Countdown, Rounds.Phase, "everyone ready starts the countdown");
+            Assert.AreNotEqual(Phase.Warmup, Rounds.Phase, "everyone ready ends the warm-up");
             Assert.IsTrue(state.AllReady);
             Assert.Greater(state.TimeLeft, 0f, "it ended on the votes, not the timer");
             Assert.IsFalse(LetterInventory.FreeSpelling);
             Assert.IsFalse(Hud.Paused, "Start never opened the pause menu");
+            yield return UntilCountdown("the countdown once everyone is ready");
+            Assert.AreEqual(1, Rounds.Round);
+            Assert.IsFalse(Hud.Paused, "and the match is not paused when the countdown starts");
         }
 
         [UnityTest]
@@ -315,7 +333,7 @@ namespace Wreckabulary.Tests
             yield return null;
 
             EndByTimer();
-            yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Countdown, Slow, "the countdown after the warm-up");
+            yield return UntilCountdown("the countdown after the warm-up");
             Assert.AreEqual(Match.Rules.StarterLetters ?? "", new string(human.Inventory.Letters.ToArray()), "the bag is back to the starter letters");
             Assert.AreEqual(0, human.Inventory.ReservedCount);
             Assert.IsTrue(Mathf.Approximately(human.Health.Current, human.Health.Max), "health is full");
@@ -462,6 +480,187 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator ATouchSeatDoesNotVoteAndNeverHoldsUpTheOthers()
+        {
+            yield return LoadWarmup(HouseModes.Dibs, extra: TouchBinding.Shared);
+            var state = Rounds.Warmup.State;
+            var human = Human();
+            var touch = Seated(TouchBinding.Shared);
+            Assert.AreEqual(2, Joins.HumanCount);
+            Assert.AreEqual(HouseModes.BotSeats(HouseModes.Dibs), Joins.Players.Count, "bots fill the seats the two players left");
+            Assert.AreEqual(1, state.Voters, "a touch seat has no Start to hold, so it does not vote");
+            Assert.AreEqual(0f, state.HoldProgress(touch.Index));
+            Assert.IsFalse(touch.Frozen, "the touch seat still plays");
+            Assert.IsTrue(touch.Inventory.SpellsFree, "and spells for free");
+
+            float deadline = Time.realtimeSinceStartup + Slow;
+            while (Rounds.Phase == Phase.Warmup && Time.realtimeSinceStartup < deadline)
+            {
+                ((ScriptedBinding)human.Binding).Next.start = true;
+                yield return null;
+            }
+            Assert.AreNotEqual(Phase.Warmup, Rounds.Phase, "the one seat that can vote ends the warm-up alone");
+            Assert.IsTrue(state.AllReady);
+            Assert.IsFalse(state.IsReady(touch.Index));
+            Assert.Greater(state.TimeLeft, 0f, "it ended on the vote, not the timer");
+            Assert.IsFalse(LetterInventory.FreeSpelling);
+        }
+
+        [UnityTest]
+        public IEnumerator WithOnlyATouchSeatTheTimerEndsTheWarmup()
+        {
+            yield return LoadWarmup(HouseModes.Dibs, humans: 0, extra: TouchBinding.Shared);
+            var state = Rounds.Warmup.State;
+            var touch = Seated(TouchBinding.Shared);
+            Hud.Follow(touch);
+            Assert.AreEqual(1, Joins.HumanCount);
+            Assert.AreEqual(0, state.Voters, "nobody has a Start to hold");
+            Assert.AreEqual("", state.ReadyLine(), "so the banner does not ask for one");
+            Assert.IsFalse(touch.Frozen);
+            float until = Time.realtimeSinceStartup + WatchSeconds;
+            while (Time.realtimeSinceStartup < until)
+            {
+                Assert.AreEqual(Phase.Warmup, Rounds.Phase, "no votes is not everyone ready");
+                yield return null;
+            }
+            Assert.IsFalse(state.AllReady);
+
+            EndByTimer();
+            yield return TestScenes.WaitUntil(() => Rounds.Phase != Phase.Warmup, Slow, "the timer to end a warm-up nobody can vote in");
+            Assert.IsNull(Rounds.Warmup);
+            Assert.IsFalse(LetterInventory.FreeSpelling);
+            yield return UntilCountdown("round one for the touch seat");
+            Assert.AreEqual(1, Rounds.Round);
+        }
+
+        [UnityTest]
+        public IEnumerator TheHouseIsFullSoNoSeatJoinsDuringWarmup([ValueSource(nameof(BothFlows))] string mode)
+        {
+            yield return LoadWarmup(mode);
+            var state = Rounds.Warmup.State;
+            int seats = Joins.Players.Count;
+            Assert.IsFalse(Joins.AllowJoining, "joining closes when the match starts");
+            Assert.GreaterOrEqual(seats, Joins.MaxPlayers, "bots already hold every seat");
+            Assert.IsNull(Joins.Join(new ScriptedBinding()), "so a late seat has nowhere to sit");
+            yield return null;
+            Assert.AreEqual(seats, Joins.Players.Count);
+            Assert.AreEqual(1, state.Voters, "and the votes needed cannot change mid warm-up");
+            Assert.AreEqual(1, Session.Bindings.Count, "the refused seat is not remembered for the next match");
+
+            EndByTimer();
+            yield return UntilCountdown("round one in " + mode);
+            Assert.IsFalse(Joins.AllowJoining, "joining stays closed for round one");
+            Assert.AreEqual(seats, Joins.Players.Count);
+        }
+
+        [UnityTest]
+        public IEnumerator NothingFromTheWarmupReachesTheCareer()
+        {
+            var kept = new[] { new Kept(MatchTally.CareerKey, false), new Kept(ControlTips.LearnedKey, true), new Kept(ControlTips.SeenKey, true) };
+            var lastResult = MatchTally.LastResult;
+            try
+            {
+                string career = PlayerPrefs.GetString(MatchTally.CareerKey, "");
+                var seat = new CareerSeat();
+                yield return Load(HouseModes.Dibs, true, humans: 0, extra: seat);
+                yield return UntilWarmup(HouseModes.Dibs);
+                var human = Seated(seat);
+                Hud.Follow(human);
+                human.Inventory.Collects = false;
+                yield return UntilFree(human);
+                yield return null;
+
+                var room = Object.FindAnyObjectByType<RoomBuilder>();
+                room.Originals.First(s => s && !s.IsBroken && !s.Invulnerable).Break();
+                Assert.IsTrue(human.Summoner.Summon("BAT"));
+                Knock(Bot, human);
+                yield return null;
+                Assert.GreaterOrEqual(MatchTally.RoundBroken, 1, "the tally hears the warm-up");
+                Assert.GreaterOrEqual(MatchTally.RoundCrafted, 1, "this seat is the one the career follows");
+                Assert.AreEqual(0, MatchTally.RoundDamage, "warm-up hits pop no points and count for nothing");
+                Assert.AreEqual(career, PlayerPrefs.GetString(MatchTally.CareerKey, ""), "nothing is saved while warming up");
+
+                EndByTimer();
+                yield return UntilCountdown("round one");
+                Assert.AreEqual(0, MatchTally.RoundBroken, "the match tally starts after the warm-up");
+                Assert.AreEqual(0, MatchTally.RoundCrafted);
+                Assert.AreEqual(0, MatchTally.RoundDamage);
+                Assert.AreEqual(career, PlayerPrefs.GetString(MatchTally.CareerKey, ""), "ending the warm-up saves nothing");
+                Assert.AreSame(lastResult, MatchTally.LastResult, "and records no match");
+
+                var record = MatchTally.Finish(false);
+                Assert.IsNotNull(record);
+                Assert.AreEqual(0, record.Broken, "a match that ends now counts no warm-up furniture");
+                Assert.AreEqual(0, record.Crafted, "no warm-up spells");
+                Assert.AreEqual(0, record.Damage, "and no warm-up damage");
+            }
+            finally
+            {
+                foreach (var pref in kept) pref.Restore();
+                PlayerPrefs.Save();
+                MatchTally.LastResult = lastResult;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RoundTwoStartsWithoutAWarmup()
+        {
+            yield return LoadWarmup(HouseModes.Dibs);
+            var human = Human();
+            EndByTimer();
+            yield return UntilCountdown("round one");
+            QuickCountdown();
+            yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Playing, Slow, "round one to play");
+            Assert.AreEqual(1, Rounds.Round);
+
+            foreach (var other in Joins.Players.Where(p => p != human)) other.Health.Eliminate();
+            yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.RoundOver, Slow, "round one to end with rounds still to play");
+            Assert.AreEqual(1, Rounds.WinsOf(human));
+            yield return TestScenes.WaitUntil(() => Hud.ResultShown, Slow, "the round result");
+            Hud.ConfirmResult();
+
+            bool warmed = false;
+            float deadline = Time.realtimeSinceStartup + Slow;
+            while (Rounds.Round != 2 || Rounds.Phase != Phase.Countdown)
+            {
+                warmed |= Rounds.Phase == Phase.Warmup || Rounds.Warmup != null || LetterInventory.FreeSpelling || Strip != null;
+                if (Time.realtimeSinceStartup > deadline) Assert.Fail("Timed out waiting for: the round two countdown");
+                yield return null;
+            }
+            Assert.IsFalse(warmed, "later rounds keep the short countdown");
+            Assert.IsNull(Rounds.Warmup);
+            Assert.IsNull(Strip);
+            Assert.IsTrue(Joins.Players.All(p => p.Frozen), "everyone waits out the countdown as usual");
+
+            QuickCountdown();
+            yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Playing, Slow, "round two to play");
+            Assert.AreEqual(2, Rounds.Round);
+            Assert.IsFalse(LetterInventory.FreeSpelling);
+            human.Inventory.Collects = false;
+            human.Inventory.Set("");
+            Assert.IsFalse(human.Inventory.SpellsFree);
+            Assert.IsFalse(human.Summoner.Summon("BAT"), "round two spelling needs letters");
+        }
+
+        [UnityTest]
+        public IEnumerator ScenesWithTheirOwnFlowNeverWarmUp([ValueSource(nameof(OwnScenes))] string scene)
+        {
+            RoundManager.WarmupRequested = true;
+            yield return TestScenes.Load(scene);
+            Assert.IsFalse(RoundManager.WarmupRequested, "the request does not linger for the next match");
+            Assert.IsNotNull(Joins);
+            Joins.Join(new ScriptedBinding());
+            float until = Time.realtimeSinceStartup + WatchSeconds;
+            while (Time.realtimeSinceStartup < until)
+            {
+                Assert.IsFalse(Rounds && (Rounds.Phase == Phase.Warmup || Rounds.Warmup != null), scene + " has no warm-up");
+                Assert.IsFalse(LetterInventory.FreeSpelling);
+                Assert.IsNull(Strip);
+                yield return null;
+            }
+        }
+
+        [UnityTest]
         public IEnumerator ASceneWithoutRoundsDropsTheRequest()
         {
             RoundManager.WarmupRequested = true;
@@ -471,6 +670,36 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitUntil(() => Rounds && Rounds.Phase != Phase.Lobby, Slow, "the match to start");
             Assert.AreNotEqual(Phase.Warmup, Rounds.Phase);
             Assert.IsNull(Rounds.Warmup);
+        }
+
+        sealed class CareerSeat : InputBinding
+        {
+            public override string Id => "warm-up-career-seat";
+            public override void Read(ref PlayerCommands c) => c = default;
+            public override bool JoinPressed() => false;
+            public override bool StartPressed() => false;
+        }
+
+        sealed class Kept
+        {
+            readonly string key, text;
+            readonly int number;
+            readonly bool whole, had;
+
+            public Kept(string key, bool whole)
+            {
+                this.key = key; this.whole = whole;
+                had = PlayerPrefs.HasKey(key);
+                text = whole ? null : PlayerPrefs.GetString(key);
+                number = whole ? PlayerPrefs.GetInt(key) : 0;
+            }
+
+            public void Restore()
+            {
+                if (!had) PlayerPrefs.DeleteKey(key);
+                else if (whole) PlayerPrefs.SetInt(key, number);
+                else PlayerPrefs.SetString(key, text);
+            }
         }
     }
 }

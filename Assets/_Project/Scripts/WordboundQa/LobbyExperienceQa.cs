@@ -120,8 +120,8 @@ namespace Wreckabulary.Qa
                 Submit(Find(Page(), "Queue " + LobbyMenu.Practice));
                 yield return Settle();
                 Require(ModeCards().SequenceEqual(AllHouseModes()), "Practice must show every house mode, section by section, in order.");
-                Require(Label(Find(Page(), "Queue " + LobbyMenu.Practice)) == "Practice (Offline)" &&
-                    Label(Find(Page(), "Queue " + LobbyMenu.Matchmaking)) == "Matchmaking" &&
+                Require(Label(Find(Page(), "Queue " + LobbyMenu.Practice)) == "Same screen" &&
+                    Label(Find(Page(), "Queue " + LobbyMenu.Matchmaking)) == "Online" &&
                     Label(Find(Page(), "Queue " + LobbyMenu.Workshop)) == "Create", "Play destination labels differ.");
                 ObserveFamilies(context, "practice_families_one_seat");
                 yield return RevealModes(context, "one_seat");
@@ -137,6 +137,12 @@ namespace Wreckabulary.Qa
                     Require(goal.text == LobbyPlayModeLabels.Line(mode) && goal.transform.IsChildOf(Strip()),
                         "The selected mode must state its goal beside or under the mode columns: " + mode);
                     TextFits(goal);
+                    var access = Page().GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.AccessLine);
+                    Require(access.text == ModeAccess.For(mode).Line && access.transform.IsChildOf(Strip()) &&
+                        ScreenRect(access.rectTransform).yMax <= ScreenRect(goal.rectTransform).yMin + 2,
+                        "The selected mode must say who can play under its goal line: " + mode);
+                    Require(access.text.ToLowerInvariant().Contains("bot") == HouseModes.Find(mode).BotSeats > 0, "Incorrect bot claim in who can play: " + mode);
+                    TextFits(access);
                     foreach (string id in ShownTargets()) ColumnFits(Find(Page(), id));
                     var maps = Page().GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Map ")).Select(button => button.name).ToArray();
                     Require(maps.SequenceEqual(GameConfig.Current.Houses.Keys.Select(id => "Map " + id)), "Every House mode must offer every installed house: " + mode);
@@ -146,7 +152,7 @@ namespace Wreckabulary.Qa
                     Require(guide.Length == (ModeGuides.Has(mode) ? 1 : 0), "The mode guide icon must show exactly when a guide exists: " + mode);
                     if (guide.Length == 1) ControlFits(guide[0]);
                     Require(Find(Page(), "GO").interactable, "The selected local mode cannot start.");
-                    context.Note("local_" + mode, new Dictionary<string, object> { ["summary"] = detail.text, ["goal"] = goal.text, ["map"] = menu.Map,
+                    context.Note("local_" + mode, new Dictionary<string, object> { ["summary"] = detail.text, ["goal"] = goal.text, ["access"] = access.text, ["map"] = menu.Map,
                         ["humans"] = menu.PartySize, ["selected"] = EventSystem.current.currentSelectedGameObject.name, ["maps"] = maps,
                         ["ticked"] = menu.Maps.Ticked.ToArray(), ["guide"] = guide.Length == 1 });
                     if (mode is HouseModes.Dibs or HouseModes.Duos or HouseModes.Escape or HouseModes.War)
@@ -452,8 +458,8 @@ namespace Wreckabulary.Qa
 
         void ObserveHierarchy(QaContext context, string key, string rowName, string[] targets)
         {
-            Require(Label(Find(Page(), "Queue " + LobbyMenu.Practice)) == "Practice (Offline)" &&
-                Label(Find(Page(), "Queue " + LobbyMenu.Matchmaking)) == "Matchmaking" &&
+            Require(Label(Find(Page(), "Queue " + LobbyMenu.Practice)) == "Same screen" &&
+                Label(Find(Page(), "Queue " + LobbyMenu.Matchmaking)) == "Online" &&
                 Label(Find(Page(), "Queue " + LobbyMenu.Workshop)) == "Create", "Queue captions differ.");
             Require(!Page().GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Family ")), "An obsolete family selector is still visible.");
             var frame = Page().GetComponentInChildren<LobbyPlayPageView>(); Require(frame, "The saved Play frame is missing.");
@@ -550,6 +556,12 @@ namespace Wreckabulary.Qa
                     foreach (string name in ShownTargets()) ColumnFits(Find(Page(), name));
                     ControlFits(Find(Page(), "Solo GO"));
                     TextFits(Page().GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Solo detail"));
+                    var access = Page().GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.AccessLine);
+                    Require(access.text == ModeAccess.For(selected).Line && access.transform.IsChildOf(Strip()),
+                        "A course must say it plays alone here and with others online: " + selected);
+                    TextFits(access);
+                    ControlFits(Find(Page(), PlayPage.PlayOnline));
+                    context.Note("solo_access_" + selected, access.text);
                     yield return Capture(context, "lobby_solo_" + selected.ToLowerInvariant());
                 }
                 menu.Join(second);
@@ -721,7 +733,29 @@ namespace Wreckabulary.Qa
                 Submit(customize);
                 yield return Settle();
                 Require(menu.Current == LobbyMenu.Loadout, "Customize did not open the saved loadout.");
+                var wardrobe = menu.Page<LoadoutPage>();
+                string worn = menu.Outfit.Serialize();
                 yield return Capture(context, "lobby_customize");
+                CustomizeRail(context, "customize_rail");
+                yield return CustomizeCategory(context, "Headwear", "lobby_customize_hats");
+                yield return CustomizeCategory(context, "Top", null);
+                yield return CustomizeCategory(context, "Badge", null);
+                Submit(Find(Page(), LoadoutPage.LooksView));
+                yield return Settle();
+                Require(wardrobe.ShowingLooks, "The Looks switch did not show the looks.");
+                var looks = Page().GetComponentsInChildren<ScrollRect>().Single().content.GetComponentsInChildren<Button>();
+                string[] shopLooks = CosmeticBundles.All.Select(look => LoadoutPage.LookPrefix + look.Id).ToArray();
+                Require(shopLooks.All(wanted => looks.Any(offered => offered.name == wanted)), "Customize must offer every shop look as a tile.");
+                foreach (var tile in looks.Where(offered => offered.name.StartsWith(LoadoutPage.LookPrefix)))
+                    Require(tile.GetComponentsInChildren<RawImage>().Any(image => image.name == LoadoutPage.LookPicture && image.texture) ||
+                        tile.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == LoadoutPage.LookFallback), "The look tile has no picture: " + tile.name);
+                context.Note("customize_looks", new Dictionary<string, object> { ["tiles"] = looks.Select(offered => offered.name).ToArray(), ["saved"] = wardrobe.Looks.Count });
+                yield return Capture(context, "lobby_customize_looks");
+                Submit(Find(Page(), LoadoutPage.PiecesView));
+                yield return Settle();
+                Submit(Find(Page(), "RECIPES"));
+                yield return Settle();
+                yield return Capture(context, "lobby_customize_equipment");
                 var wardrobeScroll = Page().GetComponentsInChildren<ScrollRect>().Single();
                 float originalScroll = wardrobeScroll.verticalNormalizedPosition;
                 var priorFocus = EventSystem.current.currentSelectedGameObject;
@@ -753,11 +787,9 @@ namespace Wreckabulary.Qa
                     if (wardrobeScroll) wardrobeScroll.verticalNormalizedPosition = originalScroll;
                     if (priorFocus && priorFocus.activeInHierarchy) EventSystem.current.SetSelectedGameObject(priorFocus);
                 }
-                Submit(Find(Page(), "RECIPES"));
-                yield return Settle();
-                yield return Capture(context, "lobby_customize_equipment");
                 Submit(Find(Page(), "LOCKER"));
                 yield return Settle();
+                Require(menu.Outfit.Serialize() == worn && wardrobe.TryOn == null, "Browsing Customize changed or tried on an outfit.");
                 Submit(Top("Shop"));
                 yield return Settle();
                 Require(menu.Current == LobbyMenu.Shop, "Shop navigation did not open Shop.");
@@ -765,6 +797,56 @@ namespace Wreckabulary.Qa
                 context.Note("customization_scope", "Navigation only; no purchase, outfit change or unlock mutation.");
             }
             finally { PreservePreferences(context); }
+        }
+
+        void CustomizeRail(QaContext context, string key)
+        {
+            var rail = Page().GetComponentsInChildren<RectTransform>().Single(rect => rect.name == LoadoutPage.RailName);
+            var categories = rail.GetComponentsInChildren<Button>();
+            string[] expected = LoadoutPage.RailOrder.Select(slot => LoadoutPage.CategoryPrefix + slot).ToArray();
+            Require(categories.Select(button => button.name).SequenceEqual(expected), "Customize must list its ten categories in order: " + string.Join(", ", expected));
+            var panel = ScreenRect(Page().GetComponentsInChildren<RectTransform>().First(rect => rect.name == "Panel"));
+            var area = ScreenRect(rail);
+            foreach (var category in categories)
+            {
+                ControlFits(category);
+                var rect = ScreenRect((RectTransform)category.transform);
+                Require(rect.xMax <= panel.xMin + 2, "The Customize category must sit left of the panel: " + category.name);
+                Require(!category.GetComponentsInChildren<TMP_Text>().Any(), "The Customize category must be an icon, not a word: " + category.name);
+                Require(category.GetComponentsInChildren<Image>().Any(image => image.name.StartsWith("Icon ") && image.sprite), "The Customize category has no icon: " + category.name);
+            }
+            context.Note(key, new Dictionary<string, object> { ["categories"] = expected, ["rect"] = new[] { area.x, area.y, area.width, area.height },
+                ["panel_left"] = panel.xMin, ["selected"] = menu.Page<LoadoutPage>().Category });
+        }
+
+        IEnumerator CustomizeCategory(QaContext context, string slot, string capture)
+        {
+            Submit(Find(Page(), LoadoutPage.CategoryPrefix + slot));
+            yield return Settle();
+            Require(menu.Page<LoadoutPage>().Category == slot, "The Customize category did not open: " + slot);
+            var scroll = Page().GetComponentsInChildren<ScrollRect>().Single();
+            var viewport = ScreenRect(scroll.viewport);
+            var tiles = scroll.content.GetComponentsInChildren<Button>();
+            string[] expected = Dressing.Choices(GameConfig.Current.Wardrobe, slot).Select(choice => LoadoutPage.TileName(slot, choice)).ToArray();
+            Require(tiles.Select(offered => offered.name).SequenceEqual(expected), "Customize must offer every " + slot + " choice as a tile: " + string.Join(", ", expected));
+            int pictures = 0;
+            for (int i = 0; i < tiles.Length; i++)
+            {
+                var tile = tiles[i];
+                var rect = ScreenRect((RectTransform)tile.transform);
+                Require(rect.xMin >= viewport.xMin - 2 && rect.xMax <= viewport.xMax + 2, "The Customize tile is wider than its grid: " + tile.name);
+                Require(Mathf.Abs(rect.width - rect.height) <= 2, "The Customize tile must be square: " + tile.name);
+                Require(i >= LoadoutPage.Columns || rect.yMin >= viewport.yMin - 2 && rect.yMax <= viewport.yMax + 2, "The first Customize row is cut off: " + tile.name);
+                bool picture = tile.GetComponentsInChildren<Image>().Any(image => image.name == LoadoutPage.PiecePicture && image.sprite);
+                Require(picture || tile.name == LoadoutPage.NoPrefix + slot, "The Customize tile shows no picture: " + tile.name);
+                Require(!picture || !tile.GetComponentsInChildren<TMP_Text>().Any(text => text.transform.parent.name != LoadoutPage.PricePill),
+                    "The Customize tile must be a picture, not a word: " + tile.name);
+                if (picture) pictures++;
+            }
+            context.Note("customize_" + slot.ToLowerInvariant(), new Dictionary<string, object> { ["tiles"] = expected, ["pictures"] = pictures,
+                ["viewport"] = new[] { viewport.x, viewport.y, viewport.width, viewport.height },
+                ["scrolls"] = scroll.content.rect.height > scroll.viewport.rect.height + 1f });
+            if (capture != null) yield return Capture(context, capture);
         }
 
         Button[] CustomizeFinishes()
@@ -881,11 +963,8 @@ namespace Wreckabulary.Qa
                     yield return Capture(context, "lobby_shop_phone");
                     Submit(Top("LOADOUT")); yield return Settle(); yield return Settle();
                     Require(menu.Current == LobbyMenu.Loadout, "Customize did not open at phone width.");
-                    var finishes = CustomizeFinishes();
-                    EventSystem.current.SetSelectedGameObject(finishes[0].gameObject);
-                    LobbyScrollFollow.Show(Page().GetComponentsInChildren<ScrollRect>().Single(), (RectTransform)finishes[0].transform.parent);
-                    yield return Settle();
-                    yield return Capture(context, "lobby_customize_phone");
+                    CustomizeRail(context, "customize_rail_phone");
+                    yield return CustomizeCategory(context, "Headwear", "lobby_customize_phone");
                     Submit(Top("Home")); yield return Settle();
                     context.Note("phone_width", new Dictionary<string, object> { ["size"] = new[] { Width, Height }, ["aspect"] = "19.5:9 landscape window",
                         ["scope"] = "Windowed size only; no phone DPI, touch input or safe-area emulation." });
@@ -1143,7 +1222,7 @@ namespace Wreckabulary.Qa
                 "Matchmaking must show the team-size switch, then the party strip, then the cards.");
             var tabs = ScreenRect(frame.Queues); var rowArea = ScreenRect(row); var view = ScreenRect(scroll.viewport); var safe = Screen.safeArea;
             Require(rowArea.yMax <= tabs.yMin + 2 && rowArea.yMax >= view.yMax - 24 && rowArea.yMin >= view.yMin - 2,
-                "The team-size switch must sit just under the Practice, Matchmaking and Create tabs.");
+                "The team-size switch must sit just under the Same screen, Online and Create tabs.");
             var sizes = row.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith(PlayPage.TeamSizeSwitch + " ")).ToArray();
             Require(sizes.Select(Label).SequenceEqual(new[] { "2v2", "4v4" }), "The switch must offer 2v2 and 4v4, and no 8v8.");
             Require(sizes.Count(Underlined) == 1, "The switch must pick one size at a time.");
@@ -1151,33 +1230,75 @@ namespace Wreckabulary.Qa
             Require(title.text == PlayPage.TeamSizeWord, "The switch must be labelled Team size.");
             TextFits(title);
             foreach (var choice in sizes) ControlFits(choice);
-            Require(scroll.content.rect.height <= scroll.viewport.rect.height + 1, "The Matchmaking tab must not scroll up and down.");
+            Require(scroll.content.rect.height <= scroll.viewport.rect.height + 1, "The Online tab must not scroll up and down.");
             var ids = Wreckabulary.Rules.Wordbound.QuickPlayCards.Ids;
             var cards = ids.Select(id => Find(Page(), PlayPage.PlaylistCard + id)).ToArray();
             var areas = cards.Select(card => ScreenRect((RectTransform)card.transform)).ToArray();
+            var band = column.GetChild(2);
+            var plan = band.GetComponent<LobbyPlayColumnFlow>() ? band.GetComponent<LobbyPlayColumnFlow>().Plan : null;
+            Require(plan != null && !plan.Wrapped, "The playlist cards must sit in columns, one section beside the next.");
+            var places = new Dictionary<string, int[]>();
+            var groups = Wreckabulary.Rules.Wordbound.QuickPlaylists.Groups;
+            int firstColumn = 0;
+            for (int g = 0; g < groups.Count; g++)
+            {
+                string group = groups[g];
+                var listed = ((RectTransform)band.Find(PlayPage.PlaylistSection + group)).GetComponentsInChildren<Button>();
+                Require(listed.Select(card => card.name).SequenceEqual(Wreckabulary.Rules.Wordbound.QuickPlayCards.All
+                    .Where(card => card.Group == group).Select(card => PlayPage.PlaylistCard + card.Id)), group + " must list its cards top to bottom.");
+                for (int entry = 0; entry < listed.Length; entry++)
+                {
+                    var (columnAt, rowAt) = plan.Cell(entry);
+                    places[listed[entry].name.Substring(PlayPage.PlaylistCard.Length)] = new[] { firstColumn + columnAt, rowAt };
+                    if (entry == 0) continue;
+                    var area = ScreenRect((RectTransform)listed[entry].transform); var before = ScreenRect((RectTransform)listed[entry - 1].transform);
+                    Require(columnAt == plan.Cell(entry - 1).column
+                        ? Mathf.Abs(area.xMin - before.xMin) <= 2 && area.yMax <= before.yMin + 2
+                        : area.xMin > before.xMax - 1,
+                        "Each card must sit under the one before it, or start the next column: " + listed[entry].name);
+                }
+                firstColumn += plan.Columns[g];
+            }
             for (int i = 0; i < cards.Length; i++)
             {
                 var area = areas[i];
                 Require(area.xMin >= view.xMin - 2 && area.xMax <= view.xMax + 2 && area.yMin >= view.yMin - 2 && area.yMax <= view.yMax + 2 &&
                     area.xMin >= safe.xMin - 2 && area.xMax <= safe.xMax + 2 && area.yMin >= safe.yMin - 2 && area.yMax <= safe.yMax + 2,
                     "The " + ids[i] + " card is not fully visible without scrolling.");
-                Require(Mathf.Abs(area.yMin - areas[0].yMin) <= 2 && Mathf.Abs(area.width - areas[0].width) <= 2, "All five cards must share one row and one size.");
-                if (i > 0) Require(area.xMin > areas[i - 1].xMax - 1, "The cards must run left to right.");
+                Require(Mathf.Abs(area.width - areas[0].width) <= 2 && Mathf.Abs(area.height - areas[0].height) <= 2, "All five cards must share one size.");
+                Require(places.ContainsKey(ids[i]), "The " + ids[i] + " card is in no section.");
+                RowCardFits(cards[i], area);
                 foreach (var text in cards[i].GetComponentsInChildren<TMP_Text>()) TextFits(text);
             }
-            var band = column.GetChild(2);
             var classic = ScreenRect((RectTransform)band.Find(PlayPage.PlaylistSection + Wreckabulary.Rules.Wordbound.QuickPlaylists.Classic));
             var arcade = ScreenRect((RectTransform)band.Find(PlayPage.PlaylistSection + Wreckabulary.Rules.Wordbound.QuickPlaylists.Arcade));
-            Require(arcade.xMin > classic.xMax && Mathf.Abs(arcade.yMax - classic.yMax) <= 2, "Arcade must sit beside Classic.");
+            Require(arcade.xMin > classic.xMax && Mathf.Abs(arcade.yMax - classic.yMax) <= 2, "Arcade must start right of Classic at the same top.");
             context.Note("matchmaking_layout_" + size, new Dictionary<string, object> {
                 ["screen"] = new[] { Screen.width, Screen.height }, ["switch"] = sizes.Select(Label).ToArray(),
                 ["picked"] = sizes.Single(Underlined).name, ["switch_row"] = new[] { rowArea.x, rowArea.y, rowArea.width, rowArea.height },
                 ["tabs"] = new[] { tabs.x, tabs.y, tabs.width, tabs.height }, ["viewport"] = new[] { view.x, view.y, view.width, view.height },
                 ["content_height"] = scroll.content.rect.height, ["viewport_height"] = scroll.viewport.rect.height,
                 ["cards"] = ids.Select((id, i) => (object)new Dictionary<string, object> { ["id"] = id, ["detail"] = CardDetail(id),
+                    ["column"] = places[id][0], ["row"] = places[id][1],
                     ["rect"] = new[] { areas[i].x, areas[i].y, areas[i].width, areas[i].height } }).ToArray(),
+                ["section_columns"] = plan.Columns.ToArray(), ["rows_that_fit"] = plan.RowsFit,
                 ["fully_visible"] = true });
             yield break;
+        }
+
+        static void RowCardFits(Button card, Rect area)
+        {
+            var picture = card.GetComponentsInChildren<RectTransform>().Where(part => part.name == "Map preview" || part.name == "Map fallback").ToArray();
+            Require(picture.Length == 1, "Each playlist card shows exactly one picture or fallback: " + card.name);
+            var shape = ScreenRect(picture[0].name == "Map preview" ? (RectTransform)picture[0].parent : picture[0]);
+            Require(Mathf.Abs(shape.width / Mathf.Max(1f, shape.height) - 16f / 9f) <= .03f && shape.xMin >= area.xMin - 1 && shape.center.x < area.center.x,
+                "A playlist card keeps its 16:9 picture on the left: " + card.name);
+            foreach (string label in new[] { "Map title", "Map detail" })
+            {
+                var words = ScreenRect(card.GetComponentsInChildren<TMP_Text>().Single(text => text.name == label).rectTransform);
+                Require(words.xMin >= shape.xMax - 1 && words.xMax <= area.xMax + 1 && words.yMin >= area.yMin - 1 && words.yMax <= area.yMax + 1,
+                    "A playlist card writes its name and detail right of the picture: " + card.name);
+            }
         }
 
         IEnumerator MatchmakingSwitch(QaContext context)
@@ -1449,7 +1570,8 @@ namespace Wreckabulary.Qa
             }
             public static Preference Text(string key) => Read(key, 0);
             public static Preference[] Capture() => GraphicsOptions.Keys.Concat(new[] { MatchTally.CareerKey, LobbyMenu.OutfitKey,
-                LobbyMenu.TurnHintKey, LobbyThemes.PreferenceKey, GameSoundPacks.PreferenceKey, KeyBindings.OverridesKey, KeyBindings.LegacyBackupKey }).Select(key => Read(key, 0))
+                LobbyMenu.TurnHintKey, LobbyThemes.PreferenceKey, GameSoundPacks.PreferenceKey, KeyBindings.OverridesKey, KeyBindings.LegacyBackupKey,
+                LobbyLooksStore.LooksKey, LobbyLooksStore.SeenKey }).Select(key => Read(key, 0))
                 .Concat(new[] { "wv.muted", LobbyMenu.VsyncKey, CombatFeedbackOptions.DamageKey, CombatFeedbackOptions.PointsKey,
                     "wv.theme.effects", KeyBindings.InvertKey, TutorialDirector.DoneKey, ScreenShake.Key }.Concat(GameplayPrefs.Keys).Distinct().Select(key => Read(key, 1)))
                 .Concat(new[] { LobbyMenu.VolumeKey, KeyBindings.SensitivityKey }.Select(key => Read(key, 2))).ToArray();

@@ -392,7 +392,7 @@ namespace Wreckabulary
             CancelPending();
             if (!storage.TrySave(history.Current,out var error)) { SetStatus(error); return; }
             var menu = LobbyMenu.Instance;
-            if (!menu) { SetStatus("Saved. Choose Dibs or Duos in Play to use this home."); return; }
+            if (!menu) { SetStatus("Saved. Choose " + Rules.HouseModes.Name(Rules.HouseModes.Dibs) + " or " + Rules.HouseModes.Name(Rules.HouseModes.Duos) + " in Play to use this home."); return; }
             string home = map;
             Close();
             menu.PlayHome(home);

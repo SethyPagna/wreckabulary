@@ -83,6 +83,29 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheTypewriterListsEveryModeByItsPlayerNameAndGoal()
+        {
+            var typewriter = new GameObject("Named typewriter").AddComponent<Typewriter>();
+            yield return null;
+            Assert.Greater(typewriter.Modes.Count, 1);
+            foreach (var mode in typewriter.Modes)
+            {
+                Assert.IsTrue(HouseModes.Has(mode.id), mode.label);
+                Assert.AreEqual(HouseModes.Name(mode.id).ToUpperInvariant(), mode.label, mode.id);
+                Assert.AreEqual(HouseModes.Goal(mode.id), mode.blurb, mode.id);
+                Assert.AreEqual(Session.SceneForMode(mode.id), mode.scene, mode.id);
+            }
+            var labels = typewriter.Modes.Select(m => m.label).ToArray();
+            CollectionAssert.AllItemsAreUnique(labels);
+            foreach (string stale in new[] { "DIBS!", "MOVING DAY", "MOVING OUT", "DEATHMATCH", "WAR", "SHOPPING LIST", "RIDDLE RUSH" })
+                CollectionAssert.DoesNotContain(labels, stale);
+            Assert.AreEqual(HouseModes.Tutorial, typewriter.Modes[0].id);
+            Assert.AreEqual(HouseModes.Dibs, typewriter.Modes[typewriter.Selected].id, "the menu opens on Last One Standing");
+            Assert.AreEqual(HouseModes.Dibs, typewriter.Modes.First(m => m.scene == Session.DibsScene).id);
+            Object.Destroy(typewriter.gameObject);
+        }
+
+        [UnityTest]
         public IEnumerator TypewriterIsUsedWithGrabAndStepsWithUpDown()
         {
             yield return TestScenes.Load(Session.HubScene);

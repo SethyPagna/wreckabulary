@@ -38,18 +38,18 @@ namespace Wreckabulary.Rules.Tests
         {
             var s = Round(1, false, false, Seat("P1", 1, won: true, you: true, human: true, health: 64), Seat("AI 2", 0, wrecked: true), Seat("AI 3", 0, wrecked: true));
             Assert.AreEqual("ROUND 1 · YOU WIN", HouseResultText.Eyebrow(s));
-            Assert.AreEqual("You called dibs!", HouseResultText.Heading(s));
+            Assert.AreEqual("You are the last one standing!", HouseResultText.Heading(s));
             Assert.AreEqual("2 more round wins to take the house.", HouseResultText.Flavour(s));
             Assert.AreEqual("You", HouseResultText.Winner(s));
             CollectionAssert.AreEqual(new[] { "<b>You · 1/3 wins · 64 HP</b>", "AI 2 · 0/3 wins · wrecked", "AI 3 · 0/3 wins · wrecked" }, HouseResultText.Lines(s));
         }
 
         [Test]
-        public void ABotWinIsNamedAndOnlyWinnersSayCalledDibs()
+        public void ABotWinIsNamedAsTheLastOneStanding()
         {
             var s = Round(2, false, false, Seat("P1", 1, you: true, human: true, wrecked: true), Seat("AI 3", 1, won: true, health: 20));
             Assert.AreEqual("ROUND 2 · AI 3 WINS", HouseResultText.Eyebrow(s));
-            Assert.AreEqual("AI 3 called dibs!", HouseResultText.Heading(s));
+            Assert.AreEqual("AI 3 is the last one standing!", HouseResultText.Heading(s));
             Assert.AreEqual("2 more round wins to take the house.", HouseResultText.Flavour(s));
         }
 
@@ -58,7 +58,7 @@ namespace Wreckabulary.Rules.Tests
         {
             var s = Round(3, false, false, Seat("P1", 2, you: true, human: true, wrecked: true), Seat("P2", 1, won: true, human: true, health: 41), Seat("AI 3", 0, downed: true));
             Assert.AreEqual("ROUND 3 · P2 WINS", HouseResultText.Eyebrow(s));
-            Assert.AreEqual("P2 called dibs!", HouseResultText.Heading(s));
+            Assert.AreEqual("P2 is the last one standing!", HouseResultText.Heading(s));
             Assert.AreEqual("First to 3 takes the house.", HouseResultText.Flavour(s));
             CollectionAssert.AreEqual(new[] { "P1 · 2/3 wins · wrecked", "<b>P2 · 1/3 wins · 41 HP</b>", "AI 3 · 0/3 wins · down" }, HouseResultText.Lines(s));
         }
@@ -98,6 +98,71 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual("", HouseResultText.Winner(timeUp));
             var wiped = Round(2, false, false, Seat("P1", 0, you: true, human: true, wrecked: true), Seat("AI 2", 0, wrecked: true));
             Assert.AreEqual("Nobody left standing. A draw.", HouseResultText.Heading(wiped));
+        }
+
+        [Test]
+        public void NoResultHeadingUsesAnOldModeName()
+        {
+            var rounds = new[]
+            {
+                Round(1, false, false, Seat("P1", 1, won: true, you: true, human: true), Seat("AI 2", 0, wrecked: true)),
+                Round(1, false, false, Seat("P1", 0, you: true, human: true, wrecked: true), Seat("AI 2", 1, won: true)),
+                Round(3, true, false, Seat("P1", 3, won: true, human: true), Seat("P2", 1, human: true, wrecked: true)),
+                Round(2, false, true, Seat("P1", 0, you: true, human: true), Seat("AI 2", 0)),
+            };
+            foreach (var round in rounds)
+                foreach (string text in new[] { HouseResultText.Eyebrow(round), HouseResultText.Heading(round), HouseResultText.Flavour(round) })
+                    StringAssert.DoesNotContain("dibs", text.ToLowerInvariant());
+        }
+
+        [Test]
+        public void TheCountdownNamesTheModeByItsPlayerNameAndTheHouse()
+        {
+            Assert.AreEqual("FURNISH THE HOUSE · CITY FLAT", HouseCountdown.Line(HouseModes.MovingDay, "City Flat"));
+            Assert.AreEqual("ESCAPE THE HOUSE · PINWHEEL HOUSE", HouseCountdown.Line(HouseModes.Escape, "Pinwheel House"));
+            Assert.AreEqual("PACK THE VAN · TERRACE HOUSE", HouseCountdown.Line(HouseModes.MovingOut, "Terrace House"));
+            Assert.AreEqual("FURNISH THE HOUSE", HouseCountdown.Line(HouseModes.MovingDay, ""));
+            Assert.AreEqual("FURNISH THE HOUSE", HouseCountdown.Line(HouseModes.MovingDay, null));
+            foreach (var mode in HouseModes.All) StringAssert.DoesNotContain("LEVEL", HouseCountdown.Line(mode.Id, "City Flat"));
+        }
+
+        [Test]
+        public void TheFurnishChecklistNamesTheHouseWithoutALevelNumber()
+        {
+            Assert.AreEqual("<b>CHECKLIST</b>\n<size=75%>City Flat</size>\n", FurnishText.ChecklistHeading("City Flat"));
+            Assert.AreEqual("<b>CHECKLIST</b>\n", FurnishText.ChecklistHeading(""));
+            StringAssert.DoesNotContain("Level", FurnishText.ChecklistHeading("City Flat"));
+        }
+
+        [Test]
+        public void TheEscapeGuideCountsKeysAndNeverNamesTheVan()
+        {
+            Assert.AreEqual("KEYS 0/2 · the next one is in Kitchen", EscapeText.Guide(false, 0, 2, null, "Kitchen"));
+            Assert.AreEqual("KEYS 1/2 · spell L A M P, then on to Study", EscapeText.Guide(false, 1, 2, "L A M P", "Study"));
+            Assert.AreEqual("KEY · it is hidden in Kitchen", EscapeText.Guide(false, 0, 1, "", "Kitchen"));
+            Assert.AreEqual("KEY · spell B A T, then on to Hall", EscapeText.Guide(false, 0, 1, "B A T", "Hall"));
+            Assert.AreEqual("EXIT · get everybody to the exit", EscapeText.Guide(false, 2, 2, null, "the exit"));
+            Assert.AreEqual("EXIT · spell B E D to get through, then on to Hall", EscapeText.Guide(false, 2, 2, "B E D", "Hall"));
+            Assert.AreEqual("EXIT OPEN · everybody out!", EscapeText.Guide(true, 2, 2, "B E D", "Hall"));
+            Assert.AreEqual("KEY", EscapeText.KeyLead(0, 1));
+            Assert.AreEqual("KEYS 1/3", EscapeText.KeyLead(1, 3));
+            for (int needed = 1; needed <= 3; needed++)
+                for (int found = 0; found <= needed; found++)
+                    foreach (string door in new[] { null, "B A T" })
+                        foreach (bool open in new[] { false, true })
+                            StringAssert.DoesNotContain("VAN", EscapeText.Guide(open, found, needed, door, "Kitchen"));
+        }
+
+        [Test]
+        public void EscapeResultsSayWhatHappenedWithoutBlamingTheMovers()
+        {
+            Assert.AreEqual("Everybody out with 42s to spare!", EscapeText.Result(true, false, 42));
+            Assert.AreEqual("Everybody out with 0s to spare!", EscapeText.Result(true, false, -3));
+            Assert.AreEqual("The crew went down inside.", EscapeText.Result(false, true, 120));
+            Assert.AreEqual("Time ran out before everybody got out.", EscapeText.Result(false, false, 0));
+            foreach (bool won in new[] { false, true })
+                foreach (bool wiped in new[] { false, true })
+                    StringAssert.DoesNotContain("mover", EscapeText.Result(won, wiped, 10).ToLowerInvariant());
         }
 
         [Test]

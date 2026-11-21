@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -12,6 +13,11 @@ namespace Wreckabulary
         const float BrandX = 38f, LabelX = 112f, LabelY = 28f, LabelWidth = 460f, LabelHeight = 100f;
         const float ChipY = -25f, BannerY = -100f, StatusY = -140f, PortraitStatusY = -360f, PlayY = -185f, ToastY = -238f, ModeActionsY = -300f;
         const float LeftColumnTop = 150f;
+        const float ClockHeight = 26f, ClockSize = 22f, ScoreTop = 26f, ScoreRowHeight = 56f, ScoreSize = 46f, ColonWidth = 28f;
+        const float CaptionTop = 84f, CaptionHeight = 20f, CaptionSize = 15f, CentreMinText = 15f;
+        const float TargetSide = 56f, TargetGap = 6f, ProgressTop = 44f, ProgressHeight = 34f, ProgressSize = 24f, LeadSize = 18f;
+        const float ScoresSize = 44f, ScoresGap = 10f, ScoresCapWidth = 52f, ScoresCapHeight = 22f;
+        const float ScoresReach = ScoresGap + ScoresSize + (ScoresCapWidth - ScoresSize) * .5f;
         static readonly Color CardBacking = Hex(0x16302f), WreckedFrame = Hex(0x8b9592), WreckedTint = Hex(0x6d7472);
         static readonly Color WreckedShade = Hex(0x0b1515, .55f), DownShade = Hex(0x0b1515, .28f), PulseFrame = Hex(0xff8a6b);
         static readonly Color HealthTrack = Hex(0x0b1f1f, .78f), ScoreInk = Hex(0xffe7b8), YouEdge = Color.white, Plate = Hex(0x121c24, .72f);
@@ -19,14 +25,14 @@ namespace Wreckabulary
         sealed class PlayerCard
         {
             public RectTransform root, track;
-            public Image you, backing, shade, frame, fill;
+            public Image you, backing, shade, frame, fill, lead;
             public RawImage portrait;
             public TextMeshProUGUI letter, status, name, score;
             public PlayerController seat;
             public SeatPortrait face;
             public string shownName, shownUnit;
             public int shownWins = int.MinValue, shownTarget = int.MinValue, shownStatus = int.MinValue, shownLook = -1, shownSeats = -1;
-            public bool shownYou, pulsing;
+            public bool shownYou, pulsing, shownLead;
             public Texture shownPicture;
             public Color vivid;
             public float shownX = float.NaN;
@@ -36,17 +42,45 @@ namespace Wreckabulary
         readonly List<PlayerController> barSeats = new();
         readonly List<int> barTeams = new();
         readonly List<BarBlock> barBlocks = new();
+        readonly List<BarBlock> barBlocksShifted = new();
+        readonly List<int> barScores = new();
         readonly int[] barOrder = new int[MaxCards];
         readonly float[] barCentres = new float[MaxCards];
         readonly Vector3[] barCorners = new Vector3[4];
-        RectTransform bar, plate, brandRect, labelRect, minimapRect, eyeRect;
+        RectTransform bar, plate, brandRect, labelRect, minimapRect, eyeRect, centre, scoresButton;
+        TextMeshProUGUI barClock, leftScore, rightScore, scoreColon, centreCaption, scoresKey;
+        RawImage targetPicture;
+        Image leftLead, rightLead, scoresFace;
+        GameObject scoresCap;
         float barWidth = -1f, barScale = 1f, barTop = PlayerBar.Top, topInset, labelWidth = LabelWidth;
-        int barSize = -1;
+        int barSize = -1, barSplit, barLeader = ScoreLine.NoLead;
+        ScoreCentre barCentre, laidCentre;
+        Func<int, int> sideScore;
+        string sideCaption = "", targetWord = "", timerText = "";
+        string shownClock, shownCaption, shownTarget;
+        int shownLeft = int.MinValue, shownRight = int.MinValue, shownTotal = int.MinValue, shownLeadSide = int.MinValue;
+        bool shownSides, shownProgress;
+        Color shownLeftColour, shownRightColour;
+        InputBinding scoresKeyFor;
+        bool scoresKeyTouch, scoresKeySet;
 
         public float TopInset => topInset;
         public bool BarShown => bar && bar.gameObject.activeSelf;
         public float BarBottom => BarShown ? barTop + (PlayerBar.CardHeight(barSize) + PlayerBar.PlatePad) * barScale : 0f;
         public float LeftColumnStart => Mathf.Max(LeftColumnTop, BarShown && OverlapsLeftColumn() ? BarBottom + PlayerBar.Clearance : 0f);
+        public ScoreCentre Centre => BarShown ? barCentre : ScoreCentre.None;
+        public bool ClockCentred => Centre != ScoreCentre.None;
+        public string CentreScore => ClockCentred && shownSides ? leftScore.text + " " + ScoreLine.Separator + " " + rightScore.text : "";
+        public string CentreCaption => ClockCentred ? centreCaption.text : "";
+        public string CentreClock => ClockCentred ? barClock.text : "";
+        public string TargetWord => Centre == ScoreCentre.Target ? targetWord : "";
+        public int LeadingSide => Centre == ScoreCentre.Target && shownSides ? shownLeadSide : ScoreLine.NoLead;
+        public PlayerController LeadingSeat => Centre == ScoreCentre.Target && barLeader >= 0 && barLeader < barSeats.Count ? barSeats[barLeader] : null;
+
+        public void SetSideScores(Func<int, int> scoreOfTeam, string caption = "")
+        { sideScore = scoreOfTeam; sideCaption = caption ?? ""; }
+
+        public void SetTarget(string word) => targetWord = word ?? "";
 
         void BuildBar()
         {
@@ -56,7 +90,77 @@ namespace Wreckabulary
             backing.sprite = LobbyIcons.RoundedSprite(Mathf.RoundToInt(PlayerBar.PlateRadius));
             plate = backing.rectTransform;
             for (int i = 0; i < MaxCards; i++) cards.Add(MakeSeatCard(i));
+            BuildCentre();
+            BuildScoresButton();
             bar.gameObject.SetActive(false);
+        }
+
+        void BuildCentre()
+        {
+            centre = Rect("Centre", bar, new Vector2(.5f, 1f), Vector2.zero, new Vector2(ScoreLine.CentreWidth, PlayerBar.Height));
+            centre.pivot = new Vector2(.5f, 1f);
+            barClock = CentreText("Clock", ClockSize, OnGame);
+            Place(barClock.rectTransform, 0f, ScoreLine.CentreWidth, ClockHeight);
+            leftScore = CentreText("Left score", ScoreSize, OnGame);
+            scoreColon = CentreText("Colon", ScoreSize, OnGame);
+            scoreColon.text = ScoreLine.Separator;
+            Place(scoreColon.rectTransform, -ScoreTop, ColonWidth, ScoreRowHeight);
+            rightScore = CentreText("Right score", ScoreSize, OnGame);
+            leftScore.fontStyle = rightScore.fontStyle = scoreColon.fontStyle = FontStyles.Bold;
+            targetPicture = Rect("Target", centre, new Vector2(.5f, 1f), new Vector2(0f, -ScoreTop), new Vector2(TargetSide, TargetSide)).gameObject.AddComponent<RawImage>();
+            targetPicture.rectTransform.pivot = new Vector2(.5f, 1f);
+            targetPicture.raycastTarget = false;
+            targetPicture.enabled = false;
+            leftLead = LeadMark("Left lead", centre);
+            rightLead = LeadMark("Right lead", centre);
+            centreCaption = CentreText("Caption", CaptionSize, ScoreInk);
+            centreCaption.characterSpacing = 1f;
+            Place(centreCaption.rectTransform, -CaptionTop, ScoreLine.CentreWidth, CaptionHeight);
+            leftScore.enabled = rightScore.enabled = false;
+            laidCentre = ScoreCentre.None;
+            centre.gameObject.SetActive(false);
+        }
+
+        TextMeshProUGUI CentreText(string label, float size, Color colour)
+        {
+            var text = CardText(label, centre, size, colour);
+            text.enableAutoSizing = true; text.fontSizeMin = CentreMinText; text.fontSizeMax = size;
+            OnGameText(text); AddHudShadow(text);
+            return text;
+        }
+
+        Image LeadMark(string label, RectTransform parent)
+        {
+            var mark = CardImage(label, parent, Gold);
+            mark.type = Image.Type.Simple;
+            mark.sprite = LobbyIcons.Get(LobbyIcons.Trophy);
+            mark.preserveAspect = true;
+            mark.rectTransform.sizeDelta = new Vector2(LeadSize, LeadSize);
+            AddHudShadow(mark);
+            mark.enabled = false;
+            return mark;
+        }
+
+        void BuildScoresButton()
+        {
+            scoresButton = Rect("Scores", bar, new Vector2(.5f, 1f), Vector2.zero, new Vector2(ScoresSize, ScoresSize));
+            scoresButton.pivot = new Vector2(0f, 1f);
+            var face = Panel("Face", scoresButton, new Vector2(.5f, .5f), Vector2.zero, new Vector2(ScoresSize, ScoresSize), new Vector2(.5f, .5f), Glass, true);
+            scoresFace = face.GetComponent<Image>();
+            scoresFace.raycastTarget = true;
+            var button = scoresButton.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.targetGraphic = scoresFace;
+            button.onClick.AddListener(ToggleScoreboard);
+            var navigation = button.navigation; navigation.mode = Navigation.Mode.None; button.navigation = navigation;
+            var icon = CreateImage("Icon", face, new Vector2(.5f, .5f), Vector2.zero, new Vector2(ScoresSize * .58f, ScoresSize * .58f), OnGame);
+            icon.sprite = LobbyIcons.Get(LobbyIcons.Trophy); icon.preserveAspect = true;
+            AddHudShadow(icon);
+            var cap = Panel("Key cap", scoresButton, new Vector2(.5f, 0f), new Vector2(0f, -4f), new Vector2(ScoresCapWidth, ScoresCapHeight), new Vector2(.5f, 1f), KeyPill);
+            scoresCap = cap.gameObject;
+            scoresKey = Text("Key", cap, new Vector2(.5f, .5f), Vector2.zero, new Vector2(ScoresCapWidth - 4f, ScoresCapHeight - 2f), CaptionSize, OnGame);
+            scoresKey.text = "";
+            scoresCap.SetActive(false);
         }
 
         PlayerCard MakeSeatCard(int index)
@@ -75,6 +179,7 @@ namespace Wreckabulary
             card.shade = CardImage("Shade", root, WreckedShade);
             card.shade.sprite = null;
             card.frame = CardImage("Frame", root, Mint);
+            card.lead = LeadMark("Lead", root);
             card.status = CardText("Status", root, PlayerBar.StatusSize, LowHp);
             card.status.fontStyle = FontStyles.Bold;
             card.status.enableAutoSizing = true; card.status.fontSizeMin = 9f; card.status.fontSizeMax = PlayerBar.StatusSize;
@@ -132,6 +237,7 @@ namespace Wreckabulary
             Place(card.shade.rectTransform, -rim, side - 2f * rim, side - 2f * rim);
             Place(card.frame.rectTransform, 0f, side, side);
             card.frame.sprite = LobbyIcons.FrameSprite(radius, Mathf.RoundToInt(rim));
+            card.lead.rectTransform.anchoredPosition = new Vector2(side * .5f - LeadSize * .5f, LeadSize * .25f);
             Place(card.status.rectTransform, -(side * .5f - 10f), width - 4f, 20f);
             Place(card.track, -PlayerBar.HealthY(seats), side, PlayerBar.HealthHeight);
             Place(card.name.rectTransform, -PlayerBar.NameY(seats), width, PlayerBar.NameHeight);
@@ -154,8 +260,10 @@ namespace Wreckabulary
                 }
             bool shown = PlayerBar.Visible(seats);
             if (bar.gameObject.activeSelf != shown) bar.gameObject.SetActive(shown);
+            barCentre = shown ? ScoreLine.Centre(barTeams, Scored, targetWord.Length > 0) : ScoreCentre.None;
             if (shown) LayOutBar();
             SetTopInset(shown ? PlayerBar.ShiftFor(barTop, barScale) : 0f);
+            PlaceClock();
             if (!shown) return;
             bool drew = false;
             for (int slot = 0; slot < cards.Count; slot++)
@@ -165,12 +273,137 @@ namespace Wreckabulary
                 if (card.root.gameObject.activeSelf != used) card.root.gameObject.SetActive(used);
                 if (used) ShowSeat(card, barSeats[barOrder[slot]], humans, ref drew);
             }
+            ReadScores();
+            RefreshCentre();
+            MarkLeader();
+            RefreshScoresKey();
+        }
+
+        bool Scored => showWins && wins != null;
+
+        void ReadScores()
+        {
+            barScores.Clear();
+            bool scored = Scored;
+            for (int i = 0; i < barSeats.Count; i++) barScores.Add(scored ? wins(barSeats[i]) : 0);
+        }
+
+        int SideScore(int seat) => sideScore != null ? sideScore(barSeats[seat].Team) : ScoreLine.Best(barTeams, barScores, seat);
+
+        void PlaceClock()
+        {
+            bool any = !string.IsNullOrEmpty(timerText), centred = ClockCentred;
+            if (timer)
+            {
+                var pill = timer.transform.parent.gameObject;
+                bool beside = any && !centred;
+                if (pill.activeSelf != beside) pill.SetActive(beside);
+            }
+            if (!centred || ReferenceEquals(timerText, shownClock)) return;
+            shownClock = timerText;
+            barClock.text = timerText ?? "";
+        }
+
+        void LayCentre()
+        {
+            laidCentre = barCentre;
+            bool target = barCentre == ScoreCentre.Target;
+            float box = target ? (ScoreLine.CentreWidth - TargetSide) * .5f - TargetGap : (ScoreLine.CentreWidth - ColonWidth) * .5f;
+            float reach = target ? (TargetSide + box) * .5f + TargetGap : (ColonWidth + box) * .5f;
+            float top = target ? ProgressTop : ScoreTop, height = target ? ProgressHeight : ScoreRowHeight, size = target ? ProgressSize : ScoreSize;
+            LaySide(leftScore, -reach, top, box, height, size, target ? TextAlignmentOptions.Center : TextAlignmentOptions.Right);
+            LaySide(rightScore, reach, top, box, height, size, target ? TextAlignmentOptions.Center : TextAlignmentOptions.Left);
+            leftLead.rectTransform.anchoredPosition = new Vector2(-reach, -ScoreTop);
+            rightLead.rectTransform.anchoredPosition = new Vector2(reach, -ScoreTop);
+            leftLead.enabled = rightLead.enabled = false;
+            scoreColon.enabled = !target;
+            if (!target) targetPicture.enabled = false;
+            shownTarget = null;
+            shownLeft = shownRight = shownTotal = shownLeadSide = int.MinValue;
+        }
+
+        static void LaySide(TextMeshProUGUI text, float x, float top, float width, float height, float size, TextAlignmentOptions alignment)
+        {
+            text.rectTransform.anchoredPosition = new Vector2(x, -top);
+            text.rectTransform.sizeDelta = new Vector2(width, height);
+            text.fontSizeMax = size;
+            text.alignment = alignment;
+        }
+
+        void RefreshCentre()
+        {
+            bool on = barCentre != ScoreCentre.None;
+            if (centre.gameObject.activeSelf != on) centre.gameObject.SetActive(on);
+            if (!on) return;
+            if (barCentre != laidCentre) LayCentre();
+            bool target = barCentre == ScoreCentre.Target;
+            bool sides = Scored && ScoreLine.TwoSides(barTeams);
+            if (sides != shownSides)
+            {
+                shownSides = sides;
+                leftScore.enabled = rightScore.enabled = sides;
+                leftLead.enabled = rightLead.enabled = false;
+                shownLeft = shownRight = shownTotal = shownLeadSide = int.MinValue;
+            }
+            if (sides) ShowSides(target);
+            string caption = target ? targetWord : sideCaption;
+            if (!ReferenceEquals(caption, shownCaption)) { shownCaption = caption; centreCaption.text = caption; }
+            if (!target || ReferenceEquals(targetWord, shownTarget)) return;
+            shownTarget = targetWord;
+            Wreckabulary.UI.ItemArt.Apply(targetPicture, targetWord);
+        }
+
+        void ShowSides(bool progress)
+        {
+            int first = barOrder[0], second = barOrder[barSplit];
+            int left = SideScore(first), right = SideScore(second), total = progress ? roundsToWin : 0;
+            bool restyled = total != shownTotal || progress != shownProgress;
+            if (restyled || left != shownLeft) leftScore.text = ScoreLine.Value(left, total, progress);
+            if (restyled || right != shownRight) rightScore.text = ScoreLine.Value(right, total, progress);
+            shownLeft = left; shownRight = right; shownTotal = total; shownProgress = progress;
+            Color leftColour = PlayerHud.Vivid(barSeats[first].Color), rightColour = PlayerHud.Vivid(barSeats[second].Color);
+            if (leftColour != shownLeftColour) leftScore.color = shownLeftColour = leftColour;
+            if (rightColour != shownRightColour) rightScore.color = shownRightColour = rightColour;
+            int lead = progress ? ScoreLine.Lead(left, right) : ScoreLine.NoLead;
+            if (lead == shownLeadSide) return;
+            shownLeadSide = lead;
+            leftLead.enabled = lead == ScoreLine.Left;
+            rightLead.enabled = lead == ScoreLine.Right;
+        }
+
+        void MarkLeader()
+        {
+            bool target = barCentre == ScoreCentre.Target && Scored, marks = target && !shownSides;
+            barLeader = !target ? ScoreLine.NoLead
+                : marks ? ScoreLine.Leader(barScores)
+                : shownLeadSide == ScoreLine.Left ? barOrder[0] : shownLeadSide == ScoreLine.Right ? barOrder[barSplit] : ScoreLine.NoLead;
+            for (int slot = 0; slot < barSeats.Count; slot++)
+            {
+                var card = cards[slot];
+                bool leads = marks && barOrder[slot] == barLeader;
+                if (leads == card.shownLead) continue;
+                card.shownLead = leads;
+                card.lead.enabled = leads;
+            }
+        }
+
+        void RefreshScoresKey()
+        {
+            if (scoresButton.gameObject.activeSelf == hubScene) scoresButton.gameObject.SetActive(!hubScene);
+            scoresFace.color = ScoreboardShown ? GlassActive : Glass;
+            var binding = LocalPlayer ? LocalPlayer.Binding : null;
+            bool touch = TouchControlsShown;
+            if (scoresKeySet && ReferenceEquals(binding, scoresKeyFor) && touch == scoresKeyTouch) return;
+            scoresKeySet = true; scoresKeyFor = binding; scoresKeyTouch = touch;
+            string key = touch ? "" : ScoreboardKeyLabel(binding);
+            scoresKey.text = key;
+            scoresCap.SetActive(key.Length > 0);
         }
 
         void LayOutBar()
         {
             int count = barSeats.Count;
-            float width = PlayerBar.Arrange(barTeams, barOrder, barCentres);
+            float width = ScoreLine.Arrange(barTeams, barOrder, barCentres, barCentre != ScoreCentre.None, out barSplit);
             for (int slot = 0; slot < count; slot++)
             {
                 var card = cards[slot];
@@ -179,10 +412,10 @@ namespace Wreckabulary
                 card.shownX = barCentres[slot];
                 card.root.anchoredPosition = new Vector2(card.shownX, 0f);
             }
-            float scale = PlayerBar.Scale(width, safe.rect.width);
+            float scale = PlayerBar.Scale(width + 2f * ScoresReach, safe.rect.width);
             float height = PlayerBar.CardHeight(count);
             CollectBlocks();
-            float top = PlayerBar.ClearTop(width * scale * .5f, height * scale, barBlocks, PlayerBar.PlatePad * scale);
+            float top = ClearBarTop(width, height, scale);
             if (width == barWidth && scale == barScale && top == barTop && count == barSize) return;
             barWidth = width; barScale = scale; barTop = top; barSize = count;
             bar.sizeDelta = new Vector2(width, height);
@@ -190,6 +423,20 @@ namespace Wreckabulary
             plate.sizeDelta = new Vector2(PlayerBar.PlateWidth(width), PlayerBar.PlateHeight(count));
             bar.localScale = new Vector3(scale, scale, 1f);
             bar.anchoredPosition = new Vector2(0f, -top);
+            centre.sizeDelta = new Vector2(ScoreLine.CentreWidth, height);
+            scoresButton.anchoredPosition = new Vector2(width * .5f + PlayerBar.PlatePad + ScoresGap, PlayerBar.PlatePad);
+        }
+
+        float ClearBarTop(float width, float height, float scale)
+        {
+            float shift = ScoresReach * .5f * scale;
+            barBlocksShifted.Clear();
+            for (int i = 0; i < barBlocks.Count; i++)
+            {
+                var block = barBlocks[i];
+                barBlocksShifted.Add(new BarBlock(block.Left - shift, block.Right - shift, block.Top, block.Bottom));
+            }
+            return PlayerBar.ClearTop(width * scale * .5f + shift, height * scale, barBlocksShifted, PlayerBar.PlatePad * scale);
         }
 
         void ShowSeat(PlayerCard card, PlayerController p, int humans, ref bool drew)

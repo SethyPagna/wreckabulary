@@ -62,6 +62,7 @@ namespace Wreckabulary
             }
             hooks.Clear();
             if (Context != null && Context.Rounds && ReferenceEquals(Context.WordGoal, this)) Context.WordGoal = null;
+            if (Context != null && Context.Hud) Context.Hud.SetTarget(null);
             if (view) Destroy(view);
         }
 
@@ -99,7 +100,19 @@ namespace Wreckabulary
 
         protected override string TimerText => between ? "" : base.TimerText;
 
-        protected override void Scoreboard() => Hud.SetScoreboard(Players, score, Race?.Items.Count ?? 0, Race != null, Unit);
+        protected override void Scoreboard()
+        {
+            Hud.SetScoreboard(Players, score, Race?.Items.Count ?? 0, Race != null, Unit);
+            Hud.SetTarget(ShowsList ? TargetWord(Hud.LocalPlayer) : null);
+        }
+
+        public string TargetWord(PlayerController viewer)
+        {
+            if (Race == null) return null;
+            string wanted = viewer ? Race.Wanted(viewer.Index) : null;
+            for (int i = 0; wanted == null && i < Race.Seats.Count; i++) wanted = Race.Wanted(Race.Seats[i]);
+            return wanted;
+        }
 
         protected override void Tick()
         {

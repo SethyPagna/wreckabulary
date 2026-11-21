@@ -97,7 +97,7 @@ namespace Wreckabulary.EditorTests
             Call("QueueStarter", WorkshopStarter.FreeplayWorld);
             Call("ProcessSourceChoice", true);
             Assert.IsFalse(workshop.StartOpen);
-            Assert.AreEqual("Freeplay world", workshop.History.Current.Course().Title);
+            Assert.AreEqual("Free Roam world", workshop.History.Current.Course().Title);
         }
 
         [Test]
@@ -141,7 +141,7 @@ namespace Wreckabulary.EditorTests
             var current = entries.Single(entry => entry.CourseId == open);
             Call("DuplicateMap", current);
             Assert.AreEqual(open, workshop.History.Current.Course().Id, "Copying keeps editing the open map.");
-            Assert.IsTrue(Entries().Any(entry => entry.Title == "Freeplay world 2 copy"));
+            Assert.IsTrue(Entries().Any(entry => entry.Title == "Free Roam world 2 copy"));
             Assert.IsNotEmpty((string)Call("DeleteBlocker", current));
             Assert.Throws<InvalidOperationException>(() => Call("DeleteMap", current));
             Call("DeleteMap", Entries().Single(entry => entry.CourseId == other));
@@ -221,7 +221,7 @@ namespace Wreckabulary.EditorTests
             var labels = new List<string>();
             foreach (WorkshopStarter starter in Enum.GetValues(typeof(WorkshopStarter)))
                 labels.Add((string)typeof(WordboundWorkshop).GetMethod("StarterLabel", Static).Invoke(null, new object[] { starter }));
-            CollectionAssert.AreEqual(new[] { "New map", "Race circuit", "Arena", "Freeplay world", "Parcel Depot", "The Lost Address" }, labels);
+            CollectionAssert.AreEqual(new[] { "New map", "Race circuit", "Arena", "Free Roam world", "Parcel Depot", "The Lost Address" }, labels);
             foreach (string label in labels) StringAssert.DoesNotContain("Flagship", label);
         }
 

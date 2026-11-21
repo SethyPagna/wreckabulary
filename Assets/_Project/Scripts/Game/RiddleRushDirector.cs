@@ -118,8 +118,6 @@ namespace Wreckabulary
             if (SmashableLabel.Pulse == (Predicate<Smashable>)Pulses) SmashableLabel.Pulse = null;
         }
 
-        protected override string TimerText => TimeLimit > 0f && TimeLeft <= 60f ? Clock(TimeLeft) : "";
-
         protected override void Tick()
         {
             if (Race == null) return;

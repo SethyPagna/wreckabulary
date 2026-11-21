@@ -68,6 +68,46 @@ namespace Wreckabulary.Rules
         };
     }
 
+    public static class HouseCountdown
+    {
+        public static string Line(string mode, string house)
+        {
+            string name = HouseModes.Name(mode).ToUpperInvariant();
+            return string.IsNullOrEmpty(house) ? name : $"{name} · {house.ToUpperInvariant()}";
+        }
+    }
+
+    public static class EscapeText
+    {
+        public const string ExitOpen = "EXIT OPEN · everybody out!";
+        public const string Wiped = "The crew went down inside.";
+        public const string TimeUp = "Time ran out before everybody got out.";
+
+        public static string KeyLead(int found, int needed) => needed > 1 ? $"KEYS {found}/{needed}" : "KEY";
+
+        public static string Guide(bool exitOpen, int found, int needed, string doorWord, string near)
+        {
+            if (exitOpen) return ExitOpen;
+            bool allFound = found >= needed;
+            string lead = KeyLead(found, needed);
+            if (!string.IsNullOrEmpty(doorWord))
+                return allFound ? $"EXIT · spell {doorWord} to get through, then on to {near}" : $"{lead} · spell {doorWord}, then on to {near}";
+            if (allFound) return $"EXIT · get everybody to {near}";
+            return needed > 1 ? $"{lead} · the next one is in {near}" : $"{lead} · it is hidden in {near}";
+        }
+
+        public static string Result(bool won, bool wiped, int secondsLeft) =>
+            won ? $"Everybody out with {Math.Max(0, secondsLeft)}s to spare!" : wiped ? Wiped : TimeUp;
+    }
+
+    public static class FurnishText
+    {
+        public const string Checklist = "CHECKLIST";
+
+        public static string ChecklistHeading(string house) =>
+            string.IsNullOrEmpty(house) ? $"<b>{Checklist}</b>\n" : $"<b>{Checklist}</b>\n<size=75%>{house}</size>\n";
+    }
+
     public readonly struct SeatResult
     {
         public readonly string Name;
@@ -124,7 +164,7 @@ namespace Wreckabulary.Rules
         {
             if (s.Draw) return s.TimeUp ? "Time’s up. A perfectly messy draw." : "Nobody left standing. A draw.";
             if (s.Winners > 1) return s.Solo && s.YouWon ? "Your team wins!" : $"{Winner(s)} win!";
-            return SaidAsYou(s) ? "You called dibs!" : $"{Winner(s)} called dibs!";
+            return SaidAsYou(s) ? "You are the last one standing!" : $"{Winner(s)} is the last one standing!";
         }
 
         public static string Flavour(RoundSummary s)

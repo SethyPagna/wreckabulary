@@ -18,6 +18,18 @@ namespace Wreckabulary.EditorTools
         public const string SettingsPrefab = "Assets/_Project/Prefabs/UI/Settings/SettingsPage.prefab";
         public const string Graphics = "Assets/_Project/UI/PlaySettings/Graphics";
 
+        public const int HousesInARow = 5;
+
+        public static void ShowFiveHousesInARow()
+        {
+            var layout = AssetDatabase.LoadAssetAtPath<LobbyPlayLayout>(PlayProfile);
+            if (!layout) throw new IOException("The saved Play layout is missing.");
+            if (layout.MapColumns == HousesInARow) return;
+            layout.MapColumns = HousesInARow;
+            EditorUtility.SetDirty(layout);
+            AssetDatabase.SaveAssetIfDirty(layout);
+        }
+
         [MenuItem("Wreckabulary/Authoring/Create or Verify Saved Play and Settings Frames")]
         public static void CreateOrVerify()
         {

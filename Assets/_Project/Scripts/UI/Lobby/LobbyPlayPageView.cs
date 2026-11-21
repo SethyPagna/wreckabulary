@@ -157,69 +157,6 @@ namespace Wreckabulary
         }
     }
 
-    public sealed class LobbyPlayCardBand : MonoBehaviour
-    {
-        public const string Caption = "Section caption";
-        public float Spacing = 12, SectionSpacing = 28, CaptionHeight = 28, CaptionGap = 6, MinimumWidth = 120;
-        float arrangedWidth = -1f;
-        bool fitting;
-
-        public static float CardWidth(float available, int cards, int sections, float spacing, float sectionSpacing, float minimum)
-        {
-            if (cards <= 0) return 0f;
-            float room = available - spacing * (cards - sections) - sectionSpacing * Mathf.Max(0, sections - 1);
-            return Mathf.Clamp(room / cards, minimum, LobbyPlayCardGrid.PreferredWidth);
-        }
-
-        void OnEnable() => Fit();
-        void OnRectTransformDimensionsChange() => Fit();
-        void LateUpdate() => Fit();
-
-        public void Fit()
-        {
-            float width = ((RectTransform)transform).rect.width;
-            if (fitting || width <= 0 || Mathf.Approximately(width, arrangedWidth)) return;
-            fitting = true;
-            try { Arrange(width); arrangedWidth = width; }
-            finally { fitting = false; }
-        }
-
-        void Arrange(float width)
-        {
-            var sections = transform.Cast<Transform>().Where(child => child.gameObject.activeSelf).Select(child => (RectTransform)child).ToList();
-            int cards = sections.Sum(section => Cards(section).Count());
-            if (cards == 0) return;
-            float cardWidth = CardWidth(width, cards, sections.Count, Spacing, SectionSpacing, MinimumWidth);
-            float cardHeight = LobbyPlayCardGrid.HeightFor(cardWidth), top = CaptionHeight + CaptionGap, x = 0f;
-            foreach (var section in sections)
-            {
-                int count = Cards(section).Count();
-                float sectionWidth = count * cardWidth + Mathf.Max(0, count - 1) * Spacing, at = 0f;
-                Set(section, new Vector2(x, 0), new Vector2(sectionWidth, top + cardHeight));
-                foreach (Transform child in section)
-                {
-                    var item = (RectTransform)child;
-                    if (child.name == Caption) { Set(item, Vector2.zero, new Vector2(sectionWidth, CaptionHeight)); continue; }
-                    Set(item, new Vector2(at, -top), new Vector2(cardWidth, cardHeight));
-                    at += cardWidth + Spacing;
-                }
-                x += sectionWidth + SectionSpacing;
-            }
-            ((RectTransform)transform).Size(-1, top + cardHeight);
-        }
-
-        static IEnumerable<Transform> Cards(Transform section) => section.Cast<Transform>().Where(child => child.name != Caption);
-
-        static void Set(RectTransform rect, Vector2 position, Vector2 size)
-        {
-            var corner = new Vector2(0, 1);
-            if (rect.anchorMin != corner || rect.anchorMax != corner || rect.pivot != corner)
-            { rect.anchorMin = rect.anchorMax = rect.pivot = corner; }
-            if (rect.anchoredPosition != position) rect.anchoredPosition = position;
-            if (rect.sizeDelta != size) rect.sizeDelta = size;
-        }
-    }
-
     public sealed class LobbyPlayModeDock : MonoBehaviour
     {
         public RectTransform Choices, Goal;
@@ -267,8 +204,8 @@ namespace Wreckabulary
     public sealed class LobbyPlayModeBoard : MonoBehaviour
     {
         public LobbyPlayModeFamilies Sections;
-        public TMP_Text Goal;
-        public float Gap = 36, GoalMinimumWidth = 420, GoalHeight = 30, GoalGap = 2;
+        public TMP_Text Goal, Access;
+        public float Gap = 36, GoalMinimumWidth = 420, GoalHeight = 30, GoalGap = 2, AccessHeight = 44;
         float arrangedWidth = -1f;
         bool fitting;
 
@@ -292,32 +229,41 @@ namespace Wreckabulary
         void Arrange(float width)
         {
             float columns = Sections.NaturalWidth;
-            Beside = Goal && width - columns - Gap >= GoalMinimumWidth;
+            Beside = (Goal || Access) && width - columns - Gap >= GoalMinimumWidth;
             var sections = (RectTransform)Sections.transform;
             float sectionsWidth = Beside ? columns : width;
             LobbyPlayModeFamilies.Set(sections, Vector2.zero, new Vector2(sectionsWidth, sections.sizeDelta.y));
             Sections.Fit();
             float height = Sections.Height;
             LobbyPlayModeFamilies.Set(sections, Vector2.zero, new Vector2(sectionsWidth, height));
-            if (Goal) height = PlaceGoal(width, columns, height);
+            float besideTop = Sections.CaptionHeight;
+            if (Goal)
+            {
+                height = PlaceLine(Goal, width, columns, height, besideTop, Sections.ButtonHeight, GoalHeight);
+                besideTop += Sections.ButtonHeight;
+            }
+            if (Access) height = PlaceLine(Access, width, columns, height, besideTop, AccessHeight, AccessHeight);
             if (!TryGetComponent(out LayoutElement element)) element = gameObject.AddComponent<LayoutElement>();
             if (Mathf.Approximately(element.preferredHeight, height)) return;
             element.preferredHeight = element.minHeight = height;
             if (transform.parent is RectTransform parent) LayoutRebuilder.MarkLayoutForRebuild(parent);
         }
 
-        float PlaceGoal(float width, float columns, float height)
+        float PlaceLine(TMP_Text line, float width, float columns, float height, float besideTop, float besideHeight, float underHeight)
         {
             var alignment = Beside ? TextAlignmentOptions.MidlineLeft : TextAlignmentOptions.Center;
-            if (Goal.alignment != alignment) Goal.alignment = alignment;
-            if (Beside) LobbyPlayModeFamilies.Set(Goal.rectTransform, new Vector2(columns + Gap, -Sections.CaptionHeight),
-                new Vector2(width - columns - Gap, Sections.ButtonHeight));
+            if (line.alignment != alignment) line.alignment = alignment;
+            if (Beside)
+            {
+                LobbyPlayModeFamilies.Set(line.rectTransform, new Vector2(columns + Gap, -besideTop), new Vector2(width - columns - Gap, besideHeight));
+                height = Mathf.Max(height, besideTop + besideHeight);
+            }
             else
             {
-                LobbyPlayModeFamilies.Set(Goal.rectTransform, new Vector2(0, -height - GoalGap), new Vector2(width, GoalHeight));
-                height += GoalGap + GoalHeight;
+                LobbyPlayModeFamilies.Set(line.rectTransform, new Vector2(0, -height - GoalGap), new Vector2(width, underHeight));
+                height += GoalGap + underHeight;
             }
-            if (Goal.TryGetComponent(out LobbyPlayGoalInfo info)) info.Fit();
+            if (line.TryGetComponent(out LobbyPlayGoalInfo info)) info.Fit();
             return height;
         }
     }
@@ -327,6 +273,7 @@ namespace Wreckabulary
         public const float Size = 34, Gap = 6;
         public TMP_Text Line;
         public RectTransform Icon;
+        public float IconWidth = Size;
         float placedWidth = -1f;
         string placedText;
         bool placedCentred;
@@ -340,19 +287,19 @@ namespace Wreckabulary
             bool centred = Line.alignment == TextAlignmentOptions.Center;
             if (rect.width <= 0 || Mathf.Approximately(rect.width, placedWidth) && placedText == Line.text && placedCentred == centred) return;
             placedWidth = rect.width; placedText = Line.text; placedCentred = centred;
-            var room = new Vector4(centred ? Size + Gap : 0, 0, Size + Gap, 0);
+            var room = new Vector4(centred ? IconWidth + Gap : 0, 0, IconWidth + Gap, 0);
             if (Line.margin != room) Line.margin = room;
             Line.ForceMeshUpdate();
             var bounds = Line.textBounds;
             float end = bounds.size.x > 0 ? bounds.max.x : centred ? 0f : rect.xMin;
-            Icon.anchoredPosition = new Vector2(end - rect.center.x + Gap + Size * .5f, 0f);
+            Icon.anchoredPosition = new Vector2(end - rect.center.x + Gap + IconWidth * .5f, 0f);
         }
     }
 
     public sealed class LobbyPlayModeFamilies : MonoBehaviour
     {
         public const string Caption = "Family caption";
-        public const float StackedHeight = 44f, NoteWidth = 200f;
+        public const float NoteWidth = 200f;
         public const int NoteRows = 2;
         public float ButtonWidth = 104, ButtonHeight = 52, CaptionHeight = 22;
         public float Spacing = 6, StackSpacing = 0, FamilySpacing = 28, LineSpacing = 8, OneLineScale = .8f;
