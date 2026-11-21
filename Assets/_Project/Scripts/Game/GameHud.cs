@@ -52,6 +52,7 @@ namespace Wreckabulary
         const float BagTop = 105f, BagSide = 35f, BagBottom = 35f, BagColumn = 375f, BookColumn = 840f, BagGap = 24f;
         const float Chip = 52f, ChipGap = 10f;
         const int ChipsPerRow = 6;
+        public const string FreeSpelling = "Free spelling", FreeBookLine = "Warm-up: every recipe is free";
 
         readonly List<Sprite> ownedSprites = new();
         readonly List<Texture2D> ownedTextures = new();
@@ -103,6 +104,8 @@ namespace Wreckabulary
         RectTransform spellCap, bagCap, roomBacking;
         TextMeshProUGUI bookLine;
         GameObject bookLegend;
+        string bookWord;
+        bool bookFree;
         GridLayoutGroup recipeGrid;
         CanvasGroup bagFade;
         Sprite hairRing, circleRing, softSprite, lineBox;
@@ -197,6 +200,7 @@ namespace Wreckabulary
             StyleLegacyText();
             BuildTop(); BuildSide(); BuildStatus(); BuildVitals(); BuildTray(); BuildHint();
             BuildComposer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause(); BuildCrosshair(); BuildCards();
+            BuildScoreboard();
             foreach (var part in new[] { side, tray, vitals, hint, status, bar, (RectTransform)craftRoot.transform, (RectTransform)touchRoot.transform, (RectTransform)typewriterControls.transform })
                 bagHides.Add(part.gameObject.AddComponent<CanvasGroup>());
             ShowTouchControls(Application.isMobilePlatform);
@@ -832,9 +836,11 @@ namespace Wreckabulary
         void ShowBookLine(string word)
         {
             if (!bookLine) return;
+            bookWord = word;
+            bool free = word == null && bookFree;
             string effect = word == null ? null : GameConfig.Current.Tuning?.Describe(word);
-            bookLine.text = word == null ? "" : $"{word} · {(string.IsNullOrEmpty(effect) ? "no extra effect" : effect)}";
-            if (bookLegend) bookLegend.SetActive(word == null);
+            bookLine.text = word == null ? (free ? FreeBookLine : "") : $"{word} · {(string.IsNullOrEmpty(effect) ? "no extra effect" : effect)}";
+            if (bookLegend) bookLegend.SetActive(word == null && !free);
         }
 
         sealed class BookCardFocus : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, ISelectHandler, IDeselectHandler
@@ -856,7 +862,7 @@ namespace Wreckabulary
             if (KeyBindings.Busy) return;
             if (LeaveAsked) CloseLeave();
             else if (Paused) HandlePauseBack();
-            else SetPaused(true);
+            else if (!PadSelectShowsScoreboard()) SetPaused(true);
         }
         void SetPaused(bool on)
         {
@@ -867,6 +873,7 @@ namespace Wreckabulary
 
         void Update()
         {
+            if (safe) UpdateScoreboard();
             if (!safe || (!AcceptsGameplayInput && !Paused)) return;
             if (!KeyBindings.Busy && (DesktopBinding.Shared.Pause.WasPressedThisFrame()
                 || ((Paused || LeaveAsked) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -922,6 +929,7 @@ namespace Wreckabulary
                 FindLocalPlayer(); RefreshKeys(); RefreshTips(thirdPerson); RefreshInteraction(aiming); RefreshMatch(); RefreshCards(); RefreshSide(); RefreshVitals(); RefreshTray(); RefreshSkills(); RefreshNavigation();
                 FitCards();
                 if (BagOpen) RefreshBagContents();
+                if (ScoreboardShown) RefreshScoreboard();
                 if (playRect) playRect.gameObject.SetActive(!LocalPlayer);
             }
         }
@@ -1098,13 +1106,14 @@ namespace Wreckabulary
             string spell = spellHintLabel;
             var needs = summon.Needs;
             var objectives = summon.Objectives;
-            long key = quiet ? long.MinValue + 1 : LetterSignature(inv.Letters, inv.Capacity);
+            bool free = inv.SpellsFree;
+            long key = quiet ? long.MinValue + 1 : free ? long.MinValue + 2 : LetterSignature(inv.Letters, inv.Capacity);
             if (key != spellHintKey || !needs.Equals(spellHintNeeds) || !ReferenceEquals(objectives, spellHintObjectives))
             {
                 spellHintKey = key; spellHintNeeds = needs; spellHintObjectives = objectives;
-                string line = quiet ? "" : SpellHintText(summon.Words, inv.Letters, inv.Capacity, spell, needs, objectives);
+                string line = quiet ? "" : free ? FreeSpellHint(spell) : SpellHintText(summon.Words, inv.Letters, inv.Capacity, spell, needs, objectives);
                 spellHint.text = line;
-                spellHint.color = line.Contains(" ready") ? Hex(0x9ff8d3) : OnGame;
+                spellHint.color = free || line.Contains(" ready") ? Hex(0x9ff8d3) : OnGame;
             }
             bool shown = spellHint.text.Length > 0;
             if (spellHint.gameObject.activeSelf != shown) spellHint.gameObject.SetActive(shown);
@@ -1132,6 +1141,8 @@ namespace Wreckabulary
             var near = WordSolver.Hints(usable, letters, capacity, needs, objectives);
             return near.Count > 0 ? near[0].entry.word + " needs " + near[0].missing : "";
         }
+        public static string FreeSpellHint(string key) => string.IsNullOrEmpty(key) ? FreeSpelling : FreeSpelling + " · " + key;
+
         public static string SpellKeyLabel(InputBinding binding) => binding switch
         {
             GamepadBinding => "Y",
@@ -1229,15 +1240,21 @@ namespace Wreckabulary
         void RefreshBook(LetterInventory inv)
         {
             bool free = LocalPlayer.CanAct && !LocalPlayer.Summoner.IsCrafting;
+            bool gift = inv.SpellsFree;
+            if (gift != bookFree)
+            {
+                bookFree = gift;
+                if (bookWord == null) ShowBookLine(null);
+            }
             foreach (var card in bookCards)
             {
                 spare.Clear(); spare.AddRange(inv.Letters);
                 bool all = true;
                 for (int i = 0; i < card.word.Length; i++)
                 {
-                    int at = spare.IndexOf(card.word[i]);
-                    bool got = at >= 0;
-                    if (got) spare.RemoveAt(at); else all = false;
+                    int at = gift ? -1 : spare.IndexOf(card.word[i]);
+                    bool got = gift || at >= 0;
+                    if (at >= 0) spare.RemoveAt(at); else if (!got) all = false;
                     card.tiles[i].color = got ? TileGot : Color.clear;
                     card.rims[i].enabled = !got;
                     card.letters[i].color = got ? TileGotInk : TileMissingInk;
@@ -1378,6 +1395,7 @@ namespace Wreckabulary
             DesktopBinding.Typing = false;
             if (LocalPlayer) LocalPlayer.Summoner.Typed = false;
             if (bagHidden) HideForBag(false);
+            ShowScoreboard(false);
             if (Active == this) Active = null;
         }
         void OnDestroy()
@@ -1422,8 +1440,10 @@ namespace Wreckabulary
         }
         public void SetTimer(string text)
         {
+            timerText = text;
             if (timer) timer.text = text;
-            if (timer) timer.transform.parent.gameObject.SetActive(!string.IsNullOrEmpty(text));
+            if (bar) PlaceClock();
+            else if (timer) timer.transform.parent.gameObject.SetActive(!string.IsNullOrEmpty(text));
         }
         public void SetScoreboard(IReadOnlyList<PlayerController> currentPlayers, Func<PlayerController, int> currentWins, int targetWins, bool winsVisible)
             => SetScoreboard(currentPlayers, currentWins, targetWins, winsVisible, null);

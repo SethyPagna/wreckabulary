@@ -104,6 +104,7 @@ namespace Wreckabulary.EditorTools
                 var skins = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
                 var worn = PlayerAppearance.Dress(skins, outfit, GameConfig.Current.Wardrobe, seat);
                 holder.transform.rotation = Quaternion.Euler(0f, Yaw, 0f);
+                ShopPreviewImporter.Settle(model);
                 var renderers = model.GetComponentsInChildren<Renderer>().Where(r => r.enabled && r.gameObject.activeInHierarchy).ToArray();
                 if (renderers.Length == 0) throw new InvalidOperationException("Nothing visible to capture.");
                 var rig = model.GetComponentInChildren<WardrobeRig>();

@@ -57,9 +57,16 @@ namespace Wreckabulary
 
         public void AssignTeams()
         {
-            var teams = Rules.Teams.For(players.Count, Match.Rules.TeamSize, Rules.HouseModes.Find(Match.Mode)?.Sides ?? 0);
+            int sides = Rules.HouseModes.Find(Match.Mode)?.Sides ?? 0;
+            var human = players.Select(p => p.Binding is not BotBinding).ToArray();
+            var teams = Rules.Teams.For(players.Count, Match.Rules.TeamSize, sides, human);
+            teamPlaces = Rules.Teams.Places(players.Count, Match.Rules.TeamSize, sides, human);
             for (int i = 0; i < players.Count; i++) players[i].Team = teams[i];
         }
+
+        int[] teamPlaces;
+
+        public int SpawnSeat(PlayerController p) => teamPlaces != null && p.Index < teamPlaces.Length ? teamPlaces[p.Index] : p.Index;
 
         public void EnsureOpponents()
         {
@@ -143,7 +150,7 @@ namespace Wreckabulary
             return p;
         }
 
-        public void Place(PlayerController p) => Place(p, p.Index);
+        public void Place(PlayerController p) => Place(p, SpawnSeat(p));
 
         public void Place(PlayerController p, int spawn)
         {

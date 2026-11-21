@@ -18,7 +18,8 @@ namespace Wreckabulary.Tests
         const string LastKey = Wreckabulary.Rules.LastPlayChoice.StorageKey;
         static readonly string[] Keys = { MatchTally.CareerKey, LobbyMenu.OutfitKey, LobbyMenu.TurnHintKey, QuickPlayChoices.StorageKey, FriendRooms.StorageKey, LastKey };
         static readonly Vector2 Wide = new Vector2(1868, 968), Short = new Vector2(900, 580);
-        const float SmallestLabel = 15f, SmallestTarget = 44f;
+        const float SmallestLabel = 15f, SmallestTarget = 44f, ModeRow = 52f;
+        const int HousesInARow = 5;
         string[] saved;
         float volume, delay;
         int vsync, tutorial;
@@ -497,6 +498,7 @@ namespace Wreckabulary.Tests
                 above = at.yMin;
                 if (!child.TryGetComponent(out Button button)) continue;
                 Assert.GreaterOrEqual(at.height, SmallestTarget - .01f, button.name);
+                Assert.That(at.height, Is.EqualTo(ModeRow).Within(.5f), button.name + " is one 52-unit row");
                 var label = button.GetComponentInChildren<TMP_Text>();
                 label.ForceMeshUpdate();
                 Assert.GreaterOrEqual(label.fontSize, SmallestLabel, button.name + " keeps a readable label");
@@ -685,9 +687,11 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator LocalAndCreateOfferActualModesWithConciseCards()
         {
-            Assert.AreEqual("Practice (Offline)", Find("Queue " + LobbyMenu.Practice).GetComponentInChildren<TMP_Text>().text);
-            Assert.AreEqual("Matchmaking", Find("Queue " + LobbyMenu.Matchmaking).GetComponentInChildren<TMP_Text>().text);
+            Assert.AreEqual("Same screen", Find("Queue " + LobbyMenu.Practice).GetComponentInChildren<TMP_Text>().text);
+            Assert.AreEqual("Online", Find("Queue " + LobbyMenu.Matchmaking).GetComponentInChildren<TMP_Text>().text);
             Assert.AreEqual("Create", Find("Queue " + LobbyMenu.Workshop).GetComponentInChildren<TMP_Text>().text);
+            foreach (var text in Page.GetComponentsInChildren<TMP_Text>(true))
+                Assert.IsFalse(text.text.ToLowerInvariant().Contains("offline"), text.name + ": " + text.text);
             CollectionAssert.AreEqual(AllHouseModes, Modes);
             CollectionAssert.AreEqual(HouseModes.Families.Select(family => LobbyKit.Upper(HouseModes.FamilyName(family))), Captions);
             foreach (var family in HouseModes.Families)
@@ -921,7 +925,9 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(Find("GO").interactable);
             menu.Go();
             Assert.IsFalse(menu.Starting);
-            StringAssert.Contains("local", menu.Messages[0]);
+            StringAssert.Contains("on this screen", menu.Messages[0]);
+            StringAssert.Contains("choose " + Find("Queue " + LobbyMenu.Matchmaking).GetComponentInChildren<TMP_Text>().text, menu.Messages[0],
+                "the message names the tab as it is written");
             Assert.IsTrue(Find("Queue " + LobbyMenu.Matchmaking).interactable, "the working online front door remains available");
             Submit("Queue " + LobbyMenu.Practice);
             yield return null;
@@ -1209,11 +1215,16 @@ namespace Wreckabulary.Tests
             var row = InPage((RectTransform)grid.transform);
             var cards = grid.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Map ")).ToArray();
             Assert.AreEqual(GameConfig.Current.Houses.Count, cards.Length);
-            Assert.That(grid.cellSize.x, Is.EqualTo(LobbyPlayCardGrid.PreferredWidth).Within(.5f), "A wide page keeps the steady card width.");
-            Assert.LessOrEqual(grid.constraintCount, 3);
+            Assert.AreEqual(HousesInARow, Resources.Load<LobbyPlayLayout>(LobbyPlayLayout.ResourcePath).MapColumns,
+                "Resources/UI/LobbyPlayLayout.asset keeps MapColumns at five");
+            Assert.AreEqual(HousesInARow, grid.constraintCount, "A wide page lays the houses five to a row.");
+            Assert.That(grid.cellSize.x, Is.InRange(grid.GetComponent<LobbyPlayCardGrid>().MinimumWidth, LobbyPlayCardGrid.PreferredWidth),
+                "Five columns stay between the smallest and the steady card width.");
             var first = InPage((RectTransform)cards[0].transform);
             Assert.That(first.xMin, Is.EqualTo(row.xMin).Within(.5f), "Cards start at the left edge.");
-            Assert.Less(cards.Max(card => InPage((RectTransform)card.transform).xMax), row.xMax - 100f, "Cards never stretch to fill the row.");
+            Assert.LessOrEqual(cards.Max(card => InPage((RectTransform)card.transform).xMax), row.xMax + .5f, "The row of houses fits the page.");
+            foreach (var card in cards.Take(HousesInARow))
+                Assert.That(InPage((RectTransform)card.transform).yMax, Is.EqualTo(first.yMax).Within(.5f), card.name + " shares the one row");
             foreach (var card in cards)
             {
                 string id = card.name.Substring(4);
@@ -1373,11 +1384,17 @@ namespace Wreckabulary.Tests
                 Assert.GreaterOrEqual(bounds.xMin, InPage(Columns).xMax, mode + ": the goal sits right of the last column");
                 Assert.GreaterOrEqual(bounds.yMin, InPage(Columns).yMin - .5f, mode + ": and does not add a row under the columns");
                 Assert.That(InPage(Strip).height, Is.EqualTo(InPage(Columns).height).Within(.5f), mode + ": so the maps keep their place");
+                var access = AssertAccess(mode, bounds);
+                Assert.GreaterOrEqual(access.xMin, InPage(Columns).xMax, mode + ": who can play sits right of the last column too");
+                Assert.AreEqual(HouseModes.BotSeats(mode) > 0 && HouseModes.Has(mode), AccessText.ToLowerInvariant().Contains("bot"), mode + ": bots are claimed only where bots play");
+                Assert.IsFalse(Page.GetComponentsInChildren<Button>().Any(button => button.name == PlayPage.PlayOnline), mode + " plays on this screen only");
                 AssertNoScrollingNeeded();
                 Assert.AreSame(Find("Mode " + mode).gameObject, EventSystem.current.currentSelectedGameObject);
             }
             Pick("TimeRun"); yield return null; yield return null;
-            AssertGoal(LobbyPlayModeLabels.Line("TimeRun"));
+            Canvas.ForceUpdateCanvases();
+            AssertAccess("TimeRun", AssertGoal(LobbyPlayModeLabels.Line("TimeRun")));
+            AssertPlayOnlineTarget();
             Page.sizeDelta = Short;
             yield return null; yield return null;
             Canvas.ForceUpdateCanvases();
@@ -1385,6 +1402,109 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(Strip.GetComponent<LobbyPlayModeBoard>().Beside, "a narrow page has no room beside the columns");
             Assert.LessOrEqual(under.yMax, InPage(Columns).yMin + .5f, "The goal sits under the columns.");
             Assert.That(under.center.x, Is.EqualTo(InPage(Strip).center.x).Within(.5f), "centred under them");
+            var below = AssertAccess("TimeRun", under);
+            Assert.That(below.center.x, Is.EqualTo(InPage(Strip).center.x).Within(.5f), "who can play is centred under the goal");
+            AssertPlayOnlineTarget();
+        }
+
+        static string AccessText => Page.GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.AccessLine).text;
+
+        static Rect AssertAccess(string mode, Rect goal)
+        {
+            var line = Page.GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.AccessLine);
+            Assert.AreEqual(Wreckabulary.Rules.ModeAccess.For(mode).Line, line.text, mode);
+            Assert.IsNotEmpty(line.text, mode + " says who can play");
+            Assert.IsTrue(line.transform.IsChildOf(Strip), "who can play belongs to the mode block");
+            var bounds = InPage(line.rectTransform); var block = InPage(Strip);
+            Assert.GreaterOrEqual(bounds.xMin, block.xMin - .5f, mode); Assert.LessOrEqual(bounds.xMax, block.xMax + .5f, mode);
+            Assert.GreaterOrEqual(bounds.yMin, block.yMin - .5f, mode + ": inside the mode block"); Assert.LessOrEqual(bounds.yMax, block.yMax + .5f, mode);
+            Assert.LessOrEqual(bounds.yMax, goal.yMin + .5f, mode + ": under the goal line");
+            Assert.That(bounds.xMin, Is.EqualTo(goal.xMin).Within(.5f), mode + ": starting where the goal starts");
+            foreach (var family in HouseModes.Families)
+                Assert.IsFalse(bounds.Overlaps(InPage((RectTransform)Section(family))), "who can play never covers the " + family + " column");
+            line.ForceMeshUpdate();
+            Assert.IsFalse(line.isTextTruncated || line.isTextOverflowing, line.text);
+            Assert.GreaterOrEqual(line.fontSize, SmallestLabel, mode + ": a readable line");
+            return bounds;
+        }
+
+        static void AssertPlayOnlineTarget()
+        {
+            var button = Find(PlayPage.PlayOnline);
+            var at = InPage((RectTransform)button.transform); var block = InPage(Strip);
+            var line = InPage(Page.GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.AccessLine).rectTransform);
+            Assert.IsTrue(button.IsInteractable());
+            Assert.GreaterOrEqual(at.height, SmallestTarget - .01f, "Play online keeps a full target");
+            Assert.GreaterOrEqual(at.xMin, line.xMin - .5f); Assert.LessOrEqual(at.xMax, line.xMax + .5f, "Play online stays on its line");
+            Assert.GreaterOrEqual(at.yMin, block.yMin - .5f); Assert.LessOrEqual(at.yMax, block.yMax + .5f, "and inside the mode block");
+            Assert.That(at.center.y, Is.EqualTo(line.center.y).Within(1f));
+            var label = button.GetComponentInChildren<TMP_Text>();
+            label.ForceMeshUpdate();
+            Assert.AreEqual(PlayPage.PlayOnline, label.text);
+            Assert.IsFalse(label.isTextTruncated || label.isTextOverflowing, label.text);
+            Assert.GreaterOrEqual(label.fontSize, SmallestLabel);
+        }
+
+        [UnityTest]
+        public IEnumerator SameScreenShowsModesAndHousesWithoutScrollingAtBothWindowSizes()
+        {
+            var menu = LobbyMenu.Instance;
+            menu.Choose(LobbyMenu.Practice, "Dibs", "pinwheel");
+            menu.Page<PlayPage>().WordboundSolo = false; menu.Open(LobbyMenu.Play);
+            yield return null;
+            using var viewport = new StageViewport(menu);
+            foreach (var size in new[] { new Vector2(1280, 720), new Vector2(1248, 576) })
+            {
+                viewport.Set(size.x, size.y);
+                yield return null; yield return null;
+                Canvas.ForceUpdateCanvases();
+                var frame = Page.GetComponentInChildren<LobbyPlayPageView>();
+                var scroll = frame.Choices.GetComponentInChildren<ScrollRect>();
+                Assert.LessOrEqual(scroll.content.rect.height, scroll.viewport.rect.height + .5f, size + ": the modes and one row of houses fit without scrolling");
+                var view = InPage(scroll.viewport);
+                var cards = Page.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Map ")).ToArray();
+                var first = InPage((RectTransform)cards[0].transform);
+                foreach (var card in cards.Take(HousesInARow))
+                {
+                    var at = InPage((RectTransform)card.transform);
+                    Assert.That(at.yMax, Is.EqualTo(first.yMax).Within(.5f), size + ": " + card.name + " shares the one row");
+                    Assert.GreaterOrEqual(at.xMin, view.xMin - .5f, size + ": " + card.name); Assert.LessOrEqual(at.xMax, view.xMax + .5f, size + ": " + card.name);
+                    Assert.GreaterOrEqual(at.yMin, view.yMin - .5f, size + ": " + card.name); Assert.LessOrEqual(at.yMax, view.yMax + .5f, size + ": " + card.name);
+                }
+                AssertColumnsFit(true);
+                AssertNoScrollingNeeded();
+                AssertAccess("Dibs", AssertGoal(LobbyPlayModeLabels.Line("Dibs")));
+                foreach (var text in frame.Panel.GetComponentsInChildren<TMP_Text>())
+                {
+                    text.ForceMeshUpdate();
+                    Assert.IsFalse(text.isTextTruncated || text.isTextOverflowing, size + " " + text.name + ": " + text.text);
+                }
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ACourseOffersPlayOnlineAndItOpensTheOnlineTabOnThatCard()
+        {
+            var menu = LobbyMenu.Instance;
+            menu.Choose(LobbyMenu.Practice, "Dibs", "pinwheel"); menu.Open(LobbyMenu.Play);
+            yield return null;
+            foreach (var (mode, card) in new[] { ("TimeRun", "coop"), ("Freestyle", "freeplay") })
+            {
+                Pick(mode); yield return null; yield return null;
+                Canvas.ForceUpdateCanvases();
+                Assert.AreEqual(Wreckabulary.Rules.ModeAccess.For(mode).Line, AccessText);
+                Submit(PlayPage.PlayOnline); yield return null; yield return null;
+                Assert.IsTrue(menu.Page<PlayPage>().Online, mode + " opens the Online tab");
+                Assert.IsFalse(menu.Page<PlayPage>().Friends);
+                Assert.IsTrue(Underlined("Queue " + LobbyMenu.Matchmaking));
+                Assert.AreEqual(PlayPage.PlaylistCard + card, EventSystem.current.currentSelectedGameObject.name, mode + " lands on its own card");
+                Assert.AreEqual(LobbyMenu.Practice, menu.Queue, "the same-screen choice is not reclassified");
+                Assert.AreEqual(Session.HubScene, SceneManager.GetActiveScene().name, "Play online only changes the tab");
+                Assert.IsFalse(menu.Starting);
+                Assert.IsEmpty(Modes, "no house modes on the Online tab");
+                Submit("Queue " + LobbyMenu.Practice); yield return null;
+                Assert.IsTrue(Underlined(PlayPage.ModeButton(mode)), "coming back shows the same course");
+            }
         }
 
         static Rect AssertGoal(string line)
@@ -1415,6 +1535,59 @@ namespace Wreckabulary.Tests
             var low = LobbyPlayCardGrid.Layout(1820, 12, 264, 3, 200);
             Assert.That(low.cell.y, Is.EqualTo(200 - LobbyPlayCardGrid.ViewportMargin).Within(.01f), "A short viewport still shows a whole card.");
             Assert.AreEqual(1, LobbyPlayCardGrid.Layout(200, 12, 264, 3, 0).columns);
+            var five = LobbyPlayCardGrid.Layout(1838, 12, 264, HousesInARow, 782);
+            Assert.AreEqual(HousesInARow, five.columns);
+            Assert.That(five.cell.x, Is.EqualTo((1838 - 48) / 5f).Within(.01f), "five houses share the width of a 1280x720 page");
+            Assert.That(five.cell.y, Is.EqualTo(LobbyPlayCardGrid.HeightFor(five.cell.x)).Within(.01f));
+            Assert.AreEqual(LobbyPlayCardGrid.PreferredWidth, LobbyPlayCardGrid.Layout(2258, 12, 264, HousesInARow, 782).cell.x, "a wider window stops at the steady width");
+        }
+
+        [Test]
+        public void ColumnFlowFillsOneColumnBeforeTheNextAndWrapsWholeSectionsWhenNarrow()
+        {
+            foreach (float width in new[] { 1838f, 2258f })
+            {
+                var page = LobbyPlayColumnFlow.Layout(new[] { 3, 2 }, width, 662);
+                Assert.AreEqual(4, page.RowsFit, width.ToString());
+                Assert.IsFalse(page.Wrapped, width.ToString());
+                CollectionAssert.AreEqual(new[] { 1, 1 }, page.Columns, "Classic and Arcade take one column each");
+                CollectionAssert.AreEqual(new[] { 2 }, page.Lines);
+                Assert.That(page.Width, Is.EqualTo(LobbyPlayColumnFlow.MaximumWidth).Within(.01f), "columns stop at the widest card");
+                Assert.That(page.Height, Is.EqualTo(201f).Within(.01f));
+                Assert.That(page.BandHeight, Is.EqualTo(661f).Within(.01f), "34 + 3 x 201 + 24");
+                Assert.LessOrEqual(page.BandHeight, 662f, "so the page does not scroll");
+                Assert.AreEqual((0, 2), page.Cell(2));
+            }
+            var small = LobbyPlayColumnFlow.Layout(new[] { 3, 2 }, 842, 256);
+            Assert.AreEqual(1, small.RowsFit);
+            Assert.IsTrue(small.Wrapped, "five columns of one card cannot fit, so each section keeps one column");
+            CollectionAssert.AreEqual(new[] { 1, 1 }, small.Columns);
+            CollectionAssert.AreEqual(new[] { 2 }, small.Lines, "both sections still fit side by side");
+            Assert.That(small.Width, Is.EqualTo(407f).Within(.01f));
+            Assert.That(small.Height, Is.EqualTo(LobbyPlayColumnFlow.MinimumHeight).Within(.01f));
+            Assert.That(small.BandHeight, Is.EqualTo(418f).Within(.01f), "taller than the room, so the page scrolls");
+            Assert.AreEqual((0, 2), small.Cell(2));
+            var grown = LobbyPlayColumnFlow.Layout(new[] { 7, 2 }, 1838, 662);
+            Assert.AreEqual(4, grown.RowsFit);
+            Assert.IsFalse(grown.Wrapped);
+            CollectionAssert.AreEqual(new[] { 2, 1 }, grown.Columns, "a full column continues in a second one beside it");
+            Assert.That(grown.Width, Is.EqualTo(599f).Within(.01f));
+            Assert.That(grown.Height, Is.EqualTo(148f).Within(.01f));
+            Assert.That(grown.BandHeight, Is.EqualTo(662f).Within(.01f));
+            Assert.AreEqual((0, 0), grown.Cell(0)); Assert.AreEqual((0, 3), grown.Cell(3));
+            Assert.AreEqual((1, 0), grown.Cell(4)); Assert.AreEqual((1, 2), grown.Cell(6));
+            Assert.That(grown.SectionWidth(0), Is.EqualTo(599f * 2 + LobbyPlayColumnFlow.Spacing).Within(.01f));
+            var slim = LobbyPlayColumnFlow.Layout(new[] { 3, 2 }, 500, 256);
+            Assert.IsTrue(slim.Wrapped);
+            CollectionAssert.AreEqual(new[] { 1, 1 }, slim.Lines, "sections wrap onto further lines");
+            Assert.That(slim.Width, Is.EqualTo(500f).Within(.01f));
+            Assert.That(slim.BandHeight, Is.EqualTo(418f + LobbyPlayColumnFlow.SectionSpacing + 286f).Within(.01f));
+            var open = LobbyPlayColumnFlow.Layout(new[] { 3, 2 }, 1838, 0);
+            CollectionAssert.AreEqual(new[] { 1, 1 }, open.Columns, "with no viewport every section is one column");
+            Assert.That(open.Height, Is.EqualTo(LobbyPlayColumnFlow.MaximumHeight).Within(.01f));
+            Assert.That(LobbyPlayColumnFlow.Layout(new int[0], 1838, 662).BandHeight, Is.EqualTo(0f));
+            foreach (var plan in new[] { small, grown, slim, open })
+                Assert.GreaterOrEqual(plan.Height, SmallestTarget, "a card is always a full target");
         }
 
         [Test]
@@ -1455,7 +1628,8 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("Team Race 2v2, Brawl Race 2v2 + 2 more", Summary);
             CollectionAssert.AreEqual(QuickPlaylists.Groups, Page.GetComponentsInChildren<TMP_Text>()
                 .Where(text => QuickPlaylists.Groups.Contains(text.text)).Select(text => text.text), "Classic, then Arcade");
-            yield return MatchmakingFitsWithoutScrolling(menu);
+            yield return MatchmakingFitsWithoutScrolling(menu, 1280, 720);
+            yield return MatchmakingFitsWithoutScrolling(menu, 1248, 576);
             Submit(PlayPage.TeamSizeSwitch + " Squad");
             yield return null;
             Assert.IsTrue(Underlined(PlayPage.TeamSizeSwitch + " Squad")); Assert.IsFalse(Underlined(PlayPage.TeamSizeSwitch + " Duo"));
@@ -1495,10 +1669,10 @@ namespace Wreckabulary.Tests
             Assert.IsNotEmpty(Modes); Assert.AreEqual("Duos", menu.Mode);
         }
 
-        IEnumerator MatchmakingFitsWithoutScrolling(LobbyMenu menu)
+        IEnumerator MatchmakingFitsWithoutScrolling(LobbyMenu menu, float width, float height)
         {
             using var viewport = new StageViewport(menu);
-            viewport.Set(1280, 720);
+            viewport.Set(width, height);
             yield return null; yield return null;
             Canvas.ForceUpdateCanvases();
             var frame = Page.GetComponentInChildren<LobbyPlayPageView>();
@@ -1510,26 +1684,72 @@ namespace Wreckabulary.Tests
             var tabs = InPage(frame.Queues); var row = InPage((RectTransform)column.GetChild(0));
             Assert.LessOrEqual(row.yMax, tabs.yMin + .5f, "the switch sits just under the tabs");
             Assert.LessOrEqual(InPage((RectTransform)column.GetChild(1)).yMax, row.yMin + .5f);
-            Assert.LessOrEqual(scroll.content.rect.height, scroll.viewport.rect.height + .5f, "Matchmaking never scrolls up and down at 1280x720");
+            Assert.LessOrEqual(scroll.content.rect.height, scroll.viewport.rect.height + .5f, "Online never scrolls up and down at " + width + "x" + height);
             var view = InPage(scroll.viewport);
-            var cards = QuickPlayCards.Ids.Select(id => InPage((RectTransform)Find(PlayPage.PlaylistCard + id).transform)).ToArray();
-            for (int i = 0; i < cards.Length; i++)
+            var band = column.GetChild(2);
+            var sections = QuickPlaylists.Groups.Select(group => (RectTransform)band.Find(PlayPage.PlaylistSection + group)).ToArray();
+            CollectionAssert.AreEqual(new[] { 3, 2 }, sections.Select(section => section.GetComponentsInChildren<Button>().Length).ToArray(),
+                "Classic holds three cards and Arcade two");
+            var size = InPage((RectTransform)Find(PlayPage.PlaylistCard + QuickPlayCards.Ids[0]).transform);
+            for (int at = 0; at < sections.Length; at++)
             {
-                Assert.GreaterOrEqual(cards[i].xMin, view.xMin - .5f, QuickPlayCards.Ids[i]); Assert.LessOrEqual(cards[i].xMax, view.xMax + .5f, QuickPlayCards.Ids[i]);
-                Assert.GreaterOrEqual(cards[i].yMin, view.yMin - .5f, QuickPlayCards.Ids[i]); Assert.LessOrEqual(cards[i].yMax, view.yMax + .5f, QuickPlayCards.Ids[i]);
-                Assert.That(cards[i].yMin, Is.EqualTo(cards[0].yMin).Within(.5f), "all five cards share one row");
-                Assert.That(cards[i].width, Is.EqualTo(cards[0].width).Within(.5f), "the cards share one size");
-                if (i > 0) Assert.Greater(cards[i].xMin, cards[i - 1].xMax, "left to right");
+                string group = QuickPlaylists.Groups[at];
+                var buttons = sections[at].GetComponentsInChildren<Button>();
+                CollectionAssert.AreEqual(QuickPlayCards.All.Where(card => card.Group == group).Select(card => PlayPage.PlaylistCard + card.Id).ToArray(),
+                    buttons.Select(button => button.name).ToArray(), group + " top to bottom");
+                var caption = InPage((RectTransform)sections[at].Find(LobbyPlayColumnFlow.Caption));
+                Rect above = caption;
+                foreach (var button in buttons)
+                {
+                    var card = InPage((RectTransform)button.transform);
+                    Assert.GreaterOrEqual(card.xMin, view.xMin - .5f, button.name); Assert.LessOrEqual(card.xMax, view.xMax + .5f, button.name);
+                    Assert.GreaterOrEqual(card.yMin, view.yMin - .5f, button.name); Assert.LessOrEqual(card.yMax, view.yMax + .5f, button.name);
+                    Assert.That(card.xMin, Is.EqualTo(caption.xMin).Within(.5f), button.name + " starts at its column's left edge");
+                    Assert.That(card.width, Is.EqualTo(size.width).Within(.5f), "the cards share one width");
+                    Assert.That(card.height, Is.EqualTo(size.height).Within(.5f), "and one height");
+                    Assert.LessOrEqual(card.yMax, above.yMin + .5f, button.name + " sits under the one before it");
+                    Assert.GreaterOrEqual(card.height, SmallestTarget, button.name);
+                    AssertRowCard(button, card);
+                    above = card;
+                }
             }
-            var classic = InPage((RectTransform)column.GetChild(2).Find(PlayPage.PlaylistSection + QuickPlaylists.Classic));
-            var arcade = InPage((RectTransform)column.GetChild(2).Find(PlayPage.PlaylistSection + QuickPlaylists.Arcade));
-            Assert.Greater(arcade.xMin, classic.xMax, "Arcade sits beside Classic");
-            Assert.That(arcade.yMax, Is.EqualTo(classic.yMax).Within(.5f));
+            Assert.That(size.width, Is.InRange(LobbyPlayColumnFlow.MinimumWidth, LobbyPlayColumnFlow.MaximumWidth));
+            Assert.That(size.height, Is.InRange(LobbyPlayColumnFlow.MinimumHeight, LobbyPlayColumnFlow.MaximumHeight));
+            var classic = InPage(sections[0]); var arcade = InPage(sections[1]);
+            Assert.Greater(arcade.xMin, classic.xMax, "Arcade starts right of Classic");
+            Assert.That(arcade.yMax, Is.EqualTo(classic.yMax).Within(.5f), "at the same top");
+            var plan = band.GetComponent<LobbyPlayColumnFlow>().Plan;
+            Assert.IsFalse(plan.Wrapped, "both window sizes have room for both columns");
+            CollectionAssert.AreEqual(new[] { 1, 1 }, plan.Columns);
             foreach (var text in frame.Panel.GetComponentsInChildren<TMP_Text>())
             {
                 text.ForceMeshUpdate();
                 Assert.IsFalse(text.isTextTruncated || text.isTextOverflowing, text.name + ": " + text.text);
             }
+        }
+
+        static void AssertRowCard(Button card, Rect at)
+        {
+            var picture = card.GetComponentsInChildren<RectTransform>().Single(part => part.name == "Map preview" || part.name == "Map fallback");
+            var shape = InPage(picture.name == "Map preview" ? (RectTransform)picture.parent : picture);
+            Assert.That(shape.width / shape.height, Is.EqualTo(16f / 9f).Within(.02f), card.name + " shows one 16:9 picture");
+            Assert.That(shape.xMin - at.xMin, Is.EqualTo(LobbyPlayRowCard.Inset).Within(.5f), card.name + ": the picture sits on the left");
+            Assert.GreaterOrEqual(shape.yMin, at.yMin - .5f, card.name); Assert.LessOrEqual(shape.yMax, at.yMax + .5f, card.name);
+            var title = card.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Map title");
+            var detail = card.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Map detail");
+            foreach (var text in new[] { title, detail })
+            {
+                var words = InPage(text.rectTransform);
+                Assert.GreaterOrEqual(words.xMin, shape.xMax, card.name + ": " + text.name + " is right of the picture");
+                Assert.LessOrEqual(words.xMax, at.xMax + .5f, card.name + ": " + text.name);
+                Assert.GreaterOrEqual(words.yMin, at.yMin - .5f, card.name + ": " + text.name); Assert.LessOrEqual(words.yMax, at.yMax + .5f, card.name + ": " + text.name);
+                text.ForceMeshUpdate();
+                Assert.IsFalse(text.isTextTruncated || text.isTextOverflowing, card.name + ": " + text.text);
+                Assert.GreaterOrEqual(text.fontSize, SmallestLabel, card.name + ": " + text.name);
+            }
+            Assert.LessOrEqual(InPage(detail.rectTransform).yMax, InPage(title.rectTransform).yMin + .5f, card.name + ": the name sits over the detail");
+            Assert.AreEqual(LobbyKit.Navy, title.color, card.name);
+            Assert.IsFalse(card.GetComponentsInChildren<Image>().Any(image => image.name == PlayPage.NameScrim), card.name + ": the name is not on the picture");
         }
 
         [UnityTest]

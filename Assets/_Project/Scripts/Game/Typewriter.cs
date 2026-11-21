@@ -20,14 +20,13 @@ namespace Wreckabulary
             public bool comingSoon;
         }
 
-        [SerializeField] Mode[] modes =
+        static readonly string[] MenuModes =
         {
-            new() { label = "TUTORIAL", blurb = "Learn to smash, spell and swing", scene = Session.TutorialScene },
-            new() { label = "DIBS!", id = "Dibs", blurb = "Last roommate standing • solo AI", scene = Session.DibsScene },
-            new() { label = "DUOS", id = "Duos", blurb = "Two teams • revive your teammate • solo AI", scene = Session.DibsScene },
-            new() { label = "MOVING DAY", blurb = "Co-op: furnish the house together", scene = Session.MovingDayScene },
-            new() { label = "MOVING OUT", id = "MovingOut", blurb = "Rescue keepsakes and reach the van", scene = Session.DibsScene },
+            Rules.HouseModes.Tutorial, Rules.HouseModes.Dibs, Rules.HouseModes.Duos, Rules.HouseModes.FreeForAll, Rules.HouseModes.War,
+            Rules.HouseModes.MovingDay, Rules.HouseModes.MovingOut, Rules.HouseModes.ShoppingList, Rules.HouseModes.RiddleRush,
         };
+
+        [SerializeField] Mode[] modes = Array.Empty<Mode>();
         [SerializeField] PlayerJoinManager joins;
         [SerializeField] TextMeshPro menuText;
         [SerializeField] TextMeshPro paperText;
@@ -45,18 +44,8 @@ namespace Wreckabulary
 
         void Awake()
         {
-            modes = new[]
-            {
-                new Mode { label = "TUTORIAL", id = "Tutorial", blurb = "Learn to smash, spell and swing", scene = Session.TutorialScene },
-                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.Dibs).ToUpperInvariant(), id = "Dibs", blurb = "Last roommate standing • solo AI", scene = Session.DibsScene },
-                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.Duos).ToUpperInvariant(), id = "Duos", blurb = "Two teams • hold grab to revive • solo AI", scene = Session.DibsScene },
-                FromRegistry(Rules.HouseModes.FreeForAll),
-                FromRegistry(Rules.HouseModes.War),
-                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.MovingDay).ToUpperInvariant(), id = "MovingDay", blurb = "Furnish the house before time runs out", scene = Session.MovingDayScene },
-                new Mode { label = Rules.HouseModes.Name(Rules.HouseModes.MovingOut).ToUpperInvariant(), id = "MovingOut", blurb = "Rescue keepsakes and get everyone to the van", scene = Session.DibsScene },
-                FromRegistry(Rules.HouseModes.ShoppingList),
-                FromRegistry(Rules.HouseModes.RiddleRush),
-            };
+            modes = new Mode[MenuModes.Length];
+            for (int i = 0; i < modes.Length; i++) modes[i] = FromRegistry(MenuModes[i]);
         }
 
         static Mode FromRegistry(string id) => new Mode

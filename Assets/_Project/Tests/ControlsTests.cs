@@ -123,8 +123,7 @@ namespace Wreckabulary.Tests
             p.Dodged += _ => dodges++;
 
             input.Next.dodge = true;
-            yield return Frames(2);
-            Assert.IsTrue(p.IsDodging);
+            yield return TestScenes.WaitUntil(() => p.IsDodging, 1f, "the dodge to start");
             Assert.IsFalse(p.Health.ApplyDamage(Punch(Vector3.forward)), "the start of a dodge can't be hit");
             Assert.AreEqual(100f, p.Health.Current);
 

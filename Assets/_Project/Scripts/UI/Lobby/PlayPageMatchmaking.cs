@@ -37,14 +37,15 @@ namespace Wreckabulary
                 QuickPlayCards.CanPlay(QuickPlayCards.Duo, partySize) || partySize > QuickPlaylists.MaximumParty ? null : PartyPlaysSquad(partySize));
             var strip = PartyStripFor(column, available);
             var band = LobbyKit.Rect(column, PlaylistBand);
-            band.gameObject.AddComponent<LobbyPlayCardBand>();
-            band.Size(-1, LobbyPlayCardGrid.HeightFor(LobbyPlayCardGrid.PreferredWidth) + 34);
+            band.Size(-1, LobbyPlayColumnFlow.Head + LobbyPlayColumnFlow.MaximumHeight);
+            var flow = band.gameObject.AddComponent<LobbyPlayColumnFlow>();
             foreach (string group in QuickPlaylists.Groups)
             {
                 var section = LobbyKit.Rect(band, PlaylistSection + group);
-                LobbyKit.SectionLabel(section, group).name = LobbyPlayCardBand.Caption;
+                LobbyKit.SectionLabel(section, group).name = LobbyPlayColumnFlow.Caption;
                 foreach (var card in QuickPlayCards.All.Where(card => card.Group == group)) PlaylistCardFor(section, choices, card, size);
             }
+            flow.Fit();
             var bar = SummaryFrame(body, MatchmakingSummary);
             SummaryLine(bar);
             string summary = choices.Summary(partySize: partySize);
@@ -190,7 +191,7 @@ namespace Wreckabulary
         {
             string name = PlaylistCard + card.Id;
             var button = MapCard(section, name, choices.Cards.IsTicked(card.Id), () => ToggleCard(card.Id, name));
-            MapWords(button, CardPicture(button, PlaylistPicture(card.Mode), LobbyIcons.Layers), card.Label, card.Detail(size));
+            RowWords(button, CardPicture(button, PlaylistPicture(card.Mode), LobbyIcons.Layers), card.Label, card.Detail(size));
         }
 
         Sprite PlaylistPicture(string mode) => mode == "FreeForAll"

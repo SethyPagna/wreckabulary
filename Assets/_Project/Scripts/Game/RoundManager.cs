@@ -8,7 +8,7 @@ using Wreckabulary.Rules;
 
 namespace Wreckabulary
 {
-    public enum Phase { Lobby, Countdown, Playing, RoundOver, MatchOver, Warmup }
+    public enum Phase { Lobby, Countdown, Playing, RoundOver, MatchOver, Warmup, Showcase }
 
     public class RoundManager : MonoBehaviour
     {
@@ -28,6 +28,8 @@ namespace Wreckabulary
         bool warmupAsked;
         public static bool WarmupRequested { get; set; }
         public HouseWarmup Warmup { get; private set; }
+        public HouseShowcase Showcase { get; private set; }
+        public float ShowcaseTime { get; set; } = MatchShowcase.DefaultSeconds;
         public Phase Phase { get; private set; } = Phase.Lobby;
         public bool Directed => directed != null;
         public IHouseWordGoal WordGoal { get; set; }
@@ -89,6 +91,7 @@ namespace Wreckabulary
         void OnDestroy()
         {
             CloseWarmup();
+            CloseShowcase();
             if (Instance == this) Instance = null;
             Time.timeScale = 1f;
         }
@@ -109,6 +112,9 @@ namespace Wreckabulary
             {
                 case Phase.Warmup:
                     if (TickWarmup(step)) EndWarmup();
+                    break;
+                case Phase.Showcase:
+                    if (TickShowcase(step)) EndShowcase();
                     break;
                 case Phase.Lobby:
                     hud.SetInstruction(joins.HumanCount == 0 ? JoinLine() : "Press START — solo seats get AI opponents", "");
@@ -180,6 +186,7 @@ namespace Wreckabulary
             hud.ShowModeActions(false);
             hud.HideResult();
             CloseWarmup();
+            CloseShowcase();
             if (TakeWarmup()) EnterWarmup();
             else BeginMatch();
         }
@@ -202,6 +209,21 @@ namespace Wreckabulary
         void EndWarmup()
         {
             CloseWarmup();
+            if (WantsShowcase) EnterShowcase();
+            else BeginMatch();
+        }
+
+        void EnterShowcase()
+        {
+            Time.timeScale = 1f;
+            SetPhase(Phase.Showcase);
+            deliveries.Running = false;
+            OpenShowcase();
+        }
+
+        void EndShowcase()
+        {
+            CloseShowcase();
             BeginMatch();
         }
 
@@ -227,6 +249,24 @@ namespace Wreckabulary
         {
             var open = Warmup;
             Warmup = null;
+            open?.End();
+        }
+
+        internal bool WantsShowcase => ShowcaseTime > 0f;
+
+        internal void OpenShowcase()
+        {
+            CloseShowcase();
+            Showcase = new HouseShowcase(joins, hud, Match.Mode, ShowcaseTime);
+            Showcase.Begin();
+        }
+
+        internal bool TickShowcase(float seconds) => Showcase != null && Showcase.Tick(seconds);
+
+        internal void CloseShowcase()
+        {
+            var open = Showcase;
+            Showcase = null;
             open?.End();
         }
 
@@ -285,7 +325,9 @@ namespace Wreckabulary
             {
                 SetPhase(Phase.MatchOver);
                 var record = MatchTally.FinishFor(lastWinner);
-                hud.ShowResultSoon(Result(summary, won, heading, record), StartMatch);
+                var card = Result(summary, won, heading, record);
+                card.Board = EndBoard(lastWinner ? lastWinner.Team : Teams.NoTeam);
+                hud.ShowResultSoon(card, StartMatch);
                 MatchWon?.Invoke(lastWinner);
             }
             else hud.ShowResultSoon(Result(summary, won, heading, null), StartRound);
@@ -325,8 +367,42 @@ namespace Wreckabulary
             result.Winner = lastWinner ? r.WinnerName ?? "" : "";
             result.Draw = !lastWinner;
             result.Stats = r.Stats;
+            if (final) result.Board = EndBoard(lastWinner ? lastWinner.Team : Teams.NoTeam);
             hud.ShowResultSoon(result, again);
             if (final) MatchWon?.Invoke(lastWinner);
+        }
+
+        internal void FeedScores(MatchStats stats)
+        {
+            if (stats == null || !joins) return;
+            var seats = Players;
+            for (int i = 0; i < seats.Count; i++)
+            {
+                var p = seats[i];
+                if (!p) continue;
+                stats.SetScore(p.Index, !Directed ? WinsOf(p) : hud ? hud.MatchScoreOf(p) : 0);
+                if (!Directed && score != null && p.Team != Teams.NoTeam) stats.SetSideScore(p.Team, score.Wins(p.Team));
+            }
+            var battle = Directed ? WarDirector.Active : null;
+            if (!battle || battle.Score == null) return;
+            for (int side = 0; side < WarDirector.SideCount; side++) stats.SetSideScore(side, battle.Score.Lives(side));
+        }
+
+        MatchEndBoard EndBoard(int winningTeam)
+        {
+            try
+            {
+                var stats = MatchStats.Current;
+                if (stats.Lines.Count == 0) MatchTally.EnterSeats();
+                FeedScores(stats);
+                if (stats.Lines.Count == 0) return null;
+                return MatchEnd.Build(stats, winningTeam, Match.Mode, room && room.Layout != null ? room.Layout.Name : null);
+            }
+            catch (Exception problem)
+            {
+                Debug.LogException(problem);
+                return null;
+            }
         }
 
         RoundSummary Summary(RoundOutcome outcome, PlayerController you, bool timeUp)

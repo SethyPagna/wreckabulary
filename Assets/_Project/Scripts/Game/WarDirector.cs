@@ -9,6 +9,7 @@ namespace Wreckabulary
     public sealed class WarDirector : HouseRoundDirector
     {
         public const int SideCount = 2;
+        public const string LivesCaption = "LIVES";
         readonly KnockoutWatch watch = new();
         readonly List<Spot> spawns = new();
         readonly List<Spot> foes = new();
@@ -19,6 +20,7 @@ namespace Wreckabulary
         readonly List<PlayerController> roster = new();
         int[] ends = System.Array.Empty<int>();
         System.Func<PlayerController, int> score;
+        System.Func<int, int> lives;
         int panelKey = int.MinValue;
 
         public static WarDirector Active { get; private set; }
@@ -36,6 +38,7 @@ namespace Wreckabulary
             RespawnSeconds = Context.Rules.RespawnSeconds > 0f ? Context.Rules.RespawnSeconds : 3f;
             HoldSeconds = Context.Rules.HoldBonusSeconds;
             score = p => p && knockouts.TryGetValue(p.Index, out int n) ? n : 0;
+            lives = side => Score != null ? Score.Lives(side) : 0;
             watch.KnockedOut += KnockedOut;
             Active = this;
         }
@@ -68,7 +71,7 @@ namespace Wreckabulary
         protected override void PlaceAtStart(PlayerController p)
         {
             var mine = HouseEnds.Of(ends, p.Team);
-            Joins.Place(p, mine[(p.Index / SideCount) % mine.Count]);
+            Joins.Place(p, mine[(Joins.SpawnSeat(p) / SideCount) % mine.Count]);
         }
 
         protected override void OnPlay() => Hud.Toast($"Two teams, {StartingLives} lives each. Every knockout costs one.");
@@ -103,7 +106,11 @@ namespace Wreckabulary
                 if (p && p.Team >= 0 && p.Team < SideCount && (!p.IsEliminated || returning.Contains(p))) up[p.Team]++;
         }
 
-        protected override void Scoreboard() => Hud.SetScoreboard(roster.Count > 0 ? roster : Players, score, 0, Score != null, FreeForAllDirector.Unit);
+        protected override void Scoreboard()
+        {
+            Hud.SetScoreboard(roster.Count > 0 ? roster : Players, score, 0, Score != null, FreeForAllDirector.Unit);
+            Hud.SetSideScores(lives, LivesCaption);
+        }
 
         void KnockedOut(PlayerController victim, PlayerController attacker)
         {

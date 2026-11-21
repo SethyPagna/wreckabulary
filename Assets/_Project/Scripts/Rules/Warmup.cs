@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Wreckabulary.Rules
 {
@@ -95,6 +96,40 @@ namespace Wreckabulary.Rules
         {
             int whole = Math.Max(0, (int)Math.Ceiling(seconds));
             return $"{whole / 60}:{whole % 60:00}";
+        }
+    }
+
+    public static class MatchShowcase
+    {
+        public const float DefaultSeconds = 10f;
+        public const string Lead = "MATCH STARTS IN", YourTeam = "YOUR TEAM", Versus = "VS", BotTag = "BOT";
+
+        public static int Count(float timeLeft) => Math.Max(1, (int)Math.Ceiling(Math.Max(0f, timeLeft)));
+
+        public static string CountLine(float timeLeft) => Lead + " " + Count(timeLeft);
+
+        public static string SkipPrompt(string startKey = null) =>
+            $"Hold {(string.IsNullOrEmpty(startKey) ? Warmup.StartWord : startKey)} to skip";
+
+        public static string SkipLine(Warmup votes, string startKey = null) =>
+            votes == null || votes.Voters == 0 ? "" : votes.ReadyCount == 0 ? SkipPrompt(startKey) : $"{votes.ReadyCount} of {votes.Voters} ready";
+
+        public static bool Sided(IReadOnlyList<int> teams) =>
+            teams != null && teams.Where(t => t != Teams.NoTeam).GroupBy(t => t).Any(side => side.Count() > 1);
+
+        public static IReadOnlyList<IReadOnlyList<int>> Rows(IReadOnlyList<int> teams)
+        {
+            if (teams == null || teams.Count == 0) return Array.Empty<IReadOnlyList<int>>();
+            var seats = Enumerable.Range(0, teams.Count).ToList();
+            if (!Sided(teams)) return new IReadOnlyList<int>[] { seats };
+            return seats.GroupBy(seat => teams[seat]).OrderBy(side => side.Key).Select(side => (IReadOnlyList<int>)side.ToList()).ToList();
+        }
+
+        public static string RowTitle(IReadOnlyList<int> teams, IReadOnlyList<int> row, int yourTeam = Teams.NoTeam)
+        {
+            if (row == null || row.Count == 0 || !Sided(teams)) return "";
+            int team = teams[row[0]];
+            return team != Teams.NoTeam && team == yourTeam ? YourTeam : Teams.SideName(team).ToUpperInvariant();
         }
     }
 }

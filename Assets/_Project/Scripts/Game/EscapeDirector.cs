@@ -86,6 +86,7 @@ namespace Wreckabulary
 
         public State Current { get; private set; }
         public string Checklist => checklistText ?? "";
+        public string Guide => guideText ?? "";
         public Vector3 ExtractionPoint => extraction;
         public int Seed => seed;
         public int DoorsOpen => doors.Count(d => d.Open);
@@ -785,19 +786,8 @@ namespace Wreckabulary
         string ComposeGuide()
         {
             if (!exitGated) return "";
-            if (exitOpen) return "EXIT OPEN \u00b7 everybody out!";
-            string near = RoomName(room.Layout, guideRoom);
-            string lead = keysNeeded > 1 ? $"KEYS {keysFound}/{keysNeeded}" : "VAN KEY";
-            if (guideDoor != null)
-            {
-                string word = Spaced(guideDoor.Word);
-                return AllKeysFound
-                    ? $"EXIT \u00b7 spell {word} to get through, then on to {near}"
-                    : $"{lead} \u00b7 spell {word}, then on to {near}";
-            }
-            return AllKeysFound
-                ? $"EXIT \u00b7 get everybody to {near}"
-                : keysNeeded > 1 ? $"{lead} \u00b7 the next one is in {near}" : $"{lead} \u00b7 it is hidden in {near}";
+            string word = guideDoor != null ? Spaced(guideDoor.Word) : null;
+            return EscapeText.Guide(exitOpen, keysFound, keysNeeded, word, RoomName(room.Layout, guideRoom));
         }
 
         void MeasureDoorway(Doorway d, float height, ref float yaw, ref float width)
@@ -1204,15 +1194,13 @@ namespace Wreckabulary
                 case State.Countdown:
                     Instruct("", "");
                     hud.ShowCountdown(Mathf.Max(1, Mathf.CeilToInt(3f - (Time.time - began))),
-                        $"{HouseModes.Name(HouseModes.Escape).ToUpperInvariant()} \u00b7 {room.Layout.Name.ToUpperInvariant()}");
+                        HouseCountdown.Line(HouseModes.Escape, room.Layout.Name));
                     if (Time.time - began >= 3f)
                     {
                         Current = State.Playing; began = Time.time;
                         foreach (var p in joins.Players) p.Frozen = false;
                         idle.Clear();
-                        clearOut.Begin();
                         hud.ShowGo();
-
                     }
                     break;
 
@@ -1220,7 +1208,7 @@ namespace Wreckabulary
                     hud.SetTimer(Clock(TimeLeft));
                     if (Time.time >= nextGuideCheck) { nextGuideCheck = Time.time + .4f; UpdateGuide(); }
                     idleMask = CrewPresence.IdleMask(idle, joins.Players);
-                    Instruct(GuideText(), clearOut.Message);
+                    Instruct(GuideText(), "");
                     MakeRoomForLetters();
                     CheckDoors();
                     TickKey();
@@ -1518,9 +1506,7 @@ namespace Wreckabulary
             World.FreezeTransient();
             joins.AllowJoining = false;
             hud.SetTimer("");
-            string heading = won
-                ? $"Everybody out with {Mathf.CeilToInt(TimeLeft)}s to spare!"
-                : wiped ? "The crew went down inside." : "The Movers finished packing.";
+            string heading = EscapeText.Result(won, wiped, Mathf.CeilToInt(TimeLeft));
             hud.ShowResult(HudResult.Of(1, true, won, heading, MatchTally.Finish(won)), Restart);
         }
 

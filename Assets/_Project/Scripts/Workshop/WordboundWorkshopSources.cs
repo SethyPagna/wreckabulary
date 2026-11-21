@@ -140,7 +140,7 @@ namespace Wreckabulary.Workshop
         {
             if (document == null || document.Id != WordboundSoloEntry.ParcelServiceCourseId || catalogue == null ||
                 play == null || !WordboundSoloEntry.Supports(play.ModeId) || !WorkshopModes.AllowsOneHumanLocal(play))
-                throw new ArgumentException("Parcel Depot needs its saved local course and Time Trial or Freeplay requirements.");
+                throw new ArgumentException("Parcel Depot needs its saved local course and Time Trial or Free Roam requirements.");
             var snapshot = new WorkshopSnapshot(new WorkshopDraft { Course = document, Seed = seed });
             string identity = WordboundIdentity.Sha256(snapshot.RecoveryJson + "|" + catalogue.Hash + "|" + play.ModeId);
             if (parcelServiceDraft != null && parcelServiceIdentity != identity)

@@ -75,7 +75,7 @@ namespace Wreckabulary
             back.sprite = panel; back.type = Image.Type.Sliced; back.color = Backing; back.raycastTarget = false;
             heading = Text("Heading", root, new Vector2(14f, -6f), new Vector2(180f, 22f), 16f, Gold, TextAlignmentOptions.Left);
             heading.characterSpacing = 1f;
-            heading.text = "SHOPPING LIST";
+            heading.text = "YOUR LIST";
             count = Text("Count", root, new Vector2(Width - 194f, -6f), new Vector2(180f, 22f), 18f, OnGame, TextAlignmentOptions.Right);
             tray = Rect("Letters", root, new Vector2(0f, 1f), Vector2.zero, new Vector2(Width, Tile + 8f));
             tray.pivot = new Vector2(0f, 1f);

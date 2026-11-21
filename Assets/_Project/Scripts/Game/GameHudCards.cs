@@ -23,6 +23,7 @@ namespace Wreckabulary
         public int Broken, Crafted, Damage;
         public MatchRecord Reward;
         public bool Best;
+        public MatchEndBoard Board;
 
         public static HudResult Of(int round, bool final, bool won, string heading, MatchRecord reward)
         {
@@ -706,12 +707,12 @@ namespace Wreckabulary
             Stretch(resultShade);
             var dim = resultShade.gameObject.AddComponent<Image>(); dim.color = ModalShade; dim.raycastTarget = true;
             resultRoot = resultShade.gameObject;
-            var card = Card("Result card", resultShade, 575f, 44f);
+            var card = resultCard = Card("Result card", resultShade, ResultCardWidth, ResultCardPad);
             resultSpark = Picture(card, "Spark", SparkSprite(), Spark, 62.5f);
-            Gap(card, 10f);
+            resultSparkGap = Gap(card, 10f);
             resultEyebrow = Copy(card, "Eyebrow", "", LobbyFonts.Black, 12.5f, Eyebrow, 21f);
             Gap(card, 10f);
-            resultHeading = Copy(card, "Heading", "", LobbyFonts.Black, 40f, Ink, -3f);
+            resultHeading = Copy(card, "Heading", "", LobbyFonts.Black, ResultHeadingFont, Ink, -3f);
             Gap(card, 8f);
             resultFlavour = Copy(card, "Flavour", "", LobbyFonts.Body, 15f, BodyInk);
             resultDetail = Copy(card, "Detail", "", LobbyFonts.Black, 15f, Ink);
@@ -814,6 +815,7 @@ namespace Wreckabulary
             resultRoot.transform.SetAsLastSibling();
             RefreshBagPanel();
             FocusOn(resultNext);
+            ShowMatchEnd(result.Final ? result.Board : null);
         }
 
         static string Or(string chosen, string fallback) => string.IsNullOrEmpty(chosen) ? fallback : chosen;
@@ -1239,6 +1241,7 @@ namespace Wreckabulary
             RefreshModeActionVisibility();
             PulseCards();
             ReadComposerKeys();
+            DrawMatchEndFaces();
         }
 
         void FitCards()
@@ -1250,6 +1253,7 @@ namespace Wreckabulary
             fittedRoom = room;
             foreach (var (card, width) in cardWidths)
                 if (card) card.sizeDelta = new Vector2(Mathf.Min(width, room), card.sizeDelta.y);
+            FitMatchEnd();
             if (helpKeys)
             {
                 float inner = Mathf.Min(812f, room) - 80f;

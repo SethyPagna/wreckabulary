@@ -38,6 +38,58 @@ namespace Wreckabulary.Rules
 
         public static int[] For(int players, int teamSize, int sides) => sides > 0 ? Sides(players, sides) : Assign(players, teamSize);
 
+        public const int FewestHumansToGroup = 2;
+
+        public static int[] Assign(int players, int teamSize, IReadOnlyList<bool> human) => Seated(Assign(players, teamSize), human);
+
+        public static int[] Sides(int players, int sides, IReadOnlyList<bool> human) => Seated(Sides(players, sides), human);
+
+        public static int[] For(int players, int teamSize, int sides, IReadOnlyList<bool> human) => Seated(For(players, teamSize, sides), human);
+
+        public static int[] Places(int players, int teamSize, int sides, IReadOnlyList<bool> human) => Places(For(players, teamSize, sides), human);
+
+        public static int[] Places(IReadOnlyList<int> deal, IReadOnlyList<bool> human)
+        {
+            if (deal == null) throw new ArgumentNullException(nameof(deal));
+            int seats = deal.Count;
+            if (human != null && human.Count != seats) throw new ArgumentException("Every seat needs a human flag.", nameof(human));
+            var places = new int[seats];
+            for (int i = 0; i < seats; i++) places[i] = i;
+            if (!Regroups(deal, human)) return places;
+            var grouped = Enumerable.Range(0, seats).OrderBy(i => deal[i]).ToArray();
+            var taken = new bool[seats];
+            int next = 0;
+            for (int seat = 0; seat < seats; seat++)
+            {
+                if (!human[seat]) continue;
+                places[seat] = grouped[next++];
+                taken[places[seat]] = true;
+            }
+            int free = 0;
+            for (int seat = 0; seat < seats; seat++)
+            {
+                if (human[seat]) continue;
+                while (taken[free]) free++;
+                places[seat] = free++;
+            }
+            return places;
+        }
+
+        static bool Regroups(IReadOnlyList<int> deal, IReadOnlyList<bool> human)
+        {
+            if (human == null || human.Count(h => h) < FewestHumansToGroup) return false;
+            int teams = deal.Distinct().Count();
+            return teams > 1 && teams < deal.Count;
+        }
+
+        static int[] Seated(int[] deal, IReadOnlyList<bool> human)
+        {
+            var places = Places(deal, human);
+            var teams = new int[deal.Length];
+            for (int i = 0; i < teams.Length; i++) teams[i] = deal[places[i]];
+            return teams;
+        }
+
         public static string SideName(int team) => team >= 0 ? $"Team {team + 1}" : "";
     }
 
