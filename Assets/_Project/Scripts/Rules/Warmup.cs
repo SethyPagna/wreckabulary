@@ -11,10 +11,12 @@ namespace Wreckabulary.Rules
         public const string Tip = "Spell anything, no letters needed. Nothing counts yet.";
         public const string TypeAnything = "Warm-up: type any recipe, no letters needed. Tab or right-click closes.";
 
-        static readonly string[] ModeIds =
+        static readonly string[] VersusIds =
         {
             HouseModes.Dibs, HouseModes.Duos, HouseModes.FreeForAll, HouseModes.War, HouseModes.ShoppingList, HouseModes.RiddleRush,
         };
+        static readonly string[] CrewIds = { HouseModes.MovingOut, HouseModes.Escape, HouseModes.MovingDay };
+        static readonly string[] ModeIds = VersusIds.Concat(CrewIds).ToArray();
 
         sealed class Seat
         {
@@ -28,8 +30,12 @@ namespace Wreckabulary.Rules
         public Warmup(float seconds = DefaultSeconds) => Length = seconds;
 
         public static IReadOnlyList<string> Modes => ModeIds;
+        public static IReadOnlyList<string> VersusModes => VersusIds;
+        public static IReadOnlyList<string> CrewModes => CrewIds;
 
         public static bool Applies(string modeId) => modeId != null && Array.IndexOf(ModeIds, modeId) >= 0;
+
+        public static bool Crew(string modeId) => modeId != null && Array.IndexOf(CrewIds, modeId) >= 0;
 
         public float Length { get => length; set => length = Math.Max(0f, value); }
         public float Elapsed => elapsed;
@@ -102,9 +108,34 @@ namespace Wreckabulary.Rules
     public static class MatchShowcase
     {
         public const float DefaultSeconds = 10f;
-        public const string Lead = "MATCH STARTS IN", YourTeam = "YOUR TEAM", Versus = "VS", BotTag = "BOT";
+        public const string Lead = "MATCH STARTS IN", YourTeam = "YOUR TEAM", YourCrew = "YOUR CREW", Versus = "VS", BotTag = "BOT";
 
         public static int Count(float timeLeft) => Math.Max(1, (int)Math.Ceiling(Math.Max(0f, timeLeft)));
+
+        public const int TickFrom = 3;
+        public const float SlideSeconds = .45f, SlideStagger = .07f;
+
+        public static bool Ticks(int count) => count > 0 && count <= TickFrom;
+
+        public static int SlideSide(int seat, int seats, int row, int rows)
+        {
+            if (rows > 1) return row * 2 < rows - 1 ? -1 : row * 2 > rows - 1 ? 1 : 0;
+            return seat * 2 < seats - 1 ? -1 : seat * 2 > seats - 1 ? 1 : 0;
+        }
+
+        public static float SlideDelay(int seat, int seats, int row, int rows)
+        {
+            int side = SlideSide(seat, seats, row, rows);
+            int fromEdge = side < 0 ? seat : side > 0 ? seats - 1 - seat : seat;
+            return Math.Max(0, fromEdge) * SlideStagger;
+        }
+
+        public static float Slide(float elapsed, float delay)
+        {
+            float t = Math.Min(1f, Math.Max(0f, (elapsed - delay) / SlideSeconds));
+            float rest = 1f - t;
+            return 1f - rest * rest * rest;
+        }
 
         public static string CountLine(float timeLeft) => Lead + " " + Count(timeLeft);
 
@@ -131,5 +162,11 @@ namespace Wreckabulary.Rules
             int team = teams[row[0]];
             return team != Teams.NoTeam && team == yourTeam ? YourTeam : Teams.SideName(team).ToUpperInvariant();
         }
+
+        public static IReadOnlyList<IReadOnlyList<int>> Rows(IReadOnlyList<int> teams, string modeId) =>
+            !Warmup.Crew(modeId) || teams == null || teams.Count == 0 ? Rows(teams) : new IReadOnlyList<int>[] { Enumerable.Range(0, teams.Count).ToList() };
+
+        public static string RowTitle(IReadOnlyList<int> teams, IReadOnlyList<int> row, int yourTeam, string modeId) =>
+            !Warmup.Crew(modeId) ? RowTitle(teams, row, yourTeam) : row == null || row.Count == 0 ? "" : YourCrew;
     }
 }

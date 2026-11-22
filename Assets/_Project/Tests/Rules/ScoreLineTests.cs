@@ -55,6 +55,42 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
+        public void AClockTakesTheCentreOnlyWhenNothingElseDoes()
+        {
+            Assert.AreEqual(ScoreCentre.Clock, ScoreLine.Centre(new[] { 0, 1, 2, 3 }, true, false, true), "Everyone for themselves keeps the clock in the bar.");
+            Assert.AreEqual(ScoreCentre.Clock, ScoreLine.Centre(new[] { 0, 0, 0 }, false, false, true), "A crew too.");
+            Assert.AreEqual(ScoreCentre.Clock, ScoreLine.Centre(new[] { 0 }, true, false, true), "Alone, the clock still sits top centre.");
+            Assert.AreEqual(ScoreCentre.Clock, ScoreLine.Centre(new int[0], false, false, true));
+            Assert.AreEqual(ScoreCentre.Score, ScoreLine.Centre(new[] { 0, 1, 0, 1 }, true, false, true), "Two scored sides keep the score line, clock above it.");
+            Assert.AreEqual(ScoreCentre.Target, ScoreLine.Centre(new[] { 0, 1, 2, 3 }, true, true, true));
+            Assert.AreEqual(ScoreCentre.None, ScoreLine.Centre(new[] { 0, 1, 2, 3 }, true, false, false), "No clock, no clock centre.");
+            Assert.AreEqual(ScoreCentre.None, ScoreLine.Centre(null, true, false, true));
+            Assert.AreEqual(0f, ScoreLine.Width(ScoreCentre.None));
+            Assert.AreEqual(ScoreLine.CentreWidth, ScoreLine.Width(ScoreCentre.Score));
+            Assert.AreEqual(ScoreLine.CentreWidth, ScoreLine.Width(ScoreCentre.Target));
+            Assert.AreEqual(ScoreLine.ClockWidth, ScoreLine.Width(ScoreCentre.Clock));
+            Assert.Less(ScoreLine.ClockWidth, ScoreLine.CentreWidth, "A clock alone needs less room than a score line.");
+        }
+
+        [Test]
+        public void AClockCentreSplitsTheCardsAroundItsOwnWidth()
+        {
+            var order = new int[PlayerBar.MostSeats];
+            var centres = new float[PlayerBar.MostSeats];
+            float width = ScoreLine.Arrange(new[] { 0, 1, 2, 3 }, order, centres, ScoreLine.ClockWidth, out int split);
+            float half = PlayerBar.RoomyCard * .5f, reach = ScoreLine.ClockWidth * .5f + ScoreLine.CentreGap;
+            Assert.AreEqual(2, split);
+            Assert.AreEqual(-reach, centres[1] + half, .001f);
+            Assert.AreEqual(reach, centres[2] - half, .001f);
+            Assert.AreEqual(2f * (reach + 2f * PlayerBar.RoomyCard + PlayerBar.RoomyGap), width, .001f);
+            Assert.AreEqual(ScoreLine.ClockWidth, ScoreLine.Arrange(new int[0], order, centres, ScoreLine.ClockWidth, out split), "With no cards the bar is the clock.");
+            Assert.AreEqual(0, split);
+            var plain = Arrange(true, 0, 1, 0, 1);
+            Assert.AreEqual(plain.width, ScoreLine.Arrange(new[] { 0, 1, 0, 1 }, order, centres, ScoreLine.CentreWidth, out split), .001f, "The width overload matches the old centred layout.");
+            Assert.AreEqual(PlayerBar.Arrange(new[] { 0, 1, 2 }, new int[8], new float[8]), ScoreLine.Arrange(new[] { 0, 1, 2 }, order, centres, 0f, out split), .001f);
+        }
+
+        [Test]
         public void TheBarSplitsBetweenTheTwoSides()
         {
             var two = Arrange(true, 0, 1, 0, 1);

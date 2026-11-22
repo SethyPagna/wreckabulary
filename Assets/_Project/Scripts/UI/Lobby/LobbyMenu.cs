@@ -473,7 +473,9 @@ namespace Wreckabulary
             inside.childForceExpandHeight = false;
             inside.childAlignment = TextAnchor.MiddleCenter;
             LobbyKit.Coin(chip, 32);
-            coins = LobbyKit.Display(chip, "0", 26, LobbyKit.Sun, TextAlignmentOptions.MidlineLeft, LobbyKit.Ink.Stroke);
+            const float BalanceText = 24f;
+            coins = LobbyKit.Display(chip, "0", BalanceText, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft);
+            coins.name = "Balance";
             coins.Size(-1, 34);
             LobbyKit.Display(chip, "SHOP", 21, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft).Size(62, 34);
             partyTab = LobbyKit.Tab(wallet, "Party", LobbyIcons.Party, ToggleParty, 188, 52, 22, 0);
@@ -543,7 +545,7 @@ namespace Wreckabulary
             LobbyKit.Display(who, Career.Name, 26, LobbyKit.Cream, TextAlignmentOptions.MidlineLeft).Size(-1, 32).name = "Name";
             LobbyKit.Text(who, "Level " + Career.Level + "  ·  in the lobby", 17, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft).Size(-1, 24).name = "Level";
             partyList = LobbyKit.Column(column, "Couch", 8, 0);
-            var friends = LobbyKit.Text(column, "Players on this PC. For online parties, open Play and choose Online.",
+            var friends = LobbyKit.Text(column, "Players here. For online play, open Play and choose Online.",
                 16, LobbyKit.Muted, TextAlignmentOptions.TopLeft);
             friends.textWrappingMode = TextWrappingModes.Normal;
             friends.Size(-1, 44);
@@ -575,8 +577,8 @@ namespace Wreckabulary
         {
             if (Stage) Stage.SetPartySize(PartySize);
             if (!partyList) return;
-            partyHeading.text = $"LOCAL PARTY  {PartySize} / {PartyMax}";
-            if (partyCount) partyCount.text = $"Local {PartySize}/{PartyMax}";
+            partyHeading.text = $"PARTY  {PartySize} / {PartyMax}";
+            if (partyCount) partyCount.text = $"Party {PartySize}/{PartyMax}";
             LobbyKit.Clear(partyList);
             for (int i = 0; i < party.Count; i++)
             {
@@ -1172,6 +1174,7 @@ namespace Wreckabulary
             }
             Seat(pad);
             RoundManager.WarmupRequested = WarmupBeforeMatches && Warmup.Applies(Mode);
+            RoundManager.FinishBeatsRequested = WarmupBeforeMatches;
             var home = launchHome;
             launchHome = null;
             if (Mode == TutorialMode) Session.LoadMode(TutorialMode);

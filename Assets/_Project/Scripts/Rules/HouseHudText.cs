@@ -26,6 +26,10 @@ namespace Wreckabulary.Rules
 
     public static class SeatTags
     {
+        public const string YouTag = "YOU", BotTag = "BOT";
+
+        public static string Tag(bool you, bool bot) => bot ? BotTag : you ? YouTag : "";
+
         public static bool ShowsTag(bool human, int humans, bool shoulderView) => !human || (humans > 1 && !shoulderView);
 
         public static bool ShowsRing(bool wrecked) => !wrecked;
@@ -79,6 +83,7 @@ namespace Wreckabulary.Rules
 
     public static class EscapeText
     {
+        public const string Exit = "EXIT", CrewGoal = "Get the whole crew out";
         public const string ExitOpen = "EXIT OPEN · everybody out!";
         public const string Wiped = "The crew went down inside.";
         public const string TimeUp = "Time ran out before everybody got out.";
@@ -96,13 +101,34 @@ namespace Wreckabulary.Rules
             return needed > 1 ? $"{lead} · the next one is in {near}" : $"{lead} · it is hidden in {near}";
         }
 
+        public static string Keys(int found, int needed) => $"KEYS {Math.Max(0, found)}/{Math.Max(0, needed)}";
+
+        public static string KeyNote(int found, int needed, bool exitOpen, string keyRoom) =>
+            exitOpen ? "the way out is open" : found >= needed ? "head for the exit" : $"look in {keyRoom}";
+
         public static string Result(bool won, bool wiped, int secondsLeft) =>
             won ? $"Everybody out with {Math.Max(0, secondsLeft)}s to spare!" : wiped ? Wiped : TimeUp;
+    }
+
+    public readonly struct HudGoal
+    {
+        public readonly string Word, Note, Icon;
+        public readonly bool Done, Current;
+
+        public HudGoal(string word, string note, bool done, bool current = false, string icon = "")
+        {
+            Word = word ?? ""; Note = note ?? ""; Done = done; Current = current; Icon = icon ?? "";
+        }
     }
 
     public static class FurnishText
     {
         public const string Checklist = "CHECKLIST";
+
+        public static string Where(string room) => string.IsNullOrEmpty(room) ? "" : "in the " + room;
+
+        public static string PlateHeading(string house) =>
+            string.IsNullOrEmpty(house) ? Checklist : Checklist + " · " + house.ToUpperInvariant();
 
         public static string ChecklistHeading(string house) =>
             string.IsNullOrEmpty(house) ? $"<b>{Checklist}</b>\n" : $"<b>{Checklist}</b>\n<size=75%>{house}</size>\n";
@@ -111,12 +137,12 @@ namespace Wreckabulary.Rules
     public readonly struct SeatResult
     {
         public readonly string Name;
-        public readonly int Wins, Health;
+        public readonly int Wins, Health, Seat;
         public readonly bool Won, Wrecked, Downed, You, Human;
 
-        public SeatResult(string name, int wins, int health, bool won, bool wrecked, bool downed, bool you, bool human)
+        public SeatResult(string name, int wins, int health, bool won, bool wrecked, bool downed, bool you, bool human, int seat = -1)
         {
-            Name = name ?? ""; Wins = wins; Health = health; Won = won; Wrecked = wrecked; Downed = downed; You = you; Human = human;
+            Name = name ?? ""; Wins = wins; Health = health; Won = won; Wrecked = wrecked; Downed = downed; You = you; Human = human; Seat = seat;
         }
     }
 
@@ -192,6 +218,16 @@ namespace Wreckabulary.Rules
             int humans = s.Humans;
             return s.Seats.Select(seat => Line(seat, s.Target, humans)).ToArray();
         }
+
+        public const int MaxPips = 7;
+
+        public static bool ShowsPips(int target) => target > 0 && target <= MaxPips;
+
+        public static int Pips(int wins, int target) => Math.Max(0, Math.Min(wins, target));
+
+        public static string WinCount(int wins, int target) => target > 0 ? $"{Math.Max(0, wins)}/{target}" : Math.Max(0, wins).ToString();
+
+        public static string Tag(SeatResult seat, int humans) => SeatTags.Tag(seat.You && humans == 1, !seat.Human);
     }
 
     public readonly struct BattleSeat
@@ -237,6 +273,8 @@ namespace Wreckabulary.Rules
         public static string LifeCount(int n) => n == 1 ? "1 life" : $"{n} lives";
 
         public static string Lives(int n) => LifeCount(n) + " left";
+
+        public static string OutOfLives(string side, int standing) => $"{side} · no lives · {Math.Max(0, standing)} standing";
 
         static string SideName(BattleSummary s, int team) => s.Solo && team == s.YourTeam ? "Your team" : Teams.SideName(team);
 

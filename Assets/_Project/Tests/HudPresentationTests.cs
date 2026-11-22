@@ -60,27 +60,38 @@ namespace Wreckabulary.Tests
         public IEnumerator TimerMeshUsesTheCurrentFontAtlasAfterRestylingLegacyText()
         {
             yield return TestScenes.Load(Session.DibsScene);
+            yield return TestScenes.ExploreHouse();
             var hud = Object.FindAnyObjectByType<GameHud>();
-            var timer = hud.transform.Find("Safe HUD/Side column/Timer/Timer").GetComponent<TMPro.TextMeshProUGUI>();
+            var pill = hud.transform.Find("Safe HUD/Side column/Timer");
+            var timer = pill.Find("Timer").GetComponent<TMPro.TextMeshProUGUI>();
             Assert.AreSame(LobbyFonts.Body, timer.font);
+            Assert.AreSame(timer.font.atlasTexture, timer.materialForRendering.mainTexture,
+                "The scene's old font material must not return when its outline is applied.");
+            var clock = hud.transform.Find("Safe HUD/Player bar/Centre/Clock").GetComponent<TMPro.TextMeshProUGUI>();
+            Assert.AreSame(LobbyFonts.Body, clock.font);
+            Time.timeScale = 0f;
             foreach (string value in new[] { "2:41", "0:09" })
             {
                 hud.SetTimer(value);
+                yield return TestScenes.WaitUntil(() => hud.Centre == Wreckabulary.Rules.ScoreCentre.Clock &&hud.CentreClock == value && clock.isActiveAndEnabled, 10f, "the clock in the bar");
+                Assert.AreEqual(value, timer.text, "The scene's timer text still follows the clock.");
+                Assert.IsFalse(pill.gameObject.activeSelf, "One clock only: the bar draws it, not the old side pill.");
                 Canvas.ForceUpdateCanvases();
-                timer.ForceMeshUpdate();
-                Assert.AreEqual(value.Length, timer.textInfo.characterCount);
-                Assert.AreSame(timer.font.atlasTexture, timer.materialForRendering.mainTexture,
-                    "The scene's old font material must not return when its outline is applied.");
-                for (int i = 0; i < timer.textInfo.characterCount; i++)
+                clock.ForceMeshUpdate();
+                Assert.AreEqual(value.Length, clock.textInfo.characterCount);
+                Assert.AreSame(clock.font.atlasTexture, clock.materialForRendering.mainTexture,
+                    "The clock's outlined material samples its own font atlas.");
+                for (int i = 0; i < clock.textInfo.characterCount; i++)
                 {
-                    var character = timer.textInfo.characterInfo[i];
+                    var character = clock.textInfo.characterInfo[i];
                     Assert.AreEqual(value[i], character.character);
                     Assert.IsTrue(character.isVisible);
                     var atlas = character.fontAsset.atlasTextures[character.textElement.glyph.atlasIndex];
-                    var material = timer.textInfo.meshInfo[character.materialReferenceIndex].material;
+                    var material = clock.textInfo.meshInfo[character.materialReferenceIndex].material;
                     Assert.AreSame(atlas, material.mainTexture, "Each digit mesh must sample its own glyph atlas.");
                 }
             }
+            Time.timeScale = 1f;
         }
 
         [UnityTest]

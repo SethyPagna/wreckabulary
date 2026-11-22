@@ -327,6 +327,92 @@ namespace Wreckabulary
         }
     }
 
+    public sealed class CrewPrelude
+    {
+        readonly RoundManager rounds;
+        readonly PlayerJoinManager joins;
+        bool joining, respawning;
+
+        public bool Running { get; private set; }
+        public bool LinedUp => Running && rounds && rounds.Phase == Phase.Showcase;
+
+        CrewPrelude(RoundManager rounds, PlayerJoinManager joins)
+        {
+            this.rounds = rounds; this.joins = joins;
+        }
+
+        public static CrewPrelude Take(RoundManager rounds, PlayerJoinManager joins) =>
+            rounds && joins && rounds.TakeWarmup() ? new CrewPrelude(rounds, joins) : null;
+
+        public void Begin()
+        {
+            if (Running) return;
+            Running = true;
+            joining = joins.AllowJoining;
+            respawning = joins.RespawnKnockedOut;
+            joins.AssignTeams();
+            joins.AllowJoining = false;
+            rounds.EnterCrewPhase(Phase.Warmup);
+            rounds.OpenWarmup();
+        }
+
+        public bool Tick()
+        {
+            if (!Running || !rounds) return true;
+            float step = RoundManager.FrameStep;
+            if (rounds.Phase == Phase.Warmup)
+            {
+                if (rounds.Warmup != null && !rounds.TickWarmup(step)) return false;
+                rounds.CloseWarmup();
+                if (!rounds.WantsShowcase) return Finish();
+                rounds.EnterCrewPhase(Phase.Showcase);
+                rounds.OpenShowcase();
+                return false;
+            }
+            bool counting = rounds.Phase == Phase.Showcase && rounds.Showcase != null && !rounds.TickShowcase(step);
+            return !counting && Finish();
+        }
+
+        bool Finish()
+        {
+            End();
+            return true;
+        }
+
+        public void End()
+        {
+            if (!Running) return;
+            Running = false;
+            if (rounds)
+            {
+                rounds.CloseWarmup();
+                rounds.CloseShowcase();
+                rounds.EnterCrewPhase(Phase.Lobby);
+            }
+            if (!joins) return;
+            joins.AllowJoining = joining;
+            joins.RespawnKnockedOut = respawning;
+        }
+    }
+
+    public static class CrewResult
+    {
+        public static MatchEndBoard Board(CrewOutcome outcome, string modeId, string place)
+        {
+            try
+            {
+                var stats = MatchStats.Current;
+                if (stats.Lines.Count == 0) MatchTally.EnterSeats();
+                return stats.Lines.Count == 0 ? null : CrewEnd.Build(stats, outcome, modeId, place);
+            }
+            catch (Exception problem)
+            {
+                Debug.LogException(problem);
+                return null;
+            }
+        }
+    }
+
     public abstract class HouseRoundDirector : MonoBehaviour
     {
         public enum Stage { Lobby, Countdown, Playing, Over, Warmup, Showcase }

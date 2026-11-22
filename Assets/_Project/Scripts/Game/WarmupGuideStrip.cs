@@ -10,10 +10,11 @@ namespace Wreckabulary
     {
         public const string RootName = "Warm-up strip";
         public const float MinFont = 15f;
-        const float Width = 640f, MinCornerWidth = 460f, Height = 212f, Pad = 14f, Margin = 38f, TopGap = 12f, NarrowGutter = 76f;
+        const float Width = 520f, MinCornerWidth = 460f, Height = 212f, Pad = 14f, Margin = 38f, TopGap = 12f, NarrowGutter = 76f;
+        const float CoverSlack = 40f, CornerReturnSeconds = 1f;
         const float TrayHalfWidth = 250f, TrayGap = 20f;
         const float HeaderHeight = 34f, HeaderGap = 8f, TitleWidth = 132f, ClockWidth = 74f, ClockGap = 4f, ReadyGap = 8f;
-        const float PictureHeight = 118f, PictureWidth = PictureHeight * 16f / 9f, PictureGap = 14f;
+        const float PictureHeight = 118f, PictureWidth = PictureHeight, PictureGap = 14f;
         const float CardTitleHeight = 28f, CardLineGap = 2f, CardLineHeight = 72f;
         const float DotSize = 10f, DotWide = 26f, DotGap = 6f, TipHeight = 22f, TipBottom = 10f;
         const float TitleFont = 22f, ClockFont = 26f, ReadyFont = 18f, CardTitleFont = 21f, CardLineFont = 18f, TipFont = 16f;
@@ -30,8 +31,8 @@ namespace Wreckabulary
         readonly List<Image> dotImages = new();
         int shownCard = -1, shownSeconds = int.MinValue, shownReady = -1, shownVoters = -1;
         string shownKey;
-        bool keyShown, laidCorner, closed;
-        float laidWidth = -1f, laidInset = -1f;
+        bool keyShown, laidCorner, closed, pictured, covered;
+        float laidWidth = -1f, laidInset = -1f, clearSince = -10f;
 
         public bool Built => root;
         public bool Shown => root && root.gameObject.activeInHierarchy;
@@ -45,8 +46,9 @@ namespace Wreckabulary
         public string TipText => tip ? tip.text : "";
         public string CardTitleText => cardTitle ? cardTitle.text : "";
         public string CardLineText => cardLine ? cardLine.text : "";
-        public bool PictureShown => photo && photo.enabled && photo.sprite;
+        public bool PictureShown => pictured;
         public bool InCorner => laidCorner;
+        public bool MovedForPlayer => covered;
 
         public static WarmupGuideStrip Attach(GameObject host, GameHud display, string modeId)
         {
@@ -165,11 +167,10 @@ namespace Wreckabulary
             var step = guide.Steps[index];
             cardTitle.text = step.Title;
             cardLine.text = ModeGuides.Line(step, ModeGuides.Fallback());
-            var sprite = ModeGuides.Picture(step.Image);
-            photo.sprite = sprite;
-            photo.enabled = sprite;
-            fallback.gameObject.SetActive(!sprite);
-            if (!sprite) ShowArt(step.Art);
+            photo.sprite = null;
+            photo.enabled = false;
+            fallback.gameObject.SetActive(true);
+            ShowArt(step.Art);
             float x = 0f;
             for (int i = 0; i < dotImages.Count; i++)
             {
@@ -185,6 +186,7 @@ namespace Wreckabulary
         void ShowArt(string art)
         {
             ModeGuides.Art(fallback, guide.Mode, art, PictureHeight * ArtShare);
+            pictured = fallback.GetComponentInChildren<RawImage>(true);
             foreach (var graphic in fallback.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
             foreach (var word in fallback.GetComponentsInChildren<TextMeshProUGUI>(true))
             {
@@ -196,7 +198,9 @@ namespace Wreckabulary
         {
             var area = ((RectTransform)root.parent).rect;
             float room = area.width * .5f - TrayHalfWidth - TrayGap - Margin;
-            bool corner = !hud.TouchControlsShown && area.width >= area.height && room >= MinCornerWidth;
+            bool fits = !hud.TouchControlsShown && area.width >= area.height && room >= MinCornerWidth;
+            covered = fits && PlayerUnderCorner(Mathf.Min(Width, room));
+            bool corner = fits && !covered;
             float width = Mathf.Min(Width, corner ? room : area.width - NarrowGutter);
             float inset = corner ? 0f : hud.TopInset;
             if (corner == laidCorner && Mathf.Approximately(width, laidWidth) && Mathf.Approximately(inset, laidInset)) return;
@@ -204,6 +208,34 @@ namespace Wreckabulary
             root.anchorMin = root.anchorMax = root.pivot = corner ? new Vector2(1f, 0f) : new Vector2(.5f, 1f);
             root.anchoredPosition = corner ? new Vector2(-Margin, Margin) : new Vector2(0f, -TopGap - inset);
             root.sizeDelta = new Vector2(width, Height);
+        }
+
+        bool PlayerUnderCorner(float width)
+        {
+            bool under = SomeoneUnder(width);
+            if (under) { clearSince = -10f; return true; }
+            if (!covered) return false;
+            if (clearSince < 0f) clearSince = Time.unscaledTime;
+            return Time.unscaledTime - clearSince < CornerReturnSeconds;
+        }
+
+        bool SomeoneUnder(float width)
+        {
+            var lens = Camera.main;
+            var parent = (RectTransform)root.parent;
+            if (!lens || !parent) return false;
+            var area = parent.rect;
+            var spot = Rect.MinMaxRect(area.xMax - Margin - width - CoverSlack, area.yMin, area.xMax, area.yMin + Margin + Height + CoverSlack);
+            var canvas = parent.GetComponentInParent<Canvas>();
+            var eye = canvas && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            foreach (var p in World.Players)
+            {
+                if (!p || p.Binding == null || p.Binding is BotBinding) continue;
+                var screen = lens.WorldToScreenPoint(p.transform.position);
+                if (screen.z <= 0f) continue;
+                if (RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screen, eye, out var local) && spot.Contains(local)) return true;
+            }
+            return false;
         }
 
         static Color Hex(int rgb, float a = 1f) => new(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, a);

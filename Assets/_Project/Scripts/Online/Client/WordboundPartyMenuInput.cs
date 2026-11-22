@@ -5,6 +5,7 @@ namespace Wreckabulary.Online
 {
     public sealed partial class WordboundPartyMenu
     {
+        static readonly string[] PrimaryControls = { "connect", "create-party", "quick-play", "room-start", "party-find", "room-paste" };
         readonly WordboundMenuFocus partyFocus = new WordboundMenuFocus();
         readonly WordboundPadFocusGate partyPadGate = new WordboundPadFocusGate();
         WordboundInputBinding partyInput;
@@ -114,18 +115,24 @@ namespace Wreckabulary.Online
             GUI.FocusControl(null); partyTyping = false;
         }
 
-        void PartyControl(string id, string label, Action action, bool toggle = false, bool value = false, float height = 0)
+        void PartyControl(string id, string label, Action action, bool toggle = false, bool value = false, float height = 0, bool chosen = false)
         {
             bool enabled = GUI.enabled;
             if (Event.current.type == EventType.Layout && enabled) partyFocus.Register(id);
             bool focused = partyUsesPad && partyFocus.Selected == id;
+            bool drawn = paper.Dressed;
             GUI.SetNextControlName("party:" + id);
-            string text = (focused ? "› " : "") + (toggle ? value ? "● " : "○ " : "") + label;
-            GUIStyle style = focused || toggle && value ? ui.Selected :
-                id == "connect" || id == "create-party" || id == "quick-play" || id == "room-start" || id == "party-find" ? ui.Primary : GUI.skin.button;
+            string text = drawn ? label : (focused ? "› " : "") + (toggle ? value ? "● " : "○ " : "") + label;
             var content = new GUIContent(text);
             var size = GUILayout.MinHeight(Mathf.Max(ui.RowHeight, height));
+            GUIStyle style = PartyStyle(id, focused, toggle, value, chosen);
             bool clicked = toggle ? ui.Toggle(value, content, style, size) != value : ui.Button(content, style, size);
+            if (drawn && Event.current.type == EventType.Repaint)
+            {
+                var drawnRect = GUILayoutUtility.GetLastRect();
+                if (toggle) paper.TickBox(drawnRect, value);
+                if (focused) paper.FocusRing(drawnRect);
+            }
             if (focused && Event.current.type == EventType.Repaint)
             {
                 GUI.FocusControl("party:" + id);
@@ -143,6 +150,13 @@ namespace Wreckabulary.Online
             if (clicked || confirmed) { partyFocus.CancelConfirmation(); QueuePartyAction(action, confirmed && !clicked); }
         }
 
+        GUIStyle PartyStyle(string id, bool focused, bool toggle, bool value, bool chosen)
+        {
+            if (paper.Dressed && toggle) return value ? paper.ToggleOn : paper.Toggle;
+            if (toggle && value || chosen || focused && !paper.Dressed) return ui.Selected;
+            return Array.IndexOf(PrimaryControls, id) >= 0 ? ui.Primary : GUI.skin.button;
+        }
+
         void PartyChoices(string id, int selected, string[] labels, int columns, Action<int> choose)
         {
             for (int row = 0; row < labels.Length; row += columns)
@@ -151,7 +165,7 @@ namespace Wreckabulary.Online
                 for (int i = row; i < Math.Min(row + columns, labels.Length); i++)
                 {
                     int index = i;
-                    PartyControl(id + ":" + i, (selected == i ? "• " : "") + labels[i], () => choose(index));
+                    PartyControl(id + ":" + i, (selected == i && !paper.Dressed ? "• " : "") + labels[i], () => choose(index), chosen: selected == i);
                 }
                 GUILayout.EndHorizontal();
             }

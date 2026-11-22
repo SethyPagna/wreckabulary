@@ -23,7 +23,7 @@ namespace Wreckabulary.EditorTools
             FootwearSlot = "Footwear", HeadwearSlot = "Headwear", FaceSlot = "Face", BackSlot = "Back", BadgeSlot = "Badge";
         const string OcclusionKeyword = "_SCREEN_SPACE_OCCLUSION", SettleMethod = "LateUpdate";
         const int Size = 256, Supersample = 2, Seat = 0, MinPixels = 1000, Percent = 100, Renders = 2;
-        const float FrontYaw = 160f, BackYaw = 340f, Margin = 1.1f, FaceZoom = .72f, PieceMargin = 1.15f;
+        const float FrontYaw = 160f, BackYaw = 340f, HairYaw = 125f, Margin = 1.1f, FaceZoom = .72f, PieceMargin = 1.15f;
         const float CameraDistance = 5f, NearPlane = .01f, FarPlane = 30f;
         const float KeyIntensity = .8f, FillIntensity = .4f, Ambient = .45f;
         static readonly Color Background = new Color(.97f, .94f, .85f, 0f);
@@ -40,6 +40,13 @@ namespace Wreckabulary.EditorTools
             public byte[] Png;
             public int Transparent, Opaque;
             public bool Alone;
+        }
+
+        sealed class Frame
+        {
+            public Vector3 Centre;
+            public float Half;
+            public Quaternion Turn = Quaternion.identity;
         }
 
         [MenuItem("Wreckabulary/Art/Capture wardrobe thumbnails")]
@@ -121,12 +128,13 @@ namespace Wreckabulary.EditorTools
                 var worn = PlayerAppearance.Dress(skins, OutfitFor(wardrobe, piece), wardrobe, Seat);
                 if (worn.PieceIn(piece.Slot) != piece.Id) throw new InvalidOperationException(piece.Id + " was not worn for its thumbnail.");
                 var region = RegionFor(piece.Slot);
-                holder.transform.rotation = Quaternion.Euler(0f, region == Region.Back ? BackYaw : FrontYaw, 0f);
+                holder.transform.rotation = Quaternion.Euler(0f, YawFor(piece.Slot, region), 0f);
                 Settle(model);
-                var own = PieceRenderers(piece, skins, model.GetComponentInChildren<WardrobeRig>());
+                var rig = model.GetComponentInChildren<WardrobeRig>();
+                var own = PieceRenderers(piece, skins, rig);
                 bool alone = own.Count > 0 && Array.IndexOf(PieceOnly, region) >= 0;
                 if (alone) ShowOnly(model, own);
-                Aim(preview, alone ? Alone(region, own, model) : Focus(region, own, model, skins), alone ? PieceMargin : Margin);
+                Aim(preview, Framed(alone ? Alone(region, own, model) : Focus(region, own, model, skins), alone ? PieceMargin : Margin));
                 preview.BeginStaticPreview(new Rect(0, 0, Size * Supersample, Size * Supersample));
                 begun = true;
                 for (int pass = 0; pass < Renders; pass++) preview.Render(true);
@@ -170,6 +178,15 @@ namespace Wreckabulary.EditorTools
             FootwearSlot => Region.Feet,
             _ => Region.Body,
         };
+
+        static float YawFor(string slot, Region region)
+        {
+            if (slot == HairSlot) return HairYaw;
+            return region == Region.Back ? BackYaw : FrontYaw;
+        }
+
+        static Frame Framed(Bounds focus, float margin) =>
+            new Frame { Centre = focus.center, Half = Mathf.Max(focus.extents.x, focus.extents.y) * margin };
 
         static void Settle(GameObject model)
         {
@@ -288,14 +305,14 @@ namespace Wreckabulary.EditorTools
             return anchor;
         }
 
-        static void Aim(PreviewRenderUtility preview, Bounds focus, float margin)
+        static void Aim(PreviewRenderUtility preview, Frame frame)
         {
-            float half = Mathf.Max(focus.extents.x, focus.extents.y) * margin;
+            float half = frame.Half;
             if (!(half > 0f) || float.IsInfinity(half)) throw new InvalidOperationException("The thumbnail has nothing to frame.");
             var camera = preview.camera;
             camera.orthographic = true;
             camera.orthographicSize = half;
-            camera.transform.SetPositionAndRotation(focus.center + Vector3.back * CameraDistance, Quaternion.identity);
+            camera.transform.SetPositionAndRotation(frame.Centre - frame.Turn * Vector3.forward * CameraDistance, frame.Turn);
             camera.nearClipPlane = NearPlane;
             camera.farClipPlane = FarPlane;
             camera.clearFlags = CameraClearFlags.SolidColor;
@@ -303,9 +320,9 @@ namespace Wreckabulary.EditorTools
             camera.allowHDR = false;
             preview.lights[0].color = preview.lights[1].color = Color.white;
             preview.lights[0].intensity = KeyIntensity;
-            preview.lights[0].transform.rotation = KeyTurn;
+            preview.lights[0].transform.rotation = frame.Turn * KeyTurn;
             preview.lights[1].intensity = FillIntensity;
-            preview.lights[1].transform.rotation = FillTurn;
+            preview.lights[1].transform.rotation = frame.Turn * FillTurn;
             preview.ambientColor = new Color(Ambient, Ambient, Ambient);
         }
 

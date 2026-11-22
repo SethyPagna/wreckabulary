@@ -8,6 +8,7 @@ namespace Wreckabulary
         public const string GrainName = "Kraft grain", TapeName = "Masking tape", StampName = "Postage stamp";
         public static readonly Color Ink = LobbyKit.Hex(0x3B2A1C), TapeColour = LobbyKit.Hex(0xF4E9C9, .88f);
         public static readonly Color Stamp = LobbyKit.Hex(0xD9583F), Kraft = LobbyKit.Hex(0xD9B98B);
+        public const float TitleSize = 40f;
         internal const int GrainSize = 128;
         static Texture2D grain;
         static Sprite tape, dashes;
@@ -29,7 +30,7 @@ namespace Wreckabulary
             foreach (var label in root.GetComponentsInChildren<TMPro.TMP_Text>())
                 if (label.name == "Title" && label.fontSize >= 30f && !label.GetComponentInParent<LobbyShopOfferView>(true)
                     && !string.IsNullOrWhiteSpace(label.text) && label.text.Length <= 16)
-                    LobbyTileWord.Replace(label, 40f);
+                    LobbyTileWord.Replace(label, TitleSize);
         }
 
         public static void ShippingLabel(RectTransform body)

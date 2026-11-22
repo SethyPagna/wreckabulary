@@ -24,6 +24,7 @@ namespace Wreckabulary
         public MatchRecord Reward;
         public bool Best;
         public MatchEndBoard Board;
+        public RoundSummary Standings;
 
         public static HudResult Of(int round, bool final, bool won, string heading, MatchRecord reward)
         {
@@ -51,9 +52,17 @@ namespace Wreckabulary
         static readonly Color MissingFill = Hex(0xf3d3c6), MissingEdge = Hex(0xe3a994), MissingLip = Hex(0xc98f7c), Go = Hex(0xdf7955);
         static readonly Color StepNumber = Hex(0xbe7754), StepInk = Hex(0x576f66), FinePrint = Hex(0x546763);
 
+        const float ToastFont = 20f, ToastMinFont = 15f, ToastPadX = 25f, ToastPadY = 15f, ToastMaxWidth = 760f, BannerSeconds = 3.2f;
+        const float CraftStatusFont = 20f, CraftStatusMinFont = 15f, CraftStatusHeight = 30f;
+        const float StatLabelFont = 15f, StatLabelSpacing = 4f;
+        const float RewardChipHeight = 64f, RewardChipPad = 22f, RewardSpacing = 14f, RewardCoin = 40f, RewardLip = 5f, RewardCoinsFont = 36f, RewardLineFont = 20f;
+        const int RewardRadius = 32;
+        const float PreviousArrowTurn = 180f;
+
         RectTransform toast;
         CanvasGroup toastFade;
         TextMeshProUGUI toastLabel;
+        string toastAfterBanner;
         float toastAt = -10f;
         string lastTitle = "", lastSub = "";
         RectTransform chip;
@@ -75,7 +84,8 @@ namespace Wreckabulary
         TextMeshProUGUI resultEyebrow, resultHeading, resultFlavour, resultDetail, resultPlayers, resultNextLabel, resultHomeLabel;
         readonly TextMeshProUGUI[] resultStats = new TextMeshProUGUI[3];
         GameObject resultReward, resultRewardGap, resultBest, resultStatsRow, resultStatsGap, resultPlayersGap;
-        TextMeshProUGUI resultCoins, resultScore;
+        TextMeshProUGUI resultCoins, resultScore, resultBestText;
+        RectTransform rewardChip;
         Button resultNext, resultHome, pauseHome, howToPlay;
         ModeGuidePanel guide;
         Action resultNextAction, resultHomeAction;
@@ -85,7 +95,6 @@ namespace Wreckabulary
         CanvasGroup bannerFade;
         TextMeshProUGUI bannerTitle, bannerLine;
         float bannerAt = -10f;
-        const float BannerSeconds = 2.5f;
         GameObject leaveRoot;
         Button leaveKeep;
         Button leaveReturnFocus;
@@ -289,9 +298,10 @@ namespace Wreckabulary
             SoftShadow(toast, ToastDrop, 37.5f, -10f);
             Paint(Cover("Face", toast), LobbyIcons.RoundedSprite(15), ToastFill);
             Paint(Cover("Edge", toast), LobbyIcons.FrameSprite(15, 1), ToastEdge);
-            toastLabel = Copy(toast, "Text", "", LobbyFonts.Body, 15f, ToastInk);
+            toastLabel = Copy(toast, "Text", "", LobbyFonts.Body, ToastFont, ToastInk);
             Stretch(toastLabel.rectTransform);
-            toastLabel.rectTransform.offsetMin = new Vector2(25f, 15f); toastLabel.rectTransform.offsetMax = new Vector2(-25f, -15f);
+            toastLabel.rectTransform.offsetMin = new Vector2(ToastPadX, ToastPadY); toastLabel.rectTransform.offsetMax = new Vector2(-ToastPadX, -ToastPadY);
+            toastLabel.enableAutoSizing = true; toastLabel.fontSizeMin = ToastMinFont; toastLabel.fontSizeMax = ToastFont;
             toast.gameObject.SetActive(false);
         }
 
@@ -344,6 +354,20 @@ namespace Wreckabulary
             bannerAt = Time.unscaledTime; bannerFade.alpha = 0f;
             banner.gameObject.SetActive(true);
             banner.SetAsLastSibling();
+        }
+
+        void HideBanner()
+        {
+            banner.gameObject.SetActive(false);
+            string waiting = toastAfterBanner;
+            toastAfterBanner = null;
+            if (!string.IsNullOrEmpty(waiting) && !ResultShown) Toast(waiting);
+        }
+
+        public void ToastAfterBanner(string text)
+        {
+            if (BannerShown) toastAfterBanner = text;
+            else Toast(text);
         }
 
         void BuildLeave()
@@ -413,10 +437,11 @@ namespace Wreckabulary
         public void Toast(string text)
         {
             if (!toast || string.IsNullOrEmpty(text)) return;
+            if (BannerShown) return;
             toastLabel.text = text;
-            float max = Mathf.Min(700f, safe.rect.width * .8f);
-            var size = toastLabel.GetPreferredValues(text, max - 50f, 0f);
-            toast.sizeDelta = new Vector2(Mathf.Min(max, size.x + 50f), size.y + 30f);
+            float max = Mathf.Min(ToastMaxWidth, safe.rect.width * .8f);
+            var size = toastLabel.GetPreferredValues(text, max - 2f * ToastPadX, 0f);
+            toast.sizeDelta = new Vector2(Mathf.Min(max, size.x + 2f * ToastPadX), size.y + 2f * ToastPadY);
             toastAt = Time.unscaledTime;
             toast.gameObject.SetActive(true);
             toast.SetAsLastSibling();
@@ -711,9 +736,9 @@ namespace Wreckabulary
             resultSpark = Picture(card, "Spark", SparkSprite(), Spark, 62.5f);
             resultSparkGap = Gap(card, 10f);
             resultEyebrow = Copy(card, "Eyebrow", "", LobbyFonts.Black, 12.5f, Eyebrow, 21f);
-            Gap(card, 10f);
+            resultEyebrowGap = Gap(card, 10f);
             resultHeading = Copy(card, "Heading", "", LobbyFonts.Black, ResultHeadingFont, Ink, -3f);
-            Gap(card, 8f);
+            resultHeadingGap = Gap(card, 8f);
             resultFlavour = Copy(card, "Flavour", "", LobbyFonts.Body, 15f, BodyInk);
             resultDetail = Copy(card, "Detail", "", LobbyFonts.Black, 15f, Ink);
             resultPlayersGap = Gap(card, 14f);
@@ -744,26 +769,33 @@ namespace Wreckabulary
                 number.rectTransform.anchorMin = new Vector2(0f, .42f); number.rectTransform.anchorMax = Vector2.one;
                 number.rectTransform.offsetMin = Vector2.zero; number.rectTransform.offsetMax = new Vector2(0f, -8f);
                 number.textWrappingMode = TextWrappingModes.NoWrap;
-                var label = Copy(cell, "Label", names[i], LobbyFonts.Black, 11f, BodyInk, 12f);
+                var label = Copy(cell, "Label", names[i], LobbyFonts.Black, StatLabelFont, BodyInk, StatLabelSpacing);
                 label.rectTransform.anchorMin = Vector2.zero; label.rectTransform.anchorMax = new Vector2(1f, .42f);
-                label.rectTransform.offsetMin = new Vector2(4f, 10f); label.rectTransform.offsetMax = new Vector2(-4f, 0f);
+                label.rectTransform.offsetMin = new Vector2(4f, 8f); label.rectTransform.offsetMax = new Vector2(-4f, 0f);
                 label.alignment = TextAlignmentOptions.Top; label.textWrappingMode = TextWrappingModes.NoWrap;
-                label.enableAutoSizing = true; label.fontSizeMin = 8f; label.fontSizeMax = 11f;
+                label.overflowMode = TextOverflowModes.Overflow;
+                label.enableAutoSizing = true; label.fontSizeMin = StatLabelFont; label.fontSizeMax = StatLabelFont;
             }
 
             resultRewardGap = Gap(card, 16f);
             var reward = Rect("Reward", card, Vector2.zero, Vector2.zero, Vector2.zero);
             resultReward = reward.gameObject;
+            rewardChip = Put(Rect("Chip", reward, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(ResultCardWidth * .5f, RewardChipHeight));
+            rewardChip.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            SoftShadow(rewardChip, CardDrop, 30f, -8f);
+            Paint(Cover("Lip", rewardChip, 0f, -RewardLip), LobbyIcons.RoundedSprite(RewardRadius), PrimaryLip);
+            Paint(Cover("Face", rewardChip), LobbyIcons.RoundedSprite(RewardRadius), Primary);
             var rewardRow = reward.gameObject.AddComponent<HorizontalLayoutGroup>();
-            rewardRow.childAlignment = TextAnchor.MiddleCenter; rewardRow.spacing = 16f;
+            rewardRow.childAlignment = TextAnchor.MiddleCenter; rewardRow.spacing = RewardSpacing;
             rewardRow.childControlWidth = rewardRow.childControlHeight = true;
             rewardRow.childForceExpandWidth = rewardRow.childForceExpandHeight = false;
-            var rewardSize = reward.gameObject.AddComponent<LayoutElement>(); rewardSize.preferredHeight = rewardSize.minHeight = 30f;
-            var coin = Picture(reward, "Coin", LobbyIcons.Get(LobbyIcons.Coin), CoinGold, 24f);
-            coin.GetComponent<LayoutElement>().preferredWidth = 24f;
-            resultCoins = Copy(reward, "Coins", "", LobbyFonts.Black, 17f, Ink);
-            resultScore = Copy(reward, "Score", "", LobbyFonts.Body, 15f, BodyInk);
-            resultBest = Copy(reward, "Best", "New best!", LobbyFonts.Black, 15f, NewBest).gameObject;
+            var rewardSize = reward.gameObject.AddComponent<LayoutElement>(); rewardSize.preferredHeight = rewardSize.minHeight = RewardChipHeight;
+            var coin = Picture(reward, "Coin", LobbyIcons.Get(LobbyIcons.Coin), CoinGold, RewardCoin);
+            coin.GetComponent<LayoutElement>().preferredWidth = RewardCoin;
+            resultCoins = Copy(reward, "Coins", "", DisplayFont, RewardCoinsFont, Cream);
+            resultScore = Copy(reward, "Score", "", LobbyFonts.Body, RewardLineFont, ToastInk);
+            resultBestText = Copy(reward, "Best", "New best!", LobbyFonts.Black, RewardLineFont, Gold);
+            resultBest = resultBestText.gameObject;
             foreach (var text in reward.GetComponentsInChildren<TextMeshProUGUI>(true)) text.textWrappingMode = TextWrappingModes.NoWrap;
 
             Gap(card, 22.5f);
@@ -808,6 +840,7 @@ namespace Wreckabulary
                 resultCoins.text = "+" + result.Reward.Coins;
                 resultScore.text = "Score " + result.Reward.Score;
                 resultBest.SetActive(result.Best);
+                FitRewardChip();
             }
             resultNextLabel.text = Or(result.NextLabel, result.Final ? "PLAY AGAIN →" : "NEXT ROUND →");
             resultHomeLabel.text = Or(result.HomeLabel, "Leave match");
@@ -816,6 +849,15 @@ namespace Wreckabulary
             RefreshBagPanel();
             FocusOn(resultNext);
             ShowMatchEnd(result.Final ? result.Board : null);
+            ShowRoundRow(result.Final ? null : result.Standings);
+        }
+
+        void FitRewardChip()
+        {
+            float width = 2f * RewardChipPad + RewardCoin + RewardSpacing + resultCoins.GetPreferredValues(resultCoins.text).x;
+            width += RewardSpacing + resultScore.GetPreferredValues(resultScore.text).x;
+            if (resultBest.activeSelf) width += RewardSpacing + resultBestText.GetPreferredValues(resultBestText.text).x;
+            rewardChip.sizeDelta = new Vector2(width, RewardChipHeight);
         }
 
         static string Or(string chosen, string fallback) => string.IsNullOrEmpty(chosen) ? fallback : chosen;
@@ -928,10 +970,11 @@ namespace Wreckabulary
             buildLabel = LabelOf(buildButton);
             buildLabel.textWrappingMode = TextWrappingModes.Normal; buildLabel.lineSpacing = -12f;
 
-            craftStatus = Copy(chrome, "Craft status", "", LobbyFonts.Body, 13f, Faded);
-            Put(craftStatus.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -150f), new Vector2(610f, 24f));
+            craftStatus = Copy(chrome, "Craft status", "", LobbyFonts.Body, CraftStatusFont, Faded);
+            Put(craftStatus.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -147f), new Vector2(610f, CraftStatusHeight));
             craftStatus.alignment = TextAlignmentOptions.MidlineLeft;
-            craftStatus.enableAutoSizing = true; craftStatus.fontSizeMin = 10f; craftStatus.fontSizeMax = 13f;
+            craftStatus.textWrappingMode = TextWrappingModes.NoWrap; craftStatus.overflowMode = TextOverflowModes.Overflow;
+            craftStatus.enableAutoSizing = true; craftStatus.fontSizeMin = CraftStatusMinFont; craftStatus.fontSizeMax = CraftStatusFont;
             craftRoot.SetActive(false);
         }
 
@@ -941,12 +984,13 @@ namespace Wreckabulary
             var face = Paint(rt, LobbyIcons.RoundedSprite(12), Quiet); face.raycastTarget = true;
             var glyph = Cover("Icon", rt, -6f).gameObject.AddComponent<Image>();
             glyph.sprite = LobbyIcons.Get(LobbyIcons.Chevron); glyph.color = Ink; glyph.preserveAspect = true; glyph.raycastTarget = false;
-            if (!forward) glyph.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 180f);
+            if (!forward) glyph.rectTransform.localRotation = Quaternion.Euler(0f, 0f, PreviousArrowTurn);
             var button = rt.gameObject.AddComponent<Button>();
             button.transition = Selectable.Transition.None; button.targetGraphic = face;
             button.onClick.AddListener(() => action());
             var press = rt.gameObject.AddComponent<LobbyPress>();
             press.Body = (RectTransform)glyph.transform; press.Lift = 0f; press.Sink = 1f;
+            press.Lean = forward ? 0f : PreviousArrowTurn;
             press.Hot = on => face.color = on ? QuietHover : Quiet;
             rt.gameObject.SetActive(false);
             return rt.gameObject;
@@ -1235,7 +1279,7 @@ namespace Wreckabulary
             if (banner && banner.gameObject.activeSelf)
             {
                 float age = now - bannerAt;
-                if (age >= BannerSeconds) banner.gameObject.SetActive(false);
+                if (age >= BannerSeconds) HideBanner();
                 else bannerFade.alpha = Mathf.Clamp01(Mathf.Min(age / .2f, (BannerSeconds - age) / .3f)) * (bagHidden ? 0f : 1f);
             }
             RefreshModeActionVisibility();
@@ -1259,6 +1303,127 @@ namespace Wreckabulary
                 float inner = Mathf.Min(812f, room) - 80f;
                 helpKeys.cellSize = new Vector2((inner - helpKeys.spacing.x) * .5f, helpKeys.cellSize.y);
             }
+        }
+
+        public const string GoalPlateName = "Goal plate";
+        const float GoalWidth = 252f, GoalPad = 12f, GoalHeadHeight = 28f, GoalRowHeight = 44f, GoalPicture = 38f, GoalTick = 22f, GoalGap = 8f;
+        const float GoalHeadFont = 17f, GoalWordFont = 20f, GoalNoteFont = 15f, GoalLineFont = 18f, GoalDoneAlpha = .55f;
+        const int GoalRadius = 14, GoalBandRadius = 10;
+
+        sealed class GoalRow
+        {
+            public RectTransform root;
+            public Image band, icon, tick;
+            public RawImage picture;
+            public CanvasGroup fade;
+            public TextMeshProUGUI word, note, line;
+        }
+
+        RectTransform goalPlate;
+        TextMeshProUGUI goalHead;
+        readonly System.Collections.Generic.List<GoalRow> goalRows = new();
+        int goalCount;
+
+        public bool GoalPlateShown => goalPlate && goalPlate.gameObject.activeInHierarchy && goalCount > 0;
+        public RectTransform GoalPlate => goalPlate;
+        public string GoalHeading => GoalPlateShown ? goalHead.text : "";
+        public int GoalCount => GoalPlateShown ? goalCount : 0;
+        public string GoalWord(int index) => GoalPlateShown && index >= 0 && index < goalCount ? goalRows[index].word.text : "";
+        public bool GoalTicked(int index) => GoalPlateShown && index >= 0 && index < goalCount && goalRows[index].tick.enabled;
+        public bool GoalPictured(int index) => GoalPlateShown && index >= 0 && index < goalCount && goalRows[index].picture.enabled;
+
+        public void SetGoals(string heading, System.Collections.Generic.IReadOnlyList<HudGoal> goals)
+        {
+            goalCount = goals?.Count ?? 0;
+            var holder = objective ? objective.transform.parent : null;
+            if (!holder) return;
+            if (!goalPlate) BuildGoalPlate(holder);
+            bool shown = goalCount > 0;
+            goalPlate.gameObject.SetActive(shown);
+            objective.enabled = !shown;
+            if (!shown) return;
+            bool headed = !string.IsNullOrEmpty(heading);
+            goalHead.gameObject.SetActive(headed);
+            goalHead.text = heading ?? "";
+            float y = GoalPad + (headed ? GoalHeadHeight : 0f);
+            while (goalRows.Count < goalCount) goalRows.Add(MakeGoalRow(goalRows.Count + 1));
+            for (int i = 0; i < goalRows.Count; i++)
+            {
+                bool used = i < goalCount;
+                goalRows[i].root.gameObject.SetActive(used);
+                if (!used) continue;
+                FillGoalRow(goalRows[i], goals[i]);
+                goalRows[i].root.anchoredPosition = new Vector2(GoalPad, -y);
+                y += GoalRowHeight;
+            }
+            goalPlate.sizeDelta = new Vector2(GoalWidth, y + GoalPad);
+        }
+
+        void BuildGoalPlate(Transform holder)
+        {
+            goalPlate = Put(Rect(GoalPlateName, holder, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, new Vector2(GoalWidth, GoalRowHeight));
+            Paint(goalPlate, LobbyIcons.RoundedSprite(GoalRadius), KeyPill);
+            goalHead = GoalText(goalPlate, "Heading", LobbyFonts.Black, GoalHeadFont, Gold, TextAlignmentOptions.MidlineLeft);
+            Put(goalHead.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(GoalPad, -GoalPad), new Vector2(GoalWidth - 2f * GoalPad, GoalHeadHeight));
+            goalHead.characterSpacing = 2f;
+        }
+
+        TextMeshProUGUI GoalText(Transform parent, string label, TMP_FontAsset font, float size, Color colour, TextAlignmentOptions alignment)
+        {
+            var text = Copy(parent, label, "", font, size, colour);
+            text.alignment = alignment;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
+            text.overflowMode = TextOverflowModes.Overflow;
+            text.enableAutoSizing = true; text.fontSizeMin = Mathf.Min(MatchEndMinFont, size); text.fontSizeMax = size;
+            return text;
+        }
+
+        GoalRow MakeGoalRow(int number)
+        {
+            float inner = GoalWidth - 2f * GoalPad, left = GoalPicture + GoalGap, right = GoalTick + GoalGap * .5f;
+            var row = new GoalRow { root = Put(Rect("Goal " + number, goalPlate, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, new Vector2(inner, GoalRowHeight)) };
+            row.band = Paint(Cover("Band", row.root, 2f), LobbyIcons.RoundedSprite(GoalBandRadius), GoldGlow);
+            var body = Rect("Body", row.root, Vector2.zero, Vector2.zero, Vector2.zero);
+            Stretch(body);
+            row.fade = body.gameObject.AddComponent<CanvasGroup>();
+            row.fade.blocksRaycasts = row.fade.interactable = false;
+            var art = Put(Rect("Picture", body, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(0f, .5f), new Vector2(0f, .5f), Vector2.zero, Vector2.one * GoalPicture);
+            row.picture = art.gameObject.AddComponent<RawImage>(); row.picture.raycastTarget = false;
+            row.icon = Picture(body, "Icon", null, OnGame, GoalPicture * .7f);
+            Put(row.icon.rectTransform, new Vector2(0f, .5f), new Vector2(.5f, .5f), new Vector2(GoalPicture * .5f, 0f), Vector2.one * GoalPicture * .7f);
+            row.icon.GetComponent<LayoutElement>().ignoreLayout = true;
+            row.word = GoalText(body, "Word", LobbyFonts.Black, GoalWordFont, OnGame, TextAlignmentOptions.BottomLeft);
+            Put(row.word.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(left, 0f), new Vector2(inner - left - right, GoalRowHeight * .55f));
+            row.note = GoalText(body, "Note", LobbyFonts.Body, GoalNoteFont, TileRim, TextAlignmentOptions.TopLeft);
+            Put(row.note.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(left, 0f), new Vector2(inner - left - right, GoalRowHeight * .45f));
+            row.line = GoalText(body, "Line", LobbyFonts.Body, GoalLineFont, OnGame, TextAlignmentOptions.MidlineLeft);
+            row.line.textWrappingMode = TextWrappingModes.Normal;
+            Stretch(row.line.rectTransform);
+            row.tick = Picture(row.root, "Tick", LobbyIcons.Get(LobbyIcons.Check), Mint, GoalTick);
+            Put(row.tick.rectTransform, new Vector2(1f, .5f), new Vector2(1f, .5f), Vector2.zero, Vector2.one * GoalTick);
+            row.tick.GetComponent<LayoutElement>().ignoreLayout = true;
+            return row;
+        }
+
+        static void FillGoalRow(GoalRow row, HudGoal goal)
+        {
+            bool texty = goal.Word.Length == 0;
+            bool pictured = !texty && Wreckabulary.UI.ItemArt.Apply(row.picture, goal.Word);
+            if (texty) row.picture.enabled = false;
+            bool iconed = !pictured && goal.Icon.Length > 0;
+            row.icon.enabled = iconed;
+            if (iconed) row.icon.sprite = LobbyIcons.Get(goal.Icon);
+            bool lined = texty && goal.Icon.Length == 0;
+            row.line.gameObject.SetActive(lined);
+            row.word.gameObject.SetActive(!lined);
+            row.note.gameObject.SetActive(!lined);
+            row.line.text = lined ? goal.Note : "";
+            row.word.text = lined ? "" : goal.Word;
+            row.note.text = lined ? "" : goal.Note;
+            row.word.color = goal.Done ? Mint : goal.Current ? Gold : OnGame;
+            row.tick.enabled = goal.Done;
+            row.band.enabled = goal.Current && !goal.Done;
+            row.fade.alpha = goal.Done ? GoalDoneAlpha : 1f;
         }
 
         void UnhookKeyboard()

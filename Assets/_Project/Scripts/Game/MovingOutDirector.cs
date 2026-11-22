@@ -8,7 +8,7 @@ namespace Wreckabulary
 {
     public sealed class MovingOutDirector : MonoBehaviour
     {
-        public enum State { Waiting, Countdown, Playing, Complete, Failed }
+        public enum State { Waiting, Countdown, Playing, Complete, Failed, Warmup, Showcase }
         PlayerJoinManager joins;
         RoomBuilder room;
         DeliverySpawner deliveries;
@@ -21,6 +21,9 @@ namespace Wreckabulary
         readonly List<Combatant> combatants = new();
         int idleMask, clockSeconds = -1, checklistPacked = -1, checklistIdle = -1;
         string clockText = "", checklist, shownMain, shownHint;
+        const string KeepsakesHeading = "KEEPSAKES", PackedNote = "packed";
+        readonly List<HudGoal> goals = new();
+        CrewPrelude prelude;
         public State Current { get; private set; }
         public string Checklist => checklist ?? "";
         public int PackedCount
@@ -51,7 +54,34 @@ namespace Wreckabulary
             joins.RespawnKnockedOut = false;
             CreateVan();
             Current = State.Waiting;
-            if (joins.HumanCount > 0) Restart();
+            if (joins.HumanCount > 0) Open();
+        }
+
+        void Open()
+        {
+            prelude = CrewPrelude.Take(RoundManager.Instance, joins);
+            if (prelude == null) { Restart(); return; }
+            Current = State.Warmup;
+            prelude.Begin();
+        }
+
+        void TickPrelude()
+        {
+            if (!prelude.Tick())
+            {
+                Current = prelude.LinedUp ? State.Showcase : State.Warmup;
+                return;
+            }
+            prelude = null;
+            Current = State.Waiting;
+            Restart();
+        }
+
+        void ClosePrelude()
+        {
+            var open = prelude;
+            prelude = null;
+            open?.End();
         }
 
         void OnJoined(PlayerController p)
@@ -64,6 +94,7 @@ namespace Wreckabulary
         public void Restart()
         {
             if (Time.timeScale <= 0f || joins.HumanCount == 0) return;
+            ClosePrelude();
             room.ResetRoom();
             clearOut.ResetSchedule();
             hud.HideResult();
@@ -100,7 +131,12 @@ namespace Wreckabulary
             {
                 case State.Waiting:
                     Instruct(ControlHints.Join("join"), "");
-                    if (joins.HumanCount > 0) Restart();
+                    if (joins.HumanCount > 0) Open();
+                    break;
+                case State.Warmup:
+                case State.Showcase:
+                    Instruct("", "");
+                    TickPrelude();
                     break;
                 case State.Countdown:
                     Instruct("", "");
@@ -126,7 +162,7 @@ namespace Wreckabulary
                     if (hud.ResultShown && Time.time - finishedAt > 1.6f && joins.AnyStartPressed()) hud.ConfirmResult();
                     break;
             }
-            hud.SetChecklist(KeepsakeList());
+            ShowChecklist();
             hud.SetScoreboard(joins.Players, _ => 0, 0, false);
         }
 
@@ -135,9 +171,24 @@ namespace Wreckabulary
             int packed = PackedCount;
             if (checklist != null && packed == checklistPacked && idleMask == checklistIdle) return checklist;
             checklistPacked = packed; checklistIdle = idleMask;
-            string waiting = idleMask == 0 ? "" : "\n" + IdleWatch.Notice(idleMask);
-            return checklist = "<b>KEEPSAKES</b>\n" + string.Join("\n", keepsakes.Select(k => k.Packed
-                ? $"<color=#8FD18B>{k.Word} packed</color>" : $"{k.Word} • {k.Room}")) + waiting;
+            string waiting = idleMask == 0 ? "" : IdleWatch.Notice(idleMask);
+            checklist = "<b>" + KeepsakesHeading + "</b>\n" + string.Join("\n", keepsakes.Select(k => k.Packed
+                ? $"<color=#8FD18B>{k.Word} packed</color>" : $"{k.Word} • {k.Room}")) + (waiting.Length > 0 ? "\n" + waiting : "");
+            goals.Clear();
+            foreach (var keepsake in keepsakes)
+                goals.Add(new HudGoal(keepsake.Word, keepsake.Packed ? PackedNote : keepsake.Room, keepsake.Packed));
+            if (waiting.Length > 0) goals.Add(new HudGoal("", waiting, false));
+            hud.SetGoals(KeepsakesHeading, goals);
+            return checklist;
+        }
+
+        void ShowChecklist()
+        {
+            if (prelude == null) { hud.SetChecklist(KeepsakeList()); return; }
+            hud.SetChecklist("");
+            if (checklist == null) return;
+            checklist = null;
+            hud.SetGoals("", null);
         }
 
         string Clock(float seconds)
@@ -163,10 +214,17 @@ namespace Wreckabulary
                 if (keepsake.Packed) continue;
                 var body = keepsake.GetComponent<Rigidbody>();
                 if (keepsake.transform.position.y < -4f) keepsake.ReturnToStart();
-                bool held = joins.Players.Any(p => p.Combat.Held == body);
+                bool held = false;
+                foreach (var p in joins.Players)
+                {
+                    if (p.Combat.Held != body) continue;
+                    held = true;
+                    keepsake.Carrier = p.Index;
+                }
                 if (!held && AtVan(body.worldCenterOfMass))
                 {
                     keepsake.Pack();
+                    MatchStats.Current.Point(keepsake.Carrier);
                     hud.Toast("A keepsake saved! Find the others.");
                 }
             }
@@ -199,7 +257,9 @@ namespace Wreckabulary
             joins.AllowJoining = false;
             hud.SetTimer("");
             string heading = won ? "All packed. Everybody aboard!" : wiped ? "The Movers got your crew." : "The van had to leave.";
-            hud.ShowResult(HudResult.Of(1, true, won, heading, MatchTally.Finish(won)), Restart);
+            var result = HudResult.Of(1, true, won, heading, MatchTally.Finish(won));
+            result.Board = CrewResult.Board(CrewEnd.Outcome(won, wiped), HouseModes.MovingOut, room.Layout.Name);
+            hud.ShowResult(result, Restart);
         }
 
         void CreateVan()
@@ -228,6 +288,7 @@ namespace Wreckabulary
         public string Room { get; private set; }
         public string Word => GetComponent<Smashable>().Word;
         public bool Packed { get; private set; }
+        public int Carrier { get; set; } = -1;
         public void Configure(string room)
         {
             Room = room; initial = transform.position;

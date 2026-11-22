@@ -10,13 +10,16 @@ namespace Wreckabulary.Online
     {
         public const string IntroSeenKey = "wv.courses.intro";
         const string IntroTitle = "Courses work a little differently";
-        const double IntroMinimumSeconds = 8, IntroMaximumSeconds = 30, ToastSeconds = 3;
+        const double IntroMinimumSeconds = 8, IntroMaximumSeconds = 30, ToastSeconds = 3, IntroLineSeconds = 3;
         const int VisibleToasts = 2, QueuedToasts = 4;
+        const float NoteShare = .5f, NoteGap = 6f, ChipRise = 18f, ChipSpread = 36f, IntroDot = 7f, IntroDotGap = 7f, IntroDotRise = 6f;
         static readonly Color ArrowTint = new Color(1f, .78f, .25f);
         static GUIContent[] letterContents;
         readonly List<(string Text, double Until)> toasts = new List<(string, double)>();
-        readonly GUIContent noteContent = new GUIContent(), chipContent = new GUIContent(), extraContent = new GUIContent(),
-            introTitleContent = new GUIContent(IntroTitle), introContent = new GUIContent();
+        readonly GUIContent extraContent = new GUIContent(), introTitleContent = new GUIContent(IntroTitle);
+        readonly KeyPrompt distancePrompt = new KeyPrompt(), introPrompt = new KeyPrompt();
+        readonly KeyPrompt[] notePrompts = { new KeyPrompt(), new KeyPrompt() };
+        string[] introLines;
         CourseStep step;
         MatchSnapshot stepFrame;
         string distanceText = "", tileText = "";
@@ -26,7 +29,6 @@ namespace Wreckabulary.Online
         double introShownAt = double.NaN;
         LetterBag tileBag;
         Texture2D arrowTexture;
-        GUIStyle tileStyle, chipStyle, noteStyle, cardTitle;
 
         CourseStep CurrentStep()
         {
@@ -100,17 +102,6 @@ namespace Wreckabulary.Online
             return distanceText;
         }
 
-        void PrepareGuidanceStyles()
-        {
-            tileStyle = new GUIStyle(ui.Panel) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold,
-                padding = new RectOffset(0, 0, 0, 0), wordWrap = false, clipping = TextClipping.Overflow };
-            tileStyle.normal.textColor = ui.Ink;
-            chipStyle = new GUIStyle(overlayBox) { alignment = TextAnchor.MiddleCenter, wordWrap = false, padding = new RectOffset(8, 8, 3, 3) };
-            chipStyle.normal.textColor = ui.Ink;
-            noteStyle = new GUIStyle(chipStyle) { fontStyle = FontStyle.Bold, padding = new RectOffset(14, 14, 7, 7) };
-            cardTitle = new GUIStyle(overlayLabel) { fontStyle = FontStyle.Bold };
-        }
-
         bool GuidanceVisible => initialized && view && controller && frame != null && !view.MenuOpen;
 
         void DrawArrow(float width, float height)
@@ -139,27 +130,10 @@ namespace Wreckabulary.Online
             finally { GUI.matrix = matrix; GUI.color = color; }
             string label = DistanceLabel();
             if (label.Length == 0) return;
-            chipContent.text = label;
-            var size = chipStyle.CalcSize(chipContent);
-            var offset = edge.OnScreen ? new Vector2(0, -30) : (new Vector2(width * .5f, height * .5f) - at).normalized * 36;
-            GUI.Box(new Rect(at.x + offset.x - size.x * .5f, at.y + offset.y - size.y * .5f, size.x, size.y), chipContent, chipStyle);
-        }
-
-        void DrawTiles(Rect panel, float maximumWidth)
-        {
-            if (!initialized || tileText.Length == 0 || tileStyle == null) return;
-            const float size = 24, gap = 3;
-            int perRow = Mathf.Max(1, Mathf.FloorToInt((maximumWidth + gap) / (size + gap)));
-            var (shown, extra) = TileSplit(tileText.Length, perRow * 2);
-            int cells = shown + (extra > 0 ? 1 : 0);
-            int rows = (cells + perRow - 1) / perRow;
-            float top = panel.yMin - rows * (size + gap);
-            if (extra != extraShown) { extraShown = extra; extraContent.text = "+" + extra; }
-            for (int i = 0; i < cells; i++)
-            {
-                var rect = new Rect(18 + i % perRow * (size + gap), top + i / perRow * (size + gap), size, size);
-                GUI.Box(rect, i < shown ? LetterContent(tileText[i]) : extraContent, tileStyle);
-            }
+            distancePrompt.Set(label);
+            var size = MeasurePrompt(distancePrompt, width * NoteShare);
+            var offset = edge.OnScreen ? new Vector2(0, -ChipRise - size.y * .5f) : (new Vector2(width * .5f, height * .5f) - at).normalized * (ChipSpread + size.x * .25f);
+            PaintPromptAt(distancePrompt, new Rect(at.x + offset.x - size.x * .5f, at.y + offset.y - size.y * .5f, size.x, size.y));
         }
 
         static GUIContent LetterContent(char letter)
@@ -174,18 +148,18 @@ namespace Wreckabulary.Online
 
         void DrawNotes(float width)
         {
-            if (!GuidanceVisible || noteStyle == null) return;
+            if (!GuidanceVisible || kitPrompt == null) return;
             double now = Time.unscaledTimeAsDouble;
-            float top = 18;
+            float top = notesTop;
             for (int i = toasts.Count - 1, shown = 0; i >= 0 && shown < VisibleToasts; i--)
             {
                 if (toasts[i].Until <= now) continue;
-                noteContent.text = toasts[i].Text;
-                var size = noteStyle.CalcSize(noteContent);
-                float wide = Mathf.Min(size.x, width * .5f);
-                var rect = new Rect((width - wide) * .5f, top, wide, size.y);
-                GUI.Box(rect, noteContent, noteStyle);
-                top = rect.yMax + 6; shown++;
+                var note = notePrompts[shown];
+                note.Set(toasts[i].Text);
+                var size = MeasurePrompt(note, width * NoteShare);
+                var rect = new Rect(Mathf.Round((width - size.x) * .5f), top, size.x, size.y);
+                PaintPromptAt(note, rect);
+                top = rect.yMax + NoteGap; shown++;
             }
             if (introPending && !controller.IsSimulationPaused) DrawIntro(width, top, now);
         }
@@ -195,14 +169,22 @@ namespace Wreckabulary.Online
             if (double.IsNaN(introShownAt)) introShownAt = now;
             else if (now - introShownAt >= IntroMaximumSeconds) { CloseIntro(); return; }
             var key = (view.UsesGamepad, KeyBindings.Version);
-            if (!key.Equals(introKey)) { introKey = key; introContent.text = string.Join("\n", IntroLines()); }
-            float wide = Mathf.Min(460, width * .5f), inner = wide - overlayBox.padding.horizontal;
-            float titleHeight = cardTitle.CalcHeight(introTitleContent, inner), bodyHeight = overlayLabel.CalcHeight(introContent, inner);
-            var area = new Rect((width - wide) * .5f, top, wide, titleHeight + bodyHeight + overlayBox.padding.vertical + 4);
-            GUI.Box(area, GUIContent.none, overlayBox);
-            GUI.Label(new Rect(area.x + overlayBox.padding.left, area.y + overlayBox.padding.top, inner, titleHeight), introTitleContent, cardTitle);
-            GUI.Label(new Rect(area.x + overlayBox.padding.left, area.y + overlayBox.padding.top + titleHeight + 4, inner, bodyHeight),
-                introContent, overlayLabel);
+            if (introLines == null || !key.Equals(introKey)) { introKey = key; introLines = IntroLines(); }
+            int line = (int)((now - introShownAt) / IntroLineSeconds) % introLines.Length;
+            introPrompt.Set(introLines[line]);
+            float titleWide = Mathf.Ceil(kitTag.CalcSize(introTitleContent).x) + KitOutline * 2f;
+            KitInk(new Rect(Mathf.Round((width - titleWide) * .5f), top, titleWide, PlateTagHeight), introTitleContent, kitTag, HudGold);
+            top += PlateTagHeight + KitDrop;
+            var size = MeasurePrompt(introPrompt, width * NoteShare);
+            var area = new Rect(Mathf.Round((width - size.x) * .5f), top, size.x, size.y);
+            PaintPromptAt(introPrompt, area);
+            float dots = introLines.Length * IntroDot + (introLines.Length - 1) * IntroDotGap, x = area.center.x - dots * .5f;
+            for (int i = 0; i < introLines.Length; i++, x += IntroDot + IntroDotGap)
+            {
+                var dot = new Rect(x, area.yMax + IntroDotRise, IntroDot, IntroDot);
+                KitImage(new Rect(dot.x, dot.y + KitOutline, dot.width, dot.height), EyeDisc(), HudShade);
+                KitImage(dot, EyeDisc(), i == line ? ArrowTint : HudOnGame);
+            }
         }
 
         Texture2D ArrowTexture()

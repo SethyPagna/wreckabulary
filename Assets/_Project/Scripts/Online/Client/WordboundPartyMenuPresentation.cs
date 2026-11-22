@@ -59,6 +59,7 @@ namespace Wreckabulary.Online
         {
             string error = localError ?? coordinator.Error;
             if (string.IsNullOrEmpty(error)) return;
+            if (paper.Dressed) { GUILayout.Label(error, ProblemCentered()); return; }
             Color previous = GUI.contentColor;
             try { GUI.contentColor = ui.Error; GUILayout.Label(error, hint); }
             finally { GUI.contentColor = previous; }
@@ -81,7 +82,11 @@ namespace Wreckabulary.Online
             if (Event.current.type != EventType.Repaint) return;
             var settings = ui.ConfigurationError.Length == 0 ? Theme : null;
             Texture2D background = settings && settings.OnlineBackground ? settings.OnlineBackground : null;
-            if (!background) return;
+            if (!background)
+            {
+                if (!coordinator.MatchActive) paper.Backdrop(new Rect(Vector2.zero, viewport));
+                return;
+            }
             var previous = GUI.color;
             try
             {

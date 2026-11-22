@@ -23,7 +23,7 @@ namespace Wreckabulary.Rules
         public const float RoomyCard = 96f, SnugCard = 78f, RoomyPortrait = 68f, SnugPortrait = 56f;
         public const float RoomyGap = 8f, SnugGap = 6f, Frame = 5f, Inset = 3f;
         public const float HealthGap = 4f, HealthHeight = 6f, NameGap = 2f, NameHeight = 22f, ScoreHeight = 20f;
-        public const float NameSize = 18f, ScoreSize = 16f, StatusSize = 14f;
+        public const float NameSize = 18f, ScoreSize = 16f, StatusSize = 16f, StatusMin = 15f;
         public const float PlatePad = 10f, PlateRadius = 12f;
         public const float LowHealth = .35f;
         public static readonly float Height = CardHeight(RoomySeats);
@@ -53,7 +53,9 @@ namespace Wreckabulary.Rules
 
         public static bool Healthy(float fraction) => fraction > LowHealth;
 
-        public static float ShiftFor(float top, float scale) => Math.Max(0f, top - Top) + (Height + PlatePad) * scale + Clearance;
+        public static float ShiftFor(float top, float scale) => ShiftFor(top, scale, Height);
+
+        public static float ShiftFor(float top, float scale, float height) => Math.Max(0f, top - Top) + (height + PlatePad) * scale + Clearance;
 
         public static bool Grouped(IReadOnlyList<int> teams)
         {
@@ -132,7 +134,7 @@ namespace Wreckabulary.Rules
         }
 
         public static string Status(bool wrecked, bool downed, float bleedOutLeft) =>
-            wrecked ? "WRECKED" : downed ? $"REVIVE ME {Math.Max(0, (int)Math.Ceiling(bleedOutLeft))}s" : "";
+            !wrecked && downed ? $"REVIVE\n{Math.Max(0, (int)Math.Ceiling(bleedOutLeft))}s" : "";
 
         public static string Letter(char initial) => char.ToUpperInvariant(initial).ToString();
     }

@@ -133,6 +133,29 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
+        public void PointsAndRevivesAreCountedPerSeat()
+        {
+            var stats = Table(0, 0, 0);
+            stats.Point(1); stats.Point(1); stats.Point(2);
+            stats.Revive(0); stats.Revive(0);
+            Assert.AreEqual(2, stats.Of(1).Score);
+            Assert.AreEqual(1, stats.Of(2).Score);
+            Assert.AreEqual(0, stats.Of(0).Score);
+            Assert.AreEqual(2, stats.Of(0).Revives);
+            Assert.AreEqual(0, stats.Of(1).Revives);
+            Assert.AreEqual(3, stats.SideScore(0), "a crew's points add up");
+            stats.Point(-1); stats.Point(9);
+            stats.Revive(-1); stats.Revive(9);
+            Assert.AreEqual(3, stats.Lines.Count, "an unknown seat is ignored");
+            Assert.AreEqual(3, stats.Lines.Sum(l => l.Score));
+            Assert.AreEqual(2, stats.Lines.Sum(l => l.Revives));
+            stats.SetScore(1, 7);
+            stats.Point(1);
+            Assert.AreEqual(8, stats.Of(1).Score, "a point adds to a set score");
+            CollectionAssert.AreEqual(new[] { 1, 2, 0 }, stats.Ranked().Select(l => l.Seat).ToArray(), "points rank a crew");
+        }
+
+        [Test]
         public void TheShowcaseCountsDownFromTenAndNeverShowsZero()
         {
             Assert.AreEqual(10f, MatchShowcase.DefaultSeconds);

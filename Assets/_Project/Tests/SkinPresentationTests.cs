@@ -207,8 +207,6 @@ namespace Wreckabulary.Tests
             yield return null;
             Find(menu, "Queue " + LobbyMenu.Workshop).onClick.Invoke();
             yield return null;
-            Find(menu, "Create house").onClick.Invoke();
-            yield return null;
             var config = GameConfig.Current;
             var designer = new HomeDesigner(config.Houses, config.Items);
             var furnished = designer.AddWords(designer.CreateLayout(menu.Map, "Skin test"), "TABLE PLANT", config.HouseFor(menu.Map).Rooms[0].Name);
@@ -216,7 +214,7 @@ namespace Wreckabulary.Tests
             var layout = furnished.Layout;
             layout.Props.Single(prop => prop.Word == "TABLE").Skin = "Arcade";
             Assert.IsTrue(HomeStorage.ForGame().TrySave(layout, out string error), error);
-            Find(menu, "GO").onClick.Invoke();
+            Find(menu, "Create house").onClick.Invoke();
             yield return TestScenes.WaitUntil(() => CreativeWorkshop.Instance, 3f, "the Home builder to open");
             yield return null;
             var workshop = CreativeWorkshop.Instance;

@@ -19,7 +19,7 @@ namespace Wreckabulary.Workshop
         static readonly (int x, int z)[] ResizeSides = { (1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1) };
         CoursePoint gestureStart, gesturePivot;
         Vector2 lastPointer;
-        bool orbiting, controllerTools, controllerMoving, controllerAdd;
+        bool orbiting, controllerTools, controllerMoving, controllerAdd, fitOnFirstView;
         float startAngle, controllerRepeat;
         int controllerAction, controllerX, controllerZ;
         readonly string[] controllerActions =
@@ -74,11 +74,12 @@ namespace Wreckabulary.Workshop
             view.Sync(History.Current, CurrentCourse, Catalogue, DraftLayout());
             view.Frame();
         }
-        void OnDestroy() { try { view?.Dispose(); } finally { view = null; ui.Dispose(); } }
+        void OnDestroy() { try { view?.Dispose(); } finally { view = null; ui.Dispose(); paper.Dispose(); } }
         void Frame()
         {
             if (History == null || Catalogue == null) return;
             EnsureView(); view.Sync(History.Current, CurrentCourse, Catalogue, DraftLayout()); view.Frame();
+            fitOnFirstView = true;
         }
         void FrameSelection()
         {
@@ -115,6 +116,7 @@ namespace Wreckabulary.Workshop
         void WorldView()
         {
             EnsureView(); view.Resize(Mathf.RoundToInt(viewport.width * uiScale), Mathf.RoundToInt(viewport.height * uiScale));
+            if (fitOnFirstView) { fitOnFirstView = false; view.Frame(); }
             GUI.DrawTexture(viewport, view.Texture, ScaleMode.StretchToFill, false);
             GUI.BeginGroup(viewport);
             try

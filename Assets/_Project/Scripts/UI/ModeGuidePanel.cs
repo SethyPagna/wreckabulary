@@ -4,6 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Wreckabulary.Rules;
@@ -130,6 +131,12 @@ namespace Wreckabulary
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 1f;
             root.AddComponent<GraphicRaycaster>();
+            if (!EventSystem.current)
+            {
+                var events = new GameObject("UI Events", typeof(EventSystem), typeof(InputSystemUIInputModule));
+                events.transform.SetParent(root.transform, false);
+                events.GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
+            }
             var panel = root.AddComponent<ModeGuidePanel>();
             panel.Build(guide, device, closed);
             return panel;

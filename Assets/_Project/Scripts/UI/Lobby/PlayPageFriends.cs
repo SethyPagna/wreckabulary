@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Linq;
 using TMPro;
 using UnityEngine;
@@ -10,12 +11,13 @@ namespace Wreckabulary
     public sealed partial class PlayPage
     {
         public const string RoomModeCard = "Room mode ", TeamSizeChoice = "Room team size", LayoutChoice = "Room layout";
-        public const string RoomCodeField = "Room code field", JoinRoom = "Join room", CreateRoom = "Create room GO";
+        public const string LayoutRow = "Room layout row", LayoutPicture = "Room layout picture", LayoutCourse = "Room layout course";
+        public const string CreateRoom = "Create room GO";
         public const string BackToPlaylists = "Back to playlists", CustomMap = "Host a custom map", FriendsSummary = "Friends summary";
-        public const string NotARoomCode = "That isn't a room code. Copy the whole code from your friend.";
         public const string CustomMatchNote = "Custom match note", AmongYourselves = "Play among yourselves. Only people with the code can join.";
+        const float LayoutHeight = 56f, LayoutThumb = 96f, VersionWidth = 72f, VersionHeight = 52f, LayoutGap = 16f, CourseText = 22f;
+        const int ThumbRadius = 8;
         public bool Friends;
-        string roomCodeDraft = "";
 
         void ShowFriends()
         {
@@ -37,9 +39,10 @@ namespace Wreckabulary
             bool available = Session.CanLoad(Session.WordboundScene);
             var selected = choice.Selected;
             var sizes = FriendRooms.TeamSizes.Select(size => (TeamSizeChoice + " " + size, FriendRooms.TeamLabel(size))).ToArray();
-            TeamSizeRowFor(column, TeamSizeChoice, sizes, TeamSizeChoice + " " + choice.TeamSize,
+            var header = TeamSizeRowFor(column, TeamSizeChoice, sizes, TeamSizeChoice + " " + choice.TeamSize,
                 id => SaveRoomChoice(next => next.ChooseTeamSize(id.Substring(TeamSizeChoice.Length + 1)), id),
                 selected.Teams ? new string[0] : sizes.Select(size => size.Item1).ToArray(), selected.Teams ? null : NoTeams(selected));
+            CodeBoxFor(header, available);
             var top = LobbyKit.Row(column, "Host a room row", 16);
             top.Size(-1, 28);
             LobbyKit.SectionLabel(top, "Host a room");
@@ -51,23 +54,12 @@ namespace Wreckabulary
             grid.MaximumColumns = Mathf.Max(grid.MaximumColumns, FriendRooms.All.Count);
             foreach (var room in FriendRooms.All) RoomModeCardFor(cards, choice, room);
             LobbyKit.SectionLabel(column, "Map");
-            LobbyKit.Segmented(column, LayoutChoice,
-                Enumerable.Range(0, FriendRooms.Layouts).Select(index => (LayoutChoice + " " + (index + 1), OnlineMaps.For(choice.Selected.Mode, index))).ToArray(),
-                LayoutChoice + " " + (choice.Layout + 1),
-                id => SaveRoomChoice(next => next.ChooseLayout(int.Parse(id.Substring(LayoutChoice.Length + 1)) - 1), id), 48, 18).Size(-1, 48);
-            LobbyKit.SectionLabel(column, "Join a room");
-            var join = LobbyKit.Row(column, "Join row", 12);
-            join.Size(-1, 52);
-            TMP_InputField field = null;
-            field = CodeInput(join, RoomCodeField, "Paste a room code", roomCodeDraft, value => roomCodeDraft = value, () => JoinWith(field));
-            field.interactable = available;
-            var joinButton = LobbyKit.Pill(join, JoinRoom, "Join", 20, () => JoinWith(field));
-            joinButton.Size(180, 48);
-            joinButton.interactable = available;
+            LayoutRowFor(column, choice);
             var custom = LobbyKit.TextAction(column, CustomMap, "Host a custom map from the Map editor", 17, Menu.HostCustomMap,
                 icon: LobbyIcons.Layers, ink: LobbyKit.Muted);
-            custom.Size(-1, 40);
+            custom.Size(-1, 44);
             custom.interactable = available;
+            HowToPlay(column, selected.Mode, false);
 
             var bar = SummaryFrame(body, FriendsSummary);
             SummaryLine(bar);
@@ -75,6 +67,7 @@ namespace Wreckabulary
             heading.name = "Friends room";
             heading.enableAutoSizing = true; heading.fontSizeMin = 18; heading.fontSizeMax = 26;
             heading.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(8, 44), new Vector2(-560, -8));
+            GuideButton(heading, selected.Mode);
             string region = QuickPlayRegions.Name(QuickPlayRegions.Nearest(QuickPlayRegions.LocalOffsetMinutes()));
             var detail = LobbyKit.Text(bar, available
                     ? FriendRooms.Players(selected.Mode, choice.Format) + MapCardText.Separator + "Online" + MapCardText.Separator + region
@@ -100,14 +93,44 @@ namespace Wreckabulary
 
         public static string NoTeams(FriendRoomMode room) => room.Label + " has no teams";
 
+        public static string VersionLabel(int layout) => (layout + 1).ToString(CultureInfo.InvariantCulture);
+
         void RoomModeCardFor(Transform cards, FriendRoomChoice choice, FriendRoomMode room)
         {
             string name = RoomModeCard + room.Id;
             var card = MapCard(cards, name, choice.Mode == room.Id, () => SaveRoomChoice(next => next.Choose(room.Id), name));
-            var picture = room.Mode == "FreeForAll"
-                ? playLayout ? playLayout.CombatArenaPreview : null
-                : LobbyMapSnapshots.For(WordboundSoloEntry.LostAddressMap) ?? CoursePreview(WordboundSoloEntry.LostAddressMap);
-            MapWords(card, CardPicture(card, picture, LobbyIcons.Layers), room.Label, room.Detail);
+            MapWords(card, ModePicture(card, room.Mode), room.Label, room.Detail);
+        }
+
+        void LayoutRowFor(RectTransform column, FriendRoomChoice choice)
+        {
+            string mode = choice.Selected.Mode;
+            var row = LobbyKit.Row(column, LayoutRow, LayoutGap);
+            row.Size(-1, LayoutHeight);
+            row.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            var thumb = LobbyKit.Rect(row, LayoutPicture);
+            thumb.Size(LayoutThumb, LayoutThumb / LobbyPlayCardGrid.PictureAspect);
+            var sprite = CoursePicture(mode);
+            thumb.Paint(sprite ? Color.white : Color.Lerp(LobbyKit.Raised, LobbyKit.Selection, .14f), ThumbRadius).raycastTarget = false;
+            if (sprite)
+            {
+                thumb.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+                var image = LobbyKit.Rect(thumb, "Map preview").Fill().gameObject.AddComponent<Image>();
+                image.sprite = sprite; image.preserveAspect = true; image.raycastTarget = false;
+            }
+            else
+            {
+                var art = LobbyKit.ItemImage(thumb, LobbyPlayModeLabels.Emblem(mode), LayoutThumb / LobbyPlayCardGrid.PictureAspect);
+                if (art) art.rectTransform.Pin(new Vector2(.5f, .5f), Vector2.zero, Vector2.one * (LayoutThumb / LobbyPlayCardGrid.PictureAspect));
+            }
+            var course = LobbyKit.Text(row, OnlineMaps.Name(OnlineMaps.CourseFor(mode)) ?? OnlineMaps.PrivateMap, CourseText, LobbyKit.Navy,
+                TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
+            course.name = LayoutCourse;
+            course.Size(Mathf.Ceil(course.GetPreferredValues(course.text).x) + TagSlack, LayoutHeight);
+            var versions = Enumerable.Range(0, FriendRooms.Layouts).Select(index => (LayoutChoice + " " + (index + 1), VersionLabel(index))).ToArray();
+            LobbyKit.Segmented(row, LayoutChoice, versions, LayoutChoice + " " + (choice.Layout + 1),
+                id => SaveRoomChoice(next => next.ChooseLayout(int.Parse(id.Substring(LayoutChoice.Length + 1), CultureInfo.InvariantCulture) - 1), id), VersionHeight, 20)
+                .Size(VersionWidth * FriendRooms.Layouts + 8, VersionHeight);
         }
 
         void SaveRoomChoice(System.Func<FriendRoomChoice, bool> change, string aim)
@@ -131,6 +154,7 @@ namespace Wreckabulary
             var area = LobbyKit.Rect(holder, "Text area").Place(Vector2.zero, Vector2.one, new Vector2(14, 2), new Vector2(-14, -2));
             area.gameObject.AddComponent<RectMask2D>();
             var hint = LobbyKit.Text(area, placeholder, 20, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
+            hint.enableAutoSizing = true; hint.fontSizeMin = SmallestLabel; hint.fontSizeMax = 20;
             hint.rectTransform.Fill();
             var text = LobbyKit.Text(area, "", 20, LobbyKit.Navy, TextAlignmentOptions.MidlineLeft);
             text.overflowMode = TextOverflowModes.Overflow;
@@ -150,26 +174,6 @@ namespace Wreckabulary
             field.onSubmit.AddListener(_ => submit());
             holder.gameObject.SetActive(true);
             return field;
-        }
-
-        void JoinWith(TMP_InputField field)
-        {
-            string code = (field.text ?? "").Trim();
-            if (code.Length == 0)
-            {
-                string copied = GUIUtility.systemCopyBuffer;
-                if (FriendRooms.LooksLikeInvite(copied))
-                {
-                    code = copied.Trim();
-                    field.text = code;
-                }
-            }
-            if (!FriendRooms.LooksLikeInvite(code))
-            {
-                Menu.Post(NotARoomCode);
-                return;
-            }
-            Menu.JoinFriendsRoom(code);
         }
     }
 }

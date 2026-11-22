@@ -339,7 +339,7 @@ namespace Wreckabulary.Tests
             StringAssert.StartsWith("HAMMER · ", line.text);
             StringAssert.Contains("every 3rd hit crushes", line.text);
             Assert.GreaterOrEqual(line.fontSize, 23f);
-            Assert.IsFalse(legend.gameObject.activeSelf, "The focused item's line takes the legend's place.");
+            Assert.IsTrue(legend.gameObject.activeSelf, "The star key stays on its own line while a card is focused.");
             UnityEngine.EventSystems.ExecuteEvents.Execute(cards.Find("HAMMER").gameObject,
                 new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current), UnityEngine.EventSystems.ExecuteEvents.pointerExitHandler);
             Assert.AreEqual("", line.text);
@@ -347,6 +347,66 @@ namespace Wreckabulary.Tests
                 new UnityEngine.EventSystems.BaseEventData(UnityEngine.EventSystems.EventSystem.current), UnityEngine.EventSystems.ExecuteEvents.selectHandler);
             Assert.AreEqual("BAT · no extra effect", line.text, "a pad selection says it too");
             Object.Destroy(hud.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator RecipeBookKeepsItsStarKeyUnderTheTitleAndItsCloseOnTheCorner()
+        {
+            var you = Spawn(TouchBinding.Shared);
+            var hud = new GameObject("Recipe key HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            safe.Find("Letter bag/Bag link").GetComponent<Button>().onClick.Invoke();
+            yield return TestScenes.WaitUntil(() => hud.BagOpen, 10f, "the bag");
+            yield return new WaitForSecondsRealtime(0.12f);
+            Canvas.ForceUpdateCanvases();
+            var book = (RectTransform)safe.Find("Bag panel/Recipe book");
+            var legend = (RectTransform)book.Find("Legend");
+            var close = (RectTransform)safe.Find("Bag panel/Close bag");
+            Assert.IsNotNull(close, "The x keeps its name and its place in the bag panel.");
+            Assert.IsTrue(legend.gameObject.activeSelf, "The star key always shows.");
+            float scale = hud.UiCanvas.scaleFactor, slack = 0.5f * scale;
+            var bookBox = OnScreen(book);
+            var lineBox = OnScreen((RectTransform)book.Find("Book line"));
+            var keyBox = OnScreen(legend);
+            var closeBox = OnScreen(close);
+            Assert.LessOrEqual(keyBox.yMax, lineBox.yMin + slack, "The key sits under the title line.");
+            Assert.LessOrEqual(OnScreen((RectTransform)book.Find("View")).yMax, keyBox.yMin + slack, "The recipes start under the key.");
+            Assert.AreEqual(bookBox.xMax - GameHud.BookCloseInset * scale, closeBox.xMax, slack, "The x sits on the book's right edge...");
+            Assert.AreEqual(bookBox.yMax - GameHud.BookTitleTop * scale, closeBox.yMax, slack, "...at its top, on the title row.");
+            Assert.IsFalse(closeBox.Overlaps(keyBox), "The x never covers the key...");
+            Assert.IsFalse(closeBox.Overlaps(lineBox), "...nor the title line.");
+            var key = legend.Find("Text").GetComponent<TMPro.TMP_Text>();
+            Assert.AreEqual(Wreckabulary.Rules.RecipeStars.Legend, key.text);
+            Assert.GreaterOrEqual(key.enableAutoSizing ? key.fontSizeMin : key.fontSize, 15f);
+            Assert.Less(OnScreen((RectTransform)legend.Find("Star")).xMax, OnScreen(key.rectTransform).xMin + slack, "The star leads the key.");
+            close.GetComponent<Button>().onClick.Invoke();
+            Assert.IsFalse(hud.BagOpen, "The x closes the bag.");
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator TheResultCardClearsTheBagHandsAndHealth()
+        {
+            var you = Spawn(TouchBinding.Shared);
+            var hud = new GameObject("Card HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            hud.ShowTouchControls(false);
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            var tray = safe.Find("Letter bag").gameObject;
+            var vitals = safe.Find("Vitals").gameObject;
+            yield return TestScenes.WaitUntil(() => hud.AcceptsGameplayInput && tray.activeSelf && vitals.activeSelf, 10f, "the bag, hands and health in play");
+            Assert.IsFalse(hud.FullCardShown);
+            hud.ShowResult(new HudResult { Round = 1, Heading = "Round over" }, () => { });
+            Assert.IsTrue(hud.FullCardShown);
+            yield return TestScenes.WaitUntil(() => !tray.activeSelf && !vitals.activeSelf, 10f, "the result card to clear the bag, hands and health");
+            Assert.IsFalse(safe.Find("Letter bag/Gear slot 1").gameObject.activeInHierarchy, "The hands go with the bag.");
+            hud.HideResult();
+            Assert.IsFalse(hud.FullCardShown);
+            yield return TestScenes.WaitUntil(() => tray.activeSelf && vitals.activeSelf, 10f, "the bag, hands and health back after the card");
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
         }
 
         [UnityTest]
@@ -449,8 +509,15 @@ namespace Wreckabulary.Tests
             var banner = (RectTransform)hud.transform.Find("Safe HUD/Round banner");
             Assert.GreaterOrEqual(banner.Find("Title").GetComponent<TMPro.TMP_Text>().fontSize, 40f, "The round banner is large.");
             Assert.IsFalse(banner.GetComponent<CanvasGroup>().blocksRaycasts, "It never blocks a click.");
-            yield return new WaitForSecondsRealtime(2.7f);
-            Assert.IsFalse(hud.BannerShown, "The banner goes by itself after 2.5 s.");
+            hud.Toast("Spelling BAT…");
+            Assert.AreEqual("", hud.ToastText, "No toast on top of the banner: it says the rule once.");
+            hud.ToastAfterBanner("Break furniture");
+            Assert.AreEqual("", hud.ToastText, "A first-move tip waits for the banner.");
+            yield return new WaitForSecondsRealtime(2.4f);
+            Assert.IsTrue(hud.BannerShown, "The banner stays through the countdown and GO.");
+            yield return new WaitForSecondsRealtime(1.2f);
+            Assert.IsFalse(hud.BannerShown, "The banner goes by itself after 3.2 s.");
+            Assert.AreEqual("Break furniture", hud.ToastText, "and the waiting tip follows it.");
             Object.Destroy(hud.gameObject);
             Object.Destroy(you.gameObject);
         }
@@ -701,7 +768,10 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(-Wreckabulary.Rules.PlayerBar.Top, bar.anchoredPosition.y, .01f, "10 px under the top of the safe area.");
             StringAssert.StartsWith("P1", Text("Card 1/Name"), "You're on the bar too, named by seat on a couch.");
             StringAssert.StartsWith("P2", Text("Card 2/Name"));
-            StringAssert.Contains("WRECKED", Text("Card 2/Status"));
+            Assert.AreEqual("", Text("Card 2/Status"), "A wrecked seat says nothing in its portrait...");
+            Assert.IsTrue(bar.Find("Card 2/Cross").GetComponent<Image>().enabled, "...it gets a cross over a grey portrait.");
+            Assert.IsFalse(bar.Find("Card 1/Cross").GetComponent<Image>().enabled);
+            Assert.IsFalse(bar.Find("Card 3/Cross").GetComponent<Image>().enabled);
             Assert.IsTrue(bar.Find("Card 3").gameObject.activeSelf, "Bots get a card.");
             StringAssert.StartsWith("AI 3", Text("Card 3/Name"));
             Assert.AreEqual("2/3", Text("Card 3/Score"), "Every card shows its wins.");
@@ -771,6 +841,7 @@ namespace Wreckabulary.Tests
             AssertApart(label, plate, "The bar keeps clear of the match label.");
             AssertApart((RectTransform)safe.Find("Side column/Minimap"), plate, "...and of the minimap.");
             Assert.AreEqual("2/3", safe.Find("Side column/Alive/Count").GetComponent<TMPro.TMP_Text>().text);
+            Assert.IsFalse(safe.Find("Side column/Alive").gameObject.activeSelf, "The portraits already show who is up, so the head count steps aside.");
             Assert.IsFalse(safe.Find("Side column/Objective").gameObject.activeSelf, "No filler objective when there's nothing to do.");
 
             Object.Destroy(mate.gameObject);
@@ -815,6 +886,87 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator FurnitureNamesKnowWhereTheHudSits()
+        {
+            var you = Spawn(TouchBinding.Shared);
+            var bot = Spawn(new BotBinding());
+            bot.Name = "AI 2";
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            hud.ShowTouchControls(false);
+            hud.SetScoreboard(new[] { you, bot }, _ => 0, 3, true);
+            yield return TestScenes.WaitUntil(() => hud.AcceptsGameplayInput && hud.BarSeated, 10f, "the gameplay HUD and its bar");
+            yield return new WaitForSecondsRealtime(0.25f);
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            var rects = new System.Collections.Generic.List<Rect>();
+            hud.CollectHudRects(rects);
+            bool Covered(RectTransform part)
+            {
+                var middle = OnScreen(part).center;
+                foreach (var rect in rects) if (rect.Contains(middle)) return true;
+                return false;
+            }
+            Assert.IsTrue(Covered((RectTransform)safe.Find("Player bar/Backing")), "The bar's plate keeps names off it.");
+            Assert.IsTrue(Covered((RectTransform)safe.Find("Letter bag/Letter 1")), "So do the letter tiles...");
+            Assert.IsTrue(Covered((RectTransform)safe.Find("Letter bag/Gear slot 2")), "...the hand slots...");
+            Assert.IsTrue(Covered((RectTransform)safe.Find("Brand")), "...and the mode title.");
+            Assert.IsTrue(Covered((RectTransform)safe.Find("Vitals")));
+            var centre = new Vector2(Screen.width * .5f, Screen.height * .5f);
+            Assert.IsFalse(rects.Exists(rect => rect.Contains(centre)), "The middle of the screen stays free for names.");
+            Assert.IsFalse(rects.Exists(rect => rect.width <= 0f || rect.height <= 0f), "Only real areas.");
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
+            Object.Destroy(bot.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator GoalListsSitOnAPlateWithItemPicturesAndTicks()
+        {
+            var you = Spawn(TouchBinding.Shared);
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            hud.SetChecklist("<b>KEEPSAKES</b>\nBAT • Kitchen\nLAMP packed");
+            hud.SetGoals("KEEPSAKES", new[]
+            {
+                new Wreckabulary.Rules.HudGoal("BAT", "Kitchen", false),
+                new Wreckabulary.Rules.HudGoal("LAMP", "packed", true),
+                new Wreckabulary.Rules.HudGoal("", "P2 is idle", false),
+            });
+            yield return new WaitForSecondsRealtime(0.12f);
+            Assert.IsTrue(hud.GoalPlateShown, "The goals sit on a plate.");
+            Assert.AreEqual("KEEPSAKES", hud.GoalHeading);
+            Assert.AreEqual(3, hud.GoalCount);
+            Assert.AreEqual("BAT", hud.GoalWord(0));
+            Assert.IsTrue(hud.GoalPictured(0), "An item goal shows the item.");
+            Assert.IsFalse(hud.GoalTicked(0));
+            Assert.IsTrue(hud.GoalTicked(1), "A finished goal is ticked.");
+            Assert.IsFalse(hud.GoalPictured(2), "A plain line has no picture.");
+            var text = hud.transform.Find("Safe HUD/Side column/Objective/Objective text").GetComponent<TMPro.TMP_Text>();
+            Assert.IsFalse(text.enabled, "The plain list steps aside for the plate.");
+            StringAssert.Contains("BAT", text.text, "Its words stay for anything that reads them.");
+            Assert.IsTrue(hud.GoalPlate.GetComponentsInChildren<Graphic>(true).All(g => !g.raycastTarget), "The plate never takes a click.");
+            foreach (var label in hud.GoalPlate.GetComponentsInChildren<TMPro.TMP_Text>(true))
+                Assert.GreaterOrEqual(Mathf.Min(label.fontSize, label.enableAutoSizing ? label.fontSizeMin : label.fontSize), 15f, label.name);
+            yield return TestScenes.WaitUntil(() => hud.AcceptsGameplayInput, 10f, "the gameplay HUD");
+            var holder = (RectTransform)text.transform.parent;
+            yield return TestScenes.WaitUntil(() => Mathf.Abs(holder.sizeDelta.y - hud.GoalPlate.sizeDelta.y) < 0.5f, 10f, "the goal area to take the plate's size");
+            Assert.AreEqual(hud.GoalPlate.sizeDelta.x, holder.sizeDelta.x, 0.5f);
+            Assert.Greater(holder.sizeDelta.y, text.rectTransform.sizeDelta.y, "The plate is taller than the plain list it replaces.");
+            Canvas.ForceUpdateCanvases();
+            var rects = new System.Collections.Generic.List<Rect>();
+            hud.CollectHudRects(rects);
+            var plateBox = OnScreen(hud.GoalPlate);
+            var plateFoot = new Vector2(plateBox.center.x, plateBox.yMin + 1f);
+            Assert.IsTrue(rects.Exists(rect => rect.Contains(plateFoot)), "Furniture names keep clear of the whole plate.");
+            hud.SetGoals("", null);
+            Assert.IsFalse(hud.GoalPlateShown);
+            Assert.IsTrue(text.enabled, "Without goals the plain text is back.");
+            yield return TestScenes.WaitUntil(() => Mathf.Abs(holder.sizeDelta.y - text.rectTransform.sizeDelta.y) < 0.5f, 10f, "the goal area to fit the plain list again");
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
+        }
+
+        [UnityTest]
         public IEnumerator TopCentreNoticesSitBelowThePlayerBar()
         {
             var you = Spawn(TouchBinding.Shared);
@@ -826,8 +978,8 @@ namespace Wreckabulary.Tests
             var safe = (RectTransform)hud.transform.Find("Safe HUD");
             hud.SetScoreboard(new[] { you, bot }, _ => 0, 3, true);
             hud.ShowCountdown(3, "ROUND 1 · LIVING ROOM");
-            hud.ShowBanner("Round 1 · Last One Standing", "Knock out everyone else to win the round · First to 3");
             hud.Toast("Spelling BAT…");
+            hud.ShowBanner("Round 1 · Last One Standing", "Knock out everyone else to win the round · First to 3");
             hud.SetInstruction("Smash furniture", "Spell items from the letters");
             hud.ShowModeActions(true, "START WITH AI →", () => { });
             yield return new WaitForSecondsRealtime(0.25f);

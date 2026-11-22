@@ -98,7 +98,11 @@ namespace Wreckabulary
                 if (!player || watched.Contains(player)) continue;
                 watched.Add(player);
                 joined = true;
-                if (player.Health) player.Health.Damaged += OnDamaged;
+                if (player.Health)
+                {
+                    player.Health.Damaged += OnDamaged;
+                    player.Health.Revived += OnRevived;
+                }
                 if (player.Summoner) HearSpells(player);
                 if (!local && player.Binding is not BotBinding && player.Binding is not ScriptedBinding)
                 {
@@ -176,10 +180,27 @@ namespace Wreckabulary
             if (Recording && victim) MatchStats.Current.Knockout(victim.Index, attacker ? attacker.Index : -1);
         }
 
+        void OnRevived(PlayerHealth saved)
+        {
+            if (!Recording || !saved) return;
+            foreach (var player in World.Players)
+            {
+                if (!player || !player.Combat) continue;
+                var helped = player.Combat.Reviving;
+                if (!helped || helped.Health != saved) continue;
+                MatchStats.Current.Revive(player.Index);
+                return;
+            }
+        }
+
         void OnDestroy()
         {
             foreach (var player in watched)
-                if (player && player.Health) player.Health.Damaged -= OnDamaged;
+            {
+                if (!player || !player.Health) continue;
+                player.Health.Damaged -= OnDamaged;
+                player.Health.Revived -= OnRevived;
+            }
             foreach (var entry in spellers)
                 if (entry.Key && entry.Key.Summoner) entry.Key.Summoner.Summoned -= entry.Value;
             spellers.Clear();

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using Wreckabulary.Rules;
 using Wreckabulary.Rules.Wordbound;
 
 namespace Wreckabulary.Online.Tests
@@ -178,17 +179,129 @@ namespace Wreckabulary.Online.Tests
             Assert.AreEqual(4, toasts.Count);
             Assert.AreEqual("note 5", toasts[3].Text);
             f.Grid.Call("PreparePanels");
-            var tray = Rows(f, "inventoryPanel");
-            Assert.AreEqual("Health 100", tray[0]);
-            StringAssert.EndsWith("Hand 1: empty", tray[1]); StringAssert.EndsWith("Hand 2: empty", tray[2]);
-            Assert.AreEqual(3, tray.Length);
+            Assert.AreEqual(100, (int)f.Grid.Get("trayHealth"));
+            var hands = (string[])f.Grid.Get("handWords");
+            Assert.AreEqual(2, hands.Length);
+            Assert.IsNull(hands[0], "Hand 1 is empty."); Assert.IsNull(hands[1], "Hand 2 is empty.");
+            Assert.AreEqual("BT", f.Grid.Get("tileText"), "The bag shows the held letters as tiles.");
+            Assert.IsFalse((bool)f.Grid.Get("trayKeepsake"));
             Assert.IsTrue(f.Progress.TakeKeepsake(Player));
             f.SetFrame();
             f.Grid.Call("PreparePanels");
-            Assert.AreEqual("Carrying the keepsake", Rows(f, "inventoryPanel").Last());
+            Assert.IsTrue((bool)f.Grid.Get("trayKeepsake"));
             Assert.AreEqual(3, Rows(f, "statusPanel").Length);
-            StringAssert.StartsWith("[", Rows(f, "menuHintPanel")[0]);
-            StringAssert.Contains("] Spell · [", Rows(f, "menuHintPanel")[0]);
+            Assert.AreEqual(1, (int)f.Grid.Get("statusTagRow"), "The lap line is the gold tag above the mode title.");
+            string spell = PromptText(f, "spellKeys"), menu = PromptText(f, "menuKeys");
+            StringAssert.StartsWith("[", spell); StringAssert.EndsWith("] Spell", spell);
+            StringAssert.StartsWith("[", menu); StringAssert.EndsWith("] Menu", menu);
+        }
+
+        static string PromptText(WordboundRecipeContextFixture f, string field)
+        {
+            var prompt = f.Grid.Get(field);
+            return (string)prompt.GetType().GetProperty("Text").GetValue(prompt);
+        }
+
+        [Test]
+        public void PromptsSplitIntoKeyCapsAndWords()
+        {
+            var type = typeof(WordboundMatchHud).GetNestedType("KeyPrompt", BindingFlags.NonPublic);
+            var prompt = Activator.CreateInstance(type, true);
+            string[] Parts(string text)
+            {
+                type.GetMethod("Set").Invoke(prompt, new object[] { text });
+                int count = (int)type.GetProperty("Count").GetValue(prompt);
+                return Enumerable.Range(0, count).Select(i =>
+                {
+                    string part = ((GUIContent)type.GetMethod("Part").Invoke(prompt, new object[] { i })).text;
+                    return (bool)type.GetMethod("IsCap").Invoke(prompt, new object[] { i }) ? "[" + part + "]" : part;
+                }).ToArray();
+            }
+            CollectionAssert.AreEqual(new[] { "Press", "[E]", "on a letter to collect it." }, Parts("Press [E] on a letter to collect it."));
+            CollectionAssert.AreEqual(new[] { "[1]", "and", "[2]", "pick Hand 1 and Hand 2." }, Parts("[1] and [2] pick Hand 1 and Hand 2."));
+            CollectionAssert.AreEqual(new[] { "Hold", "[LEFT BUTTON]", "Block" }, Parts("Hold [LEFT BUTTON] Block"));
+            CollectionAssert.AreEqual(new[] { "[]]", "Spell" }, Parts("[]] Spell"));
+            CollectionAssert.AreEqual(new[] { "Checkpoint 1/32 reached" }, Parts("Checkpoint 1/32 reached"));
+            CollectionAssert.AreEqual(new[] { "Open [ the box" }, Parts("Open [ the box"));
+            Assert.IsFalse((bool)type.GetProperty("HasCaps").GetValue(prompt));
+            CollectionAssert.IsEmpty(Parts(""));
+            CollectionAssert.IsEmpty(Parts(null));
+        }
+
+        [Test]
+        public void HandSlotsShowTheHeldItemFromTheCurrentSnapshot()
+        {
+            using var f = new WordboundRecipeContextFixture("TimeRun", flagship: true);
+            f.SetFrame(heldTool: true);
+            var held = Frame(f).Economy.Players.Single(p => p.PlayerId == 0);
+            f.Grid.Set("inventory", held);
+            f.Grid.Call("PreparePanels");
+            var hands = (string[])f.Grid.Get("handWords");
+            Assert.AreEqual(1, hands.Count(word => word == "HAMMER"), string.Join(",", hands.Select(word => word ?? "-")));
+            for (int slot = 0; slot < hands.Length; slot++)
+                Assert.AreEqual(((ItemInstance)f.Grid.Call("HeldItem", slot))?.Word, hands[slot], "slot " + slot);
+            f.SetFrame();
+            f.Grid.Call("PreparePanels");
+            Assert.IsTrue(((string[])f.Grid.Get("handWords")).All(word => word == null), "A new snapshot without the item empties the hand.");
+        }
+
+        static string Text(WordboundRecipeContextFixture f, string content) => ((GUIContent)f.Grid.Get(content)).text;
+
+        [Test]
+        public void TwoTeamsShowBothCountsAndTheLeaderWhileOneTeamShowsOnlyTheClock()
+        {
+            using var race = new WordboundRecipeContextFixture("TeamRace", flagship: true);
+            int stops = race.Course.Laps.Sum(lap => lap.Checkpoints.Count + 1);
+            race.Grid.Call("RefreshScore");
+            Assert.IsTrue((bool)race.Grid.Get("scoreSidesShown"));
+            Assert.IsTrue((bool)race.Grid.Get("scoreClockShown"));
+            Assert.AreEqual("0/" + stops, Text(race, "scoreMine"));
+            Assert.AreEqual("0/" + stops, Text(race, "scoreTheirs"));
+            Assert.AreEqual(Wreckabulary.Rules.ScoreLine.NoLead, (int)race.Grid.Get("scoreLead"));
+            race.AdvanceCheckpoint("recipe-rival");
+            race.Grid.Call("RefreshScore");
+            Assert.AreEqual("0/" + stops, Text(race, "scoreMine"));
+            Assert.AreEqual("1/" + stops, Text(race, "scoreTheirs"));
+            Assert.AreEqual(Wreckabulary.Rules.ScoreLine.Right, (int)race.Grid.Get("scoreLead"));
+            race.AdvanceCheckpoint(); race.AdvanceCheckpoint();
+            race.Grid.Call("RefreshScore");
+            Assert.AreEqual("2/" + stops, Text(race, "scoreMine"));
+            Assert.AreEqual(Wreckabulary.Rules.ScoreLine.Left, (int)race.Grid.Get("scoreLead"));
+            using var solo = new WordboundRecipeContextFixture("TimeRun");
+            solo.Grid.Call("RefreshScore");
+            Assert.IsFalse((bool)solo.Grid.Get("scoreSidesShown"));
+            Assert.IsTrue((bool)solo.Grid.Get("scoreClockShown"));
+            Assert.AreEqual("25:00", Text(solo, "scoreClock"));
+            solo.Grid.Call("PreparePanels");
+            Assert.AreEqual("Time Trial", Rows(solo, "statusPanel")[0], "The clock lives in the top strip, not in the heading.");
+            using var free = new WordboundRecipeContextFixture("Freestyle");
+            free.Grid.Call("RefreshScore");
+            Assert.IsFalse((bool)free.Grid.Get("scoreSidesShown"));
+            Assert.IsFalse((bool)free.Grid.Get("scoreClockShown"));
+        }
+
+        [Test]
+        public void ARunIsTimedOnceFromItsFirstTickAndTheEditorNeverWritesTheCareer()
+        {
+            bool remember = LobbyMenu.RememberChoices;
+            string career = PlayerPrefs.GetString(MatchTally.CareerKey, "");
+            try
+            {
+                LobbyMenu.RememberChoices = false;
+                using var f = new WordboundRecipeContextFixture("TimeRun");
+                f.Grid.Call("NoteRunStarted", Frame(f));
+                f.Grid.Call("RecordRunTime");
+                Assert.IsFalse((bool)f.Grid.Get("runTimed"), "A run that never started records nothing.");
+                f.AdvanceCheckpoint();
+                f.Grid.Call("NoteRunStarted", Frame(f));
+                Assert.Greater((float)f.Grid.Get("runStartedAt"), 0f);
+                f.Grid.Call("RecordRunTime");
+                Assert.IsTrue((bool)f.Grid.Get("runTimed"));
+                f.Grid.Call("NoteRunStarted", Frame(f));
+                Assert.AreEqual(0f, (float)f.Grid.Get("runStartedAt"), "A run is timed once.");
+                Assert.AreEqual(career, PlayerPrefs.GetString(MatchTally.CareerKey, ""));
+            }
+            finally { LobbyMenu.RememberChoices = remember; }
         }
 
         [Test]

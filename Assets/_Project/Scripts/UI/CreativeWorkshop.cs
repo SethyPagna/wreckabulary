@@ -15,6 +15,8 @@ namespace Wreckabulary
         static readonly Color Cream = new(.97f,.94f,.86f), Ink = new(.18f,.23f,.23f), Teal = new(.13f,.48f,.48f);
         static readonly Color Chip = new(.84f,.89f,.82f), Faded = new(.8f,.8f,.78f), Muted = new(.42f,.45f,.44f);
         public const string LockedNote = "Get locked finishes in the Shop.";
+        public const string HouseHeading = "CHOOSE HOUSE", HouseNoteName = "House note";
+        const float HouseLabelRoom = 34f, HouseNoteRoom = 72f;
         public static CreativeWorkshop Instance { get; private set; }
         readonly List<(Finish finish, Button button, Image face, TextMeshProUGUI label, Image locked)> finishChips = new();
         TextMeshProUGUI finishNote;
@@ -209,7 +211,7 @@ namespace Wreckabulary
             status.textWrappingMode = TextWrappingModes.Normal;
             foreach (RectTransform child in content)
                 if (child.anchoredPosition.y <= -572) child.anchoredPosition += new Vector2(0,-40);
-            content.sizeDelta = new Vector2(0,1112);
+            content.sizeDelta = new Vector2(0,1112 + HouseHelp(content));
             toolContent = content;
             foreach (RectTransform child in content) toolRows.Add((child,child.anchoredPosition,child.sizeDelta));
             foreach (var text in content.GetComponentsInChildren<TMP_Text>(true))
@@ -227,6 +229,21 @@ namespace Wreckabulary
             var jump = MakeButton(touchControls,"Jump",new Vector2(-26,24),new Vector2(138,90),() => TouchBinding.Shared.Pulse(TouchAction.Jump));
             var jumpRect = (RectTransform)jump.transform; jumpRect.anchorMin = jumpRect.anchorMax = jumpRect.pivot = new Vector2(1,0);
             jumpRect.anchoredPosition = new Vector2(-26,24);
+        }
+
+        float HouseHelp(RectTransform content)
+        {
+            var closed = GameConfig.Current.Houses.Where(house => !HomeDesigner.Supports(house.Key)).Select(house => house.Value.Name).ToArray();
+            string note = PlayPageText.BuilderNote(closed);
+            float room = HouseLabelRoom + (note.Length > 0 ? HouseNoteRoom : 0f);
+            var houses = (RectTransform)mapInput.transform;
+            foreach (RectTransform child in content) child.anchoredPosition += new Vector2(0, child == houses ? -HouseLabelRoom : -room);
+            Label(content, HouseHeading, new Vector2(12,-12), new Vector2(320,28), 18, Teal);
+            if (note.Length == 0) return room;
+            var line = Label(content, note, new Vector2(12, houses.anchoredPosition.y - houses.sizeDelta.y - 6), new Vector2(320, HouseNoteRoom - 8), 16, Muted);
+            line.name = HouseNoteName;
+            line.textWrappingMode = TextWrappingModes.Normal; line.alignment = TextAlignmentOptions.TopLeft;
+            return room;
         }
 
         string RoomName => stage.House.Rooms[Mathf.Clamp(roomInput.value,0,stage.House.Rooms.Count-1)].Name;

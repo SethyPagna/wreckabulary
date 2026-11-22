@@ -19,8 +19,11 @@ namespace Wreckabulary.Tests
             HouseModes.Dibs, HouseModes.Duos, HouseModes.FreeForAll, HouseModes.War, HouseModes.ShoppingList, HouseModes.RiddleRush,
         };
         static readonly string[] BothFlows = { HouseModes.Dibs, HouseModes.FreeForAll };
-        static readonly string[] CoopModes = { HouseModes.MovingOut, HouseModes.Escape };
+        static readonly string[] CoopModes = { HouseModes.MovingOut, HouseModes.Escape, HouseModes.MovingDay };
         static readonly string[] OwnScenes = { Session.MovingDayScene, Session.TutorialScene };
+        const string CrewWarmup = "Warmup", CrewShowcase = "Showcase", CrewCountdown = "Countdown", CrewPlaying = "Playing";
+        const string CrewMap = "flat", ObjectivePath = "Safe HUD/Side column/Objective";
+        const float QuietSeconds = .75f;
 
         [UnitySetUp] public IEnumerator SetUp() => TestScenes.Reset();
 
@@ -69,6 +72,52 @@ namespace Wreckabulary.Tests
 
         static IEnumerator UntilCountdown(string what) =>
             TestScenes.WaitUntil(() => Rounds.Phase == Phase.Countdown, AfterWarmup, what);
+
+        static MovingOutDirector Van => Object.FindAnyObjectByType<MovingOutDirector>();
+        static EscapeDirector Escape => Object.FindAnyObjectByType<EscapeDirector>();
+        static MovingDayDirector Furnish => Object.FindAnyObjectByType<MovingDayDirector>();
+
+        static string CrewState(string mode)
+        {
+            if (mode == HouseModes.MovingOut) return Van ? Van.Current.ToString() : "";
+            if (mode == HouseModes.Escape) return Escape ? Escape.Current.ToString() : "";
+            return Furnish ? Furnish.Current.ToString() : "";
+        }
+
+        static void RestartCrew(string mode)
+        {
+            if (mode == HouseModes.MovingOut) Van.Restart();
+            else if (mode == HouseModes.Escape) Escape.Restart();
+            else Furnish.Retry();
+        }
+
+        static bool CrewPreludeSeen(string mode) =>
+            (Rounds && (Rounds.Phase == Phase.Warmup || Rounds.Phase == Phase.Showcase || Rounds.Warmup != null || Rounds.Showcase != null))
+            || CrewState(mode) == CrewWarmup || CrewState(mode) == CrewShowcase;
+
+        static IEnumerator LoadCrew(string mode, bool warmup, int humans = 1)
+        {
+            Session.SelectMap(CrewMap);
+            Match.ModeOverride = mode;
+            for (int i = 0; i < humans; i++) Session.Remember(new ScriptedBinding());
+            RoundManager.WarmupRequested = warmup;
+            yield return TestScenes.Load(Session.SceneForMode(mode));
+            yield return TestScenes.ExploreHouse();
+        }
+
+        static IEnumerator LoadCrewWarmup(string mode, int humans = 1)
+        {
+            yield return LoadCrew(mode, true, humans);
+            yield return UntilWarmup(mode);
+            yield return TestScenes.WaitUntil(() => CrewState(mode) == CrewWarmup, Slow, mode + " to show its warm-up state");
+            Hud.Follow(Human());
+        }
+
+        static IEnumerator UntilCrewCountdown(string mode) =>
+            TestScenes.WaitUntil(() => CrewState(mode) == CrewCountdown || CrewState(mode) == CrewPlaying, AfterWarmup, "the usual countdown after the warm-up in " + mode);
+
+        static IEnumerator UntilCrewPlaying(string mode) =>
+            TestScenes.WaitUntil(() => CrewState(mode) == CrewPlaying, Slow, mode + " to start as usual");
 
         static PlayerController Seated(InputBinding binding) => Joins.Players.First(p => p.Binding == binding);
 
@@ -448,35 +497,220 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
-        public IEnumerator CoopModesIgnoreTheRequest([ValueSource(nameof(CoopModes))] string mode)
+        public IEnumerator ADirectCoopStartSkipsTheWarmup([ValueSource(nameof(CoopModes))] string mode)
         {
-            yield return Load(mode, true, map: "flat");
-            Assert.IsFalse(RoundManager.WarmupRequested, "the request does not linger for the next match");
-            Assert.IsTrue(Rounds);
-            Assert.IsFalse(Rounds.enabled, mode + " runs its own director");
-            yield return null;
-            yield return null;
-            Assert.AreNotEqual(Phase.Warmup, Rounds.Phase);
-            Assert.IsNull(Rounds.Warmup);
-            Assert.IsNull(Strip);
+            yield return LoadCrew(mode, false);
+            Assert.IsFalse(RoundManager.WarmupRequested);
+            if (mode == HouseModes.MovingDay) Assert.IsFalse(Rounds, "Furnish the House gets a round manager only when a warm-up is asked for");
+            else
+            {
+                Assert.IsTrue(Rounds);
+                Assert.IsFalse(Rounds.enabled, mode + " runs its own director");
+            }
+            float until = Time.realtimeSinceStartup + WatchSeconds;
+            while (Time.realtimeSinceStartup < until)
+            {
+                Assert.IsFalse(CrewPreludeSeen(mode), mode + " has no warm-up or line-up on a direct start");
+                Assert.IsFalse(LetterInventory.FreeSpelling);
+                Assert.IsNull(Strip);
+                Assert.IsFalse(Hud.ShowcaseShown);
+                yield return null;
+            }
+            yield return UntilCrewPlaying(mode);
+            Assert.IsFalse(CrewPreludeSeen(mode));
             Assert.IsFalse(LetterInventory.FreeSpelling);
+            Assert.IsNull(Hud.UiCanvas.transform.Find("Safe HUD/" + GameHud.ShowcaseRootName), "the line-up is not even built");
             var human = Human();
             human.Inventory.Collects = false;
             human.Inventory.Set("");
             Assert.IsFalse(human.Inventory.SpellsFree);
-            if (mode == HouseModes.MovingOut)
+            yield return UntilFree(human);
+            Assert.IsFalse(human.Summoner.Summon("BAT"), "spelling still needs letters");
+        }
+
+        [UnityTest]
+        public IEnumerator ARequestedCoopWarmupRunsOnceBeforeTheRun([ValueSource(nameof(CoopModes))] string mode)
+        {
+            yield return LoadCrewWarmup(mode);
+            var warmup = Rounds.Warmup;
+            var human = Human();
+            Assert.IsFalse(RoundManager.WarmupRequested, "the request is used up by the scene that took it");
+            Assert.IsTrue(Rounds.isActiveAndEnabled, "the round manager holds the phase while the crew warms up");
+            Assert.AreEqual(1, Joins.Players.Count, "a crew has no bots");
+            Assert.AreEqual(1, warmup.State.Voters);
+            Assert.IsTrue(Joins.Players.All(p => !p.Frozen), "nobody is frozen");
+            Assert.IsFalse(Joins.AllowJoining);
+            Assert.IsFalse(Joins.RespawnKnockedOut, "the warm-up brings knockouts back itself");
+            Assert.IsTrue(LetterInventory.FreeSpelling);
+            Assert.IsFalse(MatchTally.StatsLive, "nothing is tallied yet");
+            Assert.IsFalse(Hud.ResultShown);
+            Assert.IsFalse(Hud.CountdownShown);
+            if (mode == HouseModes.MovingOut) Assert.AreEqual(0, Van.KeepsakeCount, "no keepsake is out yet");
+            if (mode == HouseModes.Escape) Assert.AreEqual(0, Escape.DoorCount, "no door is barred yet");
+            if (mode == HouseModes.MovingDay) Assert.AreEqual(Furnish.CurrentLevel.items.Length, Furnish.Remaining.Count);
+            yield return TestScenes.WaitUntil(() => Strip && Strip.Built, Slow, "the card strip");
+            Assert.AreEqual(mode, Strip.Mode, "the strip shows this mode's guide");
+            Assert.AreEqual(ModeGuideBook.For(mode).Steps.Count, Strip.CardCount);
+            var objective = Hud.UiCanvas.transform.Find(ObjectivePath);
+            if (objective) yield return TestScenes.WaitUntil(() => !objective.gameObject.activeSelf, Slow, "the goal list to stay away during the warm-up");
+
+            human.Inventory.Collects = false;
+            human.Inventory.Set("");
+            yield return UntilFree(human);
+            Assert.IsTrue(human.Inventory.SpellsFree);
+            Assert.IsTrue(human.Summoner.Summon("BAT"), "a spell works with an empty bag");
+            Assert.AreEqual(0, MatchStats.Current.Lines.Sum(l => l.Crafted), "and is not counted");
+
+            float watched = Time.realtimeSinceStartup + QuietSeconds;
+            while (Time.realtimeSinceStartup < watched)
             {
-                var director = Object.FindAnyObjectByType<MovingOutDirector>();
-                Assert.IsNotNull(director);
-                yield return TestScenes.WaitUntil(() => director.Current == MovingOutDirector.State.Playing, Slow, "Pack the Van to start as usual");
+                Assert.AreEqual(CrewWarmup, CrewState(mode));
+                Assert.AreEqual(Phase.Warmup, Rounds.Phase);
+                yield return null;
             }
-            else
-            {
-                var director = Object.FindAnyObjectByType<EscapeDirector>();
-                Assert.IsNotNull(director);
-                yield return TestScenes.WaitUntil(() => director.Current == EscapeDirector.State.Playing, Slow, "Escape to start as usual");
-            }
+
+            EndByTimer();
+            yield return UntilCrewCountdown(mode);
+            Assert.IsNull(Rounds.Warmup);
+            Assert.IsNull(Rounds.Showcase);
+            Assert.AreEqual(Phase.Lobby, Rounds.Phase, "the round manager steps back");
+            Assert.IsFalse(Rounds.enabled);
             Assert.IsFalse(LetterInventory.FreeSpelling);
+            Assert.IsFalse(human.Combat.Weapon, "the warm-up gear is gone");
+            Assert.IsTrue(Joins.AllowJoining, "a crewmate can drop in again, as before");
+            Assert.AreEqual(mode == HouseModes.MovingDay, Joins.RespawnKnockedOut, "each mode's own knockout rule is back");
+            Assert.IsTrue(Joins.Players.All(p => p.Health.IsAlive && Mathf.Approximately(p.Health.Current, p.Health.Max)));
+            yield return null;
+            Assert.IsNull(Strip, "the strip goes with the warm-up");
+            Assert.IsNull(Hud.UiCanvas.transform.Find("Safe HUD/" + WarmupGuideStrip.RootName));
+            Assert.IsTrue(MatchTally.StatsLive, "the run is tallied from its own start");
+
+            yield return UntilCrewPlaying(mode);
+            if (mode == HouseModes.MovingOut) Assert.Greater(Van.KeepsakeCount, 0, "the keepsakes are out for the real run");
+            if (mode == HouseModes.MovingDay) Assert.AreEqual(Furnish.CurrentLevel.items.Length, Furnish.Remaining.Count);
+            if (objective) yield return TestScenes.WaitUntil(() => objective.gameObject.activeSelf, Slow, "the goal list to come back for the run");
+            yield return UntilFree(human);
+            human.Inventory.Set("");
+            Assert.IsFalse(human.Inventory.SpellsFree);
+            Assert.IsFalse(human.Summoner.Summon("BAT"), "the run's spelling needs letters");
+
+            RestartCrew(mode);
+            yield return null;
+            Assert.IsFalse(CrewPreludeSeen(mode), "a restart does not warm up again");
+            Assert.AreEqual(CrewCountdown, CrewState(mode));
+            Assert.IsFalse(LetterInventory.FreeSpelling);
+        }
+
+        [UnityTest]
+        public IEnumerator EveryCrewmateHoldingStartEndsTheCoopWarmup([ValueSource(nameof(CoopModes))] string mode)
+        {
+            yield return LoadCrewWarmup(mode, humans: 2);
+            var state = Rounds.Warmup.State;
+            var first = Human(0);
+            var second = Human(1);
+            Assert.AreEqual(2, state.Voters);
+            Assert.AreEqual(2, Joins.Players.Count);
+
+            float deadline = Time.realtimeSinceStartup + Slow;
+            while (!state.IsReady(first.Index) && Time.realtimeSinceStartup < deadline)
+            {
+                ((ScriptedBinding)first.Binding).Next.start = true;
+                yield return null;
+            }
+            Assert.IsTrue(state.IsReady(first.Index), "holding Start for a second marks the seat ready");
+            Assert.AreEqual(CrewWarmup, CrewState(mode), "one crewmate is still warming up");
+            Assert.IsFalse(Hud.Paused, "Start is the ready button here, not pause");
+
+            deadline = Time.realtimeSinceStartup + Slow;
+            while (Rounds.Phase == Phase.Warmup && Time.realtimeSinceStartup < deadline)
+            {
+                ((ScriptedBinding)second.Binding).Next.start = true;
+                yield return null;
+            }
+            Assert.AreNotEqual(Phase.Warmup, Rounds.Phase, "everyone ready ends the warm-up");
+            Assert.IsTrue(state.AllReady);
+            Assert.Greater(state.TimeLeft, 0f, "it ended on the votes, not the timer");
+            Assert.IsFalse(LetterInventory.FreeSpelling);
+            Assert.IsFalse(Hud.Paused);
+            yield return UntilCrewCountdown(mode);
+            Assert.IsFalse(Hud.Paused, "and the run is not paused when the countdown starts");
+        }
+
+        [UnityTest]
+        public IEnumerator PausingHoldsTheCoopWarmupClock()
+        {
+            yield return LoadCrewWarmup(HouseModes.Escape);
+            var state = Rounds.Warmup.State;
+            Hud.TogglePause();
+            yield return TestScenes.WaitUntil(() => Hud.Paused && Time.timeScale == 0f, Slow, "the pause menu");
+            float held = state.Elapsed;
+            yield return new WaitForSecondsRealtime(.5f);
+            Assert.AreEqual(held, state.Elapsed, "the warm-up clock waits while paused");
+            Assert.AreEqual(CrewWarmup, CrewState(HouseModes.Escape));
+            Hud.TogglePause();
+            yield return TestScenes.WaitUntil(() => Hud.AcceptsGameplayInput, Slow, "the game to resume");
+            yield return TestScenes.WaitUntil(() => state.Elapsed > held, Slow, "the warm-up clock to run again");
+            Assert.AreEqual(Phase.Warmup, Rounds.Phase);
+            Assert.IsTrue(LetterInventory.FreeSpelling);
+        }
+
+        [UnityTest]
+        public IEnumerator AfterACoopWarmupTheHouseIsFresh()
+        {
+            yield return LoadCrewWarmup(HouseModes.MovingOut);
+            var human = Human();
+            var room = Object.FindAnyObjectByType<RoomBuilder>();
+            int pieces = room.Originals.Count;
+            Assert.Greater(pieces, 0);
+            human.Inventory.Collects = false;
+            yield return UntilFree(human);
+            Assert.IsTrue(human.Summoner.Summon("BAT"));
+            human.Inventory.Set("WRECK");
+            var broken = room.Originals.First(s => s && !s.IsBroken && !s.Invulnerable);
+            broken.Break();
+            Assert.IsTrue(broken.IsBroken);
+            yield return null;
+
+            EndByTimer();
+            yield return UntilCrewCountdown(HouseModes.MovingOut);
+            Assert.AreEqual(Match.Rules.StarterLetters ?? "", new string(human.Inventory.Letters.ToArray()), "the bag is back to the starter letters");
+            Assert.IsFalse(human.Combat.Weapon, "the warm-up gear is gone");
+            Assert.IsFalse(human.Summoner.IsCrafting);
+            Assert.IsFalse(human.Inventory.SpellsFree);
+            Assert.IsTrue(human.Frozen, "everyone waits out the countdown as usual");
+            yield return null;
+            Assert.AreEqual(pieces, room.Originals.Count, "the furniture is rebuilt");
+            Assert.IsTrue(room.Originals.All(s => s && !s.IsBroken), "the broken piece is back");
+            Assert.IsEmpty(Object.FindObjectsByType<HeldWeapon>(FindObjectsSortMode.None), "no gear is left lying about");
+            Assert.AreEqual(0, MatchStats.Current.Lines.Sum(l => l.Crafted + l.Broken), "nothing from the warm-up is on the table");
+        }
+
+        [UnityTest]
+        public IEnumerator AFurnishWarmupPlacesNothingOnTheChecklist()
+        {
+            yield return LoadCrewWarmup(HouseModes.MovingDay);
+            var director = Furnish;
+            var item = director.CurrentLevel.items[0];
+            float clock = director.TimeLeft;
+            var at = director.RoomNamed(item.room).Centre + new Vector3(0f, .3f, 0f);
+            Assert.IsNotNull(FurnitureCatalog.Spawn(item.word, at, 0f, World.Transient));
+            float until = Time.realtimeSinceStartup + WatchSeconds;
+            while (Time.realtimeSinceStartup < until)
+            {
+                Assert.AreEqual(director.CurrentLevel.items.Length, director.Remaining.Count, "a piece set down in the warm-up does not count");
+                Assert.AreEqual(clock, director.TimeLeft, "the run's clock has not started");
+                Assert.AreEqual(MovingDayDirector.State.Warmup, director.Current);
+                yield return null;
+            }
+
+            EndByTimer();
+            yield return UntilCrewCountdown(HouseModes.MovingDay);
+            Assert.AreEqual(director.CurrentLevel.items.Length, director.Remaining.Count);
+            Assert.AreEqual(director.CurrentLevel.timeLimit, director.TimeLeft, "the run starts with its whole clock");
+            yield return null;
+            Assert.IsFalse(Object.FindObjectsByType<Smashable>(FindObjectsSortMode.None).Any(s => s && s.Word == item.word && s.GetComponent<LetterBuilt>()),
+                "the warm-up piece is cleared away");
+            Assert.AreEqual(0, MatchStats.Current.Lines.Sum(l => l.Score));
         }
 
         [UnityTest]
@@ -645,7 +879,7 @@ namespace Wreckabulary.Tests
         [UnityTest]
         public IEnumerator ScenesWithTheirOwnFlowNeverWarmUp([ValueSource(nameof(OwnScenes))] string scene)
         {
-            RoundManager.WarmupRequested = true;
+            RoundManager.WarmupRequested = scene == Session.TutorialScene;
             yield return TestScenes.Load(scene);
             Assert.IsFalse(RoundManager.WarmupRequested, "the request does not linger for the next match");
             Assert.IsNotNull(Joins);

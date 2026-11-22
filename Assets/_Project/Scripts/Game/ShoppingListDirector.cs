@@ -95,7 +95,7 @@ namespace Wreckabulary
         protected override void OnPlay()
         {
             Joins.RespawnKnockedOut = true;
-            if (RoundNumber == 1) Hud.Toast("Spell each item on your list, then use it to tick it off.");
+            if (RoundNumber == 1) Hud.ToastAfterBanner("Spell each item on your list, then use it to tick it off.");
         }
 
         protected override string TimerText => between ? "" : base.TimerText;

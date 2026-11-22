@@ -146,6 +146,47 @@ namespace Wreckabulary.EditorTests
         }
 
         [Test]
+        public void TheFourStepsShareOneReadableRowAndAnOpenedMapRefitsOnceTheViewHasItsSize()
+        {
+            workshop.OpenTemplate(WorkshopTemplate.RaceCircuit, folder);
+            Assert.IsTrue((bool)Field("fitOnFirstView").GetValue(workshop), "The first drawn view frames the map at its real size.");
+            float side = (float)typeof(WordboundWorkshop).GetMethod("StepPanelWidth", Static).Invoke(null, new object[] { 1280f });
+            var theme = ScriptableObject.CreateInstance<WordboundUiTheme>();
+            var paper = (WordboundPaperLook)Field("paper").GetValue(workshop);
+            StepWindow window = null;
+            try
+            {
+                workshop.Theme = theme;
+                Field("inspectorWidth").SetValue(workshop, side);
+                var styles = (WordboundUiStyles)Field("ui").GetValue(workshop);
+                window = ScriptableObject.CreateInstance<StepWindow>();
+                window.Draw = () => {
+                    using var scope = styles.Apply(theme);
+                    paper.Dress(styles);
+                    Call("Styles");
+                    GUILayout.BeginArea(new Rect(0, 0, side, 560), styles.Panel);
+                    Call("StepPanel");
+                    GUILayout.EndArea();
+                };
+                window.position = new Rect(40, 40, side + 40, 600); window.ShowUtility();
+                for (int frame = 0; frame < 2; frame++)
+                {
+                    window.SendEvent(new Event { type = EventType.Layout });
+                    window.SendEvent(new Event { type = EventType.Repaint });
+                    Assert.IsNull(window.Failure);
+                }
+                Assert.IsTrue(paper.Dressed);
+                var widths = (float[])Field("stepTabWidths").GetValue(workshop);
+                Assert.AreEqual(4, widths.Length);
+                Assert.LessOrEqual(widths.Sum(), side - styles.Panel.padding.horizontal - 4, "Build, Fill, Rules and Test & Share fit one row.");
+                Assert.GreaterOrEqual(paper.Tab.fontSize, 12, "Tab names stay readable.");
+                Assert.LessOrEqual(paper.Tab.CalcSize(new GUIContent("Test & Share")).x, widths[3] + .5f, "The longest step name is never cut.");
+                Assert.Greater(widths.Min(), 0);
+            }
+            finally { if (window) window.Close(); paper.Dispose(); workshop.Theme = null; UnityEngine.Object.DestroyImmediate(theme); }
+        }
+
+        [Test]
         public void MapNameRenamesOnCommitAsOneUndoableEditAndRejectsBlankNames()
         {
             workshop.OpenTemplate(WorkshopTemplate.FreestyleWorld, folder);

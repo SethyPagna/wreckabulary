@@ -12,6 +12,8 @@ namespace Wreckabulary
 
     public class RoundManager : MonoBehaviour
     {
+        public const float BeatScale = .35f, BeatSeconds = .5f;
+        const string FirstMove = "Break furniture → collect its letters → spell items.";
         public static RoundManager Instance { get; private set; }
         [SerializeField] PlayerJoinManager joins;
         [SerializeField] RoomBuilder room;
@@ -25,8 +27,12 @@ namespace Wreckabulary
         string joinLine, timerLine;
         int joinVersion = -1, timerSeconds = -1;
         HouseModeContext directed;
-        bool warmupAsked;
+        bool warmupAsked, hosted, beats;
+        float beatRestore = 1f;
         public static bool WarmupRequested { get; set; }
+        public static bool FinishBeatsRequested { get; set; }
+        public bool FinishBeats => beats;
+        public bool FinishBeatPlaying { get; private set; }
         public HouseWarmup Warmup { get; private set; }
         public HouseShowcase Showcase { get; private set; }
         public float ShowcaseTime { get; set; } = MatchShowcase.DefaultSeconds;
@@ -51,24 +57,47 @@ namespace Wreckabulary
         static void ForgetWarmupRequest()
         {
             WarmupRequested = false;
+            FinishBeatsRequested = false;
             SceneManager.sceneLoaded -= DropWarmupRequest;
             SceneManager.sceneLoaded += DropWarmupRequest;
         }
 
         static void DropWarmupRequest(Scene scene, LoadSceneMode mode)
         {
-            if (mode == LoadSceneMode.Single && !FindAnyObjectByType<RoundManager>()) WarmupRequested = false;
+            if (mode != LoadSceneMode.Single || FindAnyObjectByType<RoundManager>()) return;
+            WarmupRequested = false;
+            FinishBeatsRequested = false;
         }
 
         void Awake()
         {
             Instance = this;
             warmupAsked = WarmupRequested;
+            beats = WarmupRequested || FinishBeatsRequested;
             WarmupRequested = false;
+            FinishBeatsRequested = false;
+        }
+
+        internal static RoundManager Host(GameObject owner, PlayerJoinManager players, GameHud display)
+        {
+            var rounds = owner.AddComponent<RoundManager>();
+            rounds.hosted = true;
+            rounds.joins = players;
+            rounds.hud = display;
+            rounds.enabled = false;
+            return rounds;
+        }
+
+        internal void EnterCrewPhase(Phase phase)
+        {
+            Phase = phase;
+            phaseElapsed = 0f;
+            enabled = phase == Phase.Warmup || phase == Phase.Showcase;
         }
 
         void Start()
         {
+            if (hosted) return;
             if (!joins) joins = GetComponent<PlayerJoinManager>();
             if (!room) room = GetComponent<RoomBuilder>();
             if (!deliveries) deliveries = GetComponent<DeliverySpawner>();
@@ -98,6 +127,7 @@ namespace Wreckabulary
 
         void SetPhase(Phase phase)
         {
+            if (phase == Phase.Countdown || phase == Phase.Lobby) FinishBeatPlaying = false;
             Phase = phase;
             phaseElapsed = 0f;
             joins.RespawnKnockedOut = phase == Phase.Lobby;
@@ -105,7 +135,7 @@ namespace Wreckabulary
 
         void Update()
         {
-            if (Time.timeScale <= 0f || Directed) return;
+            if (Time.timeScale <= 0f || Directed || hosted) return;
             float step = FrameStep;
             phaseElapsed += step;
             switch (Phase)
@@ -154,7 +184,7 @@ namespace Wreckabulary
 
         void LateUpdate()
         {
-            if (Time.timeScale <= 0f || Phase != Phase.Playing || Directed) return;
+            if (Time.timeScale <= 0f || Phase != Phase.Playing || Directed || hosted) return;
             var combatants = Players.Select(p => new Combatant(p.Index, p.Team, p.Health.State)).ToArray();
             foreach (int id in WinCheck.Unrevivable(combatants)) World.PlayerById(id)?.Health.Eliminate();
             var outcome = WinCheck.Evaluate(Players.Select(p => new Combatant(p.Index, p.Team, p.Health.State)));
@@ -175,6 +205,7 @@ namespace Wreckabulary
 
         public void StartMatch()
         {
+            if (hosted) return;
             if (Directed) { directed.Restart?.Invoke(); return; }
             if (Time.timeScale <= 0f || joins.HumanCount == 0) return;
             StopAllCoroutines();
@@ -292,7 +323,7 @@ namespace Wreckabulary
             roundStarted = Time.time;
             clearOut.Begin();
             hud.ShowGo();
-            if (Round == 1) hud.Toast("Break furniture → collect its letters → spell items.");
+            if (Round == 1) hud.ToastAfterBanner(FirstMove);
             foreach (var p in Players) p.Frozen = false;
             deliveries.Running = true;
             deliveries.ResetDrops();
@@ -318,7 +349,7 @@ namespace Wreckabulary
                 foreach (var player in Players)
                     if (player && player.Health && player.Health.IsAlive && player.Team == outcome.WinningTeam)
                         player.GetComponent<PlayerAppearance>()?.Play("Celebrate", 1.5f);
-                StartCoroutine(SlowMo());
+                PlayFinishBeat();
                 RoundWon?.Invoke(lastWinner);
             }
             if (score.IsOver)
@@ -356,7 +387,7 @@ namespace Wreckabulary
                 foreach (var player in Players)
                     if (player && player.Health && player.Health.IsAlive && player.Team == lastWinner.Team)
                         player.GetComponent<PlayerAppearance>()?.Play("Celebrate", 1.5f);
-                StartCoroutine(SlowMo());
+                PlayFinishBeat();
                 RoundWon?.Invoke(lastWinner);
             }
             var record = final ? MatchTally.FinishFor(lastWinner) : null;
@@ -368,13 +399,14 @@ namespace Wreckabulary
             result.Draw = !lastWinner;
             result.Stats = r.Stats;
             if (final) result.Board = EndBoard(lastWinner ? lastWinner.Team : Teams.NoTeam);
+            else result.Standings = DirectedStandings(you, final);
             hud.ShowResultSoon(result, again);
             if (final) MatchWon?.Invoke(lastWinner);
         }
 
         internal void FeedScores(MatchStats stats)
         {
-            if (stats == null || !joins) return;
+            if (stats == null || !joins || hosted || Rules.Warmup.Crew(Match.Mode)) return;
             var seats = Players;
             for (int i = 0; i < seats.Count; i++)
             {
@@ -409,8 +441,18 @@ namespace Wreckabulary
         {
             var seats = Players.Where(p => p).Select(p => new SeatResult(p.Name, WinsOf(p), Mathf.CeilToInt(p.Health.Current),
                 outcome.State == RoundState.Won && p.Team == outcome.WinningTeam, p.IsEliminated, p.IsDowned, p == you,
-                p.Binding != null && p.Binding is not BotBinding)).ToArray();
+                p.Binding != null && p.Binding is not BotBinding, p.Index)).ToArray();
             return new RoundSummary(Round, Match.Rules.RoundsToWin, score.IsOver, timeUp, seats);
+        }
+
+        RoundSummary DirectedStandings(PlayerController you, bool final)
+        {
+            var shopping = ShoppingListDirector.Active;
+            if (!shopping) return null;
+            var seats = Players.Where(p => p).Select(p => new SeatResult(p.Name, shopping.WinsOf(p), Mathf.CeilToInt(p.Health.Current),
+                lastWinner && p.Team == lastWinner.Team, p.IsEliminated, p.IsDowned, p == you,
+                p.Binding != null && p.Binding is not BotBinding, p.Index)).ToArray();
+            return new RoundSummary(Round, shopping.RoundsToWin, final, false, seats);
         }
 
         static HudResult Result(RoundSummary summary, bool won, string heading, MatchRecord record)
@@ -421,19 +463,31 @@ namespace Wreckabulary
             result.Lines = HouseResultText.Lines(summary);
             result.Winner = HouseResultText.Winner(summary);
             result.Draw = summary.Draw;
+            if (!summary.Final) result.Standings = summary;
             return result;
         }
 
-        IEnumerator SlowMo()
+        void PlayFinishBeat()
         {
-            Time.timeScale = .35f;
+            if (!beats || FinishBeatPlaying || Time.timeScale <= 0f || (hud && hud.Paused)) return;
+            StartCoroutine(FinishBeat());
+        }
+
+        IEnumerator FinishBeat()
+        {
+            FinishBeatPlaying = true;
+            beatRestore = Time.timeScale;
+            float slowed = beatRestore * BeatScale;
+            Time.timeScale = slowed;
+            GameSoundBank.Sting();
             float elapsed = 0f;
-            while (elapsed < .9f)
+            while (elapsed < BeatSeconds)
             {
                 yield return null;
                 if (Time.timeScale > 0f) elapsed += Time.unscaledDeltaTime;
             }
-            Time.timeScale = 1f;
+            if (Mathf.Approximately(Time.timeScale, slowed)) Time.timeScale = beatRestore;
+            FinishBeatPlaying = false;
         }
 
         internal static string FormatTime(float seconds)

@@ -178,7 +178,7 @@ namespace Wreckabulary.Tests
                 WriteNew(file, png);
                 frames.Add(new Frame { file = file, state = state, category = category, selected = selected,
                     recipe = shop.SelectedRecipe, title = Label("Selected shop name"), ownership = Label("Selected shop state"),
-                    action = action ? action.GetComponentInChildren<TMP_Text>().text : "", selectedActionEnabled = action && action.interactable,
+                    action = action ? action.GetComponentInChildren<TMP_Text>(true).text : "", selectedActionEnabled = action && action.interactable,
                     applicationFocused = Application.isFocused,
                     theme = LobbyThemes.Current.Id, itemPreview = menu.Stage.ItemPreview, coins = menu.Career.Coins,
                     outfitSha256 = Hash(System.Text.Encoding.UTF8.GetBytes(menu.Outfit.Serialize())),

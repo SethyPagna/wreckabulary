@@ -13,15 +13,17 @@ namespace Wreckabulary
         public const int ExecutionOrder = 50;
         public const string RootName = "Party line-up", LayerName = "Plates", PlatePrefix = "Party plate ", OpenName = "Add player";
         public const string ChipName = "Plate chip", NameName = "Plate name", TagName = "Plate tag", FrameName = "Edge";
+        public const string KeysName = "Join keys", KeyPrefix = "Join key ";
         public const string PartyPanel = "Safe area/Party and friends";
         public const float NameText = 22f, NameTextMinimum = 15f, TagText = 15f, OpenText = 18f, ChipText = 18f, ChipTextMinimum = 15f;
+        public const float KeyText = 15f, KeyHeight = 24f;
         public const float Margin = 12f;
         const float PlateHeight = 52f, TaggedHeight = 72f, Pad = 10f, Chip = 36f, Gap = 10f;
         const float NameWidthMinimum = 64f, NameWidthMaximum = 210f, TextSlack = 4f;
         const float TagHeight = 22f, TagInset = 8f, FootDrop = 18f, ScreenMargin = 12f, PlateShadow = 3f, GrainStrength = .14f;
-        const float OpenHeight = 44f, OpenPad = 14f, OpenIcon = 20f, OpenGap = 8f, OpenAlpha = .88f;
+        const float OpenAlpha = .88f, PlusInset = 8f, KeyPad = 8f, KeyMinimum = 28f, KeyGap = 6f;
         const float SyncEvery = .25f, Moved = .05f;
-        const int PlateRadius = 14, ChipRadius = 10, FrameWidth = 3, ChipEdge = 2, OpenEdge = 2;
+        const int PlateRadius = 14, ChipRadius = 10, FrameWidth = 3, ChipEdge = 2, OpenEdge = 2, KeyRadius = 6, KeyEdge = 1;
         static readonly Vector2 Centre = new Vector2(.5f, .5f), TopCentre = new Vector2(.5f, 1f), LeftMiddle = new Vector2(0f, .5f);
 
         sealed class View
@@ -31,21 +33,37 @@ namespace Wreckabulary
             public Vector2 Size;
         }
 
+        sealed class Spare
+        {
+            public Button Button;
+            public RectTransform Rect;
+            public Vector2 Size;
+        }
+
         readonly List<View> views = new List<View>();
+        readonly List<Spare> spares = new List<Spare>();
         readonly List<PlateBox> placed = new List<PlateBox>();
         readonly Vector3[] corners = new Vector3[4];
         IReadOnlyList<PartyPlate> lineup = new PartyPlate[0];
         LobbyMenu menu;
-        RectTransform layer, dock, openRect;
-        Button open;
-        Vector2 openSize;
+        RectTransform layer, dock;
         string signature;
         float nextSync;
 
         public IReadOnlyList<PartyPlate> Plates => lineup;
         public RectTransform Layer => layer;
-        public Button Open => open;
+        public Button Open => spares.Count > 0 ? spares[0].Button : null;
         public bool Showing => layer && layer.gameObject.activeSelf;
+
+        public IReadOnlyList<Button> Opens
+        {
+            get
+            {
+                var buttons = new List<Button>();
+                foreach (var spare in spares) buttons.Add(spare.Button);
+                return buttons;
+            }
+        }
 
         public RectTransform PlateAt(int place)
         {
@@ -103,18 +121,20 @@ namespace Wreckabulary
 
         void Rebuild()
         {
-            bool selected = open && Selected(open.gameObject);
+            int selected = spares.FindIndex(spare => spare.Button && Selected(spare.Button.gameObject));
             foreach (var view in views) Discard(view.Rect.gameObject);
             views.Clear();
-            if (open) Discard(open.gameObject);
-            open = null; openRect = null;
+            foreach (var spare in spares)
+                if (spare.Button) Discard(spare.Button.gameObject);
+            spares.Clear();
             foreach (var plate in lineup)
             {
                 if (plate.Stands) views.Add(Build(plate));
-                else BuildOpen();
+                else spares.Add(BuildOpen());
             }
-            if (!selected) return;
-            if (open && EventSystem.current) EventSystem.current.SetSelectedGameObject(open.gameObject);
+            if (selected < 0) return;
+            if (spares.Count > 0 && EventSystem.current)
+                EventSystem.current.SetSelectedGameObject(spares[Mathf.Min(selected, spares.Count - 1)].Button.gameObject);
             else SelectHome();
         }
 
@@ -152,24 +172,63 @@ namespace Wreckabulary
             return new View { Plate = plate, Rect = rect, Size = size };
         }
 
-        void BuildOpen()
+        Spare BuildOpen()
         {
             var fill = LobbyKit.Card;
             fill.a = OpenAlpha;
-            open = LobbyKit.Button(layer, OpenName, fill, OpenParty, PlateRadius, LobbyKit.Line, OpenEdge);
-            openRect = (RectTransform)open.transform;
-            openRect.anchorMin = openRect.anchorMax = Centre; openRect.pivot = TopCentre;
-            var body = open.Body();
-            var icon = LobbyKit.Icon(body, LobbyIcons.Plus, LobbyKit.Cyan);
-            icon.rectTransform.Pin(LeftMiddle, new Vector2(OpenPad, 0f), new Vector2(OpenIcon, OpenIcon));
-            var label = LobbyKit.Text(body, PartyPlates.OpenLabel, OpenText, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
-            float left = OpenPad + OpenIcon + OpenGap;
-            float width = Mathf.Ceil(label.GetPreferredValues(PartyPlates.OpenLabel).x) + TextSlack;
-            label.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(left, 0f), new Vector2(-OpenPad, 0f));
-            open.GetComponent<LobbyPress>().Hot = hot => label.color = hot ? LobbyKit.Cyan : LobbyKit.Muted;
-            open.gameObject.AddComponent<LobbyHint>().Text = PartyPlates.OpenHint;
-            openSize = new Vector2(left + width + OpenPad, OpenHeight);
-            openRect.sizeDelta = openSize;
+            var button = LobbyKit.Button(layer, OpenName, fill, OpenParty, PlateRadius, LobbyKit.Line, OpenEdge);
+            var rect = (RectTransform)button.transform;
+            rect.anchorMin = rect.anchorMax = Centre; rect.pivot = TopCentre;
+            var body = button.Body();
+            var chip = LobbyKit.Rect(body, ChipName).Pin(LeftMiddle, new Vector2(Pad, 0f), new Vector2(Chip, Chip));
+            LobbyKit.Face(chip, LobbyKit.Raised, ChipRadius, LobbyKit.Line, ChipEdge);
+            var plus = LobbyKit.Icon(chip, LobbyIcons.Plus, LobbyKit.Cyan);
+            plus.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(PlusInset, PlusInset), new Vector2(-PlusInset, -PlusInset));
+            float left = Pad + Chip + Gap;
+            var label = LobbyKit.Display(body, PartyPlates.OpenLabel, NameText, LobbyKit.Muted, TextAlignmentOptions.MidlineLeft);
+            label.name = NameName;
+            float width = label.GetPreferredValues(PartyPlates.OpenLabel).x;
+            label.enableAutoSizing = true; label.fontSizeMin = NameTextMinimum; label.fontSizeMax = NameText;
+            width = Mathf.Max(width, JoinKeys(body, left));
+            width = Mathf.Clamp(Mathf.Ceil(width) + TextSlack, NameWidthMinimum, NameWidthMaximum);
+            label.rectTransform.Place(Vector2.zero, Vector2.one, new Vector2(left, TagInset + KeyHeight), new Vector2(-Pad, -TagInset));
+            button.GetComponent<LobbyPress>().Hot = hot => label.color = hot ? LobbyKit.Cyan : LobbyKit.Muted;
+            button.gameObject.AddComponent<LobbyHint>().Text = PartyPlates.OpenHint;
+            var size = new Vector2(left + width + Pad, TaggedHeight);
+            rect.sizeDelta = size;
+            return new Spare { Button = button, Rect = rect, Size = size };
+        }
+
+        static float JoinKeys(RectTransform body, float left)
+        {
+            var row = LobbyKit.Rect(body, KeysName).Place(Vector2.zero, Vector2.right, new Vector2(left, TagInset), new Vector2(-Pad, TagInset + KeyHeight));
+            float x = 0f;
+            var keys = PartyPlates.JoinKeys(!Application.isMobilePlatform);
+            for (int i = 0; i < keys.Count; i++)
+            {
+                if (i > 0) x += Word(row, PartyPlates.JoinKeyJoiner, x) + KeyGap;
+                x += Key(row, keys[i], x) + KeyGap;
+            }
+            return Mathf.Max(0f, x - KeyGap);
+        }
+
+        static float Key(RectTransform row, string key, float x)
+        {
+            var cap = LobbyKit.Rect(row, KeyPrefix + key);
+            LobbyKit.Face(cap, LobbyKit.Raised, KeyRadius, LobbyKit.Line, KeyEdge);
+            var text = LobbyKit.Display(cap, key, KeyText, LobbyKit.Navy);
+            float width = Mathf.Max(KeyMinimum, Mathf.Ceil(text.GetPreferredValues(key).x) + 2f * KeyPad);
+            text.rectTransform.Fill();
+            cap.Place(Vector2.zero, Vector2.up, new Vector2(x, 0f), new Vector2(x + width, 0f));
+            return width;
+        }
+
+        static float Word(RectTransform row, string word, float x)
+        {
+            var text = LobbyKit.Text(row, word, KeyText, LobbyKit.Muted, TextAlignmentOptions.Center);
+            float width = Mathf.Ceil(text.GetPreferredValues(word).x) + TextSlack;
+            text.rectTransform.Place(Vector2.zero, Vector2.up, new Vector2(x, 0f), new Vector2(x + width, 0f));
+            return width;
         }
 
         void OpenParty()
@@ -208,21 +267,38 @@ namespace Wreckabulary
 
         void ArrangeOpen(LobbyStage stage, PlateBox bounds, PlateBox? blocked)
         {
-            if (!open) return;
-            bool offer = !menu.Starting;
-            var spare = stage.PartyPoint(PartyPlates.OpenOffset(stage.PresentedPartySize));
-            offer = Project(stage.Camera, spare, out var under) && offer;
-            if (offer)
+            var offsets = PartyPlates.OpenOffsets(stage.PresentedPartySize);
+            for (int i = 0; i < spares.Count; i++)
             {
-                var box = PartyPlates.Settle(PlateBox.Under(under.x, under.y - FootDrop, openSize.x, openSize.y), bounds, blocked, Margin);
-                var reach = box.Grown(Gap);
-                foreach (var other in placed)
-                    if (reach.Overlaps(other)) offer = false;
-                if (offer) Put(openRect, box);
+                var spare = spares[i];
+                bool offer = !menu.Starting && i < offsets.Length;
+                if (offer && Project(stage.Camera, stage.PartyPoint(offsets[i]), out var under))
+                {
+                    var box = PartyPlates.Settle(PlateBox.Under(under.x, under.y - FootDrop, spare.Size.x, spare.Size.y), bounds, blocked, Margin);
+                    offer = Clear(box.Grown(Gap));
+                    if (offer)
+                    {
+                        Put(spare.Rect, box);
+                        placed.Add(box);
+                    }
+                }
+                else offer = false;
+                Offer(spare, offer);
             }
-            if (open.gameObject.activeSelf == offer) return;
-            bool selected = !offer && Selected(open.gameObject);
-            open.gameObject.SetActive(offer);
+        }
+
+        bool Clear(PlateBox reach)
+        {
+            foreach (var other in placed)
+                if (reach.Overlaps(other)) return false;
+            return true;
+        }
+
+        void Offer(Spare spare, bool offer)
+        {
+            if (spare.Button.gameObject.activeSelf == offer) return;
+            bool selected = !offer && Selected(spare.Button.gameObject);
+            spare.Button.gameObject.SetActive(offer);
             if (selected) SelectHome();
         }
 

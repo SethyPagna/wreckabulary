@@ -189,19 +189,18 @@ namespace Wreckabulary.Online.Tests
             return rows.Take(count).Select(row => row.text).ToArray();
         }
 
-        [TestCase(1280, 720), TestCase(1920, 1080), TestCase(854, 480)]
-        public void ActualOverlayUsesEditableThemeAndCompactPanelsDoNotOverlap(int pixelsWide, int pixelsHigh)
+        [TestCase(1280, 720), TestCase(1920, 1080), TestCase(854, 480), TestCase(1248, 576)]
+        public void ActualOverlayPlacesTheHousePiecesWithoutOverlap(int pixelsWide, int pixelsHigh)
         {
-            var root = new GameObject("HUD compact layout test");
+            using var f = new WordboundRecipeContextFixture("TimeRun");
             OverlayWindow window = null;
-            var theme = ScriptableObject.CreateInstance<WordboundUiTheme>();
             try
             {
-                theme.Panel = new Color(.15f, .2f, .3f); theme.Text = new Color(.9f, .95f, 1f);
-                theme.BodySize = 22; theme.RowHeight = 42; theme.ModuleHeight = 64;
-                var hud = root.AddComponent<WordboundMatchHud>(); hud.enabled = false; hud.Theme = theme;
+                f.Grid.Set("initialized", true);
+                f.Grid.View.SetMenuOpen(false);
+                f.Grid.Call("PreparePanels");
                 float scale = Mathf.Clamp(Mathf.Min(pixelsWide / 1280f, pixelsHigh / 720f), .6f, 1.8f);
-                window = ScriptableObject.CreateInstance<OverlayWindow>(); window.Hud = hud;
+                window = ScriptableObject.CreateInstance<OverlayWindow>(); window.Hud = f.Grid.Hud;
                 window.Size = new Vector2(pixelsWide / scale, pixelsHigh / scale);
                 window.position = new Rect(100, 100, 640, 480); window.ShowUtility();
                 window.SendEvent(new Event { type = EventType.Layout }); window.SendEvent(new Event { type = EventType.Repaint });
@@ -209,7 +208,8 @@ namespace Wreckabulary.Online.Tests
             }
             finally
             {
-                if (window) window.Close(); Object.DestroyImmediate(root); Object.DestroyImmediate(theme);
+                if (window) window.Close();
+                f.Grid.View.SetMenuOpen(true);
             }
         }
 
@@ -230,44 +230,30 @@ namespace Wreckabulary.Online.Tests
                 if (!Hud) return;
                 try
                 {
-                    Rows("statusPanel", "Time Trial · 24:58", "Lap 1/3 · Checkpoint 1/32", "Smash the marked furniture, collect its letters, and spell TABLE.");
-                    Rows("inventoryPanel", "Health 100", "[1] Hand 1: SHIELD (using)", "[2] Hand 2: empty");
-                    Rows("actionPanel", "Move closer and keep the object in sight.");
-                    Rows("menuHintPanel", "[Q] Spell · [ESC] Menu");
                     var before = GUI.backgroundColor;
                     Invoke(Hud, "DrawOverlay", Size.x, Size.y);
                     Assert.AreEqual(before, GUI.backgroundColor);
-                    var label = (GUIStyle)Field("overlayLabel").GetValue(Hud);
-                    var box = (GUIStyle)Field("overlayBox").GetValue(Hud);
-                    var styles = (WordboundUiStyles)Field("ui").GetValue(Hud);
-                    Assert.AreEqual(Hud.Theme.Text, label.normal.textColor);
-                    Assert.AreSame(styles.Panel.normal.background, box.normal.background);
-                    float available = Size.x - 36;
-                    var left = Draw("inventoryPanel", 18, available * .23f, 0, label, box);
-                    var center = Draw("actionPanel", Size.x * .5f, available * .5f, .5f, label, box);
-                    var right = Draw("menuHintPanel", Size.x - 18, available * .23f, 1, label, box);
-                    Assert.Less(left.xMax, center.xMin); Assert.Less(center.xMax, right.xMin);
-                    foreach (var rect in new[] { left, center, right })
-                    { Assert.GreaterOrEqual(rect.xMin, 18); Assert.LessOrEqual(rect.xMax, Size.x - 18); Assert.AreEqual(Size.y - 18, rect.yMax, .001f); }
-                    Rows("actionPanel");
-                    Assert.AreEqual(0, Draw("actionPanel", Size.x * .5f, available * .5f, .5f, label, box).height);
-                    Rows("actionPanel", "[E] Collect letter");
-                    Assert.Less(Draw("actionPanel", Size.x * .5f, available * .5f, .5f, label, box).width, available * .5f);
-                    if (Event.current.type == EventType.Repaint) Repaints++;
+                    if (Event.current.type != EventType.Repaint) return;
+                    Repaints++;
+                    var plate = (Rect)Field("plateRect").GetValue(Hud);
+                    var vitals = (Rect)Field("vitalsRect").GetValue(Hud);
+                    var tray = (Rect)Field("trayRect").GetValue(Hud);
+                    var action = (Rect)Field("actionRect").GetValue(Hud);
+                    var pieces = new[] { ("title", plate), ("health", vitals), ("bag", tray), ("prompt", action) };
+                    foreach (var (name, rect) in pieces)
+                    {
+                        Assert.Greater(rect.width, 0, name + " is drawn.");
+                        Assert.GreaterOrEqual(rect.xMin, 18 - .5f, name); Assert.LessOrEqual(rect.xMax, Size.x - 18 + .5f, name);
+                        Assert.GreaterOrEqual(rect.yMin, 18 - .5f, name); Assert.LessOrEqual(rect.yMax, Size.y - 18 + .5f, name);
+                    }
+                    for (int i = 0; i < pieces.Length; i++)
+                        for (int j = i + 1; j < pieces.Length; j++)
+                            Assert.IsFalse(pieces[i].Item2.Overlaps(pieces[j].Item2), pieces[i].Item1 + " overlaps " + pieces[j].Item1);
+                    Assert.LessOrEqual(action.yMax, tray.yMin, "The prompt sits above the bag.");
+                    Assert.AreEqual(Size.y - 18, tray.yMax, .5f, "The bag rests on the bottom margin.");
+                    Assert.AreEqual(Size.x * .5f, tray.center.x, 1f, "The bag is centred like the house HUD.");
                 }
                 catch (Exception failure) { Failure = failure; }
-            }
-            void Rows(string field, params string[] values)
-            {
-                var panel = Field(field).GetValue(Hud); var type = panel.GetType();
-                type.GetMethod("Begin").Invoke(panel, null);
-                foreach (string value in values) type.GetMethod("Add").Invoke(panel, new object[] { value });
-            }
-            Rect Draw(string field, float anchor, float maximum, float alignment, GUIStyle label, GUIStyle box)
-            {
-                var panel = Field(field).GetValue(Hud);
-                return (Rect)panel.GetType().GetMethod("DrawCompact").Invoke(panel,
-                    new object[] { anchor, Size.y - 18, maximum, label, box, true, alignment });
             }
         }
     }

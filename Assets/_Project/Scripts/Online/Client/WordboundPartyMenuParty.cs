@@ -11,6 +11,7 @@ namespace Wreckabulary.Online
     {
         public const string BadPartyCode = "That party code is incomplete. Ask your friend to copy it again.";
         public const string WaitingForLeader = "Waiting for the leader to find a match";
+        const float PartyCardRows = 9.4f;
         bool friendsParty, friendsPartyBusy, friendsPartyLeaving, friendsPartyCopied, friendsPartyCodeShown, invitePartySettings;
         float friendsPartySearchSince = -1;
         string friendsPartyReadyRevision;
@@ -131,12 +132,16 @@ namespace Wreckabulary.Online
                 friendsPartyCodeShown = true;
                 partyFocus.Reset("party-copy");
             }
-            float width = Mathf.Min(viewport.x - 32, 820), height = Mathf.Min(viewport.y - 32, ui.RowHeight * 9.4f);
-            GUILayout.BeginArea(new Rect((viewport.x - width) * .5f, (viewport.y - height) * .5f, width, height), ui.Panel);
-            GUILayout.Label(party == null ? "Your party" : "Party" + MapCardText.Separator + party.Members.Count + " of " + QuickPlaylists.MaximumParty, ui.Heading);
-            GUILayout.Label(FriendsPartyStatus(), ui.Wrapped);
             string problem = FriendsPartyProblem();
-            if (problem != null) GUILayout.Label(problem, ui.Wrapped);
+            bool shortCard = party == null && problem != null;
+            float width = Mathf.Min(viewport.x - 32, RoomCardWidth),
+                height = Mathf.Min(viewport.y - 32, ui.RowHeight * (shortCard ? RoomProblemRows : PartyCardRows));
+            var card = new Rect((viewport.x - width) * .5f, (viewport.y - height) * .5f, width, height);
+            GUILayout.BeginArea(card, ui.Panel);
+            paper.Sheet(new Rect(Vector2.zero, card.size));
+            GUILayout.Label(party == null ? "Your party" : "Party" + MapCardText.Separator + party.Members.Count + " of " + QuickPlaylists.MaximumParty, ui.Heading);
+            if (!shortCard) GUILayout.Label(FriendsPartyStatus(), ui.Wrapped);
+            if (problem != null) GUILayout.Label(problem, paper.Problem ?? ui.Wrapped);
             GUILayout.Space(ui.Gap);
             if (party != null) DrawMembers(party);
             GUILayout.FlexibleSpace();
@@ -146,7 +151,7 @@ namespace Wreckabulary.Online
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Party code  " + FriendRooms.ShortCode(party.Invite), ui.Heading);
                 GUILayout.FlexibleSpace();
-                GUILayout.BeginVertical(GUILayout.Width(240));
+                GUILayout.BeginVertical(GUILayout.Width(RoomButtonWidth));
                 GUI.enabled = enabled && coordinator.Content != null;
                 PartyControl("party-copy", friendsPartyCopied ? "Copied ✓" : "Copy code", CopyPartyCode);
                 GUI.enabled = enabled;
@@ -155,30 +160,31 @@ namespace Wreckabulary.Online
             }
             GUILayout.Space(ui.Gap);
             GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical(GUILayout.Width(240));
+            GUILayout.BeginVertical(GUILayout.Width(RoomButtonWidth));
             if (coordinator.RetryRequired)
             {
                 GUI.enabled = enabled && !coordinator.Busy;
-                PartyControl("party-retry", "Retry", () => Invoke(() => coordinator.Retry()), height: ui.RowHeight * 1.4f);
+                PartyControl("party-retry", "Retry", () => Invoke(() => coordinator.Retry()), height: ui.RowHeight * RoomButtonRows);
             }
             else
             {
                 GUI.enabled = enabled && CanLeaveFriendsParty;
-                PartyControl("party-leave", "Leave", () => { _ = LeaveFriendsParty(); }, height: ui.RowHeight * 1.4f);
+                PartyControl("party-leave", "Leave", () => { _ = LeaveFriendsParty(); }, height: ui.RowHeight * RoomButtonRows);
             }
             GUI.enabled = enabled;
             GUILayout.EndVertical();
             GUILayout.FlexibleSpace();
             if (party != null && coordinator.IsLeader)
             {
-                GUILayout.BeginVertical(GUILayout.Width(240));
+                GUILayout.BeginVertical(GUILayout.Width(RoomButtonWidth));
                 GUI.enabled = enabled && CanFindPartyMatch;
-                PartyControl("party-find", "Find match", StartMatchmaking, height: ui.RowHeight * 1.4f);
+                PartyControl("party-find", "Find match", StartMatchmaking, height: ui.RowHeight * RoomButtonRows);
                 GUI.enabled = enabled;
                 GUILayout.EndVertical();
             }
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
+            paper.Tape(card);
         }
 
         async Task LeaveFriendsParty()

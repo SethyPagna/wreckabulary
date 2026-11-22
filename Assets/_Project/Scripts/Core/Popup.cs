@@ -34,7 +34,7 @@ namespace Wreckabulary
         public static void Damage(float amount, Vector3 at)
         {
             if (amount > 0f && GameplayPrefs.DamageNumbers)
-                Create(HitText.Damage(amount), at, new Color(1f, .48f, .30f), 2.6f, true).SeparateFeedback();
+                Create(HitText.Damage(amount), at, new Color(1f, .48f, .30f), 3.6f, true).SeparateFeedback();
         }
 
         public static void Effect(string word, Vector3 at, Color color, float size = 2.5f)
@@ -90,7 +90,7 @@ namespace Wreckabulary
             go.transform.position = at;
 
             var t = go.AddComponent<TextMeshPro>();
-            t.font = GameAssets.I.font;
+            t.font = LobbyFonts.Black ? LobbyFonts.Black : GameAssets.I.font;
             t.text = message;
             t.fontSize = size;
             t.fontStyle = FontStyles.Bold;
@@ -122,7 +122,7 @@ namespace Wreckabulary
             if (!camera) return;
             var screen = camera.WorldToScreenPoint(start);
             if (screen.z <= 0f) return;
-            float width = camera.pixelHeight * .18f, height = camera.pixelHeight * .06f;
+            float width = camera.pixelHeight * .18f, height = camera.pixelHeight * .08f;
             var original = screen;
             for (int attempt = 0; attempt < 12; attempt++)
             {
