@@ -36,7 +36,7 @@ namespace Wreckabulary
             public RectTransform track, staminaTrack;
             public Image fill, staminaFill;
             public TextMeshProUGUI number, numberInk;
-            public float width, shownFill = float.NaN, shownBreath = float.NaN;
+            public float width, staminaWidth, shownFill = float.NaN, shownBreath = float.NaN;
             public int shownReading = int.MinValue, shownBand = -1, shownWinded = -1;
         }
 
@@ -73,8 +73,12 @@ namespace Wreckabulary
         GameObject scoresCap;
         float barWidth = -1f, barScale = 1f, barTop = PlayerBar.Top, topInset, labelWidth = LabelWidth;
         int barSize = -1, barSplit, barLeader = ScoreLine.NoLead;
-        float barCentreWidth = -1f;
+        float barCentreWidth = -1f, barCentreX;
         bool barSeated;
+        readonly List<Image> outlines = new();
+        readonly int[] groupFirst = new int[MaxCards], groupLast = new int[MaxCards];
+        int groupCount, barJoins = -1;
+        Image centreOutline;
         ScoreCentre barCentre, laidCentre;
         Func<int, int> sideScore;
         string sideCaption = "", targetWord = "", timerText = "";
@@ -164,8 +168,9 @@ namespace Wreckabulary
             bar = Rect("Player bar", safe, new Vector2(.5f, 1f), new Vector2(0f, -PlayerBar.Top), new Vector2(0f, PlayerBar.Height));
             bar.pivot = new Vector2(.5f, 1f);
             var backing = CardImage("Backing", bar, Plate);
-            backing.sprite = LobbyIcons.RoundedSprite(Mathf.RoundToInt(PlayerBar.PlateRadius));
+            Square(backing);
             plate = backing.rectTransform;
+            for (int i = 0; i < MaxCards; i++) outlines.Add(MakeOutline($"Side {i + 1}", bar));
             for (int i = 0; i < MaxCards; i++) cards.Add(MakeSeatCard(i));
             BuildCentre();
             BuildScoresButton();
@@ -176,6 +181,12 @@ namespace Wreckabulary
         {
             centre = Rect("Centre", bar, new Vector2(.5f, 1f), Vector2.zero, new Vector2(ScoreLine.CentreWidth, PlayerBar.Height));
             centre.pivot = new Vector2(.5f, 1f);
+            centreOutline = CreateImage("Outline", centre, Vector2.zero, Vector2.zero, Vector2.zero, GlassEdge);
+            Stretch(centreOutline.rectTransform);
+            centreOutline.rectTransform.offsetMin = new Vector2(0f, -PlayerBar.Outline);
+            centreOutline.rectTransform.offsetMax = new Vector2(0f, PlayerBar.Outline);
+            SquareFrame(centreOutline, PlayerBar.Outline);
+            centreOutline.enabled = false;
             barClock = CentreText("Clock", ClockSize, OnGame);
             Place(barClock.rectTransform, 0f, ScoreLine.CentreWidth, ClockHeight);
             leftScore = CentreText("Left score", ScoreSize, OnGame);
@@ -246,8 +257,8 @@ namespace Wreckabulary
             var root = Rect($"Card {index + 1}", bar, new Vector2(.5f, 1f), Vector2.zero, new Vector2(PlayerBar.RoomyCard, PlayerBar.Height));
             root.pivot = new Vector2(.5f, 1f);
             var card = new PlayerCard { root = root };
-            card.you = CardImage("You", root, YouEdge);
             card.backing = CardImage("Backing", root, CardBacking);
+            card.backing.sprite = null;
             card.portrait = Rect("Portrait", root, new Vector2(.5f, 1f), Vector2.zero, Vector2.zero).gameObject.AddComponent<RawImage>();
             card.portrait.rectTransform.pivot = new Vector2(.5f, 1f);
             card.portrait.raycastTarget = false;
@@ -257,6 +268,9 @@ namespace Wreckabulary
             card.shade = CardImage("Shade", root, WreckedShade);
             card.shade.sprite = null;
             card.frame = CardImage("Frame", root, Mint);
+            SquareFrame(card.frame, PlayerBar.Frame);
+            card.you = CardImage("You", root, YouEdge);
+            SquareFrame(card.you, PlayerBar.YouRim);
             card.cross = CardImage("Cross", root, OnGame);
             card.cross.type = Image.Type.Simple;
             card.cross.sprite = LobbyIcons.Get(LobbyIcons.Close);
@@ -271,15 +285,42 @@ namespace Wreckabulary
             card.vitals = MakeVitals(root, new Vector2(.5f, 1f), PlayerBar.NumberSize);
             card.name = CardText("Name", root, PlayerBar.NameSize, Cream);
             card.name.fontStyle = FontStyles.Bold;
-            card.name.overflowMode = TextOverflowModes.Ellipsis;
+            FitLine(card.name, PlayerBar.NameSize);
             OnGameText(card.name); AddHudShadow(card.name);
             card.score = CardText("Score", root, PlayerBar.ScoreSize, ScoreInk);
-            card.score.overflowMode = TextOverflowModes.Ellipsis;
+            FitLine(card.score, PlayerBar.ScoreSize);
             OnGameText(card.score); AddHudShadow(card.score);
             card.you.enabled = card.shade.enabled = card.letter.enabled = card.portrait.enabled = card.cross.enabled = false;
             SizeSeatCard(card, PlayerBar.RoomySeats);
             root.gameObject.SetActive(false);
             return card;
+        }
+
+        static void FitLine(TextMeshProUGUI text, float size)
+        {
+            text.enableAutoSizing = true; text.fontSizeMin = PlayerBar.TextMin; text.fontSizeMax = size;
+            text.overflowMode = TextOverflowModes.Ellipsis;
+        }
+
+        Image MakeOutline(string label, RectTransform parent)
+        {
+            var outline = CardImage(label, parent, GlassEdge);
+            SquareFrame(outline, PlayerBar.Outline);
+            outline.enabled = false;
+            return outline;
+        }
+
+        void SquareFrame(Image image, float width)
+        {
+            image.sprite = lineBox;
+            image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f / width;
+        }
+
+        static void Square(Image image)
+        {
+            image.sprite = null;
+            image.type = Image.Type.Simple;
         }
 
         VitalsView MakeVitals(RectTransform parent, Vector2 anchor, float numberSize)
@@ -298,7 +339,7 @@ namespace Wreckabulary
         {
             var image = CreateImage(label, parent, anchor, Vector2.zero, Vector2.zero, HealthTrack);
             image.rectTransform.pivot = anchor;
-            Round(image);
+            Square(image);
             return image.rectTransform;
         }
 
@@ -307,14 +348,8 @@ namespace Wreckabulary
             var image = CreateImage(label, track, Vector2.zero, Vector2.zero, Vector2.zero, colour);
             image.rectTransform.anchorMax = new Vector2(0f, 1f);
             image.rectTransform.pivot = new Vector2(0f, .5f);
-            Round(image);
+            Square(image);
             return image;
-        }
-
-        static void Round(Image image)
-        {
-            image.sprite = LobbyIcons.RoundedSprite(PlayerBar.BarRadius);
-            image.type = Image.Type.Sliced;
         }
 
         TextMeshProUGUI BarNumber(RectTransform parent, Color colour, float size)
@@ -328,7 +363,7 @@ namespace Wreckabulary
             return text;
         }
 
-        static void LayVitals(VitalsView view, float x, float y, float width, float height, float staminaY, float staminaHeight, float pad)
+        static void LayVitals(VitalsView view, float x, float y, float width, float height, float staminaY, float staminaWidth, float staminaHeight, float pad)
         {
             view.track.anchoredPosition = new Vector2(x, y);
             view.track.sizeDelta = new Vector2(width, height);
@@ -336,8 +371,9 @@ namespace Wreckabulary
             view.number.rectTransform.anchoredPosition = view.numberInk.rectTransform.anchoredPosition = new Vector2(pad, 0f);
             view.number.rectTransform.sizeDelta = view.numberInk.rectTransform.sizeDelta = box;
             view.staminaTrack.anchoredPosition = new Vector2(x, staminaY);
-            view.staminaTrack.sizeDelta = new Vector2(width, staminaHeight);
+            view.staminaTrack.sizeDelta = new Vector2(staminaWidth, staminaHeight);
             view.width = width;
+            view.staminaWidth = staminaWidth;
             view.shownFill = view.shownBreath = float.NaN;
         }
 
@@ -353,7 +389,7 @@ namespace Wreckabulary
             bool breath = health && SeatVitals.ShowsStamina(alive);
             if (view.staminaTrack.gameObject.activeSelf != breath) view.staminaTrack.gameObject.SetActive(breath);
             if (!breath) return;
-            Widen(view.staminaFill.rectTransform, view.width * SeatVitals.Share(health.Stamina, health.Model.MaxStamina), ref view.shownBreath);
+            Widen(view.staminaFill.rectTransform, view.staminaWidth * SeatVitals.Share(health.Stamina, health.Model.MaxStamina), ref view.shownBreath);
             int winded = SeatVitals.Winded(health.Stamina, health.Rules.DodgeStamina) ? 1 : 0;
             if (winded != view.shownWinded) { view.shownWinded = winded; view.staminaFill.color = winded == 1 ? Amber : Breath; }
         }
@@ -396,23 +432,20 @@ namespace Wreckabulary
             if (card.shownSeats == seats) return;
             card.shownSeats = seats;
             float width = PlayerBar.CardWidth(seats), side = PlayerBar.Portrait(seats), rim = PlayerBar.Frame;
-            int radius = Mathf.RoundToInt(side * .2f);
             card.root.sizeDelta = new Vector2(width, PlayerBar.CardHeight(seats));
-            Place(card.you.rectTransform, 3f, side + 6f, side + 6f);
-            card.you.sprite = LobbyIcons.RoundedSprite(radius + 3);
+            Place(card.you.rectTransform, 0f, side, side);
             Place(card.backing.rectTransform, 0f, side, side);
-            card.backing.sprite = LobbyIcons.RoundedSprite(radius);
             Place(card.portrait.rectTransform, -rim, side - 2f * rim, side - 2f * rim);
             Place(card.letter.rectTransform, 0f, side, side);
             card.letter.fontSize = side * .56f;
             Place(card.shade.rectTransform, -rim, side - 2f * rim, side - 2f * rim);
             Place(card.frame.rectTransform, 0f, side, side);
-            card.frame.sprite = LobbyIcons.FrameSprite(radius, Mathf.RoundToInt(rim));
             float cross = side * CrossShare;
             Place(card.cross.rectTransform, -(side - cross) * .5f, cross, cross);
             card.lead.rectTransform.anchoredPosition = new Vector2(side * .5f - LeadSize * .5f, LeadSize * .25f);
             Place(card.status.rectTransform, -rim, width - 4f, side - 2f * rim);
-            LayVitals(card.vitals, 0f, -PlayerBar.HealthY(seats), side, PlayerBar.HealthHeight, -PlayerBar.StaminaY(seats), PlayerBar.StaminaHeight, PlayerBar.NumberPad);
+            LayVitals(card.vitals, 0f, -PlayerBar.HealthY(seats), PlayerBar.HealthWidth(seats), PlayerBar.HealthHeight,
+                -PlayerBar.StaminaY(seats), PlayerBar.StaminaWidth(seats), PlayerBar.StaminaHeight, PlayerBar.NumberPad);
             Place(card.name.rectTransform, -PlayerBar.NameY(seats), width, PlayerBar.NameHeight);
             Place(card.score.rectTransform, -PlayerBar.ScoreY(seats), width, PlayerBar.ScoreHeight);
         }
@@ -448,6 +481,7 @@ namespace Wreckabulary
                 if (card.root.gameObject.activeSelf != used) card.root.gameObject.SetActive(used);
                 if (used) ShowSeat(card, barSeats[barOrder[slot]], humans, ref drew);
             }
+            ColourOutlines();
             ReadScores();
             RefreshCentre();
             MarkLeader();
@@ -599,7 +633,7 @@ namespace Wreckabulary
         {
             int count = barSeated ? barSeats.Count : 0;
             float centreWidth = ScoreLine.Width(barCentre);
-            float width = ScoreLine.Arrange(barSeated ? barTeams : NoTeams, barOrder, barCentres, centreWidth, out barSplit);
+            float width = PlayerBar.Strip(barSeated ? barTeams : NoTeams, barOrder, barCentres, centreWidth, out barSplit, out float centreX);
             for (int slot = 0; slot < count; slot++)
             {
                 var card = cards[slot];
@@ -613,16 +647,73 @@ namespace Wreckabulary
             float height = BarHeight(count);
             CollectBlocks();
             float top = ClearBarTop(width, height, scale, reach);
-            if (width == barWidth && scale == barScale && top == barTop && count == barSize && centreWidth == barCentreWidth) return;
-            barWidth = width; barScale = scale; barTop = top; barSize = count; barCentreWidth = centreWidth;
+            int joins = JoinMask(count);
+            if (width == barWidth && scale == barScale && top == barTop && count == barSize && centreWidth == barCentreWidth && joins == barJoins && centreX == barCentreX) return;
+            barWidth = width; barScale = scale; barTop = top; barSize = count; barCentreWidth = centreWidth; barJoins = joins; barCentreX = centreX;
+            LayOutlines(count);
             bar.sizeDelta = new Vector2(width, height);
             plate.anchoredPosition = new Vector2(0f, PlayerBar.PlatePad);
             plate.sizeDelta = new Vector2(PlayerBar.PlateWidth(width), height + 2f * PlayerBar.PlatePad);
             bar.localScale = new Vector3(scale, scale, 1f);
             bar.anchoredPosition = new Vector2(0f, -top);
             centre.sizeDelta = new Vector2(Mathf.Max(centreWidth, ScoreLine.ClockWidth), height);
+            centre.anchoredPosition = new Vector2(centreX, 0f);
             scoresButton.anchoredPosition = new Vector2(width * .5f + PlayerBar.PlatePad + ScoresGap, PlayerBar.PlatePad);
             if (laidCentre == ScoreCentre.Clock) PlaceBarClock();
+        }
+
+        int JoinMask(int count)
+        {
+            int mask = barSplit << MaxCards;
+            for (int slot = 1; slot < count; slot++)
+                if (PlayerBar.Joined(barTeams, barOrder, slot, barSplit)) mask |= 1 << slot;
+            return mask;
+        }
+
+        void LayOutlines(int count)
+        {
+            groupCount = 0;
+            float half = PlayerBar.CardWidth(count) * .5f, tall = PlayerBar.BoxHeight(count);
+            for (int slot = 0; slot < count; slot++)
+            {
+                if (slot > 0 && PlayerBar.Joined(barTeams, barOrder, slot, barSplit)) { groupLast[groupCount - 1] = slot; continue; }
+                groupFirst[groupCount] = groupLast[groupCount] = slot;
+                groupCount++;
+            }
+            for (int group = 0; group < outlines.Count; group++)
+            {
+                var outline = outlines[group];
+                bool used = group < groupCount;
+                if (outline.enabled != used) outline.enabled = used;
+                if (!used) continue;
+                float left = barCentres[groupFirst[group]] - half - PlayerBar.Outline, right = barCentres[groupLast[group]] + half + PlayerBar.Outline;
+                outline.rectTransform.anchoredPosition = new Vector2((left + right) * .5f, PlayerBar.Outline);
+                outline.rectTransform.sizeDelta = new Vector2(right - left, tall);
+            }
+        }
+
+        void ColourOutlines()
+        {
+            for (int group = 0; group < groupCount; group++)
+            {
+                var colour = GroupColour(groupFirst[group], groupLast[group]);
+                if (outlines[group].color != colour) outlines[group].color = colour;
+            }
+            bool boxed = barSeated && barCentre != ScoreCentre.None;
+            if (centreOutline.enabled != boxed) centreOutline.enabled = boxed;
+        }
+
+        Color GroupColour(int first, int last)
+        {
+            var shared = SeatColour(barSeats[barOrder[first]]);
+            bool wrecked = true;
+            for (int slot = first; slot <= last; slot++)
+            {
+                var p = barSeats[barOrder[slot]];
+                wrecked &= p.IsEliminated;
+                if (SeatColour(p) != shared) shared = GlassEdge;
+            }
+            return wrecked ? WreckedFrame : shared;
         }
 
         public void CollectHudRects(List<Rect> into)
