@@ -87,7 +87,7 @@ namespace Wreckabulary.Online
                 hud.Theme = uiTheme;
                 hud.StoryProfile = storyProfile;
                 hud.VoiceRegion = expected.Settings.Region;
-                hud.Initialize(gameplay, playerView, items, mode, course, client.Credentials.PlayerId);
+                hud.Initialize(gameplay, playerView, items, mode, course, client.Credentials.PlayerId, gameRules: rules);
                 hud.ReturnRequested += RequestReturn;
                 session = new WordboundFusionSession(CreateRunner,
                     new FusionAppSettings { AppIdFusion = photonAppId, UseNameServer = true },

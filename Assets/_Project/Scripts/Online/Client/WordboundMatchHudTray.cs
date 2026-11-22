@@ -11,35 +11,36 @@ namespace Wreckabulary.Online
         const string SpellWord = "Spell", MenuWord = "Menu", HandGlyph = "hand";
         const float PlateSize = 40f, PlateGap = 12f, PlateTilt = 5f, PlateMaxWidth = 420f, PlateShare = .42f, PlateMinRoom = 160f,
             PlateTagHeight = 18f, PlateTitleHeight = 30f, PlateRowGap = 2f, PlateLift = 1f;
-        const float VitalsCross = 22f, VitalsCrossBar = 7f, VitalsTextX = 30f, VitalsBarWidth = 120f, VitalsBarHeight = 6f,
-            VitalsNumberHeight = 40f, VitalsGap = 4f, VitalsUnitLift = 6f, LowHealthShare = .3f, HealthFloor = 1f, KeepsakeGap = 6f;
+        const float VitalsCross = 22f, VitalsCrossBar = 7f, VitalsBarX = 30f, VitalsBarWidth = 160f, VitalsBarHeight = 24f,
+            VitalsNumberPad = 5f, HealthFloor = 1f, KeepsakeGap = 6f;
         const float TrayTileWidth = 36f, TrayTileHeight = 39f, TrayTileStepX = 41f, TrayTileStepY = 46f, TrayTileEdge = 2f,
             TrayHandGap = 16f, TrayKeyGap = 6f, TrayKeySpacing = 18f, HandWidth = 117f, HandHeight = 55f, HandGapY = 8f,
             HandPicture = 34f, HandPictureX = 22f, HandWordX = 60f, HandKeyInset = 7f, HandKeyHeight = 18f, HandCapInset = 5f,
             HandCapPad = 4f, HandGlyphSize = 24f,
             HandGlyphShift = 5f, ActionGap = 8f, ActionShare = .6f, ActionMaxWidth = 760f;
         const int PlateTitleFont = 24, PlateTitleMinFont = 18, PlateTagFont = 13, PlateDetailFont = 15, PlateBrandFont = 26,
-            VitalsNumberFont = 34, VitalsUnitFont = 14, TrayTileFont = 22, HandWordFont = 13, HandWordMinFont = 10, HandKeyFont = 12,
+            VitalsNumberFont = 20, TrayTileFont = 22, HandWordFont = 13, HandWordMinFont = 10, HandKeyFont = 12,
             TrayCells = 10, TrayColumns = 5, HandSlots = 2;
         static readonly Color HudPlateShadow = KitHex(0x0b1f1f, .35f);
         static readonly string[] HandSlotNumbers = { "1", "2" };
-        readonly GUIContent healthContent = new GUIContent(), unitContent = new GUIContent("HP"),
-            keepsakeContent = new GUIContent("Carrying the keepsake"),
+        readonly GUIContent vitalsContent = new GUIContent(), keepsakeContent = new GUIContent("Carrying the keepsake"),
             brandContent = new GUIContent("W<size=14><color=#B86647>!</color></size>");
         readonly GUIContent[] handCaps = { new GUIContent(), new GUIContent() }, handWordContents = { new GUIContent(), new GUIContent() };
         readonly string[] handWords = new string[HandSlots], handWordFitted = new string[HandSlots];
         readonly int[] handWordFonts = new int[HandSlots];
         readonly KeyPrompt actionPrompt = new KeyPrompt(), spellKeys = new KeyPrompt(), menuKeys = new KeyPrompt();
         GUIStyle kitHandKey;
-        MatchSnapshot handFrame;
+        MatchSnapshot handFrame, vitalsFrame;
+        MatchActorState vitalsActor;
+        HealthBand vitalsBand;
         PlayerInventory handInventory;
         (bool Pad, int Version) handCapKey = (false, -1);
         LetterBag reservedBag;
         string reservedText = "", plateTitleText;
-        int statusTagRow = -1, trayHealth = int.MinValue, plateTitleFont = PlateTitleFont, plateTitleGeneration = -1;
-        float healthPeak, plateTitleRoom = -1f;
+        int statusTagRow = -1, vitalsReading = int.MinValue, plateTitleFont = PlateTitleFont, plateTitleGeneration = -1;
+        float healthPeak, healthMax, vitalsShare, plateTitleRoom = -1f;
         bool trayKeepsake;
-        Rect plateRect, vitalsRect, trayRect, actionRect;
+        Rect plateRect, vitalsRect, healthBarRect, trayRect, actionRect;
 
         void PrepareTray(TeamProgress progress)
         {
@@ -51,16 +52,37 @@ namespace Wreckabulary.Online
             }
             RefreshHands();
             trayKeepsake = progress != null && !string.IsNullOrEmpty(actorId) && progress.KeepsakeCarrier == actorId;
-            if (actor != null)
-            {
-                int health = Mathf.CeilToInt(actor.Health);
-                if (health != trayHealth) { trayHealth = health; healthContent.text = health.ToString(); }
-                healthPeak = Mathf.Max(healthPeak, actor.Health, HealthFloor);
-            }
+            PrepareVitals();
             var key = (view && view.UsesGamepad, KeyBindings.Version);
             if (key.Equals(handCapKey)) return;
             handCapKey = key;
             for (int slot = 0; slot < HandSlots; slot++) handCaps[slot].text = HandCap(slot);
+        }
+
+        void PrepareVitals()
+        {
+            if (actor == null || ReferenceEquals(vitalsFrame, frame) && ReferenceEquals(vitalsActor, actor)) return;
+            vitalsFrame = frame;
+            vitalsActor = actor;
+            healthPeak = Mathf.Max(healthPeak, actor.Health, HealthFloor);
+            var own = OwnProgress();
+            bool knocked = own != null && own.Eliminated, alive = actor.Health > 0f && !knocked, waiting = knocked && own.RespawnAt >= 0;
+            float respawn = waiting ? Mathf.Max(0f, (own.RespawnAt - frame.Progress.Tick) / (float)ModeDefinition.TickRate) : 0f;
+            vitalsShare = alive ? SeatVitals.Share(actor.Health, healthMax > 0f ? healthMax : healthPeak) : 0f;
+            vitalsBand = SeatVitals.Band(vitalsShare);
+            int reading = SeatVitals.Reading(actor.Health, alive, waiting, respawn, true);
+            if (reading == vitalsReading) return;
+            vitalsReading = reading;
+            vitalsContent.text = SeatVitals.Label(reading);
+        }
+
+        PlayerProgress OwnProgress()
+        {
+            if (frame == null) return null;
+            var players = frame.Progress.Players;
+            for (int i = 0; i < players.Count; i++)
+                if (players[i].Id == actorId) return players[i];
+            return null;
         }
 
         void RefreshHands()
@@ -152,28 +174,37 @@ namespace Wreckabulary.Online
         {
             if (actor == null || kitNumber == null) return default;
             float left = EyeMargin, bottom = height - EyeMargin;
-            var bar = new Rect(left + VitalsTextX, bottom - VitalsBarHeight, VitalsBarWidth, VitalsBarHeight);
-            float numberWide = Mathf.Ceil(kitNumber.CalcSize(healthContent).x), unitWide = Mathf.Ceil(kitUnit.CalcSize(unitContent).x);
-            var number = new Rect(bar.x, bar.y - VitalsGap - VitalsNumberHeight, numberWide + KitOutline * 2f, VitalsNumberHeight);
-            float share = Mathf.Clamp01(actor.Health / Mathf.Max(HealthFloor, healthPeak));
-            bool low = share < LowHealthShare;
-            Color ink = low ? HudLowHp : HudOnGame;
-            PaintCross(new Vector2(left + VitalsCross * .5f, number.center.y + VitalsUnitLift * .5f));
-            KitInk(number, healthContent, kitNumber, ink);
-            KitInk(new Rect(number.xMax + VitalsGap, number.y, unitWide + KitOutline * 2f, number.height - VitalsUnitLift), unitContent, kitUnit, ink);
-            KitFlat(bar, HudTrack);
-            KitFlat(new Rect(bar.x, bar.y, bar.width * share, bar.height), low ? HudLowHp : HudMint);
-            float right = Mathf.Max(bar.xMax, number.xMax + VitalsGap + unitWide);
-            var area = Rect.MinMaxRect(left, number.y, right, bottom);
+            var bar = new Rect(left + VitalsBarX, bottom - VitalsBarHeight, VitalsBarWidth, VitalsBarHeight);
+            PaintCross(new Vector2(left + VitalsCross * .5f, bar.center.y));
+            PaintHealthBar(bar);
+            var area = Rect.MinMaxRect(left, bar.yMin, bar.xMax, bottom);
             if (trayKeepsake)
             {
                 var chip = new Rect(left, area.yMin - KeepsakeGap - PlateTagHeight, Mathf.Ceil(kitTag.CalcSize(keepsakeContent).x) + KitOutline * 2f, PlateTagHeight);
                 KitInk(chip, keepsakeContent, kitTag, HudGold);
                 area = Rect.MinMaxRect(left, chip.yMin, Mathf.Max(area.xMax, chip.xMax), bottom);
             }
-            if (Painting) vitalsRect = area;
+            if (Painting) { vitalsRect = area; healthBarRect = bar; }
             return area;
         }
+
+        void PaintHealthBar(Rect bar)
+        {
+            KitFill(bar, kitSmallShape, HudBarTrack);
+            var number = new Rect(bar.x + VitalsNumberPad, bar.y, bar.width - VitalsNumberPad * 2f, bar.height);
+            KitPlain(number, vitalsContent, kitNumber, HudOnGame);
+            var fill = new Rect(bar.x, bar.y, Mathf.Round(bar.width * vitalsShare), bar.height);
+            KitFill(fill, kitSmallShape, BandColour(vitalsBand));
+            if (!Painting || fill.width <= 0f || string.IsNullOrEmpty(vitalsContent.text)) return;
+            GUI.BeginGroup(fill);
+            try { KitPlain(new Rect(number.x - fill.x, number.y - fill.y, number.width, number.height), vitalsContent, kitNumber, HudInk); }
+            finally { GUI.EndGroup(); }
+        }
+
+        static Color BandColour(HealthBand band) => band switch
+        {
+            HealthBand.Critical => HudCritical, HealthBand.Hurt => HudAmber, _ => HudOnGame
+        };
 
         static void PaintCross(Vector2 middle)
         {

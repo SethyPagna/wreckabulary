@@ -16,19 +16,23 @@ namespace Wreckabulary
 
         static Camera lens;
         static Light key;
+        static Transform standRoot;
         static UniversalRenderPipeline.SingleCameraRequest request;
         static readonly List<Renderer> parts = new();
         static readonly List<int> layers = new();
         static readonly List<Light> dimmed = new();
+        static readonly List<MeshRenderer> stands = new();
+        static readonly MaterialPropertyBlock block = new();
+        static int standsInUse;
 
         PlayerController player;
         PlayerAppearance appearance;
         RenderTexture texture;
-        GameObject framed, posed;
+        GameObject framed, settled;
         SkinnedMeshRenderer[] skins;
         Transform head, chest;
         Renderer face;
-        int renderedVersion = int.MinValue, posedVersion = int.MinValue, posedFrame;
+        int renderedVersion = int.MinValue, settledVersion = int.MinValue, settledFrame;
 
         public static readonly Color Background = new(.086f, .188f, .184f, 0f);
         public static bool CanRender => SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null;
@@ -48,21 +52,20 @@ namespace Wreckabulary
             get
             {
                 if (!CanRender || !Ready(out var model)) return false;
-                return (model != framed || appearance.OutfitVersion != renderedVersion) && Posed(model);
+                return (model != framed || appearance.OutfitVersion != renderedVersion) && Settled(model);
             }
         }
 
-        bool Posed(GameObject model)
+        bool Settled(GameObject model)
         {
-            if (model != posed || appearance.OutfitVersion != posedVersion)
+            if (model != settled || appearance.OutfitVersion != settledVersion)
             {
-                if (model != posed) skins = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-                foreach (var skin in skins) if (skin) skin.updateWhenOffscreen = true;
-                posed = model;
-                posedVersion = appearance.OutfitVersion;
-                posedFrame = Time.frameCount;
+                if (model != settled) skins = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                settled = model;
+                settledVersion = appearance.OutfitVersion;
+                settledFrame = Time.frameCount;
             }
-            return Time.frameCount > posedFrame;
+            return Time.frameCount > settledFrame;
         }
 
         public Texture Refresh(bool allowRender)
@@ -106,14 +109,21 @@ namespace Wreckabulary
             model.GetComponentsInChildren(false, parts);
             bool any = false;
             Bounds all = default;
+            Renderer faceStand = null;
             for (int i = parts.Count - 1; i >= 0; i--)
             {
                 var part = parts[i];
                 if (!part.enabled || part is ParticleSystemRenderer || part is TrailRenderer || part is LineRenderer) { parts.RemoveAt(i); continue; }
+                if (part is SkinnedMeshRenderer skin)
+                {
+                    if (skin.forceRenderingOff || skin.shadowCastingMode == ShadowCastingMode.ShadowsOnly || !skin.sharedMesh) { parts.RemoveAt(i); continue; }
+                    part = parts[i] = Bake(skin);
+                    if (skin == face) faceStand = part;
+                }
                 if (any) all.Encapsulate(part.bounds); else { all = part.bounds; any = true; }
             }
             if (!any) return false;
-            var box = face && face.enabled && face.gameObject.activeInHierarchy ? face.bounds : default;
+            var box = faceStand ? faceStand.bounds : default;
             if (box.size.y > .05f && box.size.y < all.size.y * .6f)
             {
                 float tall = box.size.y;
@@ -138,6 +148,66 @@ namespace Wreckabulary
         bool Draw(GameObject model)
         {
             CuteFace.Settle(skins);
+            try { return Shoot(model); }
+            finally { Unbake(); }
+        }
+
+        static Renderer Bake(SkinnedMeshRenderer skin)
+        {
+            var stand = Stand(standsInUse++);
+            var mesh = stand.GetComponent<MeshFilter>().sharedMesh;
+            skin.BakeMesh(mesh, true);
+            mesh.RecalculateBounds();
+            var from = skin.transform;
+            stand.transform.SetPositionAndRotation(from.position, from.rotation);
+            stand.transform.localScale = from.lossyScale;
+            var materials = skin.sharedMaterials;
+            stand.sharedMaterials = materials;
+            skin.GetPropertyBlock(block);
+            stand.SetPropertyBlock(block);
+            for (int i = 0; i < materials.Length; i++)
+            {
+                skin.GetPropertyBlock(block, i);
+                stand.SetPropertyBlock(block, i);
+            }
+            stand.lightProbeUsage = skin.lightProbeUsage;
+            stand.reflectionProbeUsage = skin.reflectionProbeUsage;
+            stand.gameObject.SetActive(true);
+            return stand;
+        }
+
+        static void Unbake()
+        {
+            for (int i = 0; i < standsInUse && i < stands.Count; i++)
+                if (stands[i]) stands[i].gameObject.SetActive(false);
+            standsInUse = 0;
+        }
+
+        static MeshRenderer Stand(int index)
+        {
+            while (stands.Count <= index) stands.Add(null);
+            if (stands[index]) return stands[index];
+            var holder = new GameObject("Seat portrait skin") { hideFlags = HideFlags.HideInHierarchy, layer = Layer };
+            holder.SetActive(false);
+            holder.transform.SetParent(StandRoot(), false);
+            holder.AddComponent<MeshFilter>().sharedMesh = new Mesh { name = "Seat portrait skin", hideFlags = HideFlags.DontSave };
+            var stand = holder.AddComponent<MeshRenderer>();
+            stand.shadowCastingMode = ShadowCastingMode.Off;
+            stand.receiveShadows = false;
+            CuteShapes.KeepOnRegularPath(stand);
+            return stands[index] = stand;
+        }
+
+        static Transform StandRoot()
+        {
+            if (standRoot) return standRoot;
+            var holder = new GameObject("Seat portrait skins") { hideFlags = HideFlags.HideInHierarchy };
+            if (Application.isPlaying) DontDestroyOnLoad(holder);
+            return standRoot = holder.transform;
+        }
+
+        bool Shoot(GameObject model)
+        {
             if (!Frame(model, out var centre, out float half)) return false;
             if (!texture)
             {
