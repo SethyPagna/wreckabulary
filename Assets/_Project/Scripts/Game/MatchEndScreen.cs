@@ -17,11 +17,11 @@ namespace Wreckabulary
         const float MatchEndNameTop = 10f, MatchEndNameHeight = 26f, MatchEndTitleHeight = 22f, MatchEndTagHeight = 20f;
         const float MatchEndNumbersTop = 86f, MatchEndNumbersHeight = 60f, MatchEndValueHeight = 36f;
         const float MatchEndNameFont = 20f, MatchEndTitleFont = 16f, MatchEndTagFont = 15f, MatchEndValueFont = 26f, MatchEndLabelFont = 15f, MatchEndLetterFont = 34f;
-        const int MatchEndRoomySeats = 4, MatchEndCellRadius = 16, MatchEndPortraitRadius = 12, MatchEndInnerRadius = 9;
+        const int MatchEndRoomySeats = 4, MatchEndCellRadius = 16;
         const float RoundCellMax = 112f, RoundCellMin = 72f, RoundCellGap = 12f, RoundRaise = 18f, RoundTopGap = 8f, RoundRim = 4f;
         const float RoundNameHeight = 28f, RoundTagHeight = 22f, RoundPipsHeight = 24f, RoundPip = 16f, RoundPipGap = 6f, RoundWinnerRim = 4f;
         const float RoundNameFont = 20f, RoundTagFont = 15f, RoundCountFont = 18f, RoundLetterShare = .45f;
-        const int RoundPortraitRadius = 14, RoundInnerRadius = 10, RoundPipRadius = 8, RoundPipRing = 2, RoundWinnerRing = 4;
+        const float RoundPipRing = 2f, RoundWinnerRing = 4f;
 
         sealed class MatchEndSeat
         {
@@ -176,8 +176,8 @@ namespace Wreckabulary
             Paint(Cover("Edge", seat.root), LobbyIcons.FrameSprite(MatchEndCellRadius, card.Winner ? 3 : 1), card.Winner ? CoinGold : ToastEdge);
             var frame = Rect("Portrait", seat.root, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
             Put(frame, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(MatchEndPad, -MatchEndPad), new Vector2(MatchEndPortrait, MatchEndPortrait));
-            Paint(frame, LobbyIcons.RoundedSprite(MatchEndPortraitRadius), colour);
-            Paint(Cover("Backing", frame, -MatchEndRim), LobbyIcons.RoundedSprite(MatchEndInnerRadius), PrimaryLip);
+            PaintSquare(frame, colour);
+            PaintSquare(Cover("Backing", frame, -MatchEndRim), PrimaryLip);
             seat.portrait = Cover("Picture", frame, -MatchEndRim).gameObject.AddComponent<RawImage>();
             seat.portrait.raycastTarget = false;
             seat.portrait.enabled = false;
@@ -305,9 +305,9 @@ namespace Wreckabulary
             var seat = new RoundSeat { seat = result, face = player ? SeatPortrait.For(player) : null };
             seat.root = Rect("Seat " + (index + 1), roundRow, new Vector2(.5f, 1f), Vector2.zero, Vector2.zero);
             seat.frame = Rect("Portrait", seat.root, new Vector2(.5f, 1f), Vector2.zero, Vector2.zero);
-            Paint(seat.frame, LobbyIcons.RoundedSprite(RoundPortraitRadius), colour);
-            if (result.Won) Paint(Cover("Winner", seat.frame, RoundWinnerRim), LobbyIcons.FrameSprite(RoundPortraitRadius + RoundWinnerRing, RoundWinnerRing), CoinGold);
-            Paint(Cover("Backing", seat.frame, -RoundRim), LobbyIcons.RoundedSprite(RoundInnerRadius), PrimaryLip);
+            PaintSquare(seat.frame, colour);
+            if (result.Won) PaintLine(Cover("Winner", seat.frame, RoundWinnerRim), CoinGold, RoundWinnerRing);
+            PaintSquare(Cover("Backing", seat.frame, -RoundRim), PrimaryLip);
             seat.portrait = Cover("Picture", seat.frame, -RoundRim).gameObject.AddComponent<RawImage>();
             seat.portrait.raycastTarget = false;
             seat.portrait.enabled = false;
@@ -338,7 +338,8 @@ namespace Wreckabulary
                 bool won = i < seat.filled;
                 var pip = Put(Rect("Pip " + (i + 1), seat.pips, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, .5f), new Vector2(.5f, .5f),
                     new Vector2(-run * .5f + RoundPip * .5f + i * (RoundPip + RoundPipGap), 0f), Vector2.one * RoundPip);
-                Paint(pip, won ? LobbyIcons.RoundedSprite(RoundPipRadius) : LobbyIcons.FrameSprite(RoundPipRadius, RoundPipRing), won ? CoinGold : BodyInk);
+                if (won) PaintSquare(pip, CoinGold);
+                else PaintLine(pip, BodyInk, RoundPipRing);
             }
         }
 

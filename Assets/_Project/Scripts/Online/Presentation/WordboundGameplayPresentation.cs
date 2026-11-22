@@ -75,6 +75,7 @@ namespace Wreckabulary.Online
             controller = gameplay;
             controller.FrameChanged += ApplyFrame;
             controller.Faulted += GameplayFailed;
+            WordboundCourseBackdrop.Watch(gameObject, () => controller ? controller.CourseWorld : null);
             if (controller.Frame != null) ApplyFrame(controller.Frame);
         }
 

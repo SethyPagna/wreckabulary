@@ -35,26 +35,32 @@ namespace Wreckabulary.Rules.Tests
             Assert.LessOrEqual(PlayerBar.Hairline, 1f);
             foreach (int seats in new[] { 4, 8 })
             {
-                Assert.That(PlayerBar.StaminaWidth(seats) / PlayerBar.CardWidth(seats), Is.InRange(.7f, .8f), "Stamina is narrower than its card...");
-                Assert.GreaterOrEqual(PlayerBar.CardWidth(seats) - PlayerBar.StaminaWidth(seats), 10f, "...so neighbouring stamina bars show a clear gap.");
+                Assert.AreEqual(PlayerBar.HealthWidth(seats) - PlayerBar.StaminaTrim, PlayerBar.StaminaWidth(seats), .01f, "Stamina runs from the health bar's left end to just short of its right end.");
+                Assert.That(PlayerBar.StaminaTrim, Is.InRange(3f, 5f), "...a tiny space, about 4 units at 1080p...");
+                Assert.Greater(PlayerBar.CardWidth(seats) - PlayerBar.StaminaWidth(seats), PlayerBar.Hairline, "...so each stamina bar ends before the next card's begins.");
             }
             Assert.GreaterOrEqual(PlayerBar.StaminaHeight, 8f, "Stamina is thick enough to notice.");
             Assert.AreEqual(2f * PlayerBar.Outline, PlayerBar.SideGap, "Two sides meet where their outlines touch.");
             Assert.AreEqual(PlayerBar.CardHeight(4) + 2f * PlayerBar.Outline, PlayerBar.BoxHeight(4));
+            Assert.AreEqual(PlayerBar.CardHeight(4, false) + 2f * PlayerBar.Outline, PlayerBar.BoxHeight(4, false));
             Assert.Less(PlayerBar.Outline, PlayerBar.PlatePad, "Outlines stay on the plate.");
             Assert.Less(PlayerBar.CardHeight(8), PlayerBar.CardHeight(4));
             Assert.AreEqual(PlayerBar.CardHeight(4), PlayerBar.Height);
             Assert.AreEqual(PlayerBar.Height + PlayerBar.PlatePad + 12f, PlayerBar.Shift, "Top-centre text moves down by the bar, its backing plate and a 12 px gap.");
             Assert.AreEqual(408f + 20f, PlayerBar.PlateWidth(408f), "The plate pads the cards by 10 px each side.");
             Assert.AreEqual(PlayerBar.CardHeight(8) + 20f, PlayerBar.PlateHeight(8));
-            Assert.Greater(PlayerBar.NameY(4), PlayerBar.HealthY(4) + PlayerBar.HealthHeight - .01f, "The name sits under the health bar.");
             Assert.GreaterOrEqual(PlayerBar.StaminaY(4), PlayerBar.HealthY(4) + PlayerBar.HealthHeight, "Stamina sits under the health bar.");
             if (PlayerBar.StaminaShown)
-                Assert.GreaterOrEqual(PlayerBar.NameY(4), PlayerBar.StaminaY(4) + PlayerBar.StaminaHeight, "The name sits under the stamina bar.");
+                Assert.GreaterOrEqual(PlayerBar.ScoreY(4), PlayerBar.StaminaY(4) + PlayerBar.StaminaHeight, "The score sits under the stamina bar, with no name row between.");
             float stamina = PlayerBar.StaminaShown ? PlayerBar.StaminaGap + PlayerBar.StaminaHeight : 0f;
             foreach (int seats in new[] { 4, 8 })
-                Assert.AreEqual(PlayerBar.Portrait(seats) + PlayerBar.HealthGap + PlayerBar.HealthHeight + stamina + PlayerBar.NameGap + PlayerBar.NameHeight + PlayerBar.ScoreHeight,
-                    PlayerBar.CardHeight(seats), .01f, "A card is its rows stacked, nothing more.");
+            {
+                Assert.AreEqual(PlayerBar.Portrait(seats) + PlayerBar.HealthGap + PlayerBar.HealthHeight + stamina + PlayerBar.ScoreGap + PlayerBar.ScoreHeight,
+                    PlayerBar.CardHeight(seats), .01f, "A card is its rows stacked, nothing more: portrait, health, stamina, score.");
+                Assert.AreEqual(PlayerBar.Portrait(seats) + PlayerBar.HealthHeight + stamina, PlayerBar.CardHeight(seats, false), .01f, "Without scores the card ends under its stamina.");
+                Assert.AreEqual(PlayerBar.CardHeight(seats), PlayerBar.CardHeight(seats, true));
+            }
+            Assert.AreEqual(124f, PlayerBar.CardHeight(4), "Shorter than round 7's 148 now the names are gone.");
         }
 
         [Test]
@@ -90,7 +96,7 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
-        public void OneSideIsOneTouchingStrip()
+        public void ACrewIsOneRowOfSeatColourOutlines()
         {
             Assert.IsFalse(PlayerBar.Grouped(new[] { 0, 0, 0 }), "Co-op: everyone on one side.");
             Assert.IsFalse(PlayerBar.Grouped(new[] { 0, 1, 2, 3 }), "Everyone against everyone.");
@@ -98,17 +104,18 @@ namespace Wreckabulary.Rules.Tests
             var (order, centres, width, _) = Strip(0f, 0, 0, 0);
             float card = PlayerBar.CardWidth(3);
             CollectionAssert.AreEqual(new[] { 0, 1, 2 }, First(order, 3));
-            Assert.AreEqual(3 * card + 2f * PlayerBar.Outline, width, .01f);
+            Assert.AreEqual(3 * card + 2f * PlayerBar.SideGap + 2f * PlayerBar.Outline, width, .01f);
+            Assert.AreEqual(-centres[0], centres[2], .01f, "Centred on the screen.");
             for (int i = 1; i < 3; i++)
             {
-                Assert.AreEqual(card, centres[i] - centres[i - 1], .01f, "Teammates' cards touch.");
-                Assert.IsTrue(PlayerBar.Joined(new[] { 0, 0, 0 }, order, i, 0), "One outline wraps the whole crew.");
+                Assert.AreEqual(card + PlayerBar.SideGap, centres[i] - centres[i - 1], .01f, "Crewmates' outlines touch, with no other gap.");
+                Assert.IsFalse(PlayerBar.Joined(new[] { 0, 0, 0 }, order, i, 0), "No shared crew outline: each card keeps its own seat-colour outline.");
             }
             Assert.IsFalse(PlayerBar.Joined(new[] { 0, 0, 0 }, order, 0, 0));
         }
 
         [Test]
-        public void ACrewStaysOneGroupWithTheClockTouchingOnItsRight()
+        public void ACrewStaysTogetherWithTheClockTouchingOnItsRight()
         {
             foreach (var (centre, seats) in new[] { (ScoreLine.ClockWidth, 2), (ScoreLine.ClockWidth, 4), (ScoreLine.CentreWidth, 3), (ScoreLine.ClockWidth, 8) })
             {
@@ -119,15 +126,15 @@ namespace Wreckabulary.Rules.Tests
                 float card = PlayerBar.CardWidth(seats), half = card * .5f;
                 string at = $"{seats} seats, centre {centre}";
                 Assert.AreEqual(seats, split, $"{at}: the whole crew sits left of the centre block.");
-                Assert.AreEqual(seats * card + 2f * PlayerBar.Outline + centre, width, .01f, $"{at}: one outline round the crew, then the block; no gaps.");
+                Assert.AreEqual(seats * card + (seats - 1) * PlayerBar.SideGap + 2f * PlayerBar.Outline + centre, width, .01f, $"{at}: a touching row of outlined cards, then the block; no other gaps.");
                 Assert.AreEqual(-width * .5f + PlayerBar.Outline, centres[0] - half, .01f, $"{at}: the pair is centred on screen.");
                 Assert.AreEqual(width * .5f, centreX + centre * .5f, .01f, $"{at}: the block closes the bar on the right.");
-                Assert.AreEqual(centreX - centre * .5f, centres[seats - 1] + half + PlayerBar.Outline, .01f, $"{at}: the crew's outline meets the block's.");
+                Assert.AreEqual(centreX - centre * .5f, centres[seats - 1] + half + PlayerBar.Outline, .01f, $"{at}: the last crewmate's outline meets the block.");
                 Assert.Greater(centreX, 0f, $"{at}: the block sits right of the crew.");
                 for (int i = 1; i < seats; i++)
                 {
-                    Assert.AreEqual(card, centres[i] - centres[i - 1], .01f, $"{at}: crewmates touch.");
-                    Assert.IsTrue(PlayerBar.Joined(teams, order, i, split), $"{at}: one outline wraps the whole crew.");
+                    Assert.AreEqual(card + PlayerBar.SideGap, centres[i] - centres[i - 1], .01f, $"{at}: crewmates' outlines touch.");
+                    Assert.IsFalse(PlayerBar.Joined(teams, order, i, split), $"{at}: each crewmate keeps its own seat-colour outline.");
                 }
             }
             Assert.IsTrue(PlayerBar.OneCrew(new[] { 2, 2, 2 }, 3));
