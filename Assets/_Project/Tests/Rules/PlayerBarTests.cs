@@ -37,6 +37,29 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual(PlayerBar.CardHeight(8) + 20f, PlayerBar.PlateHeight(8));
             Assert.Greater(PlayerBar.NameY(4), PlayerBar.HealthY(4) + PlayerBar.HealthHeight - .01f, "The name sits under the health bar.");
             Assert.Greater(PlayerBar.HealthY(4), PlayerBar.Portrait(4), "The health bar sits right under the portrait.");
+            Assert.GreaterOrEqual(PlayerBar.StaminaY(4), PlayerBar.HealthY(4) + PlayerBar.HealthHeight, "Stamina sits under the health bar.");
+            if (PlayerBar.StaminaShown)
+                Assert.GreaterOrEqual(PlayerBar.NameY(4), PlayerBar.StaminaY(4) + PlayerBar.StaminaHeight, "The name sits under the stamina bar.");
+            float stamina = PlayerBar.StaminaShown ? PlayerBar.StaminaGap + PlayerBar.StaminaHeight : 0f;
+            foreach (int seats in new[] { 4, 8 })
+                Assert.AreEqual(PlayerBar.Portrait(seats) + PlayerBar.HealthGap + PlayerBar.HealthHeight + stamina + PlayerBar.NameGap + PlayerBar.NameHeight + PlayerBar.ScoreHeight,
+                    PlayerBar.CardHeight(seats), .01f, "A card is its rows stacked, nothing more.");
+        }
+
+        [Test]
+        public void TheHealthNumberFitsItsBarAndTheBarFitsThePhoneWindow()
+        {
+            Assert.GreaterOrEqual(PlayerBar.NumberMin, 16f, "Bar numbers read at 1248x576.");
+            Assert.GreaterOrEqual(PlayerBar.NumberSize, PlayerBar.NumberMin);
+            Assert.GreaterOrEqual(PlayerBar.HealthHeight, PlayerBar.NumberSize, "The number fits inside its bar.");
+            Assert.Less(PlayerBar.StaminaHeight, PlayerBar.HealthHeight / 2f, "Stamina stays a slim second line.");
+            Assert.GreaterOrEqual(PlayerBar.SoloNumberSize, PlayerBar.NumberSize, "Alone, the number is bigger than a seat card's.");
+            Assert.GreaterOrEqual(PlayerBar.SoloHeight, PlayerBar.SoloNumberSize, "...and still fits its bar.");
+            Assert.Less(PlayerBar.SoloStaminaHeight, PlayerBar.SoloHeight / 2f);
+            Assert.Greater(PlayerBar.SoloWidth, PlayerBar.RoomyPortrait, "The solo bar is wider than a card's.");
+            const float phoneHeight = 576f / .58878f;
+            Assert.LessOrEqual(PlayerBar.Top + PlayerBar.PlateHeight(PlayerBar.RoomySeats), phoneHeight / 5f, "The bar and its plate take under a fifth of the 1248x576 window.");
+            Assert.LessOrEqual(PlayerBar.Top + PlayerBar.PlateHeight(PlayerBar.MostSeats), phoneHeight / 5f);
         }
 
         [Test]
@@ -144,10 +167,8 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
-        public void HealthTurnsCoralAtAThirdAndStatusesFitThePortrait()
+        public void StatusesFitThePortrait()
         {
-            Assert.IsTrue(PlayerBar.Healthy(.36f));
-            Assert.IsFalse(PlayerBar.Healthy(.35f));
             Assert.AreEqual("", PlayerBar.Status(true, true, 4f), "A wrecked seat is a grey portrait with a cross, no squeezed word.");
             Assert.AreEqual("", PlayerBar.Status(true, false, 0f));
             Assert.AreEqual("REVIVE\n7s", PlayerBar.Status(false, true, 6.2f), "Two short lines fit a portrait at a readable size.");

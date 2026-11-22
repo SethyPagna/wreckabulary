@@ -58,6 +58,23 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
+        public void SeatStylesShapeHairAndEyesButNeverColourTheSkin()
+        {
+            const string HairTint = "cute_hair";
+            foreach (var piece in w.PiecesFor("Hair"))
+                CollectionAssert.AreEqual(new[] { HairTint }, piece.TintMaterials, piece.Id + " colours only the hair");
+            foreach (var piece in w.PiecesFor("Eyes"))
+                Assert.IsEmpty(piece.TintMaterials, piece.Id + " carries no colour, so the face keeps its own");
+            for (int seat = 0; seat < MostSeats; seat++)
+            {
+                var styled = Seat(seat);
+                Assert.AreEqual(w.Default.ColourOf("Hair"), w.ColourFor(styled, "Hair").Id, "seat " + seat + " keeps the natural hair colour");
+                foreach (string slot in w.Slots.Where(slot => !w.FallbackSlots.Contains(slot)))
+                    Assert.AreEqual(Unstyled().ColourOf(slot), styled.ColourOf(slot), "seat " + seat + " " + slot);
+            }
+        }
+
+        [Test]
         public void SeatOneKeepsTheFaceEveryoneAlreadyKnows()
         {
             var first = Seat(0);

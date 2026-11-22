@@ -29,11 +29,22 @@ namespace Wreckabulary
         static readonly Color CardBacking = Hex(0x16302f), WreckedFrame = Hex(0x8b9592), WreckedTint = Hex(0x6d7472);
         static readonly Color WreckedShade = Hex(0x0b1515, .55f), DownShade = Hex(0x0b1515, .28f), PulseFrame = Hex(0xff8a6b);
         static readonly Color HealthTrack = Hex(0x0b1f1f, .78f), ScoreInk = Hex(0xffe7b8), YouEdge = Color.white, Plate = Hex(0x121c24, .72f);
+        static readonly Color Amber = Hex(0xffc568), Breath = Hex(0x9ff8d3);
+
+        sealed class VitalsView
+        {
+            public RectTransform track, staminaTrack;
+            public Image fill, staminaFill;
+            public TextMeshProUGUI number, numberInk;
+            public float width, shownFill = float.NaN, shownBreath = float.NaN;
+            public int shownReading = int.MinValue, shownBand = -1, shownWinded = -1;
+        }
 
         sealed class PlayerCard
         {
-            public RectTransform root, track;
-            public Image you, backing, shade, frame, fill, lead, cross;
+            public RectTransform root;
+            public VitalsView vitals;
+            public Image you, backing, shade, frame, lead, cross;
             public RawImage portrait;
             public TextMeshProUGUI letter, status, name, score;
             public PlayerController seat;
@@ -78,6 +89,7 @@ namespace Wreckabulary
         public bool BarShown => bar && bar.gameObject.activeSelf;
         public float BarBottom => BarShown ? barTop + (BarHeight(barSize) + PlayerBar.PlatePad) * barScale : 0f;
         public bool BarSeated => BarShown && barSeated;
+        public bool HealthOnBar => BarSeated && LocalPlayer && barSeats.Contains(LocalPlayer);
         public float LeftColumnStart => Mathf.Max(LeftColumnTop, BarShown && OverlapsLeftColumn() ? BarBottom + PlayerBar.Clearance : 0f);
         public ScoreCentre Centre => BarShown ? barCentre : ScoreCentre.None;
         public bool ClockCentred => Centre != ScoreCentre.None;
@@ -256,8 +268,7 @@ namespace Wreckabulary
             card.status.enableAutoSizing = true; card.status.fontSizeMin = PlayerBar.StatusMin; card.status.fontSizeMax = PlayerBar.StatusSize;
             card.status.lineSpacing = StatusLineSpacing;
             OnGameText(card.status);
-            card.track = Panel("Health track", root, new Vector2(.5f, 1f), Vector2.zero, Vector2.zero, new Vector2(.5f, 1f), HealthTrack);
-            card.fill = Fill("Health", card.track, Health);
+            card.vitals = MakeVitals(root, new Vector2(.5f, 1f), PlayerBar.NumberSize);
             card.name = CardText("Name", root, PlayerBar.NameSize, Cream);
             card.name.fontStyle = FontStyles.Bold;
             card.name.overflowMode = TextOverflowModes.Ellipsis;
@@ -270,6 +281,94 @@ namespace Wreckabulary
             root.gameObject.SetActive(false);
             return card;
         }
+
+        VitalsView MakeVitals(RectTransform parent, Vector2 anchor, float numberSize)
+        {
+            var view = new VitalsView { track = BarTrack("Health track", parent, anchor) };
+            view.number = BarNumber(view.track, OnGame, numberSize);
+            view.fill = BarFill("Health", view.track, OnGame);
+            view.fill.gameObject.AddComponent<RectMask2D>();
+            view.numberInk = BarNumber(view.fill.rectTransform, Ink, numberSize);
+            view.staminaTrack = BarTrack("Stamina track", parent, anchor);
+            view.staminaFill = BarFill("Stamina", view.staminaTrack, Breath);
+            return view;
+        }
+
+        RectTransform BarTrack(string label, RectTransform parent, Vector2 anchor)
+        {
+            var image = CreateImage(label, parent, anchor, Vector2.zero, Vector2.zero, HealthTrack);
+            image.rectTransform.pivot = anchor;
+            Round(image);
+            return image.rectTransform;
+        }
+
+        Image BarFill(string label, RectTransform track, Color colour)
+        {
+            var image = CreateImage(label, track, Vector2.zero, Vector2.zero, Vector2.zero, colour);
+            image.rectTransform.anchorMax = new Vector2(0f, 1f);
+            image.rectTransform.pivot = new Vector2(0f, .5f);
+            Round(image);
+            return image;
+        }
+
+        static void Round(Image image)
+        {
+            image.sprite = LobbyIcons.RoundedSprite(PlayerBar.BarRadius);
+            image.type = Image.Type.Sliced;
+        }
+
+        TextMeshProUGUI BarNumber(RectTransform parent, Color colour, float size)
+        {
+            var text = Text("Number", parent, new Vector2(0f, .5f), Vector2.zero, Vector2.zero, size, colour, TextAlignmentOptions.MidlineLeft);
+            text.rectTransform.pivot = new Vector2(0f, .5f);
+            if (LobbyFonts.Black) text.font = LobbyFonts.Black;
+            text.enableAutoSizing = true; text.fontSizeMin = PlayerBar.NumberMin; text.fontSizeMax = size;
+            text.overflowMode = TextOverflowModes.Overflow;
+            text.text = "";
+            return text;
+        }
+
+        static void LayVitals(VitalsView view, float x, float y, float width, float height, float staminaY, float staminaHeight, float pad)
+        {
+            view.track.anchoredPosition = new Vector2(x, y);
+            view.track.sizeDelta = new Vector2(width, height);
+            var box = new Vector2(width - 2f * pad, height);
+            view.number.rectTransform.anchoredPosition = view.numberInk.rectTransform.anchoredPosition = new Vector2(pad, 0f);
+            view.number.rectTransform.sizeDelta = view.numberInk.rectTransform.sizeDelta = box;
+            view.staminaTrack.anchoredPosition = new Vector2(x, staminaY);
+            view.staminaTrack.sizeDelta = new Vector2(width, staminaHeight);
+            view.width = width;
+            view.shownFill = view.shownBreath = float.NaN;
+        }
+
+        static void ShowVitals(VitalsView view, PlayerHealth health, bool countdown)
+        {
+            bool alive = health && health.IsAlive;
+            float share = health ? SeatVitals.Share(health.Current, health.Max) : 0f;
+            Widen(view.fill.rectTransform, view.width * share, ref view.shownFill);
+            int band = (int)SeatVitals.Band(share);
+            if (band != view.shownBand) { view.shownBand = band; view.fill.color = BandColour((HealthBand)band); }
+            int reading = health ? SeatVitals.Reading(health.Current, alive, health.IsDowned, health.BleedOutLeft, countdown) : SeatVitals.Hidden;
+            if (reading != view.shownReading) { view.shownReading = reading; view.number.text = view.numberInk.text = SeatVitals.Label(reading); }
+            bool breath = health && SeatVitals.ShowsStamina(alive);
+            if (view.staminaTrack.gameObject.activeSelf != breath) view.staminaTrack.gameObject.SetActive(breath);
+            if (!breath) return;
+            Widen(view.staminaFill.rectTransform, view.width * SeatVitals.Share(health.Stamina, health.Model.MaxStamina), ref view.shownBreath);
+            int winded = SeatVitals.Winded(health.Stamina, health.Rules.DodgeStamina) ? 1 : 0;
+            if (winded != view.shownWinded) { view.shownWinded = winded; view.staminaFill.color = winded == 1 ? Amber : Breath; }
+        }
+
+        static void Widen(RectTransform rt, float width, ref float shown)
+        {
+            if (width == shown) return;
+            shown = width;
+            rt.sizeDelta = new Vector2(width, 0f);
+        }
+
+        static Color BandColour(HealthBand band) => band switch
+        {
+            HealthBand.Critical => Low, HealthBand.Hurt => Amber, _ => OnGame,
+        };
 
         Image CardImage(string label, RectTransform parent, Color colour)
         {
@@ -313,7 +412,7 @@ namespace Wreckabulary
             Place(card.cross.rectTransform, -(side - cross) * .5f, cross, cross);
             card.lead.rectTransform.anchoredPosition = new Vector2(side * .5f - LeadSize * .5f, LeadSize * .25f);
             Place(card.status.rectTransform, -rim, width - 4f, side - 2f * rim);
-            Place(card.track, -PlayerBar.HealthY(seats), side, PlayerBar.HealthHeight);
+            LayVitals(card.vitals, 0f, -PlayerBar.HealthY(seats), side, PlayerBar.HealthHeight, -PlayerBar.StaminaY(seats), PlayerBar.StaminaHeight, PlayerBar.NumberPad);
             Place(card.name.rectTransform, -PlayerBar.NameY(seats), width, PlayerBar.NameHeight);
             Place(card.score.rectTransform, -PlayerBar.ScoreY(seats), width, PlayerBar.ScoreHeight);
         }
@@ -554,6 +653,7 @@ namespace Wreckabulary
             ScreenRect(into, tray);
             ScreenRect(into, spellHint ? spellHint.rectTransform : null);
             ScreenRect(into, vitals);
+            ScreenRect(into, effects ? effects.rectTransform : null);
             ScreenRect(into, status);
             ScreenRect(into, chip);
             ScreenRect(into, banner);
@@ -610,9 +710,7 @@ namespace Wreckabulary
                 card.score.text = scored ? SeatScore(won, roundsToWin, scoreUnit) : "";
                 if (card.score.gameObject.activeSelf != scored) card.score.gameObject.SetActive(scored);
             }
-            float health = p.Health ? p.Health.Fraction : 0f;
-            card.fill.fillAmount = health;
-            card.fill.color = PlayerBar.Healthy(health) ? Health : Low;
+            ShowVitals(card.vitals, p.Health, false);
             int status = p.IsEliminated ? -1 : p.IsDowned ? Mathf.CeilToInt(p.Health.BleedOutLeft) : -2;
             if (status != card.shownStatus)
             {

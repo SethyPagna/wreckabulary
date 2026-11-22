@@ -382,6 +382,11 @@ namespace Wreckabulary.Qa
                     });
                     yield return Capture(context, "house_match_hit");
                     if (!number) throw new QaFailException("The hit on P2 showed no damage number.");
+                    yield return context.WaitUntil(() => SeatHealth(defender) == Mathf.CeilToInt(defender.Health.Current).ToString(), 5, "P2's seat card to show P2's health");
+                    bool block = HudRoot().Find("Safe HUD/Vitals").gameObject.activeSelf;
+                    context.Note("house_match_seat_health", new Dictionary<string, object> { ["p2_card"] = SeatHealth(defender), ["p2_health"] = defender.Health.Current, ["vitals_block_shown"] = block });
+                    yield return Capture(context, "house_match_seat_health");
+                    if (block) throw new QaFailException("The bottom-left health block still shows beside the seat bar.");
                 }
                 finally { Time.timeScale = 1f; }
             }
@@ -539,6 +544,13 @@ namespace Wreckabulary.Qa
             var part = HudRoot().GetComponentsInChildren<TextMeshProUGUI>(true).FirstOrDefault(t => t.name == name);
             if (!part) throw new QaFailException("The match HUD has no " + name + ".");
             return part;
+        }
+
+        string SeatHealth(PlayerController seat)
+        {
+            var name = HudRoot().GetComponentsInChildren<TextMeshProUGUI>(true).FirstOrDefault(t => t.name == "Name" && t.transform.parent.name.StartsWith("Card ") && t.text == seat.Name);
+            var number = name ? name.transform.parent.Find("Health track/Number") : null;
+            return number ? number.GetComponent<TextMeshProUGUI>().text : null;
         }
 
         Button HudButton(string name)
