@@ -72,6 +72,10 @@ namespace Wreckabulary.Online
             kitHandKey = KitText(KitBlack, HandKeyFont, TextAnchor.MiddleCenter);
             kitBrand = KitText(KitBlack, PlateBrandFont, TextAnchor.MiddleCenter);
             kitBrand.richText = true;
+            kitSeatLabel = KitText(KitBlack, SeatLabelFont, TextAnchor.MiddleCenter);
+            kitSeatNumber = KitText(KitBlack, SeatNumberFont, TextAnchor.MiddleLeft);
+            kitCentreClock = KitText(KitBlack, CentreClockFont, TextAnchor.MiddleCenter);
+            kitCentreScore = KitText(KitBlack, CentreScoreFont, TextAnchor.MiddleCenter);
             kitGeneration++;
         }
 
@@ -126,6 +130,14 @@ namespace Wreckabulary.Online
             shape.Draw(area, false, false, false, false);
             GUI.color = tint;
             GUI.backgroundColor = background;
+        }
+
+        static void KitFrame(Rect area, float stroke, Color colour)
+        {
+            KitFlat(new Rect(area.x, area.y, area.width, stroke), colour);
+            KitFlat(new Rect(area.x, area.yMax - stroke, area.width, stroke), colour);
+            KitFlat(new Rect(area.x, area.y + stroke, stroke, area.height - stroke * 2f), colour);
+            KitFlat(new Rect(area.xMax - stroke, area.y + stroke, stroke, area.height - stroke * 2f), colour);
         }
 
         static void KitImage(Rect area, Texture texture, Color colour)

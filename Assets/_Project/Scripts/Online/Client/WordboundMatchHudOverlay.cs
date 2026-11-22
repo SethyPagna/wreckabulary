@@ -28,7 +28,7 @@ namespace Wreckabulary.Online
                 DrawVitals(height);
                 var tray = DrawTray(width, height);
                 DrawActionChip(width, height, tray);
-                notesTop = DrawScoreStrip(width, status);
+                notesTop = SeatStripShown ? DrawSeatStrip(width, status) : DrawScoreStrip(width, status);
                 DrawNotes(width);
                 DrawVoice(width);
                 DrawLookEye(width);
@@ -61,6 +61,7 @@ namespace Wreckabulary.Online
                     statusPanel.Add(CurrentStep().Text);
             }
             PrepareTray(progress);
+            RefreshSeats();
             actionPrompt.Set(ContextPrompt());
             spellKeys.Set(view ? Hint(WordboundControl.Spell, SpellWord) : "");
             menuKeys.Set(view ? Hint(WordboundControl.Menu, MenuWord) : "");

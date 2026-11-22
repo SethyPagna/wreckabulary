@@ -195,7 +195,7 @@ namespace Wreckabulary.Tests
             CollectionAssert.AreEqual(new[] { 0, 0, 0, 0, 1, 1, 1, 1 }, teams, "Cards sort by team: one side left, the other right.");
             for (int i = 1; i < 8; i++) Assert.Greater(cards[i].anchoredPosition.x, cards[i - 1].anchoredPosition.x, "left to right");
             float split = cards[4].anchoredPosition.x - cards[3].anchoredPosition.x;
-            Assert.AreEqual(PlayerBar.SnugCard + ScoreLine.CentreWidth + 2f * ScoreLine.CentreGap, split, .5f, "The lives and the clock sit between the teams.");
+            Assert.AreEqual(PlayerBar.SnugCard + ScoreLine.CentreWidth + 2f * PlayerBar.Outline, split, .5f, "The lives and the clock sit between the teams.");
             Assert.AreEqual(PlayerBar.SnugCard, cards[0].rect.width, .01f);
             Assert.AreEqual(0, plate.GetSiblingIndex(), "The plate sits behind the cards.");
             var span = new Vector3[4];
