@@ -19,7 +19,6 @@ namespace Wreckabulary
         const float ShowcaseLeadFont = 34f, ShowcaseNumberFont = 124f, ShowcaseSkipFont = 22f;
         const float ShowcasePulseSeconds = .25f, ShowcasePulseScale = 1.18f, ShowcaseTickScale = 1.4f, ShowcaseTextWidth = 1200f, ShowcaseCrewTitleWidth = 320f;
         const float ShowcaseRise = 120f;
-        const int ShowcaseFrameRadius = 24, ShowcaseInnerRadius = 18;
 
         sealed class ShowcaseSeat
         {
@@ -191,8 +190,8 @@ namespace Wreckabulary
             seat.name = ShowcaseText(seat.body, "Name", LobbyFonts.Black, ShowcaseNameFont, accented ? PlayerHud.Vivid(player.Color) : colour);
             seat.name.text = player.Name;
             seat.frame = Rect("Frame", seat.body, new Vector2(.5f, .5f), Vector2.zero, Vector2.zero);
-            Paint(seat.frame, LobbyIcons.RoundedSprite(ShowcaseFrameRadius), colour);
-            Paint(Cover("Backing", seat.frame, -ShowcaseRim), LobbyIcons.RoundedSprite(ShowcaseInnerRadius), Primary);
+            PaintSquare(seat.frame, colour);
+            PaintSquare(Cover("Backing", seat.frame, -ShowcaseRim), Primary);
             seat.portrait = Cover("Portrait", seat.frame, -ShowcaseRim).gameObject.AddComponent<RawImage>();
             seat.portrait.raycastTarget = false;
             seat.portrait.enabled = false;

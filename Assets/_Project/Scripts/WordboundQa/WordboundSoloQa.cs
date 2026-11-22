@@ -13,6 +13,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using Wreckabulary.Art;
 using Wreckabulary.Online;
 using Wreckabulary.Rules.Wordbound;
 using Wreckabulary.Workshop;
@@ -245,6 +246,7 @@ namespace Wreckabulary.Qa
                 }
                 Require(camera.enabled && camera.targetTexture == null && guide.Fault == "", "The assigned game camera or guide is unavailable.");
                 yield return Shot(context, "solo_" + tag + "_world");
+                yield return CityShot(context, world.transform, camera, tag);
                 view.SetMenuOpen(true);
                 yield return context.WaitFrames(3);
                 yield return Shot(context, "solo_" + tag + "_menu");
@@ -418,6 +420,42 @@ namespace Wreckabulary.Qa
             yield return new WaitForSecondsRealtime(LobbyPop.Seconds + .03f);
             Canvas.ForceUpdateCanvases();
             yield return new WaitForEndOfFrame();
+        }
+        static IEnumerator CityShot(QaContext context, Transform course, Camera game, string tag)
+        {
+            WordboundCourseBackdrop backdrop = null;
+            bool Built()
+            {
+                backdrop = Object.FindObjectsByType<WordboundCourseBackdrop>(FindObjectsSortMode.None)
+                    .FirstOrDefault(item => item.World && item.World.transform == course && item.Root && item.Layout != null);
+                return backdrop;
+            }
+            yield return context.WaitUntil(Built, 15, "the client town around the course");
+            var layout = backdrop.Layout;
+            int colliders = backdrop.Root.GetComponentsInChildren<Collider>(true).Length;
+            Require(colliders == 0, "The course town must not collide.");
+            Require(backdrop.Root.transform.parent == null, "The course town stays outside the course world.");
+            var box = layout.Footprint;
+            var eye = course.TransformPoint(new Vector3(box.MinX - 2f, box.Top + 14f, box.MinZ - 2f));
+            var aim = course.TransformPoint(new Vector3(box.MaxX, box.Top, box.MaxZ));
+            var holder = new GameObject("QA town camera");
+            try
+            {
+                var lens = holder.AddComponent<Camera>();
+                lens.CopyFrom(game);
+                lens.depth = game.depth + 10f;
+                lens.fieldOfView = 60f;
+                lens.farClipPlane = Mathf.Max(game.farClipPlane, 2000f);
+                holder.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(aim - eye));
+                yield return context.WaitFrames(4);
+                yield return Shot(context, "solo_" + tag + "_city");
+            }
+            finally { Object.Destroy(holder); }
+            context.Note("solo_" + tag + "_city", new Dictionary<string, object> {
+                ["course"] = layout.CourseId, ["tier"] = layout.Tier.ToString(), ["renderers"] = layout.Renderers,
+                ["triangles"] = layout.Triangles, ["pieces"] = layout.Placements.Count, ["colliders"] = colliders,
+                ["clear_margin_m"] = layout.Clear, ["scope"] = "A QA camera above one corner of the course looks across it; the game camera is untouched." });
+            yield return context.WaitFrames(2);
         }
         static IEnumerator Shot(QaContext context, string name)
         {

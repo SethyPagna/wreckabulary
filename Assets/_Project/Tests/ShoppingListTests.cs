@@ -75,7 +75,7 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitUntil(() => director.View && director.View.Root && director.View.Root.gameObject.activeInHierarchy, 2f, "the list panel");
             CollectionAssert.AreEqual(race.Items.Select(i => i.Word), director.View.LineTexts);
             Assert.AreEqual("Spell it", director.View.PromptText);
-            yield return TestScenes.WaitUntil(() => Score(1) == "0/4 items", 1f, "progress on the player cards");
+            yield return TestScenes.WaitUntil(() => Score(1) == "0/4", 1f, "progress on the player cards");
             var safe = Hud.UiCanvas.transform.Find("Safe HUD");
             var list = OnScreen(director.View.Root);
             Assert.IsFalse(list.Overlaps(OnScreen((RectTransform)safe.Find("Player bar/Backing"))), "The list sits clear of the player bar and its plate.");

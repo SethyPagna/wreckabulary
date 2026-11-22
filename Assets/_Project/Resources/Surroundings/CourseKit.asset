@@ -1,0 +1,416 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 66bb05e677dd59946b2941fbe0820ae4, type: 3}
+  m_Name: CourseKit
+  m_EditorClassIdentifier: Wreckabulary::Wreckabulary.Art.CourseBackdropKit
+  manifests:
+  - {fileID: 4900000, guid: f8d6d59405770e64ba2410b048382069, type: 3}
+  - {fileID: 4900000, guid: e8bdccc1a80c9634a88294239d3dcef1, type: 3}
+  style: {fileID: 4900000, guid: a1cc0fabe47106e488f27a62116eaac4, type: 3}
+  pieces:
+  - id: house_detached_a
+    mesh: {fileID: -8764516364777234895, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_plaster
+    - bk_roof
+    - bk_paint
+    - bk_brick
+    - bk_glass_dark
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: house_detached_a_far
+    mesh: {fileID: 8743067930999972276, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_plaster
+    - bk_roof
+    - bk_paint
+    - bk_brick
+    - bk_glass_dark
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: house_detached_b
+    mesh: {fileID: -1875843868106457137, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_brick
+    - bk_plaster
+    - bk_paint
+    - bk_roof
+    - bk_glass_dark
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: house_detached_b_far
+    mesh: {fileID: -4637594903840818948, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_brick
+    - bk_plaster
+    - bk_paint
+    - bk_roof
+    - bk_glass_dark
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: house_detached_c
+    mesh: {fileID: 4119067495342828122, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_plaster
+    - bk_roof
+    - bk_paint
+    - bk_glass_dark
+    - bk_wood
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: house_detached_c_far
+    mesh: {fileID: 5935982425013123640, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_plaster
+    - bk_roof
+    - bk_paint
+    - bk_glass_dark
+    - bk_wood
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: house_bungalow_a
+    mesh: {fileID: -6578359843090911974, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_brick
+    - bk_roof
+    - bk_paint
+    - bk_wood
+    - bk_glass_dark
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: house_bungalow_a_far
+    mesh: {fileID: 1373036265849960767, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_brick
+    - bk_roof
+    - bk_paint
+    - bk_wood
+    - bk_glass_dark
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: garage_a
+    mesh: {fileID: 231864946559237902, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_plaster
+    - bk_roof
+    - bk_paint
+    - bk_glass_dark
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: shed_a
+    mesh: {fileID: -8019317639874249237, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_wood
+    - bk_roof
+    - bk_paint
+    - bk_glass_dark
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: landmark_water_tower
+    mesh: {fileID: -2393342150106345933, guid: 619b80244b158af4e92c37e8400f8be0, type: 3}
+    slots:
+    - bk_stone
+    - bk_metal
+    - bk_paint
+    - bk_roof
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: card_roofline_a
+    mesh: {fileID: -4771593748557147753, guid: ae7d5b5015e291442b9c3096680a367a, type: 3}
+    slots:
+    - bk_card
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: card_hills_a
+    mesh: {fileID: 7156525905525474243, guid: ae7d5b5015e291442b9c3096680a367a, type: 3}
+    slots:
+    - bk_card
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: road_straight
+    mesh: {fileID: 6440166555503141632, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_road
+    - bk_line
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: road_bend
+    mesh: {fileID: 8439104543645927819, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_road
+    - bk_line
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: road_circle
+    mesh: {fileID: 5610417892585058958, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_stone
+    - bk_road
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: pavement_straight
+    mesh: {fileID: -7010884765657736113, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_stone
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: pavement_corner
+    mesh: {fileID: 4615019320195659737, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_stone
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: pavement_bend_outer
+    mesh: {fileID: 7308048628076520556, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_stone
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: driveway
+    mesh: {fileID: 7295763298860760369, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_stone
+    - bk_road
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: verge
+    mesh: {fileID: -8176077954254160279, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_stone
+    - bk_grass
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: hedge_2m
+    mesh: {fileID: 8603304360595846801, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: hedge_end
+    mesh: {fileID: -4762732545724769012, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: fence_picket_2m
+    mesh: {fileID: 2634959036394142894, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_paint
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: fence_board_2m
+    mesh: {fileID: 3846629811127524496, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_wood
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: gate_picket
+    mesh: {fileID: -186323523046243614, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_paint
+    - bk_metal
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: lamp_post
+    mesh: {fileID: 3920351971975662770, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_metal
+    - bk_paint
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: mailbox
+    mesh: {fileID: -5816188286271882135, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_wood
+    - bk_paint
+    - bk_metal
+    - bk_brick
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: bin_wheelie
+    mesh: {fileID: -1993504447774653912, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_paint
+    - bk_metal
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: bench_park
+    mesh: {fileID: 5047713639574946923, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_wood
+    - bk_metal
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: planter_box
+    mesh: {fileID: 411480072993813340, guid: 239e4e1f17bf68741a88df606700039d, type: 3}
+    slots:
+    - bk_wood
+    - bk_bark
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: tree_round_a
+    mesh: {fileID: 5671667487090224303, guid: 2b6662fc6bbee2244be26979d661022a, type: 3}
+    slots:
+    - bk_bark
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: tree_round_b
+    mesh: {fileID: -8515657021859768210, guid: 2b6662fc6bbee2244be26979d661022a, type: 3}
+    slots:
+    - bk_bark
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: tree_round_c
+    mesh: {fileID: -2435373678138787212, guid: 2b6662fc6bbee2244be26979d661022a, type: 3}
+    slots:
+    - bk_bark
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: tree_poplar
+    mesh: {fileID: -8424917210089640385, guid: 2b6662fc6bbee2244be26979d661022a, type: 3}
+    slots:
+    - bk_bark
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: tree_far
+    mesh: {fileID: 4655522137506352230, guid: 2b6662fc6bbee2244be26979d661022a, type: 3}
+    slots:
+    - bk_bark
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: bush_a
+    mesh: {fileID: 6922443311187480069, guid: 2b6662fc6bbee2244be26979d661022a, type: 3}
+    slots:
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: bush_b
+    mesh: {fileID: 4233760639814605587, guid: 2b6662fc6bbee2244be26979d661022a, type: 3}
+    slots:
+    - bk_leaf
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: flowerbed_2m
+    mesh: {fileID: 2523962370549636899, guid: 2b6662fc6bbee2244be26979d661022a, type: 3}
+    slots:
+    - bk_stone
+    - bk_bark
+    - bk_leaf
+    - bk_paint
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: car_hatch
+    mesh: {fileID: -527341592303684875, guid: 90535cbcdca2a2f4aa2b1ac37fe7e225, type: 3}
+    slots:
+    - bk_paint
+    - bk_glass_dark
+    - bk_metal
+    - bk_line
+    - bk_brick
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: car_estate
+    mesh: {fileID: 8428577820976644213, guid: 90535cbcdca2a2f4aa2b1ac37fe7e225, type: 3}
+    slots:
+    - bk_paint
+    - bk_glass_dark
+    - bk_metal
+    - bk_line
+    - bk_brick
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: van_small
+    mesh: {fileID: -8962080354752140643, guid: 90535cbcdca2a2f4aa2b1ac37fe7e225, type: 3}
+    slots:
+    - bk_paint
+    - bk_glass_dark
+    - bk_metal
+    - bk_line
+    - bk_brick
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: trampoline
+    mesh: {fileID: -3769294220923225890, guid: 09cdd8b4b5ae58948b57855287c55a24, type: 3}
+    slots:
+    - bk_paint
+    - bk_metal
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: washing_line
+    mesh: {fileID: -4585312001580167877, guid: 09cdd8b4b5ae58948b57855287c55a24, type: 3}
+    slots:
+    - bk_wood
+    - bk_metal
+    - bk_line
+    - bk_brick
+    - bk_paint
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: swing_set
+    mesh: {fileID: 6625581843858510944, guid: 09cdd8b4b5ae58948b57855287c55a24, type: 3}
+    slots:
+    - bk_paint
+    - bk_wood
+    - bk_metal
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: garden_table_set
+    mesh: {fileID: -5239172890449562740, guid: 09cdd8b4b5ae58948b57855287c55a24, type: 3}
+    slots:
+    - bk_wood
+    - bk_paint
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  - id: sprinkler
+    mesh: {fileID: -7721698198253043695, guid: 09cdd8b4b5ae58948b57855287c55a24, type: 3}
+    slots:
+    - bk_metal
+    - bk_paint
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1, y: 1, z: 1}
+  slots:
+  - id: bk_plaster
+    material: {fileID: 2100000, guid: 9fc92e21f7f002f43a49e39f3367877b, type: 2}
+  - id: bk_brick
+    material: {fileID: 2100000, guid: 2c8dd3bb97610aa42ba87291e8348617, type: 2}
+  - id: bk_stone
+    material: {fileID: 2100000, guid: 7ec3c7574b58a284f998e905d9187739, type: 2}
+  - id: bk_roof
+    material: {fileID: 2100000, guid: a04e9e9729f362540995719e6f545288, type: 2}
+  - id: bk_wood
+    material: {fileID: 2100000, guid: 8fbab28de45244b4db9fe3f74f8b5477, type: 2}
+  - id: bk_paint
+    material: {fileID: 2100000, guid: 5356f7285716a554d9a4823b05c1d28b, type: 2}
+  - id: bk_metal
+    material: {fileID: 2100000, guid: 1305d95bbcc13d94884ac114095c0e7d, type: 2}
+  - id: bk_glass_dark
+    material: {fileID: 2100000, guid: 53fe0a9f4f38cfa408e26d15811d0251, type: 2}
+  - id: bk_glass_lit
+    material: {fileID: 2100000, guid: 15c67f53eacc766409a6f88ccf6b6346, type: 2}
+  - id: bk_leaf
+    material: {fileID: 2100000, guid: 7aea9cca14ab5664c8f35f9a5d6f5dee, type: 2}
+  - id: bk_bark
+    material: {fileID: 2100000, guid: 2fc6d861c0343464ba515c5674bc5d32, type: 2}
+  - id: bk_grass
+    material: {fileID: 2100000, guid: 96ecd2e825f9496448be11bb85e81648, type: 2}
+  - id: bk_road
+    material: {fileID: 2100000, guid: 5f0b778e8553a6248b1bd26c63f0ca16, type: 2}
+  - id: bk_line
+    material: {fileID: 2100000, guid: edb350404e11abc4abd84ee2a5287a66, type: 2}
+  - id: bk_card
+    material: {fileID: 2100000, guid: a4f2f1a655f630e41902adb19a8e35bb, type: 2}
