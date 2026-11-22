@@ -786,6 +786,7 @@ namespace Wreckabulary.Tests
             Assert.That(cardName.fontSize, Is.InRange(Wreckabulary.Rules.PlayerBar.TextMin, Wreckabulary.Rules.PlayerBar.NameSize), "...and shrink no smaller than 15 pt to fit the card.");
             Assert.IsTrue((bar.Find("Card 1/Name").GetComponent<TMPro.TMP_Text>().fontStyle & TMPro.FontStyles.Bold) != 0, "Names are bold.");
             Assert.Greater(bar.Find("Card 1/Name").GetComponent<TMPro.TMP_Text>().outlineWidth, 0f, "Names carry a dark outline over light floors.");
+            Assert.IsFalse(cardName.gameObject.activeSelf, "Names are not drawn under the cards; the portrait and its colour say who it is.");
             Assert.IsTrue(bar.Find("Card 1/You").GetComponent<Image>().enabled, "Your own card has a white outline.");
             Assert.IsFalse(bar.Find("Card 3/You").GetComponent<Image>().enabled);
             var frame = bar.Find("Card 1/Frame").GetComponent<Image>();
@@ -841,7 +842,7 @@ namespace Wreckabulary.Tests
             {
                 var card = (RectTransform)bar.Find($"Card {i}");
                 AssertEncloses(plate, card, Wreckabulary.Rules.PlayerBar.PlatePad - 1f, "The plate pads every card");
-                foreach (var part in new[] { "You", "Name", "Score", "Health track", "Stamina track" })
+                foreach (var part in new[] { "You", "Score", "Health track", "Stamina track" })
                     AssertEncloses(plate, (RectTransform)card.Find(part), 1f, $"Card {i} {part} sits on the plate");
             }
             var label = (RectTransform)safe.Find("Match label");
@@ -990,8 +991,9 @@ namespace Wreckabulary.Tests
                 var stamina = (RectTransform)bar.Find("Card 1/Stamina track");
                 var breath = (RectTransform)stamina.Find("Stamina");
                 Assert.IsTrue(stamina.gameObject.activeSelf);
-                Assert.AreEqual(Wreckabulary.Rules.PlayerBar.StaminaWidth(3), stamina.rect.width, .5f, "Stamina is narrower than its card...");
-                Assert.AreEqual(OnScreen(Track(1)).center.x, OnScreen(stamina).center.x, .5f, "...and centred under it.");
+                Assert.AreEqual(Wreckabulary.Rules.PlayerBar.StaminaWidth(3), stamina.rect.width, .5f, "Stamina is a little shorter than health...");
+                Assert.AreEqual(OnScreen(Track(1)).xMin, OnScreen(stamina).xMin, .5f, "...starts at the health bar's left end...");
+                Assert.Greater(OnScreen(Track(1)).xMax, OnScreen(stamina).xMax + .5f, "...and stops just short of its right end.");
                 Assert.Less(stamina.rect.height, Track(1).rect.height / 2f, "Stamina stays a slim second line.");
                 Assert.LessOrEqual(OnScreen(stamina).yMax, OnScreen(Track(1)).yMin + .5f, "It sits under the health bar.");
                 Assert.AreEqual(stamina.rect.width, breath.rect.width, .5f, "Full stamina fills its bar.");

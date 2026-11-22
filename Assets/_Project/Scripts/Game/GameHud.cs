@@ -1566,7 +1566,7 @@ namespace Wreckabulary
         Sprite MakeLineBox()
         {
             const int size = 4;
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "HUD line box", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = LineBoxName, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
             var pixels = new Color[size * size];
             for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
                 pixels[y * size + x] = new Color(1f, 1f, 1f, x == 0 || y == 0 || x == size - 1 || y == size - 1 ? 1f : 0f);

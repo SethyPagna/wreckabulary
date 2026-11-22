@@ -136,7 +136,12 @@ namespace Wreckabulary.Tests
                 Assert.AreEqual(seat.Binding is BotBinding ? SeatTags.BotTag : SeatTags.YouTag, Hud.RoundRowSeatTag(i), name);
                 Assert.AreEqual(won ? wins : 0, Hud.RoundRowWins(i), name + " has a pip per round won");
                 if (won) Assert.Greater(OnScreen(Hud.RoundRowRect(i)).yMax, OnScreen(Hud.RoundRowRect((i + 1) % Hud.RoundRowCount)).yMax, "the winner stands higher");
+                if (won) AssertSquare(Hud.RoundRowRect(i), "Portrait/Winner", "the winner's gold rim");
+                var pips = Hud.RoundRowRect(i).Find("Pips");
+                for (int pip = 0; pip < pips.childCount; pip++)
+                    if (pips.GetChild(pip).GetComponent<Image>()) AssertSquare(pips, pips.GetChild(pip).name, name + "'s win pips");
             }
+            AssertSquarePortraits(Hud.RoundRowRect, Hud.RoundRowCount, "Portrait", "round portrait");
             AssertReadable(ResultCard.Find(GameHud.RoundRowName), GameHud.MatchEndMinFont);
         }
 
@@ -190,6 +195,24 @@ namespace Wreckabulary.Tests
                 Assert.GreaterOrEqual(text.fontSizeMax, text.fontSizeMin, text.name);
                 Assert.AreNotEqual(TextOverflowModes.Ellipsis, text.overflowMode, text.name + " is never cut short");
                 Assert.AreNotEqual(TextOverflowModes.Truncate, text.overflowMode, text.name);
+            }
+        }
+
+        static void AssertSquare(Transform root, string path, string what)
+        {
+            var part = root ? root.Find(path) : null;
+            Assert.IsNotNull(part, what + ": " + path);
+            var image = part.GetComponent<Image>();
+            Assert.IsNotNull(image, what + ": " + path + " is drawn");
+            Assert.IsTrue(GameHud.Squared(image), what + ": " + path + " is square like the seat strip, not rounded");
+        }
+
+        static void AssertSquarePortraits(System.Func<int, RectTransform> seat, int count, string frame, string what)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                AssertSquare(seat(i), frame, what + " " + i);
+                AssertSquare(seat(i), frame + "/Backing", what + " " + i);
             }
         }
 
@@ -286,6 +309,7 @@ namespace Wreckabulary.Tests
                 Assert.That(box.yMax, Is.LessThanOrEqualTo(safe.yMax + Slack), "seat " + i);
                 if (i > 0) Assert.That(box.xMin, Is.GreaterThanOrEqualTo(OnScreen(Hud.ShowcaseSeatRect(i - 1)).xMax - Slack), "seats stand side by side");
             }
+            AssertSquarePortraits(Hud.ShowcaseSeatRect, shown.Length, "Body/Frame", "line-up seat");
 
             EndShowcase();
             yield return TestScenes.WaitUntil(() => Rounds.Phase == Phase.Countdown, Slow, "the usual countdown after the showcase in " + mode);
@@ -704,6 +728,7 @@ namespace Wreckabulary.Tests
                     Assert.IsTrue(apart, $"cards {j} and {i} do not overlap");
                 }
             }
+            AssertSquarePortraits(Hud.MatchEndCardRect, Hud.MatchEndCardCount, "Portrait", "end card");
             var next = ResultCard.Find("Next").GetComponent<Button>();
             var home = ResultCard.Find("Result home").GetComponent<Button>();
             Assert.IsTrue(next && next.isActiveAndEnabled, "Next is still there by name");
@@ -792,6 +817,7 @@ namespace Wreckabulary.Tests
                     Assert.IsTrue(boxes[i].xMin >= boxes[j].xMax - Slack || boxes[j].xMin >= boxes[i].xMax - Slack
                         || boxes[i].yMin >= boxes[j].yMax - Slack || boxes[j].yMin >= boxes[i].yMax - Slack, $"cards {j} and {i} do not overlap");
             }
+            AssertSquarePortraits(Hud.MatchEndCardRect, Hud.MatchEndCardCount, "Portrait", "crew end card");
             var next = (RectTransform)ResultCard.Find("Next");
             Assert.That(OnScreen(next).yMax, Is.LessThanOrEqualTo(boxes.Min(b => b.yMin) + Slack), "the buttons sit under the cards");
         }
@@ -846,6 +872,7 @@ namespace Wreckabulary.Tests
                 Assert.That(box.yMax, Is.LessThanOrEqualTo(safe.yMax + Slack), "seat " + i);
                 if (i > 0) Assert.That(box.xMin, Is.GreaterThanOrEqualTo(OnScreen(Hud.ShowcaseSeatRect(i - 1)).xMax - Slack), "crewmates stand side by side");
             }
+            AssertSquarePortraits(Hud.ShowcaseSeatRect, shown.Length, "Body/Frame", "crew line-up seat");
 
             EndShowcase();
             yield return TestScenes.WaitUntil(() => CrewState(mode) == CrewCountdown || CrewState(mode) == CrewPlaying, Slow, "the usual countdown after the line-up in " + mode);

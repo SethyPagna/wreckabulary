@@ -160,7 +160,7 @@ namespace Wreckabulary
             line.rank = BoardText("Rank", root, BoardNumberSize, BagInk, TextAlignmentOptions.Center, LobbyFonts.Display);
             line.disc = CreateImage("Disc", root, new Vector2(0f, 1f), Vector2.zero, new Vector2(BoardFace, BoardFace), Color.white);
             line.disc.rectTransform.pivot = new Vector2(0f, 1f);
-            line.disc.sprite = roundSprite;
+            Square(line.disc);
             line.face = Rect("Portrait", line.disc.transform, Vector2.zero, Vector2.zero, Vector2.zero).gameObject.AddComponent<RawImage>();
             Stretch(line.face.rectTransform);
             line.face.raycastTarget = false;

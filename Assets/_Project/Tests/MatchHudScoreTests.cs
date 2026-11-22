@@ -181,10 +181,17 @@ namespace Wreckabulary.Tests
             Assert.LessOrEqual(X(hud, 2) + PlayerBar.RoomyCard * .5f, -half + Slack, "Two cards sit left of the clock...");
             Assert.GreaterOrEqual(X(hud, 3) - PlayerBar.RoomyCard * .5f, half - Slack, "...and two right of it.");
             Assert.AreEqual(-half - PlayerBar.Outline, X(hud, 2) + PlayerBar.RoomyCard * .5f, Slack, "The seat outline meets the clock's outline, no gap.");
-            Assert.IsTrue(Part(hud, "Centre/Outline").GetComponent<Image>().enabled, "The clock block has its own outline.");
+            AssertOpaqueCentre(hud, "The clock block");
             var clock = Part(hud, "Centre/Clock").GetComponent<TMP_Text>();
             Assert.GreaterOrEqual(clock.fontSizeMin, SmallestText);
-            Assert.Greater(clock.fontSizeMax, SmallestText * 2f, "The lone clock reads at score size.");
+            Assert.GreaterOrEqual(clock.fontSizeMax, 60f, "The lone clock is big enough to use its block.");
+            Assert.AreEqual("3/3", hud.CentreLead, "The best seat score sits under the clock as plain n/N.");
+            AssertSameColour(PlayerHud.Vivid(seats[3].Color), Part(hud, "Centre/Lead score").GetComponent<TMP_Text>().color, "...in the leader's colour.");
+            Rect clockBox = Box(hud, "Centre/Clock"), leadBox = Box(hud, "Centre/Lead score");
+            Assert.AreEqual(clockBox.yMin, leadBox.yMax, Slack, "The score line starts where the clock ends...");
+            Assert.AreEqual(-Bar(hud).rect.height, leadBox.yMin, Slack, "...and ends at the bottom of the block, no empty space below.");
+            Assert.AreEqual(0f, clockBox.yMax, Slack, "The clock starts at the top.");
+            Assert.Greater(clockBox.height, 2f * leadBox.height, "The clock takes most of the block.");
             Assert.IsFalse(Part(hud, "Centre/Left score").GetComponent<TMP_Text>().enabled);
             Assert.IsFalse(Part(hud, "Centre/Right score").GetComponent<TMP_Text>().enabled);
             Assert.IsFalse(Part(hud, "Centre/Colon").GetComponent<TMP_Text>().enabled);
@@ -283,10 +290,11 @@ namespace Wreckabulary.Tests
         {
             var line = Part(hud, "Card 1/Frame").GetComponent<Image>().sprite;
             Assert.IsNotNull(line, "Frames are drawn from a line box...");
+            Assert.AreEqual(GameHud.LineBoxName, line.texture.name);
             Assert.AreEqual(4, line.texture.width, "...a square one, not a rounded sprite.");
             Assert.AreEqual(FilterMode.Point, line.texture.filterMode);
             Assert.IsNull(Part(hud, "Backing").GetComponent<Image>().sprite, "The plate is square.");
-            Assert.AreSame(line, Part(hud, "Centre/Outline").GetComponent<Image>().sprite, "So is the centre block's outline.");
+            Assert.IsNull(Part(hud, "Centre/Fill").GetComponent<Image>().sprite, "The centre block is a square fill.");
             for (int side = 1; side <= PlayerBar.MostSeats; side++)
                 Assert.AreSame(line, Part(hud, $"Side {side}").GetComponent<Image>().sprite, $"Side {side} outline is square");
             for (int card = 1; card <= cards; card++)
@@ -298,17 +306,29 @@ namespace Wreckabulary.Tests
             }
         }
 
-        static void AssertNamesShow(GameHud hud, int cards)
+        static void AssertScoresShow(GameHud hud, int cards)
         {
             for (int card = 1; card <= cards; card++)
-                foreach (var line in new[] { "Name", "Score" })
-                {
-                    var text = Part(hud, $"Card {card}/{line}").GetComponent<TMP_Text>();
-                    text.ForceMeshUpdate();
-                    Assert.Greater(text.text.Length, 0, $"card {card} {line}");
-                    Assert.IsFalse(text.isTextTruncated, $"card {card} {line} shows whole: {text.text}");
-                    Assert.GreaterOrEqual(text.fontSize, SmallestText, $"card {card} {line}");
-                }
+            {
+                Assert.IsFalse(Part(hud, $"Card {card}/Name").gameObject.activeSelf, $"card {card}: no name under the portrait");
+                var text = Part(hud, $"Card {card}/Score").GetComponent<TMP_Text>();
+                text.ForceMeshUpdate();
+                StringAssert.IsMatch(@"^\d+/\d+$", text.text, $"card {card}: the score is plain n/N");
+                Assert.IsFalse(text.isTextTruncated, $"card {card} score shows whole: {text.text}");
+                Assert.GreaterOrEqual(text.fontSize, SmallestText, $"card {card} score");
+                Assert.AreEqual(Box(hud, $"Card {card}/Stamina track").yMin - PlayerBar.ScoreGap, Box(hud, $"Card {card}/Score").yMax, Slack, $"card {card}: the score sits right under the stamina bar");
+            }
+        }
+
+        static void AssertOpaqueCentre(GameHud hud, string what)
+        {
+            Assert.IsNull(Part(hud, "Centre/Outline"), what + " has no white outline.");
+            var fill = Part(hud, "Centre/Fill").GetComponent<Image>();
+            Assert.IsTrue(fill.enabled, what + " has its own background...");
+            Assert.AreEqual(1f, fill.color.a, .001f, "...and it is opaque, not see-through.");
+            Assert.AreEqual(0, fill.transform.GetSiblingIndex(), "...behind everything in the block.");
+            Assert.AreEqual(Box(hud, "Side 1").yMax, Box(hud, "Centre/Fill").yMax, Slack, "It lines up with the seat outlines...");
+            Assert.AreEqual(Box(hud, "Side 1").yMin, Box(hud, "Centre/Fill").yMin, Slack, "...top and bottom.");
         }
 
         [UnityTest]
@@ -324,6 +344,7 @@ namespace Wreckabulary.Tests
             Rect Card(int card) => Box(hud, $"Card {card}");
             Rect Health(int card) => Box(hud, $"Card {card}/Health track");
             Rect Stamina(int card) => Box(hud, $"Card {card}/Stamina track");
+            Rect Side(int card) => Box(hud, $"Side {card}");
             Assert.AreEqual(PlayerBar.Portrait(4), Card(1).width, Slack, "A card is as wide as its portrait.");
             AssertTouching(Card(1), Card(2), "Team-mates' cards touch.");
             AssertTouching(Card(3), Card(4), "On both sides.");
@@ -331,27 +352,28 @@ namespace Wreckabulary.Tests
             {
                 Assert.AreEqual(Box(hud, $"Card {card}/Frame").yMin, Health(card).yMax, Slack, $"card {card}: the health bar hangs right under the portrait");
                 Assert.AreEqual(Card(card).center.x, Health(card).center.x, Slack, $"card {card}: health is centred");
-                Assert.AreEqual(Card(card).center.x, Stamina(card).center.x, Slack, $"card {card}: stamina is centred");
+                Assert.AreEqual(Health(card).xMin, Stamina(card).xMin, Slack, $"card {card}: stamina starts at the health bar's left end...");
+                Assert.AreEqual(PlayerBar.StaminaTrim, Health(card).xMax - Stamina(card).xMax, Slack, $"card {card}: ...and stops a tiny space short of its right end");
             }
             foreach (var (a, b) in new[] { (1, 2), (3, 4) })
             {
                 float join = Health(b).xMin - Health(a).xMax;
                 Assert.GreaterOrEqual(join, -Slack, $"cards {a} and {b}: health bars never overlap");
                 Assert.LessOrEqual(join, PlayerBar.Hairline + Slack, $"cards {a} and {b}: health bars run on with only a hairline between");
-                Assert.GreaterOrEqual(Stamina(b).xMin - Stamina(a).xMax, 10f, $"cards {a} and {b}: the shorter stamina bars leave a gap that marks each player");
+                Assert.AreEqual(PlayerBar.StaminaTrim + PlayerBar.Hairline, Stamina(b).xMin - Stamina(a).xMax, Slack, $"cards {a} and {b}: each stamina bar ends just short of the next card");
                 Assert.Less(Stamina(a).width, Health(a).width);
                 Assert.GreaterOrEqual(Stamina(a).height, PlayerBar.StaminaHeight - Slack, "Stamina is thick enough to read.");
             }
             Assert.IsTrue(Outlined(hud, 1) && Outlined(hud, 2), "One outline per side...");
             Assert.IsFalse(Outlined(hud, 3), "...and no more.");
-            Rect left = Box(hud, "Side 1"), right = Box(hud, "Side 2"), middle = Box(hud, "Centre/Outline");
+            Rect left = Side(1), right = Side(2), middle = Box(hud, "Centre/Fill");
             Assert.AreEqual(Card(1).xMin - PlayerBar.Outline, left.xMin, Slack, "The left outline wraps both team-mates...");
             Assert.AreEqual(Card(2).xMax + PlayerBar.Outline, left.xMax, Slack);
             Assert.AreEqual(Card(3).xMin - PlayerBar.Outline, right.xMin, Slack, "...and so does the right.");
             Assert.AreEqual(Card(4).xMax + PlayerBar.Outline, right.xMax, Slack);
             Assert.AreEqual(Card(1).yMax + PlayerBar.Outline, left.yMax, Slack, "The outline clears the cards above...");
             Assert.AreEqual(Card(1).yMin - PlayerBar.Outline, left.yMin, Slack, "...and below.");
-            Assert.IsTrue(Part(hud, "Centre/Outline").GetComponent<Image>().enabled, "The score block has its own outline.");
+            AssertOpaqueCentre(hud, "The score block");
             AssertTouching(left, middle, "The left side meets the score block with no gap and no overlap...");
             AssertTouching(middle, right, "...and so does the right.");
             Assert.AreEqual(left.yMax, middle.yMax, Slack, "All three boxes line up.");
@@ -362,7 +384,8 @@ namespace Wreckabulary.Tests
             AssertSameColour(PlayerHud.Vivid(seats[0].Color), Part(hud, "Side 1").GetComponent<Image>().color, "The left outline wears its side's colour.");
             AssertSameColour(PlayerHud.Vivid(seats[1].Color), Part(hud, "Side 2").GetComponent<Image>().color, "The right one too.");
             AssertSquare(hud, 4);
-            AssertNamesShow(hud, 4);
+            AssertScoresShow(hud, 4);
+            Assert.AreEqual("", hud.CentreLead, "Team modes keep their team score line, no extra lead line.");
         }
 
         [UnityTest]
@@ -383,17 +406,18 @@ namespace Wreckabulary.Tests
                 AssertSameColour(PlayerHud.Vivid(seats[side - 1].Color), Part(hud, $"Side {side}").GetComponent<Image>().color, $"Side {side} wears its seat's colour");
             }
             Assert.IsFalse(Outlined(hud, 5));
-            var middle = Box(hud, "Centre/Outline");
+            var middle = Box(hud, "Centre/Fill");
+            AssertOpaqueCentre(hud, "The clock block");
             AssertTouching(Box(hud, "Side 1"), Box(hud, "Side 2"), "Neighbouring outlines touch...");
             AssertTouching(Box(hud, "Side 2"), middle, "...the clock block...");
             AssertTouching(middle, Box(hud, "Side 3"), "...on both sides...");
             AssertTouching(Box(hud, "Side 3"), Box(hud, "Side 4"), "...with no space between.");
             AssertSquare(hud, 4);
-            AssertNamesShow(hud, 4);
+            AssertScoresShow(hud, 4);
         }
 
         [UnityTest]
-        public IEnumerator ACrewIsOneOutlinedGroupWithTheClockTouchingOnItsRight()
+        public IEnumerator ACrewStaysTogetherInSeatColourOutlinesWithTheClockTouchingOnItsRight()
         {
             var seats = Seats(0, 0);
             GameHud hud = null;
@@ -405,13 +429,16 @@ namespace Wreckabulary.Tests
             Canvas.ForceUpdateCanvases();
             Rect Card(int card) => Box(hud, $"Card {card}");
             CollectionAssert.AreEqual(new[] { "P1", "P2" }, new[] { Name(hud, 1), Name(hud, 2) });
-            AssertTouching(Card(1), Card(2), "The crew's cards touch, not split around the clock.");
-            Assert.IsTrue(Outlined(hud, 1), "One outline wraps the crew...");
-            Assert.IsFalse(Outlined(hud, 2), "...only one.");
-            Rect crew = Box(hud, "Side 1"), clock = Box(hud, "Centre/Outline");
-            Assert.AreEqual(Card(1).xMin - PlayerBar.Outline, crew.xMin, Slack);
-            Assert.AreEqual(Card(2).xMax + PlayerBar.Outline, crew.xMax, Slack);
-            Assert.IsTrue(Part(hud, "Centre/Outline").GetComponent<Image>().enabled, "The clock keeps its own outline.");
+            Assert.IsTrue(Outlined(hud, 1) && Outlined(hud, 2), "Each crewmate keeps its own outline...");
+            Assert.IsFalse(Outlined(hud, 3), "...and there is no shared crew outline.");
+            for (int side = 1; side <= 2; side++)
+            {
+                Assert.AreEqual(Card(side).width + 2f * PlayerBar.Outline, Box(hud, $"Side {side}").width, Slack, $"Side {side} wraps one card");
+                AssertSameColour(PlayerHud.Vivid(seats[side - 1].Color), Part(hud, $"Side {side}").GetComponent<Image>().color, $"Side {side} wears its seat's colour, not white");
+            }
+            AssertTouching(Box(hud, "Side 1"), Box(hud, "Side 2"), "The crew's outlines touch, not split around the clock.");
+            Rect crew = Rect.MinMaxRect(Box(hud, "Side 1").xMin, Box(hud, "Side 1").yMin, Box(hud, "Side 2").xMax, Box(hud, "Side 1").yMax), clock = Box(hud, "Centre/Fill");
+            AssertOpaqueCentre(hud, "The clock block");
             Assert.AreEqual(ScoreLine.ClockWidth, clock.width, Slack);
             AssertTouching(crew, clock, "The clock sits right of the crew, touching, no overlap.");
             Assert.AreEqual(-crew.xMin, clock.xMax, Slack, "The crew and the clock are centred together.");
@@ -421,14 +448,41 @@ namespace Wreckabulary.Tests
             var plate = Box(hud, "Backing");
             Assert.AreEqual(-plate.xMin, plate.xMax, Slack, "The plate is centred on screen.");
             AssertSquare(hud, 2);
-            AssertNamesShow(hud, 2);
+            AssertScoresShow(hud, 2);
 
             seats[1].Team = 1;
-            yield return TestScenes.WaitUntil(() => Outlined(hud, 2), Slow, "two sides again");
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.Score, Slow, "two sides with their score line");
             Canvas.ForceUpdateCanvases();
-            Assert.AreEqual(0f, Part(hud, "Centre").anchoredPosition.x, Slack, "Versus keeps the clock in the middle, between the sides.");
-            AssertTouching(Box(hud, "Side 1"), Box(hud, "Centre/Outline"), "Each side meets the clock...");
-            AssertTouching(Box(hud, "Centre/Outline"), Box(hud, "Side 2"), "...from its own side.");
+            AssertBlockBetweenSides(hud, "Versus with scores");
+
+            hud.SetScoreboard(seats, _ => 0, 0, false);
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.Clock, Slow, "two sides with only the clock");
+            yield return new WaitForSecondsRealtime(.3f);
+            Canvas.ForceUpdateCanvases();
+            AssertBlockBetweenSides(hud, "Versus with only the clock");
+
+            seats[1].Team = 0;
+            yield return new WaitForSecondsRealtime(.3f);
+            Canvas.ForceUpdateCanvases();
+            Assert.AreEqual(ScoreCentre.Clock, hud.Centre);
+            Assert.Greater(Part(hud, "Centre").anchoredPosition.x, Slack, "One crew again: the clock moves back to its right...");
+            AssertTouching(Box(hud, "Side 1"), Box(hud, "Side 2"), "...the crew's outlines touch again...");
+            AssertTouching(Box(hud, "Side 2"), Box(hud, "Centre/Fill"), "...and the clock touches the last of them.");
+            Assert.AreEqual(Bar(hud).rect.width * .5f, Box(hud, "Centre/Fill").xMax, Slack, "The clock closes the bar on the right.");
+
+            seats[1].Team = 1;
+            yield return new WaitForSecondsRealtime(.3f);
+            Canvas.ForceUpdateCanvases();
+            AssertBlockBetweenSides(hud, "Splitting the same bar again");
+        }
+
+        static void AssertBlockBetweenSides(GameHud hud, string what)
+        {
+            Assert.AreEqual(0f, Part(hud, "Centre").anchoredPosition.x, Slack, what + ": the block is back in the middle, between the sides.");
+            AssertTouching(Box(hud, "Side 1"), Box(hud, "Centre/Fill"), what + ": each side meets the block...");
+            AssertTouching(Box(hud, "Centre/Fill"), Box(hud, "Side 2"), what + ": ...from its own side.");
+            Assert.Less(X(hud, 1), 0f, what + ": one seat left...");
+            Assert.Greater(X(hud, 2), 0f, what + ": ...one seat right.");
         }
 
         [UnityTest]
@@ -450,12 +504,12 @@ namespace Wreckabulary.Tests
                 Canvas.ForceUpdateCanvases();
                 for (int card = 2; card <= 8; card++)
                     if (card != 5) AssertTouching(Box(hud, $"Card {card - 1}"), Box(hud, $"Card {card}"), $"{units}: cards {card - 1} and {card} touch");
-                AssertTouching(Box(hud, "Side 1"), Box(hud, "Centre/Outline"), $"{units}: the left team meets the score");
-                AssertTouching(Box(hud, "Centre/Outline"), Box(hud, "Side 2"), $"{units}: so does the right");
+                AssertTouching(Box(hud, "Side 1"), Box(hud, "Centre/Fill"), $"{units}: the left team meets the score");
+                AssertTouching(Box(hud, "Centre/Fill"), Box(hud, "Side 2"), $"{units}: so does the right");
                 Assert.IsFalse(Outlined(hud, 3), $"{units}: two teams, two outlines");
                 AssertInside(safe, Part(hud, "Backing"), $"{units}: the plate fits the window");
                 AssertSquare(hud, 8);
-                AssertNamesShow(hud, 8);
+                AssertScoresShow(hud, 8);
             }
         }
 
@@ -488,7 +542,13 @@ namespace Wreckabulary.Tests
             Assert.AreEqual("BAT", hud.TargetWord);
             Assert.AreEqual("BAT", hud.CentreCaption);
             Assert.AreEqual("", hud.CentreScore, "Four sides keep their progress on their cards.");
-            Assert.AreEqual("3/18 items", CardScore(hud, 1));
+            Assert.AreEqual("3/18", CardScore(hud, 1), "Plain n/N, no 'items'.");
+            Assert.AreEqual("4/18", hud.CentreLead, "The best score sits under the item.");
+            AssertSameColour(PlayerHud.Vivid(seats[1].Color), Part(hud, "Centre/Lead score").GetComponent<TMP_Text>().color, "...in the leader's colour.");
+            Assert.LessOrEqual(Box(hud, "Centre/Caption").yMax, Box(hud, "Centre/Target").yMin + Slack, "The item's name sits under its picture...");
+            Assert.AreEqual(Box(hud, "Centre/Caption").yMin, Box(hud, "Centre/Lead score").yMax, Slack, "...and the best score under the name.");
+            Assert.AreEqual(-Bar(hud).rect.height, Box(hud, "Centre/Lead score").yMin, Slack, "No empty space under the score.");
+            AssertOpaqueCentre(hud, "The target block");
             AssertCentreBetween(hud, 2, 3, PlayerBar.RoomyCard);
             var picture = Part(hud, "Centre/Target").GetComponent<RawImage>();
             Assert.AreEqual(Wreckabulary.UI.ItemArt.TryGet("BAT", out _, out _), picture.enabled, "The item's own picture is the target.");
@@ -497,6 +557,8 @@ namespace Wreckabulary.Tests
             done[0] = 4;
             yield return TestScenes.WaitUntil(() => !hud.LeadingSeat, Slow, "a tie has no leader");
             Assert.IsFalse(Enumerable.Range(1, 4).Any(i => Leads(hud, i)));
+            Assert.AreEqual("4/18", hud.CentreLead, "A tie still shows the best score...");
+            AssertSameColour(new Color(1f, .906f, .722f), Part(hud, "Centre/Lead score").GetComponent<TMP_Text>().color, "...in plain score ink.");
 
             hud.SetScoreboard(new[] { seats[0], seats[1] }, p => done[p.Index], 18, true, ShoppingListDirector.Unit);
             done[0] = 3;
@@ -506,6 +568,7 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(Marked(hud, "Left lead"));
             Assert.AreSame(seats[1], hud.LeadingSeat);
             Assert.IsFalse(Leads(hud, 1) || Leads(hud, 2), "With two sides the centre carries the mark.");
+            Assert.AreEqual("", hud.CentreLead, "Two sides keep their side progress, no lead line.");
             done[0] = 5;
             yield return TestScenes.WaitUntil(() => hud.LeadingSide == ScoreLine.Left && hud.CentreScore == "5/18 : 4/18", Slow, "the lead changes hands");
             Assert.IsTrue(Marked(hud, "Left lead"));
@@ -540,6 +603,14 @@ namespace Wreckabulary.Tests
             AssertSameColour(PlayerHud.Vivid(seats[1].Color), board.Find("Block 2/Total").GetComponent<TMP_Text>().color, "The total wears the side's colour.");
             CollectionAssert.AreEqual(new[] { true, true, false, false },
                 Enumerable.Range(1, 4).Select(i => board.Find($"Row {i}/Band/Face").GetComponent<Image>().enabled), "Your own side is highlighted.");
+            for (int row = 1; row <= 4; row++)
+            {
+                var disc = board.Find($"Row {row}/Disc").GetComponent<Image>();
+                Assert.IsTrue(GameHud.Squared(disc), $"Row {row}: the portrait is square like the seat strip, not a circle.");
+                Assert.AreEqual(Image.Type.Simple, disc.type, $"Row {row}");
+                Assert.IsNotNull(board.Find($"Row {row}/Disc/Portrait"), "The portrait and letter keep their names.");
+                Assert.IsNotNull(board.Find($"Row {row}/Disc/Letter"));
+            }
             CollectionAssert.AreEqual(ScoreLine.Columns, ScoreLine.Columns.Select(c => board.Find("Column " + c).GetComponent<TMP_Text>().text));
             foreach (var text in board.GetComponentsInChildren<TMP_Text>(true))
                 Assert.GreaterOrEqual(text.enableAutoSizing ? text.fontSizeMin : text.fontSize, SmallestText, text.name);
@@ -579,7 +650,7 @@ namespace Wreckabulary.Tests
             GameHud hud = null;
             yield return Hud(seats[1], h => hud = h);
             hud.SetScoreboard(seats, p => p.Index * 2, 10, true, FreeForAllDirector.Unit);
-            yield return TestScenes.WaitUntil(() => hud.ScoreboardReady && CardScore(hud, 3) == "4/10 KO", Slow, "a bar to score");
+            yield return TestScenes.WaitUntil(() => hud.ScoreboardReady && CardScore(hud, 3) == "4/10", Slow, "a bar to score as plain n/N");
             hud.ToggleScoreboard();
             Assert.IsTrue(hud.ScoreboardShown);
             Assert.AreEqual(1, hud.ScoreboardBlocks);
@@ -736,7 +807,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(PlayerBar.SnugCard, attackerCard.rect.width, Slack, "A card is its portrait.");
             Assert.IsTrue(Part(hud, "Side 1").GetComponent<Image>().enabled && Part(hud, "Side 2").GetComponent<Image>().enabled, "Each team has one outline...");
             Assert.IsFalse(Part(hud, "Side 3").GetComponent<Image>().enabled, "...and only one.");
-            Assert.IsTrue(Part(hud, "Centre/Outline").GetComponent<Image>().enabled, "The lives and clock block has its own outline.");
+            AssertOpaqueCentre(hud, "The lives and clock block");
             hud.ToggleScoreboard();
             Assert.IsTrue(hud.ScoreboardShown);
             Assert.AreEqual(2, hud.ScoreboardBlocks);
@@ -773,6 +844,8 @@ namespace Wreckabulary.Tests
             int rivalCard = Enumerable.Range(1, 4).First(i => Name(hud, i) == rival.Name);
             Assert.IsTrue(Leads(hud, rivalCard), "The leader's card is marked.");
             Assert.AreEqual(1, Enumerable.Range(1, 4).Count(i => Leads(hud, i)));
+            Assert.AreEqual($"1/{race.Items.Count}", hud.CentreLead, "The best score sits under the item as plain n/N.");
+            Assert.AreEqual($"1/{race.Items.Count}", CardScore(hud, rivalCard), "Cards read plain n/N, no 'items'.");
             Assert.IsTrue(race.Spelled(you.Index, first.Word));
             Assert.IsTrue(race.Count(you.Index, first.Word, first.Act, 2.0));
             yield return TestScenes.WaitUntil(() => hud.TargetWord == race.Items[1].Word, Slow, "your next item as the target");

@@ -86,7 +86,7 @@ namespace Wreckabulary.Tests
             yield return null;
             Assert.AreEqual(1, director.Race.Of(players[1].Index));
             Assert.AreEqual(Phase.Playing, RoundManager.Instance.Phase);
-            yield return TestScenes.WaitUntil(() => Score(2) == "1/2 KO", 1f, "player cards to show knockouts against the target");
+            yield return TestScenes.WaitUntil(() => Score(2) == "1/2", 1f, "player cards to show knockouts against the target");
             StringAssert.StartsWith("AI 2", Seat(2));
             yield return TestScenes.WaitUntil(() => !players[2].IsKnockedOut, 2f, "the knockout to come back");
             Knock(players[3], players[1]);
