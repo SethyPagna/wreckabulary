@@ -44,7 +44,7 @@ namespace Wreckabulary.Tests
         static string Text(string path) => ResultCard.Find(path).GetComponent<TMP_Text>().text;
         static bool Active(string path) => ResultCard.Find(path).gameObject.activeSelf;
         static GameObject HudPart(string path) => Hud.UiCanvas.transform.Find("Safe HUD/" + path).gameObject;
-        static bool BagAndHealthShown => HudPart("Letter bag").activeSelf && HudPart("Vitals").activeSelf;
+        static bool BagAndHealthShown => HudPart("Letter bag").activeSelf && (HudPart("Vitals").activeSelf || Hud.HealthOnBar);
         static bool BagAndHealthCleared => !HudPart("Letter bag").activeSelf && !HudPart("Vitals").activeSelf && SmashableLabel.Covered;
 
         static IEnumerator Load(string mode, bool warmup, int humans = 1)

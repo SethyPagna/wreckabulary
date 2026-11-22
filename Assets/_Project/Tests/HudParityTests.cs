@@ -110,8 +110,8 @@ namespace Wreckabulary.Tests
             Assert.IsNotNull(safe.Find("Letter bag/Gear slot 1"));
             Assert.IsNotNull(safe.Find("Letter bag/Gear slot 2"));
             Assert.IsNull(safe.Find("Vitals").GetComponent<Image>(), "Vitals sit straight on the game, with no card.");
-            Assert.IsNull(safe.Find("Vitals/Health track"));
-            StringAssert.Contains("HP", safe.Find("Vitals/HP").GetComponent<TMPro.TMP_Text>().text);
+            Assert.AreEqual("100", safe.Find("Vitals/Health track/Number").GetComponent<TMPro.TMP_Text>().text, "Alone, health is a bar with its number inside, like a seat card.");
+            Assert.IsNull(safe.Find("Vitals/HP"), "No more '+ 100 HP' words.");
             Assert.IsTrue(safe.Find("Desktop controls").gameObject.activeSelf, "A new desktop player gets a control tip.");
             Assert.IsNull(safe.Find("Desktop controls").GetComponent<Image>(), "Tips sit straight on the game, with no box.");
             var tip = safe.Find("Desktop controls/Keys").GetComponent<TMPro.TMP_Text>();
@@ -795,7 +795,12 @@ namespace Wreckabulary.Tests
             Assert.Less(grey, .2f, "A wrecked seat's frame turns grey.");
             Assert.IsTrue(bar.Find("Card 2/Shade").GetComponent<Image>().enabled, "...and its portrait darkens.");
             Assert.IsFalse(bar.Find("Card 3/Shade").GetComponent<Image>().enabled);
-            Assert.AreEqual(1f, bar.Find("Card 1/Health track/Health").GetComponent<Image>().fillAmount, .01f);
+            var health = (RectTransform)bar.Find("Card 1/Health track");
+            Assert.AreEqual(health.rect.width, ((RectTransform)health.Find("Health")).rect.width, .5f, "Full health fills the bar.");
+            Assert.AreEqual("100", health.Find("Number").GetComponent<TMPro.TMP_Text>().text, "The number sits in the bar, like CS2.");
+            Assert.AreEqual("", bar.Find("Card 2/Health track/Number").GetComponent<TMPro.TMP_Text>().text, "A wrecked seat shows no number...");
+            Assert.AreEqual(0f, ((RectTransform)bar.Find("Card 2/Health track/Health")).rect.width, .5f, "...and an empty bar.");
+            Assert.IsFalse(bar.Find("Card 2/Stamina track").gameObject.activeSelf, "...and no stamina.");
             var portrait = bar.Find("Card 1/Portrait").GetComponent<RawImage>();
             var letter = bar.Find("Card 1/Letter").GetComponent<TMPro.TMP_Text>();
             Assert.IsTrue(portrait.enabled && portrait.texture || letter.enabled && letter.text == you.Initial.ToString(),
@@ -834,7 +839,7 @@ namespace Wreckabulary.Tests
             {
                 var card = (RectTransform)bar.Find($"Card {i}");
                 AssertEncloses(plate, card, Wreckabulary.Rules.PlayerBar.PlatePad - 1f, "The plate pads every card");
-                foreach (var part in new[] { "You", "Name", "Score", "Health track" })
+                foreach (var part in new[] { "You", "Name", "Score", "Health track", "Stamina track" })
                     AssertEncloses(plate, (RectTransform)card.Find(part), 1f, $"Card {i} {part} sits on the plate");
             }
             var label = (RectTransform)safe.Find("Match label");
@@ -885,6 +890,239 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(ra.Overlaps(rb), $"{message} {a.name} {ra} vs {b.name} {rb}");
         }
 
+        static readonly (string name, Vector2 units)[] PhoneWindows = { ("1280x720", new Vector2(1920f, 1080f)), ("1248x576", new Vector2(2119.6f, 978.3f)) };
+
+        static float Luma(Color c) => .2126f * c.r + .7152f * c.g + .0722f * c.b;
+
+        static void AssertNumberFits(RectTransform track, string message)
+        {
+            foreach (var box in new[] { (RectTransform)track.Find("Number"), (RectTransform)track.Find("Health/Number") })
+            {
+                var text = box.GetComponent<TMPro.TMP_Text>();
+                text.ForceMeshUpdate();
+                Assert.GreaterOrEqual(text.fontSizeMin, Wreckabulary.Rules.PlayerBar.NumberMin, message);
+                Assert.GreaterOrEqual(text.fontSize, 16f, message + ": bar numbers read at 1248x576");
+                Assert.IsFalse(text.isTextTruncated, message + ": " + text.text);
+                Assert.LessOrEqual(text.GetPreferredValues(text.text).x, box.rect.width + .5f, message + ": " + text.text + " fits its bar");
+                AssertRectInside(track, box);
+            }
+        }
+
+        static IEnumerator HurtTo(PlayerController p, float share)
+        {
+            for (int i = 0; i < 60 && p.Health.IsAlive && p.Health.Fraction > share; i++)
+            {
+                p.Health.ApplyDamage(Hits.Of(null, Vector3.forward, Wreckabulary.Rules.HitSource.Melee, 5f, 0f, hitStun: 0f));
+                yield return null;
+            }
+            Assert.IsTrue(p.Health.IsAlive, p.Name + " stays up");
+            Assert.LessOrEqual(p.Health.Fraction, share, p.Name + " is hurt enough");
+        }
+
+        static Wreckabulary.Rules.GameRules TestRules()
+        {
+            var rules = Match.Rules.Clone();
+            rules.SpawnProtectionSeconds = 0f; rules.DodgeCooldown = 0f; rules.StaminaRegenDelay = 60f;
+            return rules;
+        }
+
+        [UnityTest]
+        public IEnumerator SeatCardsShowHealthAsABarWithItsNumberAndStaminaUnderIt()
+        {
+            var touch = TouchBinding.Shared;
+            touch.Enabled = true;
+            var you = Spawn(touch);
+            var mate = Spawn(new ScriptedBinding());
+            mate.Name = "P2";
+            mate.transform.position = new Vector3(3f, 0f, 0f);
+            var bot = Spawn(new BotBinding());
+            bot.Name = "AI 3";
+            bot.transform.position = new Vector3(-3f, 0f, 0f);
+            foreach (var p in new[] { you, mate }) p.Health.UseRules(TestRules());
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            hud.ShowTouchControls(false);
+            hud.SetScoreboard(new[] { you, mate, bot }, _ => 0, 3, true);
+            yield return TestScenes.WaitUntil(() => hud.AcceptsGameplayInput && hud.BarSeated, 10f, "the gameplay HUD and its bar");
+            yield return new WaitForSecondsRealtime(0.2f);
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            var bar = (RectTransform)safe.Find("Player bar");
+            var plate = (RectTransform)bar.Find("Backing");
+            RectTransform Track(int card) => (RectTransform)bar.Find($"Card {card}/Health track");
+            string Number(int card) => Track(card).Find("Number").GetComponent<TMPro.TMP_Text>().text;
+            float Filled(int card) => ((RectTransform)Track(card).Find("Health")).rect.width;
+            Color Fill(int card) => Track(card).Find("Health").GetComponent<Image>().color;
+            for (int card = 1; card <= 3; card++)
+            {
+                Assert.AreEqual("100", Number(card), $"Card {card}");
+                Assert.AreEqual("100", Track(card).Find("Health/Number").GetComponent<TMPro.TMP_Text>().text, "Both copies of the number agree.");
+                Assert.AreEqual(Wreckabulary.Rules.PlayerBar.Portrait(3), Track(card).rect.width, .5f, "The bar is as wide as the portrait, like CS2.");
+                Assert.AreEqual(Wreckabulary.Rules.PlayerBar.HealthHeight, Track(card).rect.height, .5f);
+                Assert.AreEqual(Track(card).rect.width, Filled(card), .5f, "Full health fills the bar.");
+                var light = Fill(card);
+                Assert.GreaterOrEqual(Mathf.Min(light.r, light.g, light.b), .9f, "A healthy bar is light.");
+                AssertNumberFits(Track(card), $"Card {card}");
+                AssertEncloses(plate, Track(card), 1f, $"Card {card} health sits on the plate");
+            }
+            Assert.IsNotNull(Track(1).Find("Health").GetComponent<RectMask2D>(), "The dark number shows only on the fill...");
+            Assert.Less(Luma(Track(1).Find("Health/Number").GetComponent<TMPro.TMP_Text>().color), .3f, "...dark on light...");
+            Assert.Greater(Luma(Track(1).Find("Number").GetComponent<TMPro.TMP_Text>().color), .9f, "...and light over the empty track.");
+
+            yield return HurtTo(mate, Wreckabulary.Rules.SeatVitals.HurtShare);
+            yield return TestScenes.WaitUntil(() => Number(2) == Mathf.CeilToInt(mate.Health.Current).ToString(), 10f, "P2's number to follow the hits");
+            Assert.AreEqual(Track(2).rect.width * mate.Health.Fraction, Filled(2), .5f, "The fill shrinks with health.");
+            var amber = Fill(2);
+            Assert.IsTrue(amber.r > .9f && amber.g > .6f && amber.b < .5f, "Half health or less turns the bar amber: " + amber);
+            AssertNumberFits(Track(2), "Hurt card");
+
+            yield return HurtTo(mate, Wreckabulary.Rules.SeatVitals.CriticalShare);
+            yield return TestScenes.WaitUntil(() => Number(2) == Mathf.CeilToInt(mate.Health.Current).ToString(), 10f, "P2's number to follow the hits");
+            Assert.AreEqual(Track(2).rect.width * mate.Health.Fraction, Filled(2), .5f);
+            var red = Fill(2);
+            Assert.IsTrue(red.r > .7f && red.g < .5f, "A quarter or less turns it red: " + red);
+            AssertNumberFits(Track(2), "Critical card");
+            Assert.AreEqual("100", Number(1), "Other seats keep their own health.");
+
+            if (Wreckabulary.Rules.PlayerBar.StaminaShown)
+            {
+                var stamina = (RectTransform)bar.Find("Card 1/Stamina track");
+                var breath = (RectTransform)stamina.Find("Stamina");
+                Assert.IsTrue(stamina.gameObject.activeSelf);
+                Assert.AreEqual(Track(1).rect.width, stamina.rect.width, .5f);
+                Assert.Less(stamina.rect.height, Track(1).rect.height / 2f, "Stamina stays a slim second line.");
+                Assert.LessOrEqual(OnScreen(stamina).yMax, OnScreen(Track(1)).yMin + .5f, "It sits under the health bar.");
+                Assert.AreEqual(stamina.rect.width, breath.rect.width, .5f, "Full stamina fills its bar.");
+                Assert.Greater(breath.GetComponent<Image>().color.g, .9f, "Stamina is mint.");
+                AssertEncloses(plate, stamina, 1f, "Stamina sits on the plate");
+                Assert.IsNull(stamina.GetComponentInChildren<TMPro.TMP_Text>(true), "Stamina has no number.");
+                Assert.IsTrue(you.Health.Dodge());
+                yield return TestScenes.WaitUntil(() => Mathf.Abs(breath.rect.width - stamina.rect.width * you.Health.StaminaFraction) < .5f && you.Health.StaminaFraction < .99f, 10f, "the stamina bar to drop by one dodge");
+                Assert.Greater(breath.GetComponent<Image>().color.g, .9f, "One dodge spent, another still fits.");
+                Assert.IsTrue(you.Health.Dodge());
+                Assert.IsTrue(you.Health.Dodge());
+                yield return TestScenes.WaitUntil(() => breath.GetComponent<Image>().color.b < .5f, 10f, "the stamina bar to turn amber once a dodge no longer fits");
+            }
+
+            foreach (var (name, units) in PhoneWindows)
+            {
+                safe.anchorMin = safe.anchorMax = safe.pivot = Vector2.zero;
+                safe.anchoredPosition = Vector2.zero;
+                safe.sizeDelta = units;
+                yield return new WaitForSecondsRealtime(.2f);
+                Canvas.ForceUpdateCanvases();
+                AssertRectInside(safe, plate);
+                for (int card = 1; card <= 3; card++)
+                {
+                    AssertNumberFits(Track(card), $"{name} card {card}");
+                    AssertEncloses(plate, Track(card), 1f, $"{name} card {card}");
+                }
+            }
+            Object.Destroy(hud.gameObject);
+            foreach (var p in new[] { you, mate, bot }) Object.Destroy(p.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator EightSnugSeatsKeepWholeHealthNumbersAtPhoneSizes()
+        {
+            var touch = TouchBinding.Shared;
+            touch.Enabled = true;
+            var seats = new PlayerController[Wreckabulary.Rules.PlayerBar.MostSeats];
+            seats[0] = Spawn(touch);
+            for (int i = 1; i < seats.Length; i++)
+            {
+                seats[i] = Spawn(new ScriptedBinding());
+                seats[i].Name = "P" + (i + 1);
+                seats[i].transform.position = new Vector3(i * 2f - 7f, 0f, 3f);
+            }
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            hud.ShowTouchControls(false);
+            hud.SetScoreboard(seats, _ => 0, 3, true);
+            yield return TestScenes.WaitUntil(() => hud.AcceptsGameplayInput && hud.BarSeated, 10f, "the gameplay HUD and its bar");
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            var bar = (RectTransform)safe.Find("Player bar");
+            var plate = (RectTransform)bar.Find("Backing");
+            foreach (var (name, units) in PhoneWindows)
+            {
+                safe.anchorMin = safe.anchorMax = safe.pivot = Vector2.zero;
+                safe.anchoredPosition = Vector2.zero;
+                safe.sizeDelta = units;
+                yield return new WaitForSecondsRealtime(.2f);
+                Canvas.ForceUpdateCanvases();
+                AssertRectInside(safe, plate);
+                for (int card = 1; card <= seats.Length; card++)
+                {
+                    var track = (RectTransform)bar.Find($"Card {card}/Health track");
+                    Assert.AreEqual(Wreckabulary.Rules.PlayerBar.SnugPortrait, track.rect.width, .5f, $"{name} card {card}: a snug bar matches its portrait");
+                    Assert.AreEqual("100", track.Find("Number").GetComponent<TMPro.TMP_Text>().text, $"{name} card {card}");
+                    AssertNumberFits(track, $"{name} card {card}");
+                    AssertEncloses(plate, track, 1f, $"{name} card {card}");
+                    if (Wreckabulary.Rules.PlayerBar.StaminaShown) AssertEncloses(plate, (RectTransform)bar.Find($"Card {card}/Stamina track"), 1f, $"{name} card {card} stamina");
+                }
+            }
+            Object.Destroy(hud.gameObject);
+            foreach (var p in seats) Object.Destroy(p.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator AloneHealthIsTheSameBarBottomLeftAndItStepsAsideForTheSeatBar()
+        {
+            var touch = TouchBinding.Shared;
+            touch.Enabled = true;
+            var you = Spawn(touch);
+            var hud = new GameObject("Parity HUD", typeof(Canvas)).AddComponent<GameHud>();
+            yield return null;
+            hud.ShowTouchControls(false);
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            var vitals = (RectTransform)safe.Find("Vitals");
+            yield return TestScenes.WaitUntil(() => hud.AcceptsGameplayInput && vitals.gameObject.activeSelf, 10f, "the bottom-left health bar");
+            Assert.IsFalse(hud.HealthOnBar, "Alone there is no seat card.");
+            var track = (RectTransform)vitals.Find("Health track");
+            yield return TestScenes.WaitUntil(() => track.Find("Number").GetComponent<TMPro.TMP_Text>().text == "100", 10f, "the solo health number");
+            Assert.IsNull(vitals.Find("HP"), "No more '+ 100 HP' words.");
+            Assert.IsNull(vitals.Find("Stamina"), "No more '100 STA' words.");
+            Assert.AreEqual(Wreckabulary.Rules.PlayerBar.SoloWidth, track.rect.width, .5f);
+            Assert.Greater(track.rect.width, Wreckabulary.Rules.PlayerBar.RoomyPortrait, "Alone, the bar is bigger than a seat card's...");
+            Assert.Greater(track.Find("Number").GetComponent<TMPro.TMP_Text>().fontSizeMax, Wreckabulary.Rules.PlayerBar.NumberSize, "...with a bigger number.");
+            Assert.AreEqual(track.rect.width, ((RectTransform)track.Find("Health")).rect.width, .5f, "Full health fills it.");
+            AssertNumberFits(track, "solo");
+            AssertRectInside(safe, vitals);
+            var stamina = (RectTransform)vitals.Find("Stamina track");
+            Assert.AreEqual(Wreckabulary.Rules.PlayerBar.StaminaShown, stamina.gameObject.activeSelf, "The slim stamina bar sits under it.");
+            if (Wreckabulary.Rules.PlayerBar.StaminaShown)
+            {
+                Assert.LessOrEqual(OnScreen(stamina).yMax, OnScreen(track).yMin + .5f, "under the health bar");
+                Assert.Less(stamina.rect.height, track.rect.height / 2f, "slim");
+                Assert.AreEqual(track.rect.width, stamina.rect.width, .5f);
+            }
+            var effects = (RectTransform)safe.Find("Effects");
+            Assert.IsFalse(effects.gameObject.activeSelf, "Nothing to say, nothing shown.");
+            you.Slow(.5f, 60f);
+            yield return TestScenes.WaitUntil(() => effects.gameObject.activeSelf, 10f, "the slowed line");
+            StringAssert.Contains("SLOWED", effects.GetComponent<TMPro.TMP_Text>().text);
+            Assert.GreaterOrEqual(effects.GetComponent<TMPro.TMP_Text>().fontSize, 15f);
+            Assert.GreaterOrEqual(OnScreen(effects).yMin, OnScreen(vitals).yMax - .5f, "Alone, status words sit just above the health bar.");
+
+            var bot = Spawn(new BotBinding());
+            bot.Name = "AI 2";
+            bot.transform.position = new Vector3(3f, 0f, 0f);
+            hud.SetScoreboard(new[] { you, bot }, _ => 0, 3, true);
+            yield return TestScenes.WaitUntil(() => hud.HealthOnBar && !vitals.gameObject.activeSelf, 10f, "health to move onto the seat cards");
+            Assert.IsTrue(effects.gameObject.activeSelf, "Status words stay bottom left beside the seat bar.");
+            AssertRectInside(safe, effects);
+            AssertApart(effects, (RectTransform)safe.Find("Letter bag"), "Status words keep clear of the letter bag");
+            you.Inventory.Set("BAT");
+            Assert.IsTrue(you.Summoner.Summon("BAT"));
+            var word = safe.Find("Letter bag/Gear slot 1/Word").GetComponent<TMPro.TMP_Text>();
+            yield return TestScenes.WaitUntil(() => word.text == "BAT", 10f, "the hands to keep updating with the bottom-left block hidden");
+
+            hud.SetScoreboard(new[] { you }, _ => 0, 3, true);
+            yield return TestScenes.WaitUntil(() => vitals.gameObject.activeSelf && !hud.HealthOnBar, 10f, "the bottom-left bar back when alone");
+            Object.Destroy(hud.gameObject);
+            Object.Destroy(you.gameObject);
+            Object.Destroy(bot.gameObject);
+        }
+
         [UnityTest]
         public IEnumerator FurnitureNamesKnowWhereTheHudSits()
         {
@@ -910,7 +1148,8 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(Covered((RectTransform)safe.Find("Letter bag/Letter 1")), "So do the letter tiles...");
             Assert.IsTrue(Covered((RectTransform)safe.Find("Letter bag/Gear slot 2")), "...the hand slots...");
             Assert.IsTrue(Covered((RectTransform)safe.Find("Brand")), "...and the mode title.");
-            Assert.IsTrue(Covered((RectTransform)safe.Find("Vitals")));
+            Assert.IsTrue(hud.HealthOnBar);
+            Assert.IsFalse(safe.Find("Vitals").gameObject.activeSelf, "With the seat bar, health sits on the cards under the plate, so the bottom-left block steps aside.");
             var centre = new Vector2(Screen.width * .5f, Screen.height * .5f);
             Assert.IsFalse(rects.Exists(rect => rect.Contains(centre)), "The middle of the screen stays free for names.");
             Assert.IsFalse(rects.Exists(rect => rect.width <= 0f || rect.height <= 0f), "Only real areas.");

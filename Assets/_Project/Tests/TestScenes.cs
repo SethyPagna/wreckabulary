@@ -14,6 +14,7 @@ namespace Wreckabulary.Tests
         {
             Session.Clear();
             Time.timeScale = 1f;
+            LobbyPress.ForgetNavigation();
             SceneManager.sceneLoaded -= AddFixtureListener;
             SceneManager.sceneLoaded += AddFixtureListener;
             yield return UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(

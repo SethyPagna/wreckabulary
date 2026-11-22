@@ -82,7 +82,7 @@ namespace Wreckabulary
             float width = Mathf.Min(NavigationMaximumWidth, Mathf.Max(1, Panel.rect.width - ContentInset.x * 2 - 88));
             Queues.Place(new Vector2(.5f, 1), new Vector2(.5f, 1),
                 new Vector2(-width * .5f, -ContentInset.y - NavigationHeight), new Vector2(width * .5f, -ContentInset.y));
-            ((RectTransform)Close.transform).Pin(Vector2.one, new Vector2(-16, -16), new Vector2(40, 40));
+            ((RectTransform)Close.transform).Pin(Vector2.one, new Vector2(-14, -14), new Vector2(44, 44));
             float header = Mathf.Max(HeaderHeight, NavigationHeight + ContentInset.y * 2);
             Body.Place(Vector2.zero, Vector2.one, ContentInset, new Vector2(-ContentInset.x, -header));
             Choices.Place(Vector2.zero, Vector2.one, new Vector2(0, SummaryHeight + 12), Vector2.zero);

@@ -45,6 +45,8 @@ namespace Wreckabulary
             }
         }
 
+        public static void ForgetNavigation() { navigating = false; checkedFrame = -1; }
+
         public bool IsHot => wasHot == true;
 
         void Awake() => selectable = GetComponent<Selectable>();

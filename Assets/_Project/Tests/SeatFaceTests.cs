@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.TestTools;
 using Wreckabulary.Art;
 using Wreckabulary.Rules;
@@ -13,7 +14,8 @@ namespace Wreckabulary.Tests
     {
         const int Seats = 4, Humans = 2, SavedSeats = 8;
         const float Spacing = 2f, FramesToSettle = .5f, TuckDrop = .01f, HatSlack = .005f, PixelChange = .08f;
-        const int FacePixels = 150;
+        const float WaitForPortrait = 5f, SunIntensity = 1.1f, LampIntensity = 4f, LampRange = 4f, FacingApart = 3f;
+        const int FacePixels = 150, SameLightPixels = 300;
         const string HairSlot = "Hair", EyesSlot = "Eyes", HeadwearSlot = "Headwear", TopSlot = "Top";
         const string OldSave = "Back=Satchel:olive;Badge=TBadge;Bottoms=Joggers:olive;Footwear=Boots:forest;Gloves=Mittens:charcoal;Top=Hoodie:mint|";
         static readonly string[] Keys = Enumerable.Range(0, SavedSeats).Select(Key).ToArray();
@@ -41,9 +43,10 @@ namespace Wreckabulary.Tests
             PlayerPrefs.Save();
         }
 
-        static PlayerController Spawn(int seat, InputBinding binding)
+        static PlayerController Spawn(int seat, InputBinding binding) => Spawn(seat, binding, Vector3.right * seat * Spacing);
+
+        static PlayerController Spawn(int seat, InputBinding binding, Vector3 at)
         {
-            var at = Vector3.right * seat * Spacing;
             var player = Object.Instantiate(GameAssets.I.playerPrefab, at, Quaternion.identity);
             player.Setup(seat, binding);
             player.Respawn(at);
@@ -233,7 +236,7 @@ namespace Wreckabulary.Tests
             {
                 foreach (var part in parts) part.forceRenderingOff = true;
                 appearance.ApplyOutfit(appearance.CurrentOutfit);
-                Assert.IsTrue(portrait.Wants, "a new outfit asks for a new portrait");
+                yield return TestScenes.WaitUntil(() => portrait.Wants, WaitForPortrait, "a new outfit to ask for a new portrait");
                 without = Pixels(portrait.Refresh(true));
             }
             finally
@@ -242,6 +245,61 @@ namespace Wreckabulary.Tests
             }
             Assert.Greater(Changed(with, without), FacePixels,
                 "the late portrait must contain the code-built eyes, blush and hair: hiding them has to change the picture");
+        }
+
+        [UnityTest]
+        public IEnumerator ASeatNoCameraSeesIsDrawnInItsLivePose()
+        {
+            if (!SeatPortrait.CanRender) Assert.Ignore("Portraits need a native graphics device.");
+            var player = Spawn(1, new BotBinding());
+            var appearance = player.GetComponent<PlayerAppearance>();
+            var portrait = SeatPortrait.For(player);
+            var skins = appearance.AvatarModel.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            Assert.IsNotEmpty(skins);
+            Assert.IsFalse(portrait.Wants, "the first portrait waits a frame so the skin, hood and clothes catch up with the bones");
+            foreach (var skin in skins)
+                Assert.IsTrue(skin.updateWhenOffscreen, skin.name + " keeps its pose while no camera sees it, like a bot in another room");
+            yield return TestScenes.WaitUntil(() => portrait.Wants, WaitForPortrait, "the seat to be ready for its portrait");
+            Assert.IsNotNull(portrait.Refresh(true), "the portrait is drawn");
+            Assert.IsTrue(FaceOf(player).ShownHair.Tucked, "the hair is tucked under the hood when the picture is taken");
+            int renders = portrait.Renders;
+            appearance.ApplyOutfit(appearance.CurrentOutfit);
+            Assert.IsFalse(portrait.Wants, "a new outfit also waits a frame before it is drawn");
+            yield return TestScenes.WaitUntil(() => portrait.Wants, WaitForPortrait, "a new outfit to ask for a new portrait");
+            portrait.Refresh(true);
+            Assert.AreEqual(renders + 1, portrait.Renders, "and is then drawn once");
+        }
+
+        [UnityTest]
+        public IEnumerator EverySeatIsLitTheSameWayWhicheverWayItFaces()
+        {
+            if (!SeatPortrait.CanRender) Assert.Ignore("Portraits need a native graphics device.");
+            var ambient = new SphericalHarmonicsL2();
+            ambient.AddAmbientLight(Color.grey);
+            RenderSettings.ambientProbe = ambient;
+            var sun = new GameObject("Test sun").AddComponent<Light>();
+            sun.type = LightType.Directional;
+            sun.intensity = SunIntensity;
+            sun.transform.rotation = Quaternion.LookRotation(Vector3.left + Vector3.down);
+            RenderSettings.sun = sun;
+            var lamp = new GameObject("Test lamp").AddComponent<Light>();
+            lamp.type = LightType.Point;
+            lamp.intensity = LampIntensity;
+            lamp.range = LampRange;
+            lamp.transform.position = Vector3.left * FacingApart + Vector3.up;
+            var sunward = Spawn(1, new ScriptedBinding(), Vector3.left * FacingApart);
+            var shaded = Spawn(1, new ScriptedBinding(), Vector3.right * FacingApart);
+            Assert.Greater(Vector3.Dot(sunward.Facing, -sun.transform.forward), 0f, "one seat faces the sun and stands by the lamp");
+            Assert.Less(Vector3.Dot(shaded.Facing, -sun.transform.forward), 0f, "the other has both behind it");
+            var portraits = new[] { SeatPortrait.For(sunward), SeatPortrait.For(shaded) };
+            yield return new WaitForSecondsRealtime(FramesToSettle);
+            yield return TestScenes.WaitUntil(() => portraits.All(portrait => portrait.Wants), WaitForPortrait, "both seats to be ready for their portraits");
+            var lit = Pixels(portraits[0].Refresh(true));
+            var dark = Pixels(portraits[1].Refresh(true));
+            Assert.Less(Changed(lit, dark), SameLightPixels, "a portrait has its own light, so the seat with the sun behind it looks the same");
+            Assert.IsTrue(sun.enabled && lamp.enabled, "the house lights come back on after the portrait");
+            Assert.AreSame(sun, RenderSettings.sun);
+            Assert.IsFalse(SeatPortrait.KeyLight && SeatPortrait.KeyLight.enabled, "the portrait light only shines while a portrait is drawn");
         }
     }
 }

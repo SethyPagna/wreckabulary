@@ -518,6 +518,16 @@ namespace Wreckabulary.Tests
             victim.Health.ApplyDamage(Hits.Of(attacker, Vector3.forward, HitSource.Melee, 1000f, 1f));
             yield return TestScenes.WaitUntil(() => director.Score.Lives(1) == director.StartingLives - 1, Slow, "a knockout to cost a life");
             yield return TestScenes.WaitUntil(() => hud.CentreScore == ScoreLine.Text(director.StartingLives, director.StartingLives - 1), Slow, "the score line to follow");
+            Assert.IsTrue(hud.HealthOnBar, "In a house match your health is on your seat card...");
+            Assert.IsFalse(hud.transform.Find("Safe HUD/Vitals").gameObject.activeSelf, "...so the bottom-left block steps aside.");
+            RectTransform CardOf(PlayerController p) => Enumerable.Range(1, PlayerBar.MostSeats).Select(i => Part(hud, $"Card {i}"))
+                .First(card => card.Find("Name").GetComponent<TMP_Text>().text == SeatTags.Name(p.Name, p == hud.LocalPlayer, 1));
+            var victimCard = CardOf(victim);
+            var attackerCard = CardOf(attacker);
+            yield return TestScenes.WaitUntil(() => victimCard.Find("Health track/Number").GetComponent<TMP_Text>().text == "", Slow, "the knocked-out card to drop its number");
+            Assert.IsFalse(victimCard.Find("Stamina track").gameObject.activeSelf, "A knocked-out seat shows no stamina.");
+            Assert.AreEqual(Mathf.CeilToInt(attacker.Health.Current).ToString(), attackerCard.Find("Health track/Number").GetComponent<TMP_Text>().text, "A standing seat shows its health in its bar.");
+            Assert.AreEqual(PlayerBar.SnugPortrait, ((RectTransform)attackerCard.Find("Health track")).rect.width, Slack, "Eight seats get snug bars.");
             hud.ToggleScoreboard();
             Assert.IsTrue(hud.ScoreboardShown);
             Assert.AreEqual(2, hud.ScoreboardBlocks);
