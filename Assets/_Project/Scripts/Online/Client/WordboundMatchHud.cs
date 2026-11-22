@@ -48,9 +48,10 @@ namespace Wreckabulary.Online
 
         public void Initialize(WordboundGameplayController gameplay, WordboundPlayerView playerView,
             ItemCatalogue catalogue, ModeDefinition definition, ResolvedCourse resolved, string localActor,
-            string returnButtonLabel = "Return to party")
+            string returnButtonLabel = "Return to party", GameRules gameRules = null)
         {
             if (initialized) throw new InvalidOperationException("Match HUD is already initialized.");
+            healthMax = gameRules != null ? gameRules.MaxHealth : 0f;
             controller = gameplay != null ? gameplay : throw new ArgumentNullException(nameof(gameplay));
             view = playerView != null ? playerView : throw new ArgumentNullException(nameof(playerView));
             items = catalogue ?? throw new ArgumentNullException(nameof(catalogue));

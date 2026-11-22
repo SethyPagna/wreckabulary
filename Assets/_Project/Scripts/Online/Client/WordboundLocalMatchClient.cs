@@ -69,7 +69,7 @@ namespace Wreckabulary.Online
                 hud.Theme = uiTheme;
                 hud.StoryProfile = storyProfile;
                 hud.Initialize(gameplay, playerView, content.Items, content.Mode, content.Course,
-                    LocalActor, returnLabel);
+                    LocalActor, returnLabel, content.Rules);
                 hud.ReturnRequested += RequestReturn;
                 var config = WordboundFusionConfiguration.CreateLocal();
                 config.Simulation.SimulationUpdateTimeMode = SimulationConfig.SimulationTimeMode.DeltaTime;
