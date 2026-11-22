@@ -10,7 +10,8 @@ namespace Wreckabulary
     public sealed class RiddleRushHud : MonoBehaviour
     {
         const int MaxTiles = 10;
-        const float TileSize = 34f, TileGap = 6f, Width = 720f, Height = 98f, Top = 12f;
+        const float TileSize = 34f, TileGap = 6f, Width = 720f, Height = 108f, Top = 12f;
+        const float LineY = -80f, LineHeight = 26f, LineFont = 20f, MinFont = 15f;
         static readonly Color Backing = new(.07f, .16f, .16f, .86f), Ink = new(1f, .97f, .91f), Muted = new(1f, .96f, .88f, .78f);
         static readonly Color Blank = new(1f, 1f, 1f, .14f), Filled = new(.96f, .86f, .65f), Hinted = new(1f, .83f, .42f), TileInk = new(.09f, .23f, .24f);
 
@@ -76,8 +77,8 @@ namespace Wreckabulary
                 faces.Add(face.GetComponent<Image>());
                 letters.Add(letter);
             }
-            line = Label("Line", root, new Vector2(0f, -78f), new Vector2(Width - 32f, 18f), 17f, Muted);
-            line.enableAutoSizing = true; line.fontSizeMin = 13f; line.fontSizeMax = 17f;
+            line = Label("Line", root, new Vector2(0f, LineY), new Vector2(Width - 32f, LineHeight), LineFont, Muted);
+            line.enableAutoSizing = true; line.fontSizeMin = MinFont; line.fontSizeMax = LineFont;
             root.gameObject.SetActive(false);
         }
 

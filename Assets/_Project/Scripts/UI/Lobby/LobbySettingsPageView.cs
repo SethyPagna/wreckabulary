@@ -9,6 +9,7 @@ namespace Wreckabulary
 {
     public sealed class LobbySettingsPageView : MonoBehaviour
     {
+        public const float PanelHeight = 860f;
         public RectTransform Panel, Body, Tabs, Content, Confirmation;
         public TextMeshProUGUI Title;
         public Button Close;

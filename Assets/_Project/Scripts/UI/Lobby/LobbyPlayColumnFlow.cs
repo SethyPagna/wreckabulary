@@ -37,11 +37,18 @@ namespace Wreckabulary
         public const float Spacing = 12, SectionSpacing = 28, CaptionHeight = 28, CaptionGap = 6;
         public const float MinimumWidth = 400, MaximumWidth = 760, MinimumHeight = 120, MaximumHeight = 220;
         public const float Head = CaptionHeight + CaptionGap;
+        public const float SideMinimumWidth = 480, SideMaximumWidth = 680;
+        public RectTransform Side, Overlay;
         float arrangedWidth = -1f, arrangedRoom = -1f;
         int arrangedCards = -1;
         bool fitting;
 
         public LobbyPlayColumnPlan Plan { get; private set; }
+
+        public bool SideShown { get; private set; }
+
+        public static bool SideFits(int sections, float width) =>
+            sections > 0 && width - SideMinimumWidth - SectionSpacing >= sections * MinimumWidth + SectionSpacing * (sections - 1);
 
         public static LobbyPlayColumnPlan Layout(IReadOnlyList<int> counts, float width, float height)
         {
@@ -102,22 +109,26 @@ namespace Wreckabulary
             finally { fitting = false; }
         }
 
-        float Available()
+        float Available() => WidthIn(transform);
+
+        float Room() => RoomUnder(transform);
+
+        internal static float WidthIn(Transform item)
         {
-            float own = ((RectTransform)transform).rect.width;
-            if (!(transform.parent is RectTransform parent) || !parent.TryGetComponent(out VerticalLayoutGroup group)) return own;
+            float own = ((RectTransform)item).rect.width;
+            if (!(item.parent is RectTransform parent) || !parent.TryGetComponent(out VerticalLayoutGroup group)) return own;
             return parent.rect.width - group.padding.horizontal;
         }
 
-        float Room()
+        internal static float RoomUnder(Transform item)
         {
-            var scroll = GetComponentInParent<ScrollRect>();
+            var scroll = item.GetComponentInParent<ScrollRect>();
             if (!scroll || !scroll.viewport) return 0f;
             float above = 0f;
-            if (transform.parent is RectTransform parent && parent.TryGetComponent(out VerticalLayoutGroup group))
+            if (item.parent is RectTransform parent && parent.TryGetComponent(out VerticalLayoutGroup group))
             {
                 above = group.padding.top;
-                for (int i = 0; i < transform.GetSiblingIndex(); i++)
+                for (int i = 0; i < item.GetSiblingIndex(); i++)
                 {
                     var sibling = (RectTransform)parent.GetChild(i);
                     if (!sibling.gameObject.activeSelf || sibling.TryGetComponent(out LayoutElement element) && element.ignoreLayout) continue;
@@ -128,7 +139,7 @@ namespace Wreckabulary
         }
 
         List<RectTransform> Sections() =>
-            transform.Cast<Transform>().Where(child => child.gameObject.activeSelf).Select(child => (RectTransform)child).ToList();
+            transform.Cast<Transform>().Where(child => child != Side && child != Overlay && child.gameObject.activeSelf).Select(child => (RectTransform)child).ToList();
 
         static List<RectTransform> Cards(Transform section) =>
             section.Cast<Transform>().Where(child => child.name != Caption && child.gameObject.activeSelf).Select(child => (RectTransform)child).ToList();
@@ -136,7 +147,15 @@ namespace Wreckabulary
         void Arrange(List<RectTransform> sections, float width, float room)
         {
             var cards = sections.Select(Cards).ToList();
-            Plan = Layout(cards.Select(list => list.Count).ToArray(), width, room);
+            var counts = cards.Select(list => list.Count).ToArray();
+            float beside = width - SideMinimumWidth - SectionSpacing;
+            bool side = Side && SideFits(counts.Length, width);
+            Plan = Layout(counts, side ? beside : width, room);
+            if (side && Plan.Wrapped)
+            {
+                side = false;
+                Plan = Layout(counts, width, room);
+            }
             float y = 0f;
             int start = 0;
             foreach (int size in Plan.Lines)
@@ -161,6 +180,19 @@ namespace Wreckabulary
             }
             if (!TryGetComponent(out LayoutElement element) || !Mathf.Approximately(element.preferredHeight, Plan.BandHeight))
                 ((RectTransform)transform).Size(-1, Plan.BandHeight);
+            PlaceSide(side, sections.Count, width);
+        }
+
+        void PlaceSide(bool side, int sections, float width)
+        {
+            SideShown = side;
+            if (!Side) return;
+            if (Side.gameObject.activeSelf != side) Side.gameObject.SetActive(side);
+            if (!side) return;
+            float used = SectionSpacing * (sections - 1);
+            for (int i = 0; i < sections; i++) used += Plan.SectionWidth(i);
+            float sideWidth = Mathf.Min(SideMaximumWidth, width - used - SectionSpacing);
+            Set(Side, new Vector2(used + SectionSpacing, -Head), new Vector2(sideWidth, Mathf.Max(1f, Plan.BandHeight - Head)));
         }
 
         static void Set(RectTransform rect, Vector2 position, Vector2 size)
@@ -170,6 +202,60 @@ namespace Wreckabulary
             { rect.anchorMin = rect.anchorMax = rect.pivot = corner; }
             if (rect.anchoredPosition != position) rect.anchoredPosition = position;
             if (rect.sizeDelta != size) rect.sizeDelta = size;
+        }
+    }
+
+    public sealed class LobbyPlayToolRow : MonoBehaviour
+    {
+        public const float Gap = 24, MaximumWidth = 720, MinimumWidth = 320, Caption = 104, Inset = 8;
+        float arrangedWidth = -1f, arrangedRoom = -1f;
+        int arrangedCount = -1;
+        bool fitting;
+
+        public Vector2 Card { get; private set; }
+
+        public static float HeightFor(float width) => Mathf.Max(0f, width - Inset * 2) / LobbyPlayCardGrid.PictureAspect + Inset + Caption;
+
+        public static float WidthFor(float height) => Mathf.Max(0f, height - Inset - Caption) * LobbyPlayCardGrid.PictureAspect + Inset * 2;
+
+        public static Vector2 CardFor(int count, float width, float room)
+        {
+            if (count <= 0 || width <= 0) return Vector2.zero;
+            float cardWidth = Mathf.Min(MaximumWidth, (width - Gap * (count - 1)) / count);
+            if (room > 0 && HeightFor(cardWidth) > room) cardWidth = Mathf.Max(Mathf.Min(MinimumWidth, cardWidth), WidthFor(room));
+            cardWidth = Mathf.Floor(Mathf.Max(1f, cardWidth));
+            return new Vector2(cardWidth, Mathf.Floor(HeightFor(cardWidth)));
+        }
+
+        void OnEnable() => Fit();
+        void OnRectTransformDimensionsChange() => Fit();
+        void LateUpdate() => Fit();
+
+        public void Fit()
+        {
+            if (fitting) return;
+            float width = LobbyPlayColumnFlow.WidthIn(transform), room = LobbyPlayColumnFlow.RoomUnder(transform);
+            var cards = transform.Cast<Transform>().Where(child => child.gameObject.activeSelf).Select(child => (RectTransform)child).ToList();
+            if (width <= 0 || cards.Count == 0) return;
+            if (cards.Count == arrangedCount && Mathf.Approximately(width, arrangedWidth) && Mathf.Approximately(room, arrangedRoom)) return;
+            fitting = true;
+            try
+            {
+                Card = CardFor(cards.Count, width, room);
+                float total = Card.x * cards.Count + Gap * (cards.Count - 1), x = Mathf.Max(0f, Mathf.Floor((width - total) * .5f));
+                var corner = new Vector2(0, 1);
+                foreach (var card in cards)
+                {
+                    card.anchorMin = card.anchorMax = card.pivot = corner;
+                    card.anchoredPosition = new Vector2(x, 0f);
+                    card.sizeDelta = Card;
+                    x += Card.x + Gap;
+                }
+                if (!TryGetComponent(out LayoutElement element) || !Mathf.Approximately(element.preferredHeight, Card.y))
+                    ((RectTransform)transform).Size(-1, Card.y);
+                arrangedWidth = width; arrangedRoom = room; arrangedCount = cards.Count;
+            }
+            finally { fitting = false; }
         }
     }
 

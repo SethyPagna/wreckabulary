@@ -5,6 +5,9 @@ namespace Wreckabulary.Online
 {
     public sealed partial class WordboundMatchHud
     {
+        const string KeepPlayingLabel = "Keep playing", LeaveLabel = "Leave match", PlayAgainLabel = "Play again";
+        const float FooterMinWidth = 180f, FooterPad = 40f;
+        readonly GUIContent footerMeasure = new GUIContent();
         bool leaveConfirm, resultsOpen, resultsShown, playAgainSent;
         CourseResultSummary menuSummary;
 
@@ -32,6 +35,7 @@ namespace Wreckabulary.Online
             var result = frame?.Progress.Result;
             if (resultsShown || result == null || !result.Confirmed || !view) return;
             resultsShown = true;
+            RecordRunTime();
             ReleaseDefense();
             crafting = false;
             OpenPage(results: true);
@@ -42,7 +46,7 @@ namespace Wreckabulary.Online
 
         void RequestLeave()
         {
-            if (!MatchRunning) { ReturnRequested?.Invoke(); return; }
+            if (!MatchRunning) { Leave(); return; }
             OpenPage();
             leaveConfirm = true;
             menuFocus.Reset("leave-cancel");
@@ -51,6 +55,12 @@ namespace Wreckabulary.Online
         void ConfirmLeave()
         {
             leaveConfirm = false;
+            Leave();
+        }
+
+        void Leave()
+        {
+            RecordRunTime();
             ReturnRequested?.Invoke();
         }
 
@@ -70,14 +80,25 @@ namespace Wreckabulary.Online
         void MenuFooter()
         {
             var height = GUILayout.MinHeight(ui.RowHeight);
+            GUILayout.FlexibleSpace();
             if (leaveConfirm)
             {
-                if (MenuButton("leave-cancel", "Keep playing", height)) QueueMenuAction(CancelLeave);
-                if (MenuButton("leave-confirm", "Leave match", height)) QueueMenuAction(ConfirmLeave);
-                return;
+                if (MenuButton("leave-cancel", KeepPlayingLabel, height, FooterWidth(KeepPlayingLabel))) QueueMenuAction(CancelLeave);
+                if (MenuButton("leave-confirm", LeaveLabel, height, FooterWidth(LeaveLabel))) QueueMenuAction(ConfirmLeave);
             }
-            if (PlayAgainAvailable && MenuButton("play-again", "Play again", height)) QueueMenuAction(PlayAgain);
-            if (MenuButton("return", MatchRunning ? "Leave match" : returnLabel, height)) QueueMenuAction(RequestLeave);
+            else
+            {
+                if (PlayAgainAvailable && MenuButton("play-again", PlayAgainLabel, height, FooterWidth(PlayAgainLabel))) QueueMenuAction(PlayAgain);
+                string back = MatchRunning ? LeaveLabel : returnLabel;
+                if (MenuButton("return", back, height, FooterWidth(back))) QueueMenuAction(RequestLeave);
+            }
+            GUILayout.FlexibleSpace();
+        }
+
+        GUILayoutOption FooterWidth(string label)
+        {
+            footerMeasure.text = "› " + label;
+            return GUILayout.Width(Mathf.Max(FooterMinWidth, Mathf.Ceil(ui.SingleLine.CalcSize(footerMeasure).x) + FooterPad));
         }
 
         void LeavePage(Rect body)

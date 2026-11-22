@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using Wreckabulary.Rules;
@@ -9,38 +8,27 @@ namespace Wreckabulary.Online
 {
     public sealed partial class WordboundMatchHud
     {
-        GUIStyle overlayLabel, overlayBox;
-        int overlayStyleGeneration = -1;
-        string headingText, lapText, knockoutText, menuHintText;
-        long headingSeconds = long.MinValue;
+        const string GuideRowId = "how-to-play";
+        string headingText, lapText, knockoutText;
+        ModeDefinition headingMode;
+        bool guideOpen;
+        int guideClosedFrame = -1;
         (int Lap, int Checkpoint, int Count) lapKey = (-1, -1, -1);
         int knockoutKey = -1;
-        (bool Pad, int Version) menuHintKey;
-        (int Health, int First, int Second, int Equipped, bool Keepsake, bool Pad, int Version) trayKey;
-        readonly List<string> trayRows = new List<string>();
 
         void DrawOverlay(float width, float height)
         {
             using var themeScope = ui.Apply(Theme);
-            if (overlayStyleGeneration != ui.Generation)
-            {
-                overlayLabel = new GUIStyle(ui.Wrapped) { padding = new RectOffset(0, 0, 1, 1) };
-                overlayLabel.normal.textColor = ui.Ink;
-                overlayBox = new GUIStyle(ui.Panel) { padding = new RectOffset(10, 10, 6, 6) };
-                PrepareGuidanceStyles();
-                overlayStyleGeneration = ui.Generation;
-            }
+            PrepareKit();
             Color background = GUI.backgroundColor;
             try
             {
-                GUI.backgroundColor = new Color(1f, 1f, 1f, .78f);
-                float available = width - 36;
                 DrawArrow(width, height);
-                statusPanel.DrawCompact(18, 18, Mathf.Min(380, available * .48f), overlayLabel, overlayBox, false, 0);
-                var tray = inventoryPanel.DrawCompact(18, height - 18, available * .23f, overlayLabel, overlayBox, true, 0);
-                DrawTiles(tray, available * .23f);
-                actionPanel.DrawCompact(width * .5f, height - 18, available * .5f, overlayLabel, overlayBox, true, .5f);
-                menuHintPanel.DrawCompact(width - 18, height - 18, available * .23f, overlayLabel, overlayBox, true, 1);
+                var status = DrawTitlePlate(width);
+                DrawVitals(height);
+                var tray = DrawTray(width, height);
+                DrawActionChip(width, height, tray);
+                notesTop = DrawScoreStrip(width, status);
                 DrawNotes(width);
                 DrawVoice(width);
                 DrawLookEye(width);
@@ -51,26 +39,31 @@ namespace Wreckabulary.Online
         void PreparePanels()
         {
             preparedFrame = Time.frameCount;
-            statusPanel.Begin(); actionPanel.Begin(); inventoryPanel.Begin(); menuHintPanel.Begin();
+            statusPanel.Begin();
             statusPanel.Add(Heading());
+            statusTagRow = -1;
             var progress = TeamProgressOf(frame);
             if (frame != null)
             {
                 if (mode.IsRace && progress != null)
                 {
                     statusPanel.Add(LapLine(progress));
+                    statusTagRow = 1;
                     string objective = CurrentStep().Text;
                     statusPanel.Add(objective.Length != 0 ? objective : ObjectiveText(progress));
                 }
                 else if (mode.Objective == WordboundObjective.Knockouts)
+                {
                     statusPanel.Add(KnockoutLine());
+                    statusTagRow = 1;
+                }
                 else if (WordboundPracticePolicy.Supports(mode) && CurrentStep().Text.Length != 0)
                     statusPanel.Add(CurrentStep().Text);
             }
             PrepareTray(progress);
-            string context = ContextPrompt();
-            if (context.Length != 0) actionPanel.Add(context);
-            menuHintPanel.Add(MenuHint());
+            actionPrompt.Set(ContextPrompt());
+            spellKeys.Set(view ? Hint(WordboundControl.Spell, SpellWord) : "");
+            menuKeys.Set(view ? Hint(WordboundControl.Menu, MenuWord) : "");
             panelsReady = true;
         }
 
@@ -83,12 +76,10 @@ namespace Wreckabulary.Online
 
         string Heading()
         {
-            long seconds = frame != null && mode.TimeLimitSeconds > 0
-                ? Math.Max(0, mode.TimeLimitSeconds - frame.Progress.ElapsedTicks / ModeDefinition.TickRate) : -1;
-            if (headingText == null || seconds != headingSeconds)
+            if (headingText == null || !ReferenceEquals(headingMode, mode))
             {
-                headingSeconds = seconds;
-                headingText = LobbyPlayModeLabels.Name(mode.Id) + (seconds < 0 ? "" : " · " + CourseGuidance.Clock(seconds));
+                headingMode = mode;
+                headingText = LobbyPlayModeLabels.Name(mode.Id);
             }
             return headingText;
         }
@@ -116,46 +107,6 @@ namespace Wreckabulary.Online
                 knockoutText = $"Knockouts {knockouts}/{mode.KnockoutTarget}";
             }
             return knockoutText;
-        }
-
-        string MenuHint()
-        {
-            var key = (view && view.UsesGamepad, KeyBindings.Version);
-            if (menuHintText == null || !key.Equals(menuHintKey))
-            {
-                menuHintKey = key;
-                menuHintText = Hint(WordboundControl.Spell, "Spell") + " · " + Hint(WordboundControl.Menu, "Menu");
-            }
-            return menuHintText;
-        }
-
-        void PrepareTray(TeamProgress progress)
-        {
-            if (inventory == null) { tileText = ""; tileBag = null; }
-            else if (tileBag == null || !inventory.Letters.Equals(tileBag))
-            {
-                tileBag = new LetterBag(inventory.Letters);
-                tileText = tileBag.ToString();
-            }
-            if (actor == null || inventory == null) return;
-            var key = (Mathf.CeilToInt(actor.Health), HeldItem(0)?.Id ?? -1, HeldItem(1)?.Id ?? -1, actor.EquippedSlot,
-                progress != null && progress.KeepsakeCarrier == actorId, view && view.UsesGamepad, KeyBindings.Version);
-            if (trayRows.Count == 0 || !key.Equals(trayKey))
-            {
-                trayKey = key;
-                trayRows.Clear();
-                trayRows.Add("Health " + key.Item1);
-                for (int slot = 0; slot < Math.Min(2, inventory.Slots.Length); slot++) trayRows.Add(HandRow(slot));
-                if (key.Item5) trayRows.Add("Carrying the keepsake");
-            }
-            foreach (string row in trayRows) inventoryPanel.Add(row);
-        }
-
-        string HandRow(int slot)
-        {
-            string key = HandKey(slot);
-            return (key.Length == 0 ? "" : "[" + key + "] ") + "Hand " + (slot + 1) + ": " + (HeldItem(slot)?.Word ?? "empty") +
-                (actor != null && actor.EquippedSlot == slot ? " (using)" : "");
         }
 
         string HandKey(int slot)
@@ -238,9 +189,52 @@ namespace Wreckabulary.Online
             return puzzle;
         }
 
+        string GuideId => mode == null ? null : CourseGuides.For(mode.Id);
+
+        bool GuideBlocksMenu => guideOpen || Time.frameCount == guideClosedFrame;
+
+        void GuideRow()
+        {
+            if (!ModeGuides.Has(GuideId)) return;
+            if (MenuButton(GuideRowId, CourseGuides.RowLabel)) QueueMenuAction(OpenGuide);
+            GUILayout.Space(8);
+        }
+
+        void OpenGuide()
+        {
+            string id = GuideId;
+            if (guideOpen || !ModeGuides.Has(id)) return;
+            var panel = ModeGuides.Show(id, null, GuideClosed);
+            if (!panel) return;
+            guideOpen = true;
+            panel.KeepWhile = () => this && view && view.MenuOpen && helpOpen;
+        }
+
+        void GuideClosed()
+        {
+            guideOpen = false;
+            guideClosedFrame = Time.frameCount;
+            if (helpOpen) menuFocus.Reset(GuideRowId);
+        }
+
+        void CloseGuide()
+        {
+            if (guideOpen) ModeGuides.Close();
+        }
+
+        bool GuideKeepsMenu()
+        {
+            if (!GuideBlocksMenu) return false;
+            if (view.MenuOpen) return guideOpen;
+            CloseGuide();
+            view.SetMenuOpen(true);
+            return true;
+        }
+
         void HelpMenu()
         {
             recipeScroll = GUILayout.BeginScrollView(recipeScroll);
+            GuideRow();
             if (frame != null && mode != null && course != null)
             {
                 if (mode.IsRace) GUILayout.Label(ObjectiveText(frame.Progress.Teams.Single(t => t.Team == team)), ui.Wrapped);

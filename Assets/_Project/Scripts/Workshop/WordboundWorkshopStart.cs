@@ -58,6 +58,18 @@ namespace Wreckabulary.Workshop
             _ => "The four-floor Lost Address course"
         };
 
+        const string AssignedArt = "BOOK";
+
+        static string StarterArt(WorkshopStarter starter) => starter switch
+        {
+            WorkshopStarter.RaceCircuit => "CLOCK", WorkshopStarter.Arena => "BOMB", WorkshopStarter.FreeplayWorld => "SOFA", _ => "BOX"
+        };
+
+        static string StarterSnapshot(WorkshopStarter starter) => starter switch
+        {
+            WorkshopStarter.ParcelDepot => WordboundSoloEntry.ParcelServiceMap, WorkshopStarter.LostAddress => WordboundSoloEntry.LostAddressMap, _ => null
+        };
+
         string StarterBlocker(WorkshopStarter starter) => starter == WorkshopStarter.ParcelDepot ?
             !HasParcelService ? "Parcel Depot isn't available here." : parcelServiceUnavailable ?? "" :
             starter == WorkshopStarter.LostAddress && flagshipContent == null ? "The Lost Address isn't available here." : "";

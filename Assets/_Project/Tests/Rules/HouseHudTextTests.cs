@@ -267,6 +267,8 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual("Team 1 wins!", BattleResultText.Heading(couch));
             Assert.AreEqual("More lives left when time ran out.", BattleResultText.Flavour(couch));
             Assert.AreEqual("1 life left", BattleResultText.Lives(1));
+            Assert.AreEqual("Team 2 · no lives · 3 standing", BattleResultText.OutOfLives("Team 2", 3));
+            Assert.AreEqual("Your team · no lives · 0 standing", BattleResultText.OutOfLives("Your team", -1));
         }
 
         [Test]
@@ -277,6 +279,55 @@ namespace Wreckabulary.Rules.Tests
             Assert.AreEqual("MATCH OVER · DRAW", BattleResultText.Eyebrow(war));
             Assert.AreEqual("Both teams fell together. A draw.", BattleResultText.Heading(war));
             Assert.AreEqual("", BattleResultText.Winner(war));
+        }
+
+        [Test]
+        public void ACardSaysYouOnlyForTheOnePersonOnTheCouchAndAlwaysMarksBots()
+        {
+            Assert.AreEqual("YOU", SeatTags.Tag(true, false));
+            Assert.AreEqual("BOT", SeatTags.Tag(false, true));
+            Assert.AreEqual("BOT", SeatTags.Tag(true, true));
+            Assert.AreEqual("", SeatTags.Tag(false, false));
+            Assert.AreEqual("YOU", HouseResultText.Tag(Seat("P1", 0, you: true, human: true), 1));
+            Assert.AreEqual("", HouseResultText.Tag(Seat("P1", 0, you: true, human: true), 2), "a shared couch keeps seat names only");
+            Assert.AreEqual("BOT", HouseResultText.Tag(Seat("AI 2", 0), 1));
+        }
+
+        [Test]
+        public void RoundPipsFillOneForEachWinUpToTheTarget()
+        {
+            Assert.AreEqual(0, HouseResultText.Pips(0, 3));
+            Assert.AreEqual(2, HouseResultText.Pips(2, 3));
+            Assert.AreEqual(3, HouseResultText.Pips(5, 3), "never more pips than the target");
+            Assert.AreEqual(0, HouseResultText.Pips(-1, 3));
+            Assert.IsTrue(HouseResultText.ShowsPips(3));
+            Assert.IsTrue(HouseResultText.ShowsPips(HouseResultText.MaxPips));
+            Assert.IsFalse(HouseResultText.ShowsPips(HouseResultText.MaxPips + 1), "a long match shows the count instead");
+            Assert.IsFalse(HouseResultText.ShowsPips(0));
+            Assert.AreEqual("1/3", HouseResultText.WinCount(1, 3));
+            Assert.AreEqual("4", HouseResultText.WinCount(4, 0));
+            Assert.AreEqual(5, new SeatResult("P1", 0, 100, false, false, false, false, true, 5).Seat);
+            Assert.AreEqual(-1, Seat("P1", 0).Seat, "a seat number is optional");
+        }
+
+        [Test]
+        public void TheEscapeGoalCountsKeysWithoutCountingDoors()
+        {
+            Assert.AreEqual("KEYS 0/1", EscapeText.Keys(0, 1));
+            Assert.AreEqual("KEYS 2/2", EscapeText.Keys(2, 2));
+            Assert.AreEqual("look in Shed", EscapeText.KeyNote(0, 1, false, "Shed"));
+            Assert.AreEqual("head for the exit", EscapeText.KeyNote(1, 1, false, "Shed"));
+            Assert.AreEqual("the way out is open", EscapeText.KeyNote(1, 1, true, "Shed"));
+            StringAssert.DoesNotContain("door", EscapeText.CrewGoal.ToLowerInvariant());
+            var goal = new HudGoal("BED", "in the Bedroom", false, true);
+            Assert.AreEqual("BED", goal.Word);
+            Assert.IsTrue(goal.Current);
+            Assert.AreEqual("", goal.Icon);
+            Assert.AreEqual("", new HudGoal(null, null, true).Word);
+            Assert.AreEqual("in the Bedroom", FurnishText.Where("Bedroom"));
+            Assert.AreEqual("", FurnishText.Where(""));
+            Assert.AreEqual("CHECKLIST · PINWHEEL HOUSE", FurnishText.PlateHeading("Pinwheel House"));
+            Assert.AreEqual("CHECKLIST", FurnishText.PlateHeading(null));
         }
     }
 }

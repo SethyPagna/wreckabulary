@@ -18,6 +18,8 @@ namespace Wreckabulary
         readonly int[] up = new int[SideCount];
         readonly List<int> sidesInRoom = new();
         readonly List<PlayerController> roster = new();
+        readonly List<string> panelLines = new();
+        readonly List<HudGoal> panelGoals = new();
         int[] ends = System.Array.Empty<int>();
         System.Func<PlayerController, int> score;
         System.Func<int, int> lives;
@@ -73,8 +75,6 @@ namespace Wreckabulary
             var mine = HouseEnds.Of(ends, p.Team);
             Joins.Place(p, mine[(Joins.SpawnSeat(p) / SideCount) % mine.Count]);
         }
-
-        protected override void OnPlay() => Hud.Toast($"Two teams, {StartingLives} lives each. Every knockout costs one.");
 
         protected override string TimerText => Score != null && Score.SuddenDeath ? "SUDDEN DEATH" : base.TimerText;
 
@@ -157,18 +157,29 @@ namespace Wreckabulary
             int key = Score.Lives(0) * 7919 + Score.Lives(1) * 104729 + up[0] * 31 + up[1] * 17 + (Hold?.Holder ?? -1) * 3 + held * 1299709;
             if (key == panelKey) return;
             panelKey = key;
-            var lines = new List<string> { "<b>" + HouseModes.Name(HouseModes.War).ToUpperInvariant() + "</b>" };
+            panelLines.Clear();
+            panelGoals.Clear();
             for (int s = 0; s < SideCount; s++)
-                lines.Add(Score.Lives(s) > 0 ? $"{SideName(s)} · {BattleResultText.LifeCount(Score.Lives(s))}"
-                    : $"<color=#FF6B5E>{SideName(s)} · no lives · {up[s]} standing</color>");
+                if (Score.Lives(s) == 0) Line(BattleResultText.OutOfLives(SideName(s), up[s]), $"<color=#FF6B5E>{BattleResultText.OutOfLives(SideName(s), up[s])}</color>");
             if (HoldRoom != null)
-                lines.Add(Hold.Holder != Teams.NoTeam && held >= 0
+                Line(Hold.Holder != Teams.NoTeam && held >= 0
                     ? $"{SideName(Hold.Holder)} holds the {GameHud.Spaced(HoldRoom)} · {Mathf.Max(1, Mathf.CeilToInt(HoldSeconds - Hold.Progress))} s"
                     : $"Hold the {GameHud.Spaced(HoldRoom)} alone: +1 life every {Mathf.RoundToInt(HoldSeconds)} s");
-            Hud.SetChecklist(string.Join("\n", lines));
+            Hud.SetChecklist(string.Join("\n", panelLines));
+            Hud.SetGoals("", panelGoals);
         }
 
-        protected override void OnFinish() => Hud.SetChecklist("");
+        void Line(string plain, string marked = null)
+        {
+            panelLines.Add(marked ?? plain);
+            panelGoals.Add(new HudGoal("", plain, false));
+        }
+
+        protected override void OnFinish()
+        {
+            Hud.SetChecklist("");
+            Hud.SetGoals("", null);
+        }
 
         HouseRoundResult Result()
         {

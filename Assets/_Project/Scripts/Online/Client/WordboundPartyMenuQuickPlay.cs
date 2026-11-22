@@ -260,13 +260,15 @@ namespace Wreckabulary.Online
         void DrawLobbySearch(Vector2 viewport)
         {
             float height = ui.RowHeight * 2.6f;
-            GUILayout.BeginArea(new Rect(0, viewport.y - height, viewport.x, height), ui.Panel);
+            var strip = new Rect(0, viewport.y - height, viewport.x, height);
+            GUILayout.BeginArea(strip, ui.Panel);
+            paper.Sheet(new Rect(Vector2.zero, strip.size));
             GUILayout.BeginHorizontal();
             GUILayout.BeginVertical();
             GUILayout.FlexibleSpace();
             GUILayout.Label(LobbySearchTitle(), ui.Heading);
             string problem = LobbySearchProblem();
-            if (problem != null) GUILayout.Label(problem, ui.Wrapped);
+            if (problem != null) GUILayout.Label(problem, paper.Problem ?? ui.Wrapped);
             GUILayout.FlexibleSpace();
             GUILayout.EndVertical();
             GUILayout.FlexibleSpace();

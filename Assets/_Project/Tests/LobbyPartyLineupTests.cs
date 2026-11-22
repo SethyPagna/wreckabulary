@@ -149,7 +149,8 @@ namespace Wreckabulary.Tests
             }
             Assert.IsNull(lineup.PlateAt(standing), "nobody else has one");
             var shown = new List<RectTransform>(plates);
-            if (lineup.Open && lineup.Open.gameObject.activeInHierarchy) shown.Add((RectTransform)lineup.Open.transform);
+            foreach (var open in lineup.Opens)
+                if (open && open.gameObject.activeInHierarchy) shown.Add((RectTransform)open.transform);
             for (int i = 0; i < shown.Count; i++)
             {
                 var box = OnScreen(shown[i]);
@@ -163,15 +164,38 @@ namespace Wreckabulary.Tests
             return plates;
         }
 
+        static void AssertOpenPlate(Button open, RectTransform yours)
+        {
+            Assert.AreEqual(LobbyPartyLineup.OpenName, open.name);
+            Assert.AreEqual(PartyPlates.OpenLabel, Label((RectTransform)open.transform, LobbyPartyLineup.NameName).text);
+            Assert.AreEqual(PartyPlates.OpenHint, open.GetComponent<LobbyHint>().Text);
+            Assert.IsNotNull(open.Body().Find(LobbyPartyLineup.ChipName), "an empty chip with a plus");
+            var keys = open.Body().Find(LobbyPartyLineup.KeysName);
+            Assert.IsNotNull(keys, "the plate shows how to join");
+            foreach (string key in PartyPlates.JoinKeys(!Application.isMobilePlatform))
+            {
+                var cap = keys.Find(LobbyPartyLineup.KeyPrefix + key);
+                Assert.IsNotNull(cap, key + " has a key cap");
+                Assert.AreEqual(key, cap.GetComponentInChildren<TMP_Text>().text);
+                Assert.AreEqual(LobbyPartyLineup.KeyHeight, ((RectTransform)cap).rect.height, Pixel, key + " cap height");
+            }
+            var size = ((RectTransform)open.transform).rect;
+            Assert.GreaterOrEqual(size.height, 44f - Pixel, "a full-size control");
+            Assert.GreaterOrEqual(size.height, yours.rect.height - Pixel, "the size of a name plate");
+            Assert.LessOrEqual(size.width, yours.rect.width * 2f, "no bigger than a name plate needs");
+        }
+
         [UnityTest]
-        public IEnumerator ASoloLobbyShowsYourPlateUnderYouAndOneAddPlayerPlate()
+        public IEnumerator ASoloLobbyShowsYourPlateUnderYouAndAnAddPlayerPlateInEachFreePlace()
         {
             var menu = Menu; var lineup = Lineup;
             Assert.AreEqual(LobbyMenu.Home, menu.Current);
             Assert.AreEqual(LobbyPartyLineup.RootName, lineup.name);
             Assert.AreEqual("Safe area", lineup.transform.parent.name, "the line-up sits beside the pages, not inside the Home page");
             Assert.IsFalse(lineup.transform.IsChildOf(menu.Page<HomePage>().Root));
-            CollectionAssert.AreEqual(new[] { PartyPlateKind.You, PartyPlateKind.Open }, lineup.Plates.Select(plate => plate.Kind).ToArray());
+            CollectionAssert.AreEqual(new[] { PartyPlateKind.You, PartyPlateKind.Open, PartyPlateKind.Open, PartyPlateKind.Open },
+                lineup.Plates.Select(plate => plate.Kind).ToArray());
+            Assert.AreEqual(3, lineup.Opens.Count, "one add-player plate for each free place");
             var plates = AssertTidy(lineup, 1);
             var mine = plates[0];
             Assert.AreEqual(PlayerName, Label(mine, LobbyPartyLineup.NameName).text);
@@ -182,10 +206,14 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(foot.x, box.center.x, 1f, "the plate is centred under your character");
             Assert.Less(box.yMax, foot.y, "and hangs below their feet");
             Assert.Greater(box.yMax, foot.y - Screen.height * .1f, "close to them");
-            Assert.IsTrue(lineup.Open && lineup.Open.gameObject.activeInHierarchy, "one soft plate invites another player");
-            Assert.AreEqual(LobbyPartyLineup.OpenName, lineup.Open.name);
+            Assert.IsTrue(lineup.Open && lineup.Open.gameObject.activeInHierarchy, "a soft plate invites another player");
             Assert.AreEqual(PartyPlates.OpenLabel, lineup.Open.GetComponentInChildren<TMP_Text>().text);
-            Assert.Less(OnScreen(lineup.Open).center.x, box.xMin, "it waits on the side away from PLAY");
+            Assert.Less(OnScreen(lineup.Open).center.x, box.xMin, "the first free place waits on the side away from PLAY");
+            var offered = lineup.Opens.Where(open => open.gameObject.activeInHierarchy).ToArray();
+            foreach (var open in offered) AssertOpenPlate(open, mine);
+            var second = lineup.Opens[1];
+            if (second.gameObject.activeInHierarchy)
+                Assert.Greater(OnScreen(second).center.x, box.xMax, "the next free place is on your other side");
             AssertTextFits(lineup);
             yield return null;
         }

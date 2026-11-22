@@ -8,9 +8,9 @@ namespace Wreckabulary
 {
     public partial class GameHud
     {
-        public const string MatchEndHeadName = "Match end", MatchEndCardsName = "Match cards";
+        public const string MatchEndHeadName = "Match end", MatchEndCardsName = "Match cards", RoundRowName = "Round row";
         public const float MatchEndMinFont = 15f;
-        const float ResultCardWidth = 575f, ResultCardPad = 44f, ResultHeadingFont = 40f, MatchEndHeadingFont = 26f;
+        const float ResultCardWidth = 575f, ResultCardPad = 44f, ResultHeadingFont = 40f;
         const float MatchEndHeadHeight = 104f, MatchEndModeHeight = 24f, MatchEndBannerHeight = 72f, MatchEndModeFont = 16f, MatchEndBannerFont = 60f, MatchEndBannerMinFont = 28f;
         const float MatchEndCellMin = 248f, MatchEndCellMax = 270f, MatchEndCellHeight = 156f, MatchEndCellGap = 12f, MatchEndRowGap = 10f, MatchEndTopGap = 14f;
         const float MatchEndPad = 12f, MatchEndPortrait = 64f, MatchEndRim = 4f, MatchEndTextLeft = 88f;
@@ -18,6 +18,10 @@ namespace Wreckabulary
         const float MatchEndNumbersTop = 86f, MatchEndNumbersHeight = 60f, MatchEndValueHeight = 36f;
         const float MatchEndNameFont = 20f, MatchEndTitleFont = 16f, MatchEndTagFont = 15f, MatchEndValueFont = 26f, MatchEndLabelFont = 15f, MatchEndLetterFont = 34f;
         const int MatchEndRoomySeats = 4, MatchEndCellRadius = 16, MatchEndPortraitRadius = 12, MatchEndInnerRadius = 9;
+        const float RoundCellMax = 112f, RoundCellMin = 72f, RoundCellGap = 12f, RoundRaise = 18f, RoundTopGap = 8f, RoundRim = 4f;
+        const float RoundNameHeight = 28f, RoundTagHeight = 22f, RoundPipsHeight = 24f, RoundPip = 16f, RoundPipGap = 6f, RoundWinnerRim = 4f;
+        const float RoundNameFont = 20f, RoundTagFont = 15f, RoundCountFont = 18f, RoundLetterShare = .45f;
+        const int RoundPortraitRadius = 14, RoundInnerRadius = 10, RoundPipRadius = 8, RoundPipRing = 2, RoundWinnerRing = 4;
 
         sealed class MatchEndSeat
         {
@@ -29,13 +33,24 @@ namespace Wreckabulary
             public readonly List<(TextMeshProUGUI value, TextMeshProUGUI label)> numbers = new();
         }
 
-        RectTransform resultCard, matchEndHead, matchEndCards;
-        GameObject resultSparkGap;
-        LayoutElement matchEndCardsSize;
+        sealed class RoundSeat
+        {
+            public SeatResult seat;
+            public RectTransform root, frame, pips;
+            public TextMeshProUGUI name, tag, letter, count;
+            public RawImage portrait;
+            public SeatPortrait face;
+            public int filled;
+        }
+
+        RectTransform resultCard, matchEndHead, matchEndCards, roundRow;
+        GameObject resultSparkGap, resultEyebrowGap, resultHeadingGap;
+        LayoutElement matchEndCardsSize, roundRowSize;
         TextMeshProUGUI matchEndMode, matchEndBanner;
         readonly List<MatchEndSeat> matchEndSeats = new();
+        readonly List<RoundSeat> roundSeats = new();
         MatchEndBoard matchEndBoard;
-        float matchEndWidth = -1f;
+        float matchEndWidth = -1f, roundRowWidth = -1f;
 
         public bool MatchEndShown => ResultShown && matchEndBoard != null && matchEndHead && matchEndHead.gameObject.activeSelf;
         public MatchEndBoard ShownMatchEnd => MatchEndShown ? matchEndBoard : null;
@@ -46,6 +61,14 @@ namespace Wreckabulary
         public string MatchEndCardName(int index) => MatchEndCardRect(index) ? matchEndSeats[index].name.text : "";
         public string MatchEndCardTitle(int index) => MatchEndCardRect(index) ? matchEndSeats[index].title.text : "";
         public string MatchEndCardTag(int index) => MatchEndCardRect(index) ? matchEndSeats[index].tag.text : "";
+
+        public bool RoundRowShown => ResultShown && roundRow && roundRow.gameObject.activeSelf && roundSeats.Count > 0;
+        public int RoundRowCount => RoundRowShown ? roundSeats.Count : 0;
+        public RectTransform RoundRowRect(int index) => RoundRowShown && index >= 0 && index < roundSeats.Count ? roundSeats[index].root : null;
+        public string RoundRowSeatName(int index) => RoundRowRect(index) ? roundSeats[index].name.text : "";
+        public string RoundRowSeatTag(int index) => RoundRowRect(index) ? roundSeats[index].tag.text : "";
+        public int RoundRowWins(int index) => RoundRowRect(index) ? roundSeats[index].filled : 0;
+        public bool RoundRowRaised(int index) => RoundRowRect(index) && roundSeats[index].seat.Won;
 
         public string MatchEndCardNumbers(int index)
         {
@@ -60,15 +83,15 @@ namespace Wreckabulary
         void ShowMatchEnd(MatchEndBoard board)
         {
             if (board != null && board.Cards.Count == 0) board = null;
+            bool on = board != null;
+            ShowResultWords(!on);
             if (board == null && matchEndBoard == null && !matchEndHead) return;
             matchEndBoard = board;
-            bool on = board != null;
             if (on && !matchEndHead) BuildMatchEnd();
             if (matchEndHead) matchEndHead.gameObject.SetActive(on);
             if (matchEndCards) matchEndCards.gameObject.SetActive(on);
             resultSpark.gameObject.SetActive(!on);
             if (resultSparkGap) resultSparkGap.SetActive(!on);
-            resultHeading.fontSize = on ? MatchEndHeadingFont : ResultHeadingFont;
             ClearMatchEndSeats();
             if (!on)
             {
@@ -82,13 +105,23 @@ namespace Wreckabulary
             matchEndBanner.color = board.Won ? ReadyInk : board.Lost ? Bad : Ink;
             var teams = new int[board.Cards.Count];
             for (int i = 0; i < teams.Length; i++) teams[i] = board.Cards[i].Team;
-            bool sided = MatchShowcase.Sided(teams);
-            for (int i = 0; i < board.Cards.Count; i++) matchEndSeats.Add(MakeMatchEndSeat(board.Cards[i], i, sided));
+            bool sided = !board.Crew && MatchShowcase.Sided(teams);
+            for (int i = 0; i < board.Cards.Count; i++) matchEndSeats.Add(MakeMatchEndSeat(board.Cards[i], i, sided, board.Crew));
             int across = MatchEndAcross(board.Cards.Count);
             SetResultCardWidth(Mathf.Max(ResultCardWidth, 2f * ResultCardPad + across * MatchEndCellMax + (across - 1) * MatchEndCellGap));
             matchEndWidth = -1f;
             FitMatchEnd();
             DrawMatchEndFaces();
+        }
+
+        void ShowResultWords(bool on)
+        {
+            resultEyebrow.gameObject.SetActive(on);
+            if (resultEyebrowGap) resultEyebrowGap.SetActive(on);
+            resultHeading.gameObject.SetActive(on);
+            if (resultHeadingGap) resultHeadingGap.SetActive(on);
+            resultFlavour.gameObject.SetActive(on);
+            resultHeading.fontSize = ResultHeadingFont;
         }
 
         static int MatchEndAcross(int seats) => seats <= MatchEndRoomySeats ? Mathf.Max(1, seats) : (seats + 1) / 2;
@@ -133,7 +166,7 @@ namespace Wreckabulary
             rt.offsetMin = new Vector2(left, -top - height); rt.offsetMax = new Vector2(-right, -top);
         }
 
-        MatchEndSeat MakeMatchEndSeat(MatchEndCard card, int index, bool sided)
+        MatchEndSeat MakeMatchEndSeat(MatchEndCard card, int index, bool sided, bool crew)
         {
             var player = World.PlayerById(card.Seat);
             Color colour = player ? ShowcaseSideColour(player, World.Players, sided) : Cream;
@@ -159,10 +192,11 @@ namespace Wreckabulary
             seat.title.alignment = TextAlignmentOptions.MidlineLeft;
             MatchEndRow(seat.title.rectTransform, MatchEndTextLeft, MatchEndPad, MatchEndNameTop + MatchEndNameHeight, MatchEndTitleHeight);
             seat.title.text = card.Title;
+            bool titled = card.Title.Length > 0;
             seat.tag = MatchEndText(seat.root, "Tag", LobbyFonts.Body, MatchEndTagFont, MatchEndMinFont, ToastInk);
             seat.tag.alignment = TextAlignmentOptions.MidlineLeft;
-            MatchEndRow(seat.tag.rectTransform, MatchEndTextLeft, MatchEndPad, MatchEndNameTop + MatchEndNameHeight + MatchEndTitleHeight, MatchEndTagHeight);
-            seat.tag.text = MatchEndTag(card);
+            MatchEndRow(seat.tag.rectTransform, MatchEndTextLeft, MatchEndPad, MatchEndNameTop + MatchEndNameHeight + (titled ? MatchEndTitleHeight : 0f), MatchEndTagHeight);
+            seat.tag.text = MatchEnd.Tag(card, crew);
             var numbers = Rect("Numbers", seat.root, Vector2.zero, Vector2.zero, Vector2.zero);
             MatchEndRow(numbers, MatchEndPad, MatchEndPad, MatchEndNumbersTop, MatchEndNumbersHeight);
             int shown = card.Numbers.Count;
@@ -182,9 +216,6 @@ namespace Wreckabulary
             return seat;
         }
 
-        static string MatchEndTag(MatchEndCard card) =>
-            card.Winner ? card.Bot ? MatchEnd.WinnerTag + MatchEnd.Dot + MatchEnd.BotTag : MatchEnd.WinnerTag : card.Bot ? MatchEnd.BotTag : "";
-
         void ClearMatchEndSeats()
         {
             foreach (var seat in matchEndSeats) if (seat.root) Destroy(seat.root.gameObject);
@@ -193,6 +224,7 @@ namespace Wreckabulary
 
         void FitMatchEnd()
         {
+            FitRoundRow();
             if (matchEndBoard == null || !matchEndCards || !resultCard || matchEndSeats.Count == 0) return;
             float inner = resultCard.sizeDelta.x - 2f * ResultCardPad;
             if (inner <= 0f || Mathf.Approximately(inner, matchEndWidth)) return;
@@ -216,9 +248,136 @@ namespace Wreckabulary
 
         void DrawMatchEndFaces()
         {
+            DrawRoundFaces();
             if (matchEndBoard == null || matchEndSeats.Count == 0 || !ResultShown) return;
             bool drew = false;
             foreach (var seat in matchEndSeats)
+            {
+                if (!seat.face || !seat.portrait) continue;
+                bool render = !drew && seat.face.Wants;
+                var picture = seat.face.Refresh(render);
+                drew |= render;
+                if (picture == seat.portrait.texture) continue;
+                seat.portrait.texture = picture;
+                seat.portrait.enabled = picture;
+                seat.letter.enabled = !picture;
+            }
+        }
+
+        void ShowRoundRow(RoundSummary standings)
+        {
+            bool on = standings != null && standings.Seats.Count > 0;
+            if (!on && !roundRow) return;
+            if (on && !roundRow) BuildRoundRow();
+            ClearRoundSeats();
+            roundRow.gameObject.SetActive(on);
+            if (!on) return;
+            resultPlayers.gameObject.SetActive(false); resultPlayersGap.SetActive(false);
+            resultStatsRow.SetActive(false); resultStatsGap.SetActive(false);
+            var teams = new int[standings.Seats.Count];
+            for (int i = 0; i < teams.Length; i++)
+            {
+                var player = World.PlayerById(standings.Seats[i].Seat);
+                teams[i] = player ? player.Team : Teams.NoTeam;
+            }
+            bool sided = MatchShowcase.Sided(teams);
+            int humans = standings.Humans;
+            for (int i = 0; i < standings.Seats.Count; i++) roundSeats.Add(MakeRoundSeat(standings.Seats[i], i, standings.Target, humans, sided));
+            int seats = roundSeats.Count;
+            SetResultCardWidth(Mathf.Max(ResultCardWidth, 2f * ResultCardPad + seats * RoundCellMax + (seats - 1) * RoundCellGap));
+            roundRowWidth = -1f;
+            FitRoundRow();
+            DrawRoundFaces();
+        }
+
+        void BuildRoundRow()
+        {
+            roundRow = Rect(RoundRowName, resultCard, Vector2.zero, Vector2.zero, Vector2.zero);
+            roundRowSize = roundRow.gameObject.AddComponent<LayoutElement>();
+            roundRowSize.preferredHeight = roundRowSize.minHeight = RoundTopGap + RoundRaise + RoundCellMax + RoundNameHeight + RoundTagHeight + RoundPipsHeight;
+            roundRow.SetSiblingIndex(resultPlayersGap.transform.GetSiblingIndex());
+        }
+
+        RoundSeat MakeRoundSeat(SeatResult result, int index, int target, int humans, bool sided)
+        {
+            var player = World.PlayerById(result.Seat);
+            Color colour = player ? ShowcaseSideColour(player, World.Players, sided) : Ink;
+            var seat = new RoundSeat { seat = result, face = player ? SeatPortrait.For(player) : null };
+            seat.root = Rect("Seat " + (index + 1), roundRow, new Vector2(.5f, 1f), Vector2.zero, Vector2.zero);
+            seat.frame = Rect("Portrait", seat.root, new Vector2(.5f, 1f), Vector2.zero, Vector2.zero);
+            Paint(seat.frame, LobbyIcons.RoundedSprite(RoundPortraitRadius), colour);
+            if (result.Won) Paint(Cover("Winner", seat.frame, RoundWinnerRim), LobbyIcons.FrameSprite(RoundPortraitRadius + RoundWinnerRing, RoundWinnerRing), CoinGold);
+            Paint(Cover("Backing", seat.frame, -RoundRim), LobbyIcons.RoundedSprite(RoundInnerRadius), PrimaryLip);
+            seat.portrait = Cover("Picture", seat.frame, -RoundRim).gameObject.AddComponent<RawImage>();
+            seat.portrait.raycastTarget = false;
+            seat.portrait.enabled = false;
+            seat.letter = MatchEndText(seat.frame, "Letter", DisplayFont, RoundCellMax * RoundLetterShare, MatchEndMinFont, colour);
+            Stretch(seat.letter.rectTransform);
+            seat.letter.text = player ? PlayerBar.Letter(player.Initial) : result.Name.Length > 0 ? PlayerBar.Letter(result.Name[0]) : "";
+            seat.name = MatchEndText(seat.root, "Name", LobbyFonts.Black, RoundNameFont, MatchEndMinFont, result.Won ? Spark : Ink);
+            seat.name.text = result.Name;
+            seat.tag = MatchEndText(seat.root, "Tag", LobbyFonts.Body, RoundTagFont, MatchEndMinFont, BodyInk);
+            seat.tag.text = HouseResultText.Tag(result, humans);
+            seat.pips = Rect("Pips", seat.root, new Vector2(.5f, 0f), Vector2.zero, Vector2.zero);
+            seat.filled = HouseResultText.Pips(result.Wins, target);
+            if (HouseResultText.ShowsPips(target)) MakePips(seat, target);
+            else
+            {
+                seat.count = MatchEndText(seat.pips, "Count", LobbyFonts.Black, RoundCountFont, MatchEndMinFont, Ink);
+                Stretch(seat.count.rectTransform);
+                seat.count.text = HouseResultText.WinCount(result.Wins, target);
+            }
+            return seat;
+        }
+
+        void MakePips(RoundSeat seat, int target)
+        {
+            float run = target * RoundPip + (target - 1) * RoundPipGap;
+            for (int i = 0; i < target; i++)
+            {
+                bool won = i < seat.filled;
+                var pip = Put(Rect("Pip " + (i + 1), seat.pips, Vector2.zero, Vector2.zero, Vector2.zero), new Vector2(.5f, .5f), new Vector2(.5f, .5f),
+                    new Vector2(-run * .5f + RoundPip * .5f + i * (RoundPip + RoundPipGap), 0f), Vector2.one * RoundPip);
+                Paint(pip, won ? LobbyIcons.RoundedSprite(RoundPipRadius) : LobbyIcons.FrameSprite(RoundPipRadius, RoundPipRing), won ? CoinGold : BodyInk);
+            }
+        }
+
+        void ClearRoundSeats()
+        {
+            foreach (var seat in roundSeats) if (seat.root) Destroy(seat.root.gameObject);
+            roundSeats.Clear();
+        }
+
+        void FitRoundRow()
+        {
+            if (!roundRow || !resultCard || roundSeats.Count == 0) return;
+            float inner = resultCard.sizeDelta.x - 2f * ResultCardPad;
+            if (inner <= 0f || Mathf.Approximately(inner, roundRowWidth)) return;
+            roundRowWidth = inner;
+            int seats = roundSeats.Count;
+            float cell = Mathf.Clamp((inner - (seats - 1) * RoundCellGap) / seats, RoundCellMin, RoundCellMax);
+            float height = cell + RoundNameHeight + RoundTagHeight + RoundPipsHeight;
+            float wide = seats * cell + (seats - 1) * RoundCellGap;
+            for (int i = 0; i < seats; i++)
+            {
+                var seat = roundSeats[i];
+                float x = -wide * .5f + i * (cell + RoundCellGap) + cell * .5f;
+                float y = -RoundTopGap - (seat.seat.Won ? 0f : RoundRaise);
+                Put(seat.root, new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(x, y), new Vector2(cell, height));
+                Put(seat.frame, new Vector2(.5f, 1f), new Vector2(.5f, 1f), Vector2.zero, new Vector2(cell, cell));
+                MatchEndRow(seat.name.rectTransform, 0f, 0f, cell, RoundNameHeight);
+                MatchEndRow(seat.tag.rectTransform, 0f, 0f, cell + RoundNameHeight, RoundTagHeight);
+                Put(seat.pips, new Vector2(.5f, 0f), new Vector2(.5f, 0f), Vector2.zero, new Vector2(cell, RoundPipsHeight));
+                seat.letter.fontSizeMax = Mathf.Max(MatchEndMinFont, cell * RoundLetterShare);
+            }
+            roundRowSize.preferredHeight = roundRowSize.minHeight = RoundTopGap + RoundRaise + height;
+        }
+
+        void DrawRoundFaces()
+        {
+            if (roundSeats.Count == 0 || !ResultShown) return;
+            bool drew = false;
+            foreach (var seat in roundSeats)
             {
                 if (!seat.face || !seat.portrait) continue;
                 bool render = !drew && seat.face.Wants;

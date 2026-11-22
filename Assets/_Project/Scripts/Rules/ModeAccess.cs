@@ -10,6 +10,7 @@ namespace Wreckabulary.Rules
         public const int ScreenSeats = 4;
         public const string OnThisScreen = "on this screen", OnePlayer = "1 player", Here = "here", Online = "online";
         public const string TeamsWord = "teams", CoopWord = "co-op", BotsFill = "bots fill", Together = "together", UpTo = "up to";
+        public const string LastWon = "Last match: won", LastLost = "Last match: lost";
 
         static readonly ModeAccess Nowhere = new ModeAccess("");
 
@@ -42,6 +43,19 @@ namespace Wreckabulary.Rules
                 access.SeatOnline();
             }
             return access;
+        }
+
+        public static string LastMatch(IEnumerable<MatchRecord> history, string id)
+        {
+            if (history == null || string.IsNullOrEmpty(id)) return "";
+            var last = history.FirstOrDefault(match => match != null && match.Mode == id);
+            return last == null ? "" : last.Won ? LastWon : LastLost;
+        }
+
+        public static IReadOnlyList<string> Steps(string id)
+        {
+            var guide = ModeGuideBook.For(id);
+            return guide == null ? Array.Empty<string>() : guide.Steps.Select(step => step.Title).ToArray();
         }
 
         public static bool SoloCourse(string id) =>

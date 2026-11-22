@@ -38,7 +38,7 @@ namespace Wreckabulary
             public Item[] items;
         }
 
-        public enum State { Countdown, Playing, Complete, OutOfTime }
+        public enum State { Countdown, Playing, Complete, OutOfTime, Warmup, Showcase }
 
         [SerializeField] PlayerJoinManager joins;
         [SerializeField] GameHud hud;
@@ -57,12 +57,18 @@ namespace Wreckabulary
         float stateStarted, nextCheck, nextResupply, nextSpill;
         readonly StringBuilder sb = new();
         string checklist;
+        readonly List<HudGoal> goals = new();
         int checklistLevel = -1, checklistLeft = -1;
         bool checklistHouse;
         int clockSeconds = -1;
         string clockText = "";
         const float DeliveryGap = 1.2f;
         RoomBuilder layoutBuilder;
+        RoundManager host;
+        CrewPrelude prelude;
+        readonly Dictionary<Smashable, int> carriers = new();
+        readonly Dictionary<string, int> spellers = new();
+        readonly HashSet<int> heard = new();
 
         public State Current { get; private set; }
         public int LevelIndex { get; private set; }
@@ -78,6 +84,11 @@ namespace Wreckabulary
         {
             rooms = newRooms;
             levels = newLevels;
+        }
+
+        void Awake()
+        {
+            if (RoundManager.WarmupRequested) host = RoundManager.Host(gameObject, joins, hud);
         }
 
         void Start()
@@ -101,11 +112,54 @@ namespace Wreckabulary
             joins.RespawnKnockedOut = true;
             joins.Joined += ConfigurePlayer;
             StartLevel(0);
+            prelude = CrewPrelude.Take(host, joins);
         }
+
+        void EnterPrelude()
+        {
+            hud.HideCountdown();
+            SetState(State.Warmup);
+            prelude.Begin();
+        }
+
+        void TickPrelude()
+        {
+            if (!prelude.Tick())
+            {
+                Current = prelude.LinedUp ? State.Showcase : State.Warmup;
+                return;
+            }
+            prelude = null;
+            StartLevel(LevelIndex);
+        }
+
+        void ClosePrelude()
+        {
+            var open = prelude;
+            prelude = null;
+            open?.End();
+        }
+
+        void Hear(PlayerController p)
+        {
+            if (!p.Summoner || !heard.Add(p.Index)) return;
+            int seat = p.Index;
+            p.Summoner.Summoned += word => spellers[word] = seat;
+        }
+
+        void NoteCarrier(Smashable piece, Rigidbody body)
+        {
+            foreach (var p in joins.Players)
+                if (p && p.Combat.Held == body) carriers[piece] = p.Index;
+        }
+
+        int Placer(Smashable piece) =>
+            carriers.TryGetValue(piece, out int seat) || spellers.TryGetValue(piece.Word, out seat) ? seat : -1;
 
         void ConfigurePlayer(PlayerController p)
         {
             joins.AssignTeams();
+            Hear(p);
             p.Health.ResetForRound();
             var objectives = new HashSet<string>(checklistWords.Select(w => w.word));
             p.Summoner.ChecklistPlacementWords = objectives;
@@ -120,6 +174,7 @@ namespace Wreckabulary
         public void StartLevel(int index)
         {
             LevelIndex = index;
+            ClosePrelude();
             StopAllCoroutines();
             layoutBuilder.ResetRoom(furnish: false);
             hud.HideResult();
@@ -128,6 +183,8 @@ namespace Wreckabulary
             foreach (var puddle in puddles) if (puddle) Destroy(puddle.gameObject);
             puddles.Clear();
             placed.Clear();
+            carriers.Clear();
+            spellers.Clear();
 
             remaining.Clear();
             remaining.AddRange(CurrentLevel.items);
@@ -164,6 +221,11 @@ namespace Wreckabulary
                         stateStarted = Time.time;
                         break;
                     }
+                    if (prelude != null)
+                    {
+                        EnterPrelude();
+                        break;
+                    }
                     int left = Mathf.CeilToInt(countdownTime - t);
                     hud.ShowCountdown(Mathf.Max(1, left), HouseCountdown.Line(HouseModes.MovingDay, CurrentLevel.name));
                     if (t >= countdownTime) BeginPlay();
@@ -178,6 +240,11 @@ namespace Wreckabulary
                     else if (TimeLeft <= 0f) OutOfTime();
                     break;
 
+                case State.Warmup:
+                case State.Showcase:
+                    TickPrelude();
+                    break;
+
                 case State.Complete:
                 case State.OutOfTime:
                     if (hud.ResultShown && t > 1.6f && joins.AnyStartPressed()) hud.ConfirmResult();
@@ -185,7 +252,7 @@ namespace Wreckabulary
             }
 
             hud.SetTimer(Current == State.Playing || Current == State.Countdown ? Clock(TimeLeft) : "");
-            hud.SetChecklist(Checklist());
+            ShowChecklist();
             hud.SetInstruction(joins.Players.Count == 0 ? ControlHints.Join("join") : "", "");
             hud.SetScoreboard(joins.Players, _ => 0, 0, false);
         }
@@ -224,13 +291,16 @@ namespace Wreckabulary
             {
                 if (placed.Contains(s) || !s.TryGetComponent(out LetterBuilt _)) continue;
                 var rb = s.GetComponent<Rigidbody>();
-                if (!rb || rb.isKinematic || rb.linearVelocity.sqrMagnitude > 0.25f) continue;
+                if (!rb) continue;
+                NoteCarrier(s, rb);
+                if (rb.isKinematic || rb.linearVelocity.sqrMagnitude > 0.25f) continue;
 
                 var item = remaining.FirstOrDefault(i => i.word == s.Word && RoomNamed(i.room).Contains(rb.worldCenterOfMass));
                 if (item == null) continue;
 
                 remaining.Remove(item);
                 placed.Add(s);
+                MatchStats.Current.Point(Placer(s));
                 rb.isKinematic = true;
                 s.Invulnerable = true;
                 Popup.Show($"{s.Word} placed!", rb.worldCenterOfMass + Vector3.up * 1.5f, new Color(0.56f, 0.82f, 0.55f), 4f);
@@ -307,6 +377,7 @@ namespace Wreckabulary
             CameraRig.Shake(0.2f);
             var result = HudResult.Of(1, true, true, "Home, sweet home!", MatchTally.Finish(true));
             result.Detail = $"{Stars} / 3 stars · {FormatTime(TimeLeft)} to spare";
+            result.Board = CrewResult.Board(CrewOutcome.Won, HouseModes.MovingDay, CurrentLevel.name);
             hud.ShowResult(result, Retry);
         }
 
@@ -316,7 +387,9 @@ namespace Wreckabulary
             SetState(State.OutOfTime);
             foreach (var p in joins.Players) p.Frozen = true;
             World.FreezeTransient();
-            hud.ShowResult(HudResult.Of(1, true, false, "The truck is leaving. Try a faster route!", MatchTally.Finish(false)), Retry);
+            var result = HudResult.Of(1, true, false, "The truck is leaving. Try a faster route!", MatchTally.Finish(false));
+            result.Board = CrewResult.Board(CrewOutcome.TimeUp, HouseModes.MovingDay, CurrentLevel.name);
+            hud.ShowResult(result, Retry);
         }
 
         string Checklist()
@@ -335,14 +408,26 @@ namespace Wreckabulary
             sb.Clear();
             sb.Append(FurnishText.ChecklistHeading(CurrentLevel.name));
             var house = layoutBuilder ? layoutBuilder.Layout : null;
+            goals.Clear();
             foreach (var item in CurrentLevel.items)
             {
                 bool done = !remaining.Contains(item);
                 string room = RoomLabel(house, item.room);
                 if (done) sb.Append("<color=#8FD18B><s>").Append(item.word).Append("</s>  ").Append(room).Append("</color>\n");
                 else sb.Append(item.word).Append("  <color=#FFF4E0AA>in the ").Append(room).Append("</color>\n");
+                goals.Add(new HudGoal(item.word, FurnishText.Where(room), done));
             }
+            hud.SetGoals(FurnishText.PlateHeading(CurrentLevel.name), goals);
             return sb.ToString();
+        }
+
+        void ShowChecklist()
+        {
+            if (prelude == null) { hud.SetChecklist(Checklist()); return; }
+            hud.SetChecklist("");
+            if (checklist == null) return;
+            checklist = null;
+            hud.SetGoals("", null);
         }
 
         static readonly System.Text.RegularExpressions.Regex WordBreak = new("(?<=[a-z])(?=[A-Z0-9])");

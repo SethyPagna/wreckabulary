@@ -15,6 +15,7 @@ namespace Wreckabulary.Rules
         public int Broken { get; internal set; }
         public int Score { get; internal set; }
         public float Damage { get; internal set; }
+        public int Revives { get; internal set; }
 
         internal MatchStatLine(int seat, string name, int team, bool bot)
         {
@@ -78,6 +79,18 @@ namespace Wreckabulary.Rules
         {
             var line = Of(seat);
             if (line != null) line.Score = score;
+        }
+
+        public void Point(int seat)
+        {
+            var line = Of(seat);
+            if (line != null) line.Score++;
+        }
+
+        public void Revive(int seat)
+        {
+            var line = Of(seat);
+            if (line != null) line.Revives++;
         }
 
         public void SetSideScore(int team, int score) => sideScores[team] = score;

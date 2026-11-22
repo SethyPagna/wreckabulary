@@ -269,6 +269,7 @@ namespace Wreckabulary.Online.Tests
         }
         public void Dispose()
         {
+            Call("DisposeKit");
             ((WordboundUiStyles)Get("ui")).Dispose();
             Object.DestroyImmediate(Root); Object.DestroyImmediate(Theme);
         }

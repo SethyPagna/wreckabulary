@@ -11,7 +11,8 @@ namespace Wreckabulary
     [DefaultExecutionOrder(90)]
     public sealed class PlayerAppearance : MonoBehaviour
     {
-        const string AvatarKey = "Avatar/Avatar";
+        const string AvatarKey = "Avatar/Avatar", SavedLookKey = "wv.outfit.";
+        const int SavedLookSeats = 8;
         [Tooltip("An authored avatar instance beneath Visual. Runtime initialization preserves this hierarchy and its transforms.")]
         [SerializeField] GameObject authoredAvatar;
         readonly Dictionary<string, AnimationClip> clips = new Dictionary<string, AnimationClip>();
@@ -83,13 +84,26 @@ namespace Wreckabulary
         public static Outfit PresentationOutfit(int seat, Color colour)
         {
             var catalogue = GameConfig.Current.Wardrobe;
-            string saved = PlayerPrefs.GetString("wv.outfit." + seat, "");
-            var initial = string.IsNullOrEmpty(saved) ? SeatDefault(catalogue, seat, colour) : Outfit.Deserialize(saved);
+            string saved = PlayerPrefs.GetString(SavedLookKey + seat, "");
+            var initial = string.IsNullOrEmpty(saved) ? SeatDefault(catalogue, seat, colour, SavedLooks(catalogue)) : Outfit.Deserialize(saved);
             initial.Seat = seat;
             return catalogue.Sanitize(initial);
         }
 
-        public static Outfit SeatDefault(WardrobeCatalogue catalogue, int seat, Color colour)
+        static Outfit[] SavedLooks(WardrobeCatalogue catalogue)
+        {
+            var looks = new Outfit[SavedLookSeats];
+            for (int seat = 0; seat < looks.Length; seat++)
+            {
+                string saved = PlayerPrefs.GetString(SavedLookKey + seat, "");
+                if (!string.IsNullOrEmpty(saved)) looks[seat] = catalogue.Sanitize(Outfit.Deserialize(saved));
+            }
+            return looks;
+        }
+
+        public static Outfit SeatDefault(WardrobeCatalogue catalogue, int seat, Color colour) => SeatDefault(catalogue, seat, colour, null);
+
+        public static Outfit SeatDefault(WardrobeCatalogue catalogue, int seat, Color colour, IReadOnlyList<Outfit> saved)
         {
             var look = DefaultPresentationOutfit(catalogue).Clone();
             look.Seat = seat;
@@ -98,7 +112,7 @@ namespace Wreckabulary
                 var tops = SeatLooks.TopColours(palette, SeatColours(seat, colour), Career.FreeColours);
                 if (seat >= 0 && seat < tops.Count) look.Colours["Top"] = tops[seat];
             }
-            return catalogue.Sanitize(look);
+            return catalogue.Sanitize(SeatLooks.WithSeatStyle(catalogue, look, seat, Career.FreePieces, saved));
         }
 
         static Srgb[] SeatColours(int seat, Color colour)
@@ -222,7 +236,7 @@ namespace Wreckabulary
             OutfitVersion++;
             if (save && controller)
             {
-                PlayerPrefs.SetString("wv.outfit." + controller.Index, outfit.Serialize());
+                PlayerPrefs.SetString(SavedLookKey + controller.Index, outfit.Serialize());
                 PlayerPrefs.Save();
             }
         }
@@ -275,6 +289,7 @@ namespace Wreckabulary
                     }
                 }
             if (rig) rig.Show(outfit, catalogue, shown, letter);
+            CuteFace.Settle(meshes);
             return outfit;
         }
 

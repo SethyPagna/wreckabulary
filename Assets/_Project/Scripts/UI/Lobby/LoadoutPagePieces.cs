@@ -19,6 +19,7 @@ namespace Wreckabulary
         const float ScrollGutter = 18f, PictureInset = 6f, MarkSize = 34f, MarkInset = 8f, MarkIcon = 18f;
         const float FallbackIcon = 96f, FallbackBlob = 124f, NoneIcon = 96f, NoneCross = 52f, NoneFade = .4f;
         const float PillWidth = 86f, PillHeight = 30f, BringsWidth = 58f, TagHeight = 44f, TagText = 16f;
+        const float SwatchGlyph = 22f, RedWeight = .299f, GreenWeight = .587f, BlueWeight = .114f;
         const int GridSide = 3, GridEdge = 6, SwatchRadius = 23;
         static readonly Vector4 MaskSpill = new Vector4(-6f, 0f, -6f, -4f);
         static readonly Vector2 TopRight = Vector2.one, TopLeft = new Vector2(0, 1), BottomLeft = Vector2.zero, BottomRight = new Vector2(1, 0);
@@ -27,18 +28,24 @@ namespace Wreckabulary
 
         RectTransform TileGrid(RectTransform view, RectTransform body)
         {
-            lockerList = LobbyKit.Scroll(view, ScrollName, 0);
+            lockerList = LobbyKit.Scroll(view, ScrollName, TileSpacing);
             lockerList.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(GridSide, GridSide, GridEdge, GridEdge);
             var scroll = lockerList.GetComponentInParent<ScrollRect>();
             AddScrollbar(view, scroll);
             if (scroll && scroll.TryGetComponent(out RectMask2D mask)) mask.padding = MaskSpill;
             float room = body.rect.width > 0 ? body.rect.width - ScrollGutter - GridSide * 2 : Tile * Columns + TileSpacing * (Columns - 1);
-            float cell = Mathf.Min(Tile, Mathf.Floor((room - TileSpacing * (Columns - 1)) / Columns));
-            var grid = LobbyKit.Grid(lockerList, TilesName, new Vector2(cell, cell), TileSpacing);
+            tileCell = Mathf.Min(Tile, Mathf.Floor((room - TileSpacing * (Columns - 1)) / Columns));
+            var grid = MoreTiles(TilesName);
+            lockerList.anchoredPosition = new Vector2(0, scrolled);
+            return grid;
+        }
+
+        RectTransform MoreTiles(string name)
+        {
+            var grid = LobbyKit.Grid(lockerList, name, new Vector2(tileCell, tileCell), TileSpacing);
             var cells = grid.GetComponent<GridLayoutGroup>();
             cells.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             cells.constraintCount = Columns;
-            lockerList.anchoredPosition = new Vector2(0, scrolled);
             return grid;
         }
 
@@ -319,7 +326,8 @@ namespace Wreckabulary
                 LobbyKit.Ring(body, worn ? LobbyKit.Selection : LobbyKit.Focus, SwatchRadius, 2);
             }
             var offer = owned ? null : Dressing.OfferFor(ColourKind + ":" + colour.Id);
-            if (!owned) LobbyKit.Coin(body, 18).Pin(BottomRight, new Vector2(4, -4), new Vector2(18, 18));
+            if (!owned) SwatchMark(body, LockMark, LobbyIcons.Lock, colour);
+            else if (worn) SwatchMark(body, CheckMark, LobbyIcons.Check, colour);
             if (paletteSlot == SoldPalette && IsNew(ColourKind, colour.Id))
                 CornerDisc(body, NewMark, LobbyIcons.New, LobbyKit.PrimaryFill, LobbyKit.PrimaryInk, TopLeft).localScale = Vector3.one * .6f;
             string price = offer != null ? Separator + Menu.Career.PriceOf(offer).ToString("N0", CultureInfo.InvariantCulture) + " coins" : "";
@@ -329,6 +337,16 @@ namespace Wreckabulary
             press.Hot = hot => Hover(key, () => Painted(Shown, slot, paletteSlot, colour.Id), line, hot);
             return button;
         }
+
+        static void SwatchMark(RectTransform body, string name, string icon, Colourway colour)
+        {
+            float fill = Lightness(new Color(colour.R, colour.G, colour.B)), dark = Lightness(LobbyKit.Navy), pale = Lightness(LobbyKit.Card);
+            var ink = Mathf.Abs(dark - fill) >= Mathf.Abs(pale - fill) ? LobbyKit.Navy : LobbyKit.Card;
+            var mark = LobbyKit.Rect(body, name).Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(SwatchGlyph, SwatchGlyph));
+            LobbyKit.Icon(mark, icon, ink).rectTransform.Fill();
+        }
+
+        static float Lightness(Color colour) => colour.r * RedWeight + colour.g * GreenWeight + colour.b * BlueWeight;
 
         string ColourLine(string slot, string paletteSlot, Colourway colour)
         {

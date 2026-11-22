@@ -46,6 +46,9 @@ namespace Wreckabulary
         int leases;
         bool held, orbited;
         float orbitYaw, orbitPitch;
+        RoundManager rounds;
+        Vector3 pushAt;
+        float pushSeconds, pushElapsed;
 
         public PlayerController Target => target;
         public Camera ViewCamera => lens;
@@ -66,6 +69,9 @@ namespace Wreckabulary
             return new Vector2(world.x, world.z);
         }
         public bool IsThirdPerson => target;
+        public bool Pushing => pushSeconds > 0f;
+        public float PushAmount => CameraPush.Weight(pushElapsed, pushSeconds);
+        public Vector3 PushedToward => pushAt;
         public float ViewDistance => view.CurrentDistance;
         public IReadOnlyCollection<Renderer> Faded => faded.Keys;
 
@@ -77,6 +83,54 @@ namespace Wreckabulary
         public void BeginLook() => leases++;
 
         public void EndLook() => leases = Mathf.Max(0, leases - 1);
+
+        public void Push(Vector3 toward, float seconds)
+        {
+            if (!(seconds > 0f)) return;
+            pushAt = toward;
+            pushSeconds = seconds;
+            pushElapsed = 0f;
+        }
+
+        void WatchRounds()
+        {
+            var current = RoundManager.Instance;
+            if (ReferenceEquals(current, rounds)) return;
+            if (rounds is not null) rounds.RoundWon -= OnRoundWon;
+            rounds = current;
+            if (rounds is not null) rounds.RoundWon += OnRoundWon;
+        }
+
+        void OnRoundWon(PlayerController winner)
+        {
+            if (winner && rounds && rounds.FinishBeatPlaying) Push(winner.transform.position, RoundManager.BeatSeconds);
+        }
+
+        void AdvancePush(float dt)
+        {
+            if (pushSeconds <= 0f) return;
+            pushElapsed += dt;
+            if (pushElapsed >= CameraPush.Length(pushSeconds)) pushSeconds = pushElapsed = 0f;
+        }
+
+        Vector3 PushOverview(Vector3 at)
+        {
+            float weight = PushAmount;
+            if (weight <= 0f || !framesLayout || !lens) return at;
+            var forward = transform.forward;
+            var gap = pushAt - new Vector3(party.X, party.Y, party.Z);
+            gap -= forward * Vector3.Dot(gap, forward);
+            at += gap.normalized * CameraPush.Reach(gap.magnitude, weight);
+            if (lens.orthographic) lens.orthographicSize = CameraPush.Narrow(lens.orthographicSize, weight);
+            else lens.fieldOfView = CameraPush.Narrow(lens.fieldOfView, weight);
+            return at;
+        }
+
+        void PushShoulder()
+        {
+            float weight = PushAmount;
+            if (weight > 0f && lens) lens.fieldOfView = CameraPush.Narrow(lens.fieldOfView, weight);
+        }
 
         public void Orbit(float yawDegrees, float pitchDegrees)
         {
@@ -108,6 +162,8 @@ namespace Wreckabulary
         void OnDestroy()
         {
             RestoreFaded();
+            if (rounds is not null) rounds.RoundWon -= OnRoundWon;
+            rounds = null;
             if (Instance == this) Instance = null;
         }
 
@@ -162,6 +218,7 @@ namespace Wreckabulary
             target = null;
             leases = 0;
             held = false;
+            pushSeconds = pushElapsed = 0f;
             ResetOrbit();
             RestoreFaded();
             if (visibility) visibility.ClearView(this);
@@ -225,6 +282,8 @@ namespace Wreckabulary
                 CursorPolicy.Apply(false);
                 return;
             }
+            WatchRounds();
+            AdvancePush(Time.unscaledDeltaTime);
             var next = ChooseTarget();
             if (next != target) SetTarget(next);
             GatherLook(Time.unscaledDeltaTime);
@@ -264,6 +323,7 @@ namespace Wreckabulary
             float dt = Time.unscaledDeltaTime;
             if (lens) view.Place(lens, lastFeet, target.LookYaw + orbitYaw * Mathf.Deg2Rad, target.LookPitch + orbitPitch * Mathf.Deg2Rad,
                 dt, !target.IsEliminated && target.Commands.aimHeld);
+            PushShoulder();
             if (shake > 0f)
             {
                 var t = transform;
@@ -350,6 +410,7 @@ namespace Wreckabulary
                 transform.rotation = baseRotation;
                 orbited = false;
             }
+            at = PushOverview(at);
             transform.position = at + Random.insideUnitSphere * shake;
             shake = Mathf.MoveTowards(shake, 0f, dt * 1.5f);
             FadeBlockers();

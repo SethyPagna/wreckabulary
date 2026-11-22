@@ -258,11 +258,11 @@ namespace Wreckabulary.Tests
             yield return Play(director);
             var you = Joins.Players[0];
             var them = Joins.Players.Where(p => p.Team == 1).ToArray();
-            yield return TestScenes.WaitUntil(() => Objective().Contains("Your team · 1 life"), 1f, "both teams' lives on screen");
-            StringAssert.Contains("Team 2 · 1 life", Objective());
             yield return TestScenes.WaitUntil(() => Score(1).EndsWith(" KO"), 1f, "knockout counts on the cards");
+            StringAssert.DoesNotContain("life", Objective(), "the bar already shows the lives, so the side block does not repeat them");
             Knock(them[0], you);
             Assert.AreEqual(0, director.Score.Lives(1));
+            yield return TestScenes.WaitUntil(() => Objective().Contains("Team 2 · no lives"), 1f, "a side with no lives left on screen");
             yield return TestScenes.WaitUntil(() => !them[0].IsKnockedOut, 2f, "the spent life to bring them back");
             Assert.AreEqual(1, director.SideOfSpawn(director.HomeSpawn(them[0])), "Knockouts return in their own end.");
             foreach (var p in them) Knock(p, you);

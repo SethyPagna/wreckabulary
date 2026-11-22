@@ -161,6 +161,100 @@ namespace Wreckabulary.Tests
         }
 
         [UnityTest]
+        public IEnumerator EveryoneForThemselvesKeepsTheClockInTheMiddleOfTheBar()
+        {
+            var seats = Seats(0, 1, 2, 3);
+            GameHud hud = null;
+            yield return Hud(seats[0], h => hud = h);
+            hud.SetScoreboard(seats, p => p.Index, 3, true);
+            hud.SetTimer("3:30");
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.Clock && hud.CentreClock == "3:30", Slow, "the clock between the cards");
+            Assert.AreEqual("", hud.CentreScore, "Four sides have no score line.");
+            Assert.AreEqual("", hud.CentreCaption);
+            Assert.IsFalse(hud.transform.Find("Safe HUD/Side column/Timer").gameObject.activeSelf, "One clock only, never under the minimap.");
+            Assert.IsFalse(hud.transform.Find("Safe HUD/Side column/Alive").gameObject.activeSelf, "The portraits already show who is up.");
+            var centre = Part(hud, "Centre");
+            Assert.IsTrue(centre.gameObject.activeSelf);
+            Assert.AreEqual(0f, centre.anchoredPosition.x, Slack);
+            Assert.AreEqual(ScoreLine.ClockWidth, centre.rect.width, Slack, "A clock alone takes less room than a score line.");
+            float half = ScoreLine.ClockWidth * .5f;
+            Assert.LessOrEqual(X(hud, 2) + PlayerBar.RoomyCard * .5f, -half + Slack, "Two cards sit left of the clock...");
+            Assert.GreaterOrEqual(X(hud, 3) - PlayerBar.RoomyCard * .5f, half - Slack, "...and two right of it.");
+            var clock = Part(hud, "Centre/Clock").GetComponent<TMP_Text>();
+            Assert.GreaterOrEqual(clock.fontSizeMin, SmallestText);
+            Assert.Greater(clock.fontSizeMax, SmallestText * 2f, "The lone clock reads at score size.");
+            Assert.IsFalse(Part(hud, "Centre/Left score").GetComponent<TMP_Text>().enabled);
+            Assert.IsFalse(Part(hud, "Centre/Right score").GetComponent<TMP_Text>().enabled);
+            Assert.IsFalse(Part(hud, "Centre/Colon").GetComponent<TMP_Text>().enabled);
+            Assert.AreEqual("3/3", CardScore(hud, 4), "Cards keep their own scores.");
+            hud.SetTimer("");
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.None, Slow, "no clock, no centre");
+            Assert.IsFalse(Part(hud, "Centre").gameObject.activeSelf);
+            Assert.AreEqual(PlayerBar.RoomyCard + PlayerBar.RoomyGap, X(hud, 2) - X(hud, 1), Slack, "The cards close up again.");
+        }
+
+        [UnityTest]
+        public IEnumerator AloneTheClockSitsOnItsOwnPlateAtTheTop()
+        {
+            var seats = Seats(0);
+            GameHud hud = null;
+            yield return Hud(seats[0], h => hud = h);
+            hud.SetScoreboard(seats, _ => 0, 0, false);
+            hud.SetTimer("4:59");
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.Clock && hud.CentreClock == "4:59", Slow, "a clock plate");
+            Assert.IsTrue(Bar(hud).gameObject.activeSelf);
+            Assert.IsFalse(hud.BarSeated, "A lone player gets no card.");
+            for (int card = 1; card <= PlayerBar.MostSeats; card++) Assert.IsFalse(Part(hud, $"Card {card}").gameObject.activeSelf, $"card {card}");
+            Assert.IsFalse(Part(hud, "Scores").gameObject.activeSelf, "Nothing to rank alone.");
+            Assert.IsFalse(hud.ScoreboardReady);
+            Assert.AreEqual(ScoreLine.ClockWidth, Bar(hud).rect.width, Slack);
+            Assert.AreEqual(ScoreLine.ClockRow, Bar(hud).rect.height, Slack);
+            Assert.AreEqual(PlayerBar.PlateWidth(ScoreLine.ClockWidth), Part(hud, "Backing").rect.width, Slack, "The plate pads the clock like the cards.");
+            Assert.Greater(hud.TopInset, 0f, "Notices still clear the plate...");
+            Assert.Less(hud.TopInset, PlayerBar.Shift, "...but a short plate moves them less than the bar.");
+            Assert.IsFalse(hud.transform.Find("Safe HUD/Side column/Timer").gameObject.activeSelf);
+            hud.SetTimer("");
+            yield return TestScenes.WaitUntil(() => !Bar(hud).gameObject.activeSelf, Slow, "no plate without a clock");
+            Assert.AreEqual(0f, hud.TopInset);
+        }
+
+        [UnityTest]
+        public IEnumerator TeamMatesShareTheirSideColourOnTheBarAndOnTheFloor()
+        {
+            var seats = Seats(0, 0, 1, 1);
+            GameHud hud = null;
+            yield return Hud(seats[0], h => hud = h);
+            hud.SetScoreboard(seats, _ => 0, 3, true);
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.Score && Name(hud, 4).Length > 0, Slow, "a duos bar");
+            Color red = PlayerHud.Vivid(seats[0].Color), green = PlayerHud.Vivid(seats[2].Color);
+            Color Frame(int card) => Part(hud, $"Card {card}/Frame").GetComponent<Image>().color;
+            Color Tag(int card) => Part(hud, $"Card {card}/Name").GetComponent<TMP_Text>().color;
+            AssertSameColour(red, Frame(1), "P1 is framed in the side colour.");
+            AssertSameColour(red, Frame(2), "P2 is framed in P1's colour, as on the line-up.");
+            AssertSameColour(green, Frame(3), "The other side takes its first seat's colour.");
+            AssertSameColour(green, Frame(4), "Both of them.");
+            AssertSameColour(PlayerHud.Vivid(seats[1].Color), Tag(2), "P2's own colour stays on the name.");
+            AssertSameColour(PlayerHud.Vivid(seats[3].Color), Tag(4), "AI 4 keeps its own colour on the name.");
+            AssertSameColour(red, Part(hud, "Centre/Left score").GetComponent<TMP_Text>().color, "The score matches the frames.");
+            AssertSameColour(green, Part(hud, "Centre/Right score").GetComponent<TMP_Text>().color, "Both sides.");
+            Color Ring(PlayerController p)
+            {
+                var material = p.GetComponentInChildren<PlayerHud>(true).SeatRing.sharedMaterial;
+                return material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : material.color;
+            }
+            yield return TestScenes.WaitUntil(() => seats.All(p => p.GetComponentInChildren<PlayerHud>(true).SeatRing), Slow, "a ring under every seat");
+            AssertSameColour(red, Ring(seats[1]), "P2's floor ring is the side colour too.");
+            AssertSameColour(green, Ring(seats[3]), "The other side's rings too.");
+
+            foreach (var p in seats) p.Team = p.Index;
+            yield return TestScenes.WaitUntil(() => Frame(2) != red, Slow, "free-for-all colours");
+            AssertSameColour(PlayerHud.Vivid(seats[1].Color), Frame(2), "Everyone for themselves wears their own colour.");
+            AssertSameColour(new Color(1f, .941f, .851f), Tag(2), "Names go back to cream.");
+            yield return TestScenes.WaitUntil(() => Ring(seats[1]) != red, Slow, "the ring to follow");
+            AssertSameColour(PlayerHud.Vivid(seats[1].Color), Ring(seats[1]), "And so does the ring.");
+        }
+
+        [UnityTest]
         public IEnumerator ADirectorCanNameTheSideScore()
         {
             var seats = Seats(0, 1, 0, 1);
@@ -366,7 +460,7 @@ namespace Wreckabulary.Tests
             var book = hud.transform.Find("Safe HUD/Bag panel/Recipe book");
             var line = book.Find("Book line").GetComponent<TMP_Text>();
             yield return TestScenes.WaitUntil(() => line.text == GameHud.FreeBookLine, Slow, "the recipe book to say spelling is free");
-            Assert.IsFalse(book.Find("Legend").gameObject.activeSelf, "The free line takes the legend's place.");
+            Assert.IsTrue(book.Find("Legend").gameObject.activeSelf, "The star key keeps its own line under the free line.");
             var tile = book.Find("View/Cards/BAT/Tile 1").GetComponent<Image>();
             yield return TestScenes.WaitUntil(() => tile.color.a > 0f, Slow, "every recipe tile to light up");
             Assert.IsFalse(book.Find("View/Cards/BAT/Tile 1/Rim").GetComponent<Image>().enabled);

@@ -146,15 +146,23 @@ namespace Wreckabulary.Qa
                     foreach (string id in ShownTargets()) ColumnFits(Find(Page(), id));
                     var maps = Page().GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Map ")).Select(button => button.name).ToArray();
                     Require(maps.SequenceEqual(GameConfig.Current.Houses.Keys.Select(id => "Map " + id)), "Every House mode must offer every installed house: " + mode);
-                    Require(menu.Maps.Count > 0 && GameConfig.Current.Houses.Keys.All(id => Ticked(Find(Page(), "Map " + id)) == (menu.SavedHome == null && menu.Maps.IsTicked(id))),
-                        "Each house card must show whether it is ticked: " + mode);
+                    Require(menu.Maps.Count > 0 && GameConfig.Current.Houses.Keys.All(id => Ticked(Find(Page(), "Map " + id)) == (menu.SavedHome == null && !menu.Maps.All && menu.Maps.IsTicked(id))),
+                        "Each house card must show whether it is ticked, and Any house stands for every house: " + mode);
+                    var anyHouse = Find(Page(), PlayPage.AnyHouse);
+                    Require(anyHouse.transform.parent.name == PlayPage.MapsRow && anyHouse.GetComponentsInChildren<TMP_Text>().Single().text == PracticeMaps.Every,
+                        "The Maps label must carry the Any house chip: " + mode);
+                    ControlFits(anyHouse);
+                    TextFits(anyHouse.GetComponentsInChildren<TMP_Text>().Single());
                     var guide = Page().GetComponentsInChildren<Button>().Where(button => button.name == PlayPage.GuideIcon).ToArray();
                     Require(guide.Length == (ModeGuides.Has(mode) ? 1 : 0), "The mode guide icon must show exactly when a guide exists: " + mode);
                     if (guide.Length == 1) ControlFits(guide[0]);
+                    var howTo = Page().GetComponentsInChildren<LobbyPlaySpare>().SingleOrDefault();
+                    Require(howTo && howTo.name == PlayPage.GuideStrip, "Every Same screen mode must build its how-to-play strip: " + mode);
+                    if (howTo.Shown) foreach (var text in howTo.GetComponentsInChildren<TMP_Text>()) TextFits(text);
                     Require(Find(Page(), "GO").interactable, "The selected local mode cannot start.");
                     context.Note("local_" + mode, new Dictionary<string, object> { ["summary"] = detail.text, ["goal"] = goal.text, ["access"] = access.text, ["map"] = menu.Map,
                         ["humans"] = menu.PartySize, ["selected"] = EventSystem.current.currentSelectedGameObject.name, ["maps"] = maps,
-                        ["ticked"] = menu.Maps.Ticked.ToArray(), ["guide"] = guide.Length == 1 });
+                        ["ticked"] = menu.Maps.Ticked.ToArray(), ["guide"] = guide.Length == 1, ["how_to_play"] = howTo.Shown });
                     if (mode is HouseModes.Dibs or HouseModes.Duos or HouseModes.Escape or HouseModes.War)
                         yield return Capture(context, "lobby_local_" + mode.ToLowerInvariant());
                 }
@@ -172,8 +180,12 @@ namespace Wreckabulary.Qa
             Require(Find(Page(), "GO").interactable, "The tutorial cannot start.");
             foreach (string id in ShownTargets()) ColumnFits(Find(Page(), id));
             foreach (var detail in Page().GetComponentsInChildren<TMP_Text>().Where(text => text.name == "Mode detail")) TextFits(detail);
+            var start = Page().GetComponentsInChildren<TMP_Text>().Where(text => text.transform.parent.name == PlayPage.StartTag).ToArray();
+            Require(start.Length == (TutorialDirector.Done ? 0 : 1), "The tutorial must carry a Start here tag until it is done.");
+            foreach (var tag in start) TextFits(tag);
             context.Note("practice_learn", new Dictionary<string, object> { ["mode"] = menu.Mode, ["tutorial_done"] = TutorialDirector.Done,
-                ["selected"] = EventSystem.current.currentSelectedGameObject.name });
+                ["selected"] = EventSystem.current.currentSelectedGameObject.name, ["start_here"] = start.Length == 1,
+                ["first_section"] = PlayPage.FamilyOrder.Select(HouseModes.FamilyName).First() });
             yield return Capture(context, "lobby_practice_learn");
         }
 
@@ -183,8 +195,8 @@ namespace Wreckabulary.Qa
             var sections = strip.Find(PlayPage.ModeSections);
             Require(sections, "Practice must hold its sections in one block of columns.");
             string[] rows = sections.Cast<Transform>().Select(child => child.name).ToArray();
-            Require(rows.SequenceEqual(HouseModes.Families.Select(HouseModes.FamilyName)),
-                "Practice must show the " + string.Join(", ", HouseModes.Families.Select(HouseModes.FamilyName)) + " sections left to right.");
+            Require(rows.SequenceEqual(PlayPage.FamilyOrder.Select(HouseModes.FamilyName)),
+                "Practice must show the " + string.Join(", ", PlayPage.FamilyOrder.Select(HouseModes.FamilyName)) + " sections left to right.");
             Require(!Page().GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Group ")), "Practice still shows group tabs.");
             Require(strip.GetComponentsInChildren<ScrollRect>(true).Length == 0 && strip.GetComponentsInChildren<Scrollbar>(true).Length == 0,
                 "The Practice modes must not scroll sideways or carry a scrollbar of their own.");
@@ -192,7 +204,7 @@ namespace Wreckabulary.Qa
             Require(scroll && scroll.vertical && !scroll.horizontal && strip.parent == scroll.content && strip.GetSiblingIndex() == 0,
                 "The Practice modes must lead the page's own up-and-down scroll.");
             var captions = strip.GetComponentsInChildren<TMP_Text>().Where(text => text.name == LobbyPlayModeFamilies.Caption).ToArray();
-            Require(captions.Select(text => text.text).SequenceEqual(HouseModes.Families.Select(family => LobbyKit.Upper(HouseModes.FamilyName(family)))),
+            Require(captions.Select(text => text.text).SequenceEqual(PlayPage.FamilyOrder.Select(family => LobbyKit.Upper(HouseModes.FamilyName(family)))),
                 "Each Practice section must carry its name above its modes.");
             foreach (var caption in captions) TextFits(caption);
             var columns = new List<object>();
@@ -211,19 +223,23 @@ namespace Wreckabulary.Qa
                 ModeCards().All(mode => Find(Page(), "Mode " + mode).transform.parent.name == HouseModes.FamilyName(HouseModes.FamilyOf(mode))),
                 "Every house mode must show in its own section, in order.");
             var courses = Page().GetComponentsInChildren<Button>().Where(IsCourse).ToArray();
-            string[] solo = HouseModes.Families.SelectMany(HouseModes.ModesIn).Where(mode => !HouseModes.Has(mode)).ToArray();
-            var note = strip.GetComponentsInChildren<TMP_Text>().Where(text => text.name == PlayPage.SoloNote).ToArray();
+            string[] solo = PlayPage.FamilyOrder.SelectMany(HouseModes.ModesIn).Where(mode => !HouseModes.Has(mode)).ToArray();
+            Require(courses.Select(button => button.name).SequenceEqual(solo.Select(PlayPage.ModeButton)) &&
+                courses.All(button => button.transform.parent.name == HouseModes.FamilyName(HouseModes.FamilyOf(button.name.Substring(5)))),
+                "Each solo course must keep its row in its section.");
+            var tags = courses.Select(button => button.GetComponentsInChildren<TMP_Text>().SingleOrDefault(text => text.transform.parent.name == PlayPage.SeatTag)).ToArray();
+            var closed = courses.Where(button => button.TryGetComponent(out CanvasGroup group) && group.alpha < 1f).Select(button => button.name).ToArray();
             if (menu.PartySize == 1)
-                Require(courses.Select(button => button.name).SequenceEqual(solo.Select(PlayPage.ModeButton)) &&
-                    courses.All(button => button.transform.parent.name == HouseModes.FamilyName(HouseModes.FamilyOf(button.name.Substring(5)))) && note.Length == 0,
-                    "Each solo course must show in its section while one local seat is taken.");
+                Require(tags.All(tag => !tag) && closed.Length == 0 && courses.All(button => !button.GetComponent<LobbyPlayGoalSwap>()),
+                    "Each solo course must look open while one local seat is taken.");
             else
             {
-                Require(courses.Length == 0 && !menu.Page<PlayPage>().WordboundSolo, "Solo courses must hide while extra local seats are taken.");
-                Require(note.Select(text => text.text).SequenceEqual(solo.Select(PlayPage.SoloOnly)) &&
-                    note.Select(text => text.transform.parent.name).SequenceEqual(solo.Select(mode => HouseModes.FamilyName(HouseModes.FamilyOf(mode)))),
-                    "A hidden solo course must say why in one line, in its section.");
-                foreach (var line in note) TextFits(line);
+                Require(!menu.Page<PlayPage>().WordboundSolo && closed.Length == courses.Length && courses.All(button => button.IsInteractable()),
+                    "Solo courses must stay in place, dimmed and focusable, while extra local seats are taken.");
+                Require(tags.All(tag => tag && tag.text == LobbyKit.Upper(ModeAccess.OnePlayer)), "A dimmed solo course must carry its 1 player tag.");
+                Require(courses.All(button => button.TryGetComponent(out LobbyPlayGoalSwap swap) && swap.Reason == PlayPage.SoloOnly(button.name.Substring(5))),
+                    "A dimmed solo course must say why when focused.");
+                foreach (var tag in tags) TextFits(tag);
             }
             var bounds = ScreenRect(strip); var view = ScreenRect(scroll.viewport); var safe = Screen.safeArea;
             Require(bounds.xMin >= safe.xMin - 2 && bounds.xMax <= safe.xMax + 2, "The Practice modes overflow the window.");
@@ -231,7 +247,7 @@ namespace Wreckabulary.Qa
                 "Every Practice mode must show without scrolling.");
             var board = strip.GetComponent<LobbyPlayModeBoard>();
             context.Note(key, new Dictionary<string, object> { ["sections"] = rows, ["captions"] = captions.Select(text => text.text).ToArray(),
-                ["modes"] = ModeCards(), ["courses"] = courses.Select(button => button.name).ToArray(), ["solo_note"] = note.Select(text => text.text).ToArray(),
+                ["modes"] = ModeCards(), ["courses"] = courses.Select(button => button.name).ToArray(), ["closed_courses"] = closed,
                 ["humans"] = menu.PartySize, ["block"] = new[] { bounds.x, bounds.y, bounds.width, bounds.height }, ["columns"] = columns.ToArray(),
                 ["goal_beside"] = board && board.Beside, ["content_height"] = scroll.content.rect.height, ["view_height"] = scroll.viewport.rect.height,
                 ["scrolls_sideways"] = false });
@@ -286,7 +302,7 @@ namespace Wreckabulary.Qa
             context.Note("practice_columns_focus_" + key, shown.ToArray());
         }
 
-        static string[] AllHouseModes() => HouseModes.Families.SelectMany(HouseModes.ModesIn).Where(HouseModes.Has).ToArray();
+        static string[] AllHouseModes() => PlayPage.FamilyOrder.SelectMany(HouseModes.ModesIn).Where(HouseModes.Has).ToArray();
 
         static bool IsCourse(Button button) => button.name.StartsWith("Solo ") && !button.name.StartsWith("Solo map ") && button.name != "Solo GO";
 
@@ -431,11 +447,10 @@ namespace Wreckabulary.Qa
                 context.Note("escape_ticked", menu.Maps.Ticked.ToArray());
                 yield return Capture(context, "play_escape_houses");
                 Submit(Find(Page(), "Queue " + LobbyMenu.Workshop)); yield return Settle();
-                Submit(Find(Page(), "Create Wordbound")); yield return Settle();
-                ObserveHierarchy(context, "create", "Create modes", CreateTools);
-                Require(ModeCards().Length == 0 && CreateCards().SequenceEqual(CreateTools), "Create must hold only its two builders.");
-                yield return UniformMaps(context, "Create", new[] { Find(Page(), "Wordbound maps") }, footprint);
-                Require(Find(Page(), "Workshop OPEN").interactable, "The installed map editor must remain available.");
+                ObserveHierarchy(context, "create", PlayPage.CreateRow, CreateTools);
+                Require(ModeCards().Length == 0 && CreateCards().SequenceEqual(CreateTools), "Create must hold only its two tools.");
+                ToolCardsFit(context, "hierarchy");
+                Require(Find(Page(), PlayPage.CreateEditor).interactable, "The installed map editor must remain available.");
                 yield return Capture(context, "play_create_tools");
             }
             finally
@@ -567,20 +582,27 @@ namespace Wreckabulary.Qa
                 menu.Join(second);
                 yield return Settle();
                 Require(menu.PartySize == 2 && ReferenceEquals(menu.Party.Single(), second), "Only the fixture-owned extra seat may be present.");
-                Require(!Page().GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Solo ")),
-                    "Solo choices and GO must be hidden with two local humans.");
+                Require(!Page().GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Solo map ") || button.name == "Solo GO"),
+                    "Course maps and GO must be hidden with two local humans.");
                 Require(ModeCards().SequenceEqual(AllHouseModes()), "Every house mode must stay available with extra seats.");
                 ObserveFamilies(context, "practice_families_two_seats");
                 menu.OpenWordboundSolo("TimeRun");
                 Require(SceneManager.GetActiveScene().name == Session.HubScene && menu.PartySize == 2 && WordboundSoloEntry.TakeRequest() == null,
                     "The secondary solo launch guard lost a seat or entered a scene.");
+                var closedCourse = Find(Page(), PlayPage.ModeButton("TimeRun"));
+                EventSystem.current.SetSelectedGameObject(closedCourse.gameObject);
+                yield return Settle();
+                var reason = Page().GetComponentsInChildren<TMP_Text>().Single(text => text.name == PlayPage.GoalLine);
+                Require(reason.text == PlayPage.SoloOnly("TimeRun"), "Focus on a dimmed course must say why it is closed.");
+                TextFits(reason);
+                context.Note("solo_two_seats_reason", reason.text);
                 yield return Capture(context, "lobby_solo_two_seats");
                 yield return Pick(mode);
                 Require(ModeCards().SequenceEqual(AllHouseModes()) && menu.Queue == queue && menu.Mode == mode && menu.Map == map,
                     "Selecting the prior direct house mode must restore its exact choice.");
                 Require(menu.PartySize == 2 && ReferenceEquals(menu.Party.Single(), second) && Session.Bindings.SequenceEqual(originalBindings),
                     "Selecting another direct mode must preserve local seats/devices.");
-                context.Note("local_solo_families", "Each solo course sits in its section; one-human GO; an owned second seat hides solo courses with a one-line reason and blocks launch; exact original house and bindings preserved.");
+                context.Note("local_solo_families", "Each solo course sits in its section; one-human GO; an owned second seat dims the courses in place with a 1 player tag and the reason on focus, and blocks launch; exact original house and bindings preserved.");
             }
             finally
             {
@@ -598,33 +620,32 @@ namespace Wreckabulary.Qa
                 Submit(Find(Page(), "Queue " + LobbyMenu.Workshop));
                 yield return Settle();
                 Require(ModeCards().Length == 0 && CreateCards().SequenceEqual(CreateTools),
-                    "Create must expose only its two builders without duplicate mode controls.");
-                Require(menu.Mode == LobbyMenu.WorkshopMode && !Page().GetComponentsInChildren<Button>().Any(button => button.name.StartsWith(PlayPage.SavedHomeCard)),
-                    "Create must not offer saved homes or the tutorial.");
-                Submit(Find(Page(), "Create house"));
-                yield return Settle();
-                Require(menu.Mode == LobbyMenu.WorkshopMode && HomeDesigner.Supports(menu.Map) && !menu.Starting,
-                    "Creative workshop selection must keep a supported house without launching it.");
-                yield return Capture(context, "lobby_create_build");
+                    "Create must expose only its two tools without duplicate mode controls.");
+                Require(menu.Mode == LobbyMenu.WorkshopMode && !Page().GetComponentsInChildren<Button>().Any(button => button.name.StartsWith(PlayPage.SavedHomeCard) || button.name.StartsWith("Map ")),
+                    "Create must not offer saved homes, houses or the tutorial.");
+                Require(HomeDesigner.Supports(menu.Map) && !menu.Starting, "Create must stand in a house the builder supports without launching it.");
                 string queue = menu.Queue, mode = menu.Mode, map = menu.Map;
                 var party = menu.Party.ToArray(); var bindings = Session.Bindings.ToArray();
-                Submit(Find(Page(), "Create Wordbound")); yield return Settle();
-                Require(menu.Page<PlayPage>().WordboundMaps && ModeCards().Length == 0 && CreateCards().SequenceEqual(CreateTools), "Map editor must remain a directly selectable creator tool.");
+                menu.Page<PlayPage>().WordboundMaps = false; menu.Page<PlayPage>().Refresh();
+                yield return Settle();
+                ToolCardsFit(context, "build");
+                Require(Find(Page(), "GO").interactable, "The Home builder must be ready to open.");
+                ControlFits(Find(Page(), "GO"));
+                yield return Capture(context, "lobby_create_build");
+                menu.Page<PlayPage>().WordboundMaps = true; menu.Page<PlayPage>().Refresh();
+                yield return Settle();
+                Require(ModeCards().Length == 0 && CreateCards().SequenceEqual(CreateTools), "The footer change must keep both tool cards.");
                 Require(menu.Queue == queue && menu.Mode == mode && menu.Map == map &&
-                    menu.Party.SequenceEqual(party) && Session.Bindings.SequenceEqual(bindings), "Creator family changed house selection or local seats.");
-                foreach (string name in new[] { "Create house", "Create Wordbound", "Wordbound maps", "Workshop OPEN" }) ControlFits(Find(Page(), name));
+                    menu.Party.SequenceEqual(party) && Session.Bindings.SequenceEqual(bindings), "Creator footer changed house selection or local seats.");
+                foreach (string name in new[] { PlayPage.CreateHouse, PlayPage.CreateEditor, "Workshop OPEN" }) ControlFits(Find(Page(), name));
                 var detail = Page().GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Workshop detail");
-                Require(detail.text == "Local editor. One-player playtests." && Find(Page(), "Workshop OPEN").interactable,
-                    "The installed local editor entry must be concise and available.");
+                Require(detail.text == PlayPage.MapEditorNote && Find(Page(), "Workshop OPEN").interactable,
+                    "The installed map editor entry must be concise and available.");
                 TextFits(detail);
                 Require(SceneManager.GetActiveScene().name == Session.HubScene && !menu.Starting,
                     "Creator selection must not open a scene or touch workshop autosaves.");
                 yield return Capture(context, "lobby_create_wordbound");
-                Submit(Find(Page(), "Create house")); yield return Settle();
-                Require(ModeCards().Length == 0 &&
-                    menu.Queue == queue && menu.Mode == mode && menu.Map == map && menu.Party.SequenceEqual(party) &&
-                    Session.Bindings.SequenceEqual(bindings), "Returning to home tools lost the original selection or seats.");
-                context.Note("create_routes", "Only the original home workshop and the distinct local Wordbound maps entry; the tutorial lives under Practice > Training; selection-only, no creator launch or autosave access.");
+                context.Note("create_routes", "Two large tool cards, Home builder and Map editor; a click on either opens its tool (not pressed here); the footer names the tool used last; the tutorial lives under Practice > Training; no creator launch or autosave access.");
             }
             finally
             {
@@ -736,6 +757,7 @@ namespace Wreckabulary.Qa
                 var wardrobe = menu.Page<LoadoutPage>();
                 string worn = menu.Outfit.Serialize();
                 yield return Capture(context, "lobby_customize");
+                CustomizeTitle(context);
                 CustomizeRail(context, "customize_rail");
                 yield return CustomizeCategory(context, "Headwear", "lobby_customize_hats");
                 yield return CustomizeCategory(context, "Top", null);
@@ -746,6 +768,9 @@ namespace Wreckabulary.Qa
                 var looks = Page().GetComponentsInChildren<ScrollRect>().Single().content.GetComponentsInChildren<Button>();
                 string[] shopLooks = CosmeticBundles.All.Select(look => LoadoutPage.LookPrefix + look.Id).ToArray();
                 Require(shopLooks.All(wanted => looks.Any(offered => offered.name == wanted)), "Customize must offer every shop look as a tile.");
+                Require(looks.Length > 0 && (looks[0].name == LoadoutPage.AddLook || looks[0].name.StartsWith(LoadoutPage.SavedPrefix)),
+                    "Customize must list the player's own looks before the shop looks.");
+                Require(Page().GetComponentsInChildren<TMP_Text>().Any(text => text.name == LoadoutPage.ShopLooksTitle), "The shop looks need their own label.");
                 foreach (var tile in looks.Where(offered => offered.name.StartsWith(LoadoutPage.LookPrefix)))
                     Require(tile.GetComponentsInChildren<RawImage>().Any(image => image.name == LoadoutPage.LookPicture && image.texture) ||
                         tile.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == LoadoutPage.LookFallback), "The look tile has no picture: " + tile.name);
@@ -756,9 +781,11 @@ namespace Wreckabulary.Qa
                 Submit(Find(Page(), "RECIPES"));
                 yield return Settle();
                 yield return Capture(context, "lobby_customize_equipment");
+                CustomizeEquipment(context);
                 var wardrobeScroll = Page().GetComponentsInChildren<ScrollRect>().Single();
                 float originalScroll = wardrobeScroll.verticalNormalizedPosition;
                 var priorFocus = EventSystem.current.currentSelectedGameObject;
+                LobbyPress pointed = null;
                 try
                 {
                     var finishes = CustomizeFinishes();
@@ -780,10 +807,16 @@ namespace Wreckabulary.Qa
                     }
                     context.Note("customize_finishes_in_view", new Dictionary<string, object> { ["finishes"] = shown.ToArray(),
                         ["viewport"] = new[] { viewport.x, viewport.y, viewport.width, viewport.height }, ["scroll"] = wardrobeScroll.verticalNormalizedPosition });
+                    var other = finishes.FirstOrDefault(finish => !finish.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == LoadoutPage.CheckMark));
+                    pointed = other ? other.GetComponent<LobbyPress>() : null;
+                    if (pointed) pointed.OnPointerEnter(new PointerEventData(EventSystem.current));
+                    yield return Settle();
+                    context.Note("customize_finish_held", new Dictionary<string, object> { ["finish"] = other ? other.name : "", ["holding"] = menu.Stage.IsHoldingItem });
                     yield return Capture(context, "lobby_customize_finishes");
                 }
                 finally
                 {
+                    if (pointed) pointed.OnPointerExit(new PointerEventData(EventSystem.current));
                     if (wardrobeScroll) wardrobeScroll.verticalNormalizedPosition = originalScroll;
                     if (priorFocus && priorFocus.activeInHierarchy) EventSystem.current.SetSelectedGameObject(priorFocus);
                 }
@@ -793,10 +826,52 @@ namespace Wreckabulary.Qa
                 Submit(Top("Shop"));
                 yield return Settle();
                 Require(menu.Current == LobbyMenu.Shop, "Shop navigation did not open Shop.");
+                LooseLetters(context);
                 yield return Capture(context, "lobby_shop");
                 context.Note("customization_scope", "Navigation only; no purchase, outfit change or unlock mutation.");
             }
             finally { PreservePreferences(context); }
+        }
+
+        void CustomizeTitle(QaContext context)
+        {
+            var word = Page().GetComponentsInChildren<LobbyTileWord>().FirstOrDefault(tiles => tiles.Within);
+            Require(word, "The Customize title must be letter tiles kept to their own area.");
+            var panel = (RectTransform)word.Within.parent;
+            var tabs = ScreenRect((RectTransform)panel.Cast<Transform>().Single(child => child.name == "Tabs"));
+            var area = ScreenRect(word.Within);
+            var spots = new List<object>();
+            foreach (Transform child in word.transform)
+            {
+                var rect = ScreenRect((RectTransform)child);
+                Require(rect.xMax <= tabs.xMin + 2, "A Customize title tile covers the tabs: " + child.name);
+                Require(rect.yMin >= area.yMin - 2 && rect.yMax <= area.yMax + 2, "A Customize title tile left its title area: " + child.name);
+                spots.Add(new[] { rect.x, rect.y, rect.width, rect.height });
+            }
+            context.Note("customize_title", new Dictionary<string, object> { ["word"] = word.Word, ["settled"] = word.Settled,
+                ["tabs"] = new[] { tabs.x, tabs.y, tabs.width, tabs.height }, ["tiles"] = spots.ToArray() });
+        }
+
+        void CustomizeEquipment(QaContext context)
+        {
+            var scroll = Page().GetComponentsInChildren<ScrollRect>().Single();
+            var view = ScreenRect(scroll.viewport ? scroll.viewport : (RectTransform)scroll.transform);
+            var recipes = Page().GetComponentsInChildren<LobbyRecipeTileView>().Select(tile => ScreenRect((RectTransform)tile.transform)).ToArray();
+            int whole = recipes.Count(rect => rect.yMin >= view.yMin - 2 && rect.yMax <= view.yMax + 2);
+            var detail = Page().GetComponentsInChildren<RectTransform>().Single(rect => rect.name == "Recipe detail");
+            Require(detail.rect.height <= LoadoutPage.DetailCard + 2, "The Customize recipe card must be one line.");
+            TextFits(detail.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Blurb"));
+            context.Note("customize_equipment", new Dictionary<string, object> { ["recipes_in_view"] = whole, ["recipes"] = recipes.Length,
+                ["detail_height"] = detail.rect.height });
+        }
+
+        void LooseLetters(QaContext context)
+        {
+            var pages = menu.Page<ShopPage>().Root.parent;
+            var layer = pages.parent.Find(LobbyLooseTiles.Name);
+            Require(!layer || layer.GetSiblingIndex() < pages.GetSiblingIndex(), "Loose title letters must fall behind the open page.");
+            context.Note("loose_letters", new Dictionary<string, object> { ["layer"] = layer ? layer.GetSiblingIndex() : -1, ["pages"] = pages.GetSiblingIndex(),
+                ["falling"] = layer ? layer.GetComponent<LobbyLooseTiles>().Count : 0 });
         }
 
         void CustomizeRail(QaContext context, string key)
@@ -1077,7 +1152,7 @@ namespace Wreckabulary.Qa
             LobbyScrollFollow.Show(list, (RectTransform)craft.transform.parent.parent);
             yield return Settle();
             context.Note("controls_legend_Wordbound_mid", LegendView(panel, list, "lobby_settings_wordbound_controls_mid",
-                new[] { "Aim", "Jump", "Interact", "Spell" }, new[] { "Aim (hold)", "Jump", "Pick up / use", "Open crafting" },
+                new[] { "Aim", "Jump", "Interact", "Spell" }, new[] { "Aim (hold)", "Jump", "Pick up, use, hold to revive", "Spell a word" },
                 new[] { "RB / R1", "A / Cross", "RT / R2", "Y / Triangle" }));
             yield return Capture(context, "lobby_settings_wordbound_controls_mid");
             EventSystem.current.SetSelectedGameObject(BindingButton(panel, "Pause").gameObject);
@@ -1085,7 +1160,7 @@ namespace Wreckabulary.Qa
             yield return Settle();
             Require(list.verticalNormalizedPosition <= .001f, "Wordbound controls did not reach the final bindings.");
             context.Note("controls_legend_Wordbound_bottom", LegendView(panel, list, "lobby_settings_wordbound_controls_bottom",
-                new[] { "Hand 1", "Hand 2", "Bag", "Pause" }, new[] { "Equipment 1", "Equipment 2", "Change equipment", "Menu" },
+                new[] { "Hand 1", "Hand 2", "Bag", "Pause" }, new[] { "Hand 1", "Hand 2", "Bag", "Menu" },
                 new[] { "D-pad left", "D-pad right", "R3 cycles gear", "Start / Options" }));
             yield return Capture(context, "lobby_settings_wordbound_controls_bottom");
             list.verticalScrollbar.value = 1f;
@@ -1113,7 +1188,7 @@ namespace Wreckabulary.Qa
                 "Legend capture must preserve the controls lease without starting a rebind.");
             var viewport = ScreenRect(list.viewport);
             var header = panel.GetComponentsInChildren<TMP_Text>().Single(value => value.name == "Control legend title");
-            Require(header.text == "COURSE CONTROLS", "The scrolled capture needs its visible Courses header.");
+            Require(header.text == ControlsPanel.CourseTitle, "The scrolled capture needs its visible Courses header.");
             TextFits(header);
             var headerRect = ScreenRect(header.rectTransform); var safe = Screen.safeArea;
             Require(headerRect.width > 1 && headerRect.height > 1 && headerRect.xMin >= safe.xMin - 2 &&
@@ -1147,17 +1222,31 @@ namespace Wreckabulary.Qa
             var previous = WordboundLobbyParty.Register(() => party);
             try
             {
+                var choices = new Wreckabulary.Rules.Wordbound.QuickPlayChoices(PlayerPrefs.GetString(Wreckabulary.Rules.Wordbound.QuickPlayChoices.StorageKey, ""));
+                party.Status = choices.PartyLine(4);
                 Require(ReferenceEquals(WordboundLobbyParty.Open(), party), "The lobby party strip could not be shown.");
                 yield return Settle();
                 var heading = Page().GetComponentsInChildren<TMP_Text>().SingleOrDefault(text => text.name == PlayPage.PartyHeading);
-                var members = Page().GetComponentsInChildren<TMP_Text>().SingleOrDefault(text => text.name == PlayPage.PartyMembers);
+                var plates = Page().GetComponentsInChildren<LobbyPartyChips>().SingleOrDefault(row => row.name == PlayPage.PartyPlatesRow);
                 var copy = Find(Page(), PlayPage.CopyPartyCode);
                 var leave = Find(Page(), PlayPage.LeaveParty);
                 var go = Find(Page(), PlayPage.FindMatch);
                 var title = Page().GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Matchmaking playlists");
-                Require(heading && heading.text == party.Heading && members && members.text.Contains("Player 4") &&
+                string[] names = plates ? plates.Plates.Select(plate => plate.Name).ToArray() : new string[0];
+                Require(heading && heading.text == party.Heading && names.SequenceEqual(new[] { "You", "Player 2", "Player 3", "Player 4" }) &&
                     copy.IsInteractable() && leave.IsInteractable() && go.IsInteractable(),
-                    "The party strip must show the party, its four members, Copy code and Leave, with Find match ready.");
+                    "The party strip must show the party as four plates, Copy code and Leave, with Find match ready.");
+                Require(!Page().GetComponentsInChildren<TMP_Text>().Any(text => text.name == PlayPage.PartyMembers), "The party must not also be a grey sentence of names.");
+                foreach (Transform plate in plates.transform)
+                {
+                    float height = ((RectTransform)plate).rect.height;
+                    Require(height >= LobbyPartyChips.Height - 2, "A party plate is too short: " + plate.name + " " + height.ToString("F1"));
+                    foreach (var text in plate.GetComponentsInChildren<TMP_Text>()) { TextFits(text); Require(text.fontSize >= SmallestModeLabel, "A party plate word is too small: " + text.text); }
+                }
+                Require(!Page().GetComponentsInChildren<TMP_InputField>().Any(), "The code box must step aside while in a party.");
+                Require(CardDetail("ffa") == PlayPageText.SkipLine(PlayPageText.SoloOnly) &&
+                    Find(Page(), PlayPage.PlaylistCard + "ffa").TryGetComponent(out CanvasGroup skipped) && skipped.alpha < 1f,
+                    "A card the party cannot play must be dimmed and say why.");
                 var duo = Find(Page(), PlayPage.TeamSizeSwitch + " " + Wreckabulary.Rules.Wordbound.QuickPlayCards.Duo);
                 var squad = Find(Page(), PlayPage.TeamSizeSwitch + " " + Wreckabulary.Rules.Wordbound.QuickPlayCards.Squad);
                 var why = Page().GetComponentsInChildren<TMP_Text>().SingleOrDefault(text => text.name == PlayPage.TeamSizeNote);
@@ -1166,12 +1255,15 @@ namespace Wreckabulary.Qa
                 TextFits(why);
                 Require(CardDetail("relay") == "Teams of 4 race to the delivery" && !title.text.Contains("2v2"),
                     "A party of four must read the 4v4 captions and summary.");
-                Require(Page().GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Matchmaking detail").text == party.Status,
-                    "The footer must show the party line.");
+                string region = Wreckabulary.Rules.Wordbound.QuickPlayRegions.Name(Wreckabulary.Rules.Wordbound.QuickPlayRegions.Nearest(Wreckabulary.Rules.Wordbound.QuickPlayRegions.LocalOffsetMinutes()));
+                string partyLine = PlayPageText.Playable(choices, 4).Count > 0 ? PlayPageText.PartyLine(4, region) : party.Status;
+                Require(Page().GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Matchmaking detail").text == partyLine &&
+                    title.text == PlayPageText.SearchLine(choices, 4),
+                    "The footer must show the short party line and count only what the party can play.");
                 foreach (var text in new[] { copy, leave, go }.SelectMany(button => button.GetComponentsInChildren<TMP_Text>())) TextFits(text);
                 var scroll = copy.GetComponentInParent<ScrollRect>();
                 var view = scroll ? ScreenRect(scroll.viewport) : Screen.safeArea;
-                foreach (var shown in new[] { heading.rectTransform, members.rectTransform, (RectTransform)copy.transform, (RectTransform)leave.transform })
+                foreach (var shown in new[] { heading.rectTransform, (RectTransform)plates.transform, (RectTransform)copy.transform, (RectTransform)leave.transform })
                 {
                     var area = ScreenRect(shown);
                     Require(area.yMin >= view.yMin - 2 && area.yMax <= view.yMax + 2, "The party strip hides " + shown.name + " below the fold.");
@@ -1186,14 +1278,31 @@ namespace Wreckabulary.Qa
                 var titleArea = ScreenRect(title.rectTransform);
                 Require(goArea.yMin >= Screen.safeArea.yMin - 2 && goArea.yMax <= Screen.safeArea.yMax + 2 &&
                     titleArea.yMin >= Screen.safeArea.yMin - 2 && titleArea.yMax <= Screen.safeArea.yMax + 2, "The search bar is off screen.");
+                var band = Page().GetComponentsInChildren<LobbyMatchBand>(true).Single();
+                Require(band.gameObject.activeInHierarchy && !band.Found && band.Plates.Plates.Count == 4 &&
+                    band.GetComponentsInChildren<TMP_Text>().Single(text => text.name == LobbyMatchBand.TitleName).text == LobbyKit.Upper(party.SearchTitle),
+                    "The search must cover the cards with the timer and the party plates.");
+                Require(!Find(Page(), PlayPage.PlaylistCard + "relay").IsInteractable(), "The covered cards must not take input mid-search.");
+                foreach (var text in band.GetComponentsInChildren<TMP_Text>()) TextFits(text);
                 yield return Capture(context, "lobby_party_search");
+                int cues = LobbyMatchMoment.Cues;
                 party.Found = true; party.SearchTitle = "Match found · starting in 4";
+                yield return Settle();
+                double landBy = Time.realtimeSinceStartupAsDouble + 2;
+                while (!band.Landed && Time.realtimeSinceStartupAsDouble < landBy) yield return null;
                 yield return Settle();
                 Require(title.text == party.SearchTitle, "The search bar must show the match-found countdown.");
                 TextFits(title);
+                var stamp = band.transform.Find(LobbyMatchBand.StampName);
+                var count = band.transform.Find(LobbyMatchBand.CountName).GetComponentInChildren<TMP_Text>();
+                Require(band.Found && band.Landed && stamp.gameObject.activeSelf && count.text == "4", "Match found must land a stamp over the cards with a big count.");
+                Require(LobbyMatchMoment.Cues == cues + 1, "The stamp must land with one thump.");
+                foreach (var text in band.GetComponentsInChildren<TMP_Text>()) TextFits(text);
                 yield return Capture(context, "lobby_party_found");
                 context.Note("lobby_party", new Dictionary<string, object> {
-                    ["heading"] = heading.text, ["members"] = members.text, ["copy"] = Label(copy), ["leave"] = Label(leave),
+                    ["heading"] = heading.text, ["plates"] = names, ["copy"] = Label(copy), ["leave"] = Label(leave),
+                    ["summary"] = PlayPageText.SearchLine(choices, 4), ["skipped"] = CardDetail("ffa"), ["stamp_cues"] = LobbyMatchMoment.Cues - cues,
+                    ["sound"] = LobbyMatchMoment.Sound.ToString(),
                     ["team_size"] = "4v4 picked, 2v2 disabled", ["team_size_note"] = why.text, ["party_line"] = party.Status,
                     ["search_bar"] = new[] { "Searching 0:42", party.SearchTitle }, ["cancel"] = Label(go),
                     ["source"] = "QA stub party, no service calls" });
@@ -1231,6 +1340,11 @@ namespace Wreckabulary.Qa
             TextFits(title);
             foreach (var choice in sizes) ControlFits(choice);
             Require(scroll.content.rect.height <= scroll.viewport.rect.height + 1, "The Online tab must not scroll up and down.");
+            var about = Page().GetComponentInChildren<LobbyPlayDetail>();
+            Require(about && about.Shown != null && column.GetChild(2).GetComponent<LobbyPlayColumnFlow>().SideShown,
+                "The Online tab must describe the chosen card beside the columns.");
+            ControlFits(about.Guide);
+            foreach (var text in about.GetComponentsInChildren<TMP_Text>()) TextFits(text);
             var ids = Wreckabulary.Rules.Wordbound.QuickPlayCards.Ids;
             var cards = ids.Select(id => Find(Page(), PlayPage.PlaylistCard + id)).ToArray();
             var areas = cards.Select(card => ScreenRect((RectTransform)card.transform)).ToArray();
@@ -1371,14 +1485,16 @@ namespace Wreckabulary.Qa
                 var findMatch = Find(Page(), PlayPage.FindMatch);
                 var friends = Find(Page(), PlayPage.CustomMatch);
                 var invite = Find(Page(), PlayPage.InviteFriendsButton);
-                var joinParty = Find(Page(), PlayPage.JoinParty);
-                var partyField = Page().GetComponentsInChildren<TMP_InputField>().SingleOrDefault(field => field.name == PlayPage.PartyCodeField);
+                var joinParty = Find(Page(), PlayPage.JoinCode);
+                var partyField = Page().GetComponentsInChildren<TMP_InputField>().SingleOrDefault(field => field.name == PlayPage.CodeField);
                 Require(SceneManager.GetActiveScene().name == Session.HubScene && menu.Current == LobbyMenu.Play && menu.Queue == queue &&
                     cards.Select(card => card.name.Substring(PlayPage.PlaylistCard.Length)).SequenceEqual(Wreckabulary.Rules.Wordbound.QuickPlayCards.Ids) &&
                     findMatch.IsInteractable() && friends.IsInteractable(),
                     "The Matchmaking tab must stay in the lobby with one card per mode, Find match and Custom match.");
                 Require(invite.IsInteractable() && joinParty.IsInteractable() && partyField && partyField.IsInteractable(),
-                    "The Matchmaking tab must show the party strip with Invite friends, the party code field and Join.");
+                    "The Matchmaking tab must show Invite friends and the one code box with Join.");
+                Require(Page().GetComponentsInChildren<TMP_InputField>().Length == 1 && partyField.transform.parent.parent.name == PlayPage.TeamSizeRow,
+                    "The one code box must share the team size row.");
                 foreach (var text in cards.Concat(new[] { findMatch, friends, invite, joinParty }).SelectMany(button => button.GetComponentsInChildren<TMP_Text>()))
                     TextFits(text);
                 var matchScroll = partyField.GetComponentInParent<ScrollRect>();
@@ -1403,10 +1519,15 @@ namespace Wreckabulary.Qa
                 yield return Settle();
                 var rooms = Page().GetComponentsInChildren<Button>().Where(button => button.name.StartsWith(PlayPage.RoomModeCard)).ToArray();
                 var create = Find(Page(), PlayPage.CreateRoom);
-                var join = Find(Page(), PlayPage.JoinRoom);
+                var join = Find(Page(), PlayPage.JoinCode);
                 var custom = Find(Page(), PlayPage.CustomMap);
                 var playlists = Find(Page(), PlayPage.BackToPlaylists);
-                var codeField = Page().GetComponentsInChildren<TMP_InputField>().SingleOrDefault(field => field.name == PlayPage.RoomCodeField);
+                var codeField = Page().GetComponentsInChildren<TMP_InputField>().SingleOrDefault(field => field.name == PlayPage.CodeField);
+                var layoutRow = Page().GetComponentsInChildren<RectTransform>().Single(rect => rect.name == PlayPage.LayoutRow);
+                Require(layoutRow.rect.height <= 60 && layoutRow.GetComponentsInChildren<Button>().Length == Wreckabulary.Rules.Wordbound.FriendRooms.Layouts,
+                    "The custom match map must be one compact row with its four versions.");
+                foreach (var version in layoutRow.GetComponentsInChildren<Button>()) ControlFits(version);
+                foreach (var text in layoutRow.GetComponentsInChildren<TMP_Text>()) TextFits(text);
                 Require(SceneManager.GetActiveScene().name == Session.HubScene && menu.Current == LobbyMenu.Play &&
                     rooms.Length == Wreckabulary.Rules.Wordbound.FriendRooms.All.Count && codeField && codeField.IsInteractable() &&
                     new[] { create, join, custom, playlists }.All(button => button.IsInteractable()),
@@ -1420,10 +1541,15 @@ namespace Wreckabulary.Qa
                     var area = ScreenRect(shown);
                     Require(area.yMin >= friendsView.yMin - 2 && area.yMax <= friendsView.yMax + 2, "Custom match hides " + shown.name + " below the fold.");
                 }
+                var roomGuide = Page().GetComponentsInChildren<Button>().Where(button => button.name == PlayPage.GuideIcon).ToArray();
+                Require(roomGuide.Length == 1 && roomGuide[0].IsInteractable() && roomGuide[0].GetComponentInParent<TMP_Text>()?.name == "Friends room",
+                    "Custom match must offer the guide of the chosen room mode beside its footer title.");
+                ControlFits(roomGuide[0]);
                 yield return Capture(context, "lobby_friends_host");
                 context.Note("friends_view", new Dictionary<string, object> {
                     ["modes"] = rooms.Select(card => card.name.Substring(PlayPage.RoomModeCard.Length)).ToArray(),
-                    ["create"] = Label(create), ["join"] = Label(join), ["custom_map"] = Label(custom), ["scene"] = SceneManager.GetActiveScene().name });
+                    ["create"] = Label(create), ["join"] = Label(join), ["custom_map"] = Label(custom), ["guide"] = roomGuide.Length == 1,
+                    ["scene"] = SceneManager.GetActiveScene().name });
                 codeField.text = "wb-room:1234567890abcdef:NoSuchMode:Solo:asia:p1:0123456789abcdef:m1";
                 Submit(join);
                 WordboundLauncher launcher = null;
@@ -1474,8 +1600,31 @@ namespace Wreckabulary.Qa
             Require(Present(name), "Timed out waiting for " + what + " (" + name + ").");
         }
         string[] ModeCards() => Page().GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Mode ")).Select(button => button.name.Substring(5)).ToArray();
-        string[] CreateCards() => Page().GetComponentsInChildren<RectTransform>().Single(rect => rect.name == "Create modes")
+        string[] CreateCards() => Page().GetComponentsInChildren<RectTransform>().Single(rect => rect.name == PlayPage.CreateRow)
             .GetComponentsInChildren<Button>().Select(button => button.name).ToArray();
+
+        void ToolCardsFit(QaContext context, string key)
+        {
+            var row = Page().GetComponentsInChildren<RectTransform>().Single(rect => rect.name == PlayPage.CreateRow);
+            var cards = CreateTools.Select(name => Find(Page(), name)).ToArray();
+            var areas = cards.Select(card => ScreenRect((RectTransform)card.transform)).ToArray();
+            var view = ScreenRect(row.GetComponentInParent<ScrollRect>().viewport);
+            Require(Mathf.Abs(areas[0].width - areas[1].width) <= 2 && Mathf.Abs(areas[0].height - areas[1].height) <= 2 &&
+                Mathf.Abs(areas[0].yMax - areas[1].yMax) <= 2 && areas[1].xMin > areas[0].xMax, "The two Create tools must be the same size, side by side.");
+            for (int i = 0; i < cards.Length; i++)
+            {
+                Require(Inside(areas[i], view), "A Create tool is not fully visible without scrolling: " + cards[i].name);
+                ControlFits(cards[i]);
+                foreach (var text in cards[i].GetComponentsInChildren<TMP_Text>())
+                {
+                    TextFits(text);
+                    Require(text.fontSize >= SmallestModeLabel, "A Create tool word is too small: " + text.text);
+                }
+            }
+            context.Note("create_tools_" + key, new Dictionary<string, object> { ["tools"] = CreateTools,
+                ["rects"] = areas.Select(area => (object)new[] { area.x, area.y, area.width, area.height }).ToArray(),
+                ["editor_available"] = cards[1].interactable, ["footer"] = menu.Page<PlayPage>().WordboundMaps ? "Map editor" : "Home builder" });
+        }
         static string Label(Button button) => button.GetComponentInChildren<TMP_Text>().text;
         static void Submit(Button button)
         {

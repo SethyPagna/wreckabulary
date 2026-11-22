@@ -111,7 +111,7 @@ namespace Wreckabulary.Tests
                     Assert.AreSame(selected.gameObject, EventSystem.current.currentSelectedGameObject, width + " focus");
                     Assert.AreEqual(mode, menu.Mode); Assert.AreEqual(map, menu.Map); Assert.AreEqual(queue, menu.Queue); Assert.AreEqual(humans, menu.PartySize);
                     Assert.AreEqual("CUSTOMIZE", selected.GetComponentInChildren<TMP_Text>().text);
-                    Assert.AreEqual("Local " + humans + "/4", Field<TextMeshProUGUI>("partyCount").text);
+                    Assert.AreEqual("Party " + humans + "/4", Field<TextMeshProUGUI>("partyCount").text);
                     var shop = Field<Button>("shopButton");
                     Assert.IsTrue(shop.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "SHOP"));
                     foreach (var label in shop.GetComponentsInChildren<TMP_Text>())

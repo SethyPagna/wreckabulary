@@ -75,25 +75,58 @@ namespace Wreckabulary.Workshop
         {
             int current = StepTab(step);
             float available = inspectorWidth - panel.padding.horizontal - 4;
-            float total = StepTabs.Sum(label => GUI.skin.button.CalcSize(new GUIContent(label)).x + GUI.skin.button.margin.horizontal + BadgeSize);
-            int columns = total <= available ? StepTabs.Length : 2;
             if (padCounting) padTabs = padCount;
             var issues = TabIssues();
+            GUIStyle idle = paper.Dressed ? paper.Tab : GUI.skin.button, chosen = paper.Dressed ? paper.TabOn : ui.Selected;
+            FitStepTabs(idle, chosen, available);
+            GUILayout.BeginHorizontal();
             for (int i = 0; i < StepTabs.Length; i++)
             {
-                if (i % columns == 0) GUILayout.BeginHorizontal();
                 GUI.SetNextControlName("Workshop step " + StepTabs[i]);
                 string hint = issues[i] == 0 ? StepHints[i] : StepHints[i] + " · " + issues[i] + " to fix";
-                if (PadButton(new GUIContent(StepTabs[i], hint), i == current ? ui.Selected : null,
-                    GUILayout.MinHeight(ui.RowHeight), GUILayout.ExpandWidth(true)))
+                if (PadButton(new GUIContent(StepTabs[i], hint), i == current ? chosen : idle,
+                    GUILayout.MinHeight(ui.RowHeight), GUILayout.Width(stepTabWidths[i])))
                     ShowStep(i == 0 ? WorkshopStep.Build : i == 1 ? lastFill : i == 2 ? WorkshopStep.Rules : WorkshopStep.Share);
-                if (issues[i] > 0 && Event.current.type == EventType.Repaint) IssueBadge(GUILayoutUtility.GetLastRect(), issues[i]);
-                if (i % columns == columns - 1 || i == StepTabs.Length - 1) GUILayout.EndHorizontal();
+                if (Event.current.type != EventType.Repaint) continue;
+                var tab = GUILayoutUtility.GetLastRect();
+                if (i == current && paper.Dressed) paper.Underline(tab);
+                if (issues[i] > 0) IssueBadge(tab, issues[i]);
             }
+            GUILayout.EndHorizontal();
             GUILayout.Space(ui.Gap);
         }
 
-        const float BadgeSize = 18;
+        void FitStepTabs(GUIStyle idle, GUIStyle chosen, float available)
+        {
+            if (stepTabStyle == idle && Mathf.Approximately(stepTabSpan, available)) return;
+            stepTabStyle = idle; stepTabSpan = available;
+            float spacing = Mathf.Max(idle.margin.left, idle.margin.right), budget = Mathf.Max(StepTabs.Length, available - spacing * (StepTabs.Length + 1));
+            bool owned = paper.Dressed && idle == paper.Tab;
+            int size = owned ? GUI.skin.button.fontSize : idle.fontSize;
+            if (owned) idle.fontSize = chosen.fontSize = size;
+            float total = StepTabsNatural();
+            while (owned && total > budget && size > StepTabSmallestFont)
+            {
+                size--; idle.fontSize = chosen.fontSize = size;
+                total = StepTabsNatural();
+            }
+            float extra = (budget - total) / StepTabs.Length, squeeze = total > budget ? budget / total : 1;
+            for (int i = 0; i < StepTabs.Length; i++)
+                stepTabWidths[i] = Mathf.Floor(squeeze < 1 ? stepTabWidths[i] * squeeze : stepTabWidths[i] + extra);
+        }
+
+        float StepTabsNatural()
+        {
+            float total = 0;
+            for (int i = 0; i < StepTabs.Length; i++) total += stepTabWidths[i] = Mathf.Ceil(stepTabStyle.CalcSize(new GUIContent(StepTabs[i])).x);
+            return total;
+        }
+
+        const float BadgeSize = 18, BadgeRise = 5, BadgeOverhang = 2;
+        const int StepTabSmallestFont = 12;
+        readonly float[] stepTabWidths = new float[StepTabs.Length];
+        GUIStyle stepTabStyle;
+        float stepTabSpan = -1;
         readonly int[] tabIssues = new int[WorkshopIssueTabs.Tabs];
 
         int[] TabIssues()
@@ -107,12 +140,13 @@ namespace Wreckabulary.Workshop
 
         void IssueBadge(Rect tab, int count)
         {
-            var badge = new Rect(tab.xMax - BadgeSize - 3, tab.y + 3, BadgeSize, BadgeSize);
+            var badge = paper.Dressed ? new Rect(tab.xMax - BadgeSize + BadgeOverhang, tab.y - BadgeRise, BadgeSize, BadgeSize) :
+                new Rect(tab.xMax - BadgeSize - 3, tab.y + 3, BadgeSize, BadgeSize);
             var tint = GUI.color;
             try
             {
-                GUI.color = ui.Error;
-                GUI.DrawTexture(badge, Texture2D.whiteTexture);
+                if (paper.Dressed) paper.Dot(badge, ui.Error);
+                else { GUI.color = ui.Error; GUI.DrawTexture(badge, Texture2D.whiteTexture); }
                 GUI.color = tint;
                 GUI.Label(badge, count > 9 ? "9+" : count.ToString(System.Globalization.CultureInfo.InvariantCulture), badgeStyle);
             }

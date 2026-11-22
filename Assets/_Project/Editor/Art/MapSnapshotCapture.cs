@@ -19,7 +19,7 @@ namespace Wreckabulary.EditorTools
     public static class MapSnapshotCapture
     {
         public const string Folder = "Assets/_Project/Resources/MapSnapshots";
-        public const string SheetPath = "BuildNotes/w20d/maps-sheet.png";
+        public const string SheetPath = "BuildNotes/w21a/maps-sheet.png";
         public const int Width = 1280, Height = 720;
         const int Supersample = 2, MaximumShadowDistance = 400;
         const float Pitch = 34f, Tilt = 28f, FieldOfView = 28f, FillAcross = .93f, FillAbove = .93f, FillBelow = .84f;
@@ -31,9 +31,15 @@ namespace Wreckabulary.EditorTools
         const float PaperShadow = .7f, PaperShadowDepth = .5f, EmptyShare = .02f, FullShare = .995f;
         const int ShadowBlur = 22, ShadowPasses = 2, ShadowDrop = 12;
         const int SheetColumns = 4, CellWidth = 480, CellHeight = 270, SheetGap = 8, SmallColumns = 8, SmallWidth = 236, SmallHeight = 133, LabelScale = 2, LabelRoom = 16;
-        const string OnlineEditor = ", Wreckabulary.Online.Authoring.Editor";
+        const string OnlineEditor = ", Wreckabulary.Online.Authoring.Editor", OnlineClient = ", Wreckabulary.Online.Client";
         const string StageType = "Wreckabulary.Online.Editor.WordboundSoloPreviewStage" + OnlineEditor;
         const string SettingsType = "Wreckabulary.Online.Editor.WordboundSoloPreviewSettings" + OnlineEditor;
+        const string PoseType = "Wreckabulary.Online.Editor.WordboundSoloPreviewPose" + OnlineEditor;
+        const string ContentType = "Wreckabulary.Online.WordboundClientContent" + OnlineClient;
+        const string LaunchType = "Wreckabulary.Online.WordboundLaunchAssets" + OnlineClient;
+        const string ArenaMode = "FreeForAll", ArenaFormat = "Solo", ArenaSeed = "0123456789abcdef", ArenaModule = "Start", ArenaLabel = "Toybox Arena";
+        const int StageInputs = 6;
+        const BindingFlags Members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         static readonly Color SunColour = LobbyKit.Hex(0xfff3dc), FillColour = LobbyKit.Hex(0xfff3e6), Ambient = new Color(.42f, .4f, .37f);
         static readonly Color PaperCentre = LobbyKit.Hex(0xf8eccf), PaperEdge = Color.Lerp(LobbyStage.SkyTop, LobbyParcel.Kraft, .18f);
         static readonly Color PaperShade = Color.Lerp(Color.white, LobbyParcel.Ink, PaperShadowDepth);
@@ -60,7 +66,7 @@ namespace Wreckabulary.EditorTools
             var data = Resources.Load<GameData>(GameData.ResourcePath);
             if (!data) throw new InvalidOperationException("Resources/GameData is missing; run Wreckabulary > Data > Set Up Game Data.");
             var houses = data.Parse().Houses;
-            Log("start: " + houses.Count + " houses, " + Courses.Length + " courses -> " + Folder + " (" + Width + "x" + Height + ")");
+            Log("start: " + houses.Count + " houses, " + Courses.Length + " courses, 1 arena -> " + Folder + " (" + Width + "x" + Height + ")");
 
             string scenes = SceneState(), global = Global();
             var selection = Selection.objects; var selected = Selection.activeObject;
@@ -76,6 +82,7 @@ namespace Wreckabulary.EditorTools
                 foreach (var house in houses.OrderBy(pair => pair.Key, StringComparer.Ordinal))
                     Attempt(house.Key, () => House(house.Key, house.Value, pipeline), shots, skipped);
                 foreach (string course in Courses) Attempt(course, () => Course(course, pipeline), shots, skipped);
+                Attempt(LobbyMapSnapshots.ToyboxArena, () => Arena(pipeline), shots, skipped);
             }
             catch (Exception error) { failure = error; }
             finally
@@ -369,16 +376,13 @@ namespace Wreckabulary.EditorTools
 
         static (Color32[] pixels, string source, string note) Course(string id, UniversalRenderPipelineAsset pipeline)
         {
-            const BindingFlags Members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
             var stageType = Type.GetType(StageType); var settingsType = Type.GetType(SettingsType);
             if (stageType == null || settingsType == null) throw new InvalidOperationException("The Solo preview stage is not compiled in this editor; the card keeps its play-layout preview.");
             string path = settingsType.GetField("Path", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as string;
             var saved = string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath(path, settingsType);
             if (!saved) throw new InvalidOperationException("No saved Solo preview settings at " + (path ?? "(unknown path)") + ".");
             var create = stageType.GetConstructor(Members, null, new[] { settingsType, typeof(string) }, null);
-            var previewField = stageType.GetField("Preview", Members);
-            var worldField = stageType.GetField("World", Members);
-            if (create == null || previewField == null || worldField == null) throw new MissingMemberException("WordboundSoloPreviewStage changed; review MapSnapshotCapture.Course.");
+            if (create == null) throw new MissingMemberException("WordboundSoloPreviewStage changed; review MapSnapshotCapture.Course.");
             Object settings = null; IDisposable stage = null;
             try
             {
@@ -386,25 +390,63 @@ namespace Wreckabulary.EditorTools
                 settings.hideFlags = HideFlags.HideAndDontSave;
                 string anchor = Anchor(settingsType, settings, id);
                 stage = (IDisposable)create.Invoke(new object[] { settings, id });
-                var preview = previewField.GetValue(stage) as PreviewRenderUtility ?? throw new InvalidOperationException("The Solo preview stage has no preview renderer.");
-                var world = worldField.GetValue(stage) as WordboundCourseWorld ?? throw new InvalidOperationException("The Solo preview stage has no course world.");
-                var (level, floors, spawn) = Overview(world);
-                CutAbove(world.transform.root, level + ShownHeight);
-                var footprint = floors[0];
-                foreach (var floor in floors) footprint.Encapsulate(floor);
-                var view = Choose(footprint, forward => spawn.HasValue ? -Vector3.Dot(spawn.Value - footprint.center, forward) : 0f);
-                int hidden = HideNearWalls(world, floors, view.Forward);
-                var region = footprint;
-                region.Expand(new Vector3(CourseMargin, 0f, CourseMargin) * 2f);
-                var (pixels, framing) = Shoot(preview, Silhouette(world.transform.root, region), view, pipeline);
-                return (pixels, "installed Solo content, overview", "level at " + level.ToString("F1") + " m shown, higher levels cut away, "
-                    + hidden + " near walls hidden" + anchor + ", " + framing);
+                var (pixels, note) = Diorama(stageType, stage, pipeline);
+                return (pixels, "installed Solo content, overview", note + anchor);
             }
             finally
             {
                 stage?.Dispose();
                 if (settings) Object.DestroyImmediate(settings);
             }
+        }
+
+        static (Color32[] pixels, string source, string note) Arena(UniversalRenderPipelineAsset pipeline)
+        {
+            var stageType = Type.GetType(StageType); var poseType = Type.GetType(PoseType);
+            var contentType = Type.GetType(ContentType); var launchType = Type.GetType(LaunchType);
+            if (stageType == null || poseType == null || contentType == null || launchType == null)
+                throw new InvalidOperationException("The online course content is not compiled in this editor; the panel keeps its play-layout preview.");
+            var data = Resources.Load<GameData>(GameData.ResourcePath);
+            string path = launchType.GetField("ResourcePath", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as string;
+            var launch = string.IsNullOrEmpty(path) ? null : Resources.Load(path, launchType);
+            if (!data || !data.items || !data.rules || !launch) throw new InvalidOperationException("The installed arena inputs are missing.");
+            var create = stageType.GetConstructors(Members).FirstOrDefault(candidate => candidate.GetParameters().Length == StageInputs);
+            var profile = launchType.GetField("VisualProfile", BindingFlags.Public | BindingFlags.Instance);
+            var module = poseType.GetField("Module", BindingFlags.Public | BindingFlags.Instance);
+            var course = contentType.GetProperty("Course"); var geometry = contentType.GetProperty("Geometry"); var items = contentType.GetProperty("Items");
+            if (create == null || profile == null || module == null || course == null || geometry == null || items == null)
+                throw new MissingMemberException("The online course content changed; review MapSnapshotCapture.Arena.");
+            object content = Activator.CreateInstance(contentType, data.items.text, data.rules.text, ArenaMode, ArenaFormat, ArenaSeed);
+            object pose = Activator.CreateInstance(poseType);
+            module.SetValue(pose, ArenaModule);
+            IDisposable stage = null;
+            try
+            {
+                stage = (IDisposable)create.Invoke(new[] { course.GetValue(content), geometry.GetValue(content), items.GetValue(content),
+                    profile.GetValue(launch), pose, ArenaLabel });
+                var (pixels, note) = Diorama(stageType, stage, pipeline);
+                return (pixels, "installed online arena, overview", note);
+            }
+            finally { stage?.Dispose(); }
+        }
+
+        static (Color32[] pixels, string note) Diorama(Type stageType, object stage, UniversalRenderPipelineAsset pipeline)
+        {
+            var previewField = stageType.GetField("Preview", Members);
+            var worldField = stageType.GetField("World", Members);
+            if (previewField == null || worldField == null) throw new MissingMemberException("WordboundSoloPreviewStage changed; review MapSnapshotCapture.Diorama.");
+            var preview = previewField.GetValue(stage) as PreviewRenderUtility ?? throw new InvalidOperationException("The Solo preview stage has no preview renderer.");
+            var world = worldField.GetValue(stage) as WordboundCourseWorld ?? throw new InvalidOperationException("The Solo preview stage has no course world.");
+            var (level, floors, spawn) = Overview(world);
+            CutAbove(world.transform.root, level + ShownHeight);
+            var footprint = floors[0];
+            foreach (var floor in floors) footprint.Encapsulate(floor);
+            var view = Choose(footprint, forward => spawn.HasValue ? -Vector3.Dot(spawn.Value - footprint.center, forward) : 0f);
+            int hidden = HideNearWalls(world, floors, view.Forward);
+            var region = footprint;
+            region.Expand(new Vector3(CourseMargin, 0f, CourseMargin) * 2f);
+            var (pixels, framing) = Shoot(preview, Silhouette(world.transform.root, region), view, pipeline);
+            return (pixels, "level at " + level.ToString("F1") + " m shown, higher levels cut away, " + hidden + " near walls hidden, " + framing);
         }
 
         static string Anchor(Type settingsType, Object settings, string id)

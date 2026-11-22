@@ -47,12 +47,18 @@ namespace Wreckabulary.Art
                 if (t.name == "head") { headBone = t; break; }
             Transform model = headBone;
             while (model && !model.GetComponent<Animator>()) model = model.parent;
+            if (!model && headBone) model = headBone.root;
             if (model)
                 foreach (var other in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-                    if (other.name == "SK_Hood" || other.name == "SK_Cap") hats.Add(other);
+                    if (CuteWear.CoversHair(other.name)) hats.Add(other);
         }
 
-        void LateUpdate()
+        public bool Tucked => shell && flatHair && shell.sharedMesh == flatHair;
+        public bool BunsShown => buns && buns.gameObject.activeSelf;
+
+        void LateUpdate() => Settle();
+
+        public void Settle()
         {
             if (!shell || !headBone) return;
             bool tucked = HatOn();
@@ -78,7 +84,7 @@ namespace Wreckabulary.Art
             for (int i = 0; i < headBone.childCount; i++)
             {
                 var child = headBone.GetChild(i);
-                if ((child.name == "Sig_Beanie" || child.name == "Sig_Headphones") && child.gameObject.activeSelf) return true;
+                if (child.gameObject.activeSelf && CuteWear.CoversHair(child.name)) return true;
             }
             return false;
         }

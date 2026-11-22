@@ -30,6 +30,9 @@ namespace Wreckabulary
         static readonly (string id, string label)[] VoiceMics =
             { (VoiceSettings.MicId(MicMode.Off), "Off"), (VoiceSettings.MicId(MicMode.PushToTalk), "Push to talk"), (VoiceSettings.MicId(MicMode.OpenMic), "Open mic") };
         const float KeepFor = 10f;
+        public const string HelpPlay = "Got it", HelpActions = "Help actions";
+        public const float PlayWidth = 212f, PlayHeight = 60f;
+        const float PlayWord = 42f, PlayArrow = 26f, HelpViewWidth = 220f, ActionHeight = 46f, HelpGap = 12f;
 
         public override string Id => LobbyMenu.Settings;
         public override bool Modal => true;
@@ -77,7 +80,7 @@ namespace Wreckabulary
                 saved.Validate();
                 authoredFrame = LobbyRuntimeTypography.Instantiate(saved.Page, Root, false);
                 authoredFrame.Bind(Menu.Close, revertTo.HasValue);
-                authoredFrame.FitHeight(tab switch { "profile" => 500, "gameplay" => 820, "audio" => 860, _ => 860 });
+                authoredFrame.FitHeight(LobbySettingsPageView.PanelHeight);
                 body = authoredFrame.Body;
             }
             else body = Panel(new Vector2(.12f, 0), new Vector2(.88f, 1), "Settings");
@@ -143,7 +146,7 @@ namespace Wreckabulary
         void Profile(Transform list)
         {
             NameField(Setting(list, "Player name", "Shown to other players."));
-            LobbyKit.Pill(Setting(list, "Appearance"), "Open loadout", "Customize", 20,
+            Pill(Setting(list, "Appearance"), "Open loadout", "Customize", 20,
                 () => Menu.Open(LobbyMenu.Loadout)).Size(220, 46);
         }
 
@@ -157,7 +160,7 @@ namespace Wreckabulary
             Toggle(Setting(list, "Control tips", "One tip at a time until you've used each control. Turn on again to replay them."),
                 "Control tips", GameplayPrefs.ControlTips, on => GameplayPrefs.ControlTips = on);
             Toggle(Setting(list, "Points per hit"), "Points per hit", CombatFeedbackOptions.ShowPoints, on => CombatFeedbackOptions.ShowPoints = on);
-            LobbyKit.Pill(Setting(list, "Combat feedback"), "Reset feedback", "Reset feedback", 20,
+            Pill(Setting(list, "Combat feedback"), "Reset feedback", "Reset feedback", 20,
                 () => { CombatFeedbackOptions.ResetToDefaults(); RefreshSetting("Reset feedback"); }).Size(220, 46);
             Toggle(Setting(list, "Reduce theme motion"), "Reduce theme motion", PlayerPrefs.GetInt("wv.theme.effects", 1) == 0, on =>
             {
@@ -173,7 +176,7 @@ namespace Wreckabulary
             ((RectTransform)controls.parent).Place(new Vector2(0, 1), Vector2.one, new Vector2(0, -92), Vector2.zero);
             var book = TouchLayouts.Book;
             LobbyKit.Text(controls, book.Name(book.Active), 20, LobbyKit.Muted, TextAlignmentOptions.MidlineRight).Size(170, 40);
-            LobbyKit.Pill(controls, "Edit touch layout", "Edit layout", 20, () => TouchLayoutEditor.Show(() =>
+            Pill(controls, "Edit touch layout", "Edit layout", 20, () => TouchLayoutEditor.Show(() =>
             {
                 if (Root && Root.gameObject.activeInHierarchy) RefreshSetting("Edit touch layout");
             })).Size(200, 46);
@@ -185,14 +188,14 @@ namespace Wreckabulary
             Toggle(Setting(list, "Sound"), "Sound", !GameFeedback.Muted, on => GameFeedback.Muted = !on);
             Choose(Setting(list, "Sound pack"), "Sound pack", GameSoundPacks.Ids.Select(id => (id, GameSoundPacks.Label(id))).ToList(),
                 GameSoundPacks.Selected, id => GameSoundPacks.Select(id), 340);
-            LobbyKit.Pill(Setting(list, "Listen"), "Preview sound pack", "Preview", 20, () => GameSoundPacks.Preview()).Size(220, 46);
+            Pill(Setting(list, "Listen"), "Preview sound pack", "Preview", 20, () => GameSoundPacks.Preview()).Size(220, 46);
             Stepper(Setting(list, "Volume"), "Volume", Mathf.RoundToInt(AudioListener.volume * 100) + "%", step =>
             {
                 AudioListener.volume = Mathf.Clamp01(Mathf.Round(AudioListener.volume * 10f + step) / 10f);
                 PlayerPrefs.SetFloat(LobbyMenu.VolumeKey, AudioListener.volume);
                 PlayerPrefs.Save();
             });
-            LobbyKit.Pill(Setting(list, "Defaults"), "Reset audio", "Reset audio", 20, () =>
+            Pill(Setting(list, "Defaults"), "Reset audio", "Reset audio", 20, () =>
             {
                 GameFeedback.Muted = false;
                 GameSoundPacks.Select("default");
@@ -218,7 +221,7 @@ namespace Wreckabulary
             shown.name = "Push-to-talk key name";
             shown.enableAutoSizing = true; shown.fontSizeMin = 14; shown.fontSizeMax = 22;
             shown.Size(120, 40);
-            LobbyKit.Pill(key, "Change push-to-talk key", "Change", 20, () => ShowTab("controls")).Size(160, 46);
+            Pill(key, "Change push-to-talk key", "Change", 20, () => ShowTab("controls")).Size(160, 46);
             var devices = new[] { "" }.Concat(VoiceChat.Devices).Distinct().ToList();
             int device = Mathf.Max(0, devices.IndexOf(VoiceChat.Device));
             Stepper(Setting(list, "Microphone device"), "Mic device", VoiceSettings.ShortDevice(devices[device]),
@@ -233,7 +236,7 @@ namespace Wreckabulary
             var fill = LobbyKit.Rect(meter, "Fill").Fill();
             fill.anchorMax = new Vector2(0, 1);
             fill.Paint(LobbyKit.Cyan, 7);
-            var button = LobbyKit.Pill(controls, "Test microphone", VoiceTestView.StartLabel, 20, () => test.Toggle()).Size(140, 46);
+            var button = Pill(controls, "Test microphone", VoiceTestView.StartLabel, 20, () => test.Toggle()).Size(140, 46);
             VoiceTestView.Bind(controls.gameObject, test, fill, status, button.GetComponentInChildren<TMP_Text>());
             Toggle(Setting(list, "Hear yourself", "Plays your mic back to you."), "Hear yourself", test.HearYourself, on => test.HearYourself = on);
             if (VoiceChat.QaTools)
@@ -281,7 +284,7 @@ namespace Wreckabulary
                 PlayerPrefs.SetInt(LobbyMenu.VsyncKey, on ? 1 : 0);
                 PlayerPrefs.Save();
             });
-            var reset = LobbyKit.Pill(Setting(list, "Defaults", "High, no frame cap, v-sync off."), "Reset graphics", "Reset", 20, () =>
+            var reset = Pill(Setting(list, "Defaults", "High, no frame cap, v-sync off."), "Reset graphics", "Reset", 20, () =>
             {
                 GraphicsOptions.ResetToDefaults();
                 QualitySettings.vSyncCount = 0;
@@ -312,12 +315,15 @@ namespace Wreckabulary
             Step(steps, "01", "Break furniture", "HAMMER", "A TABLE becomes T, A, B, L and E. Walk over the letters to collect them.");
             Step(steps, "02", "Spell equipment", "BOOK", $"Press {spell} to choose from {recipes} recipes. Your bag holds {rules.MaxLetters} letters.");
             Step(steps, "03", "Use what you make", "BAT", $"Press {swing} to use your gear. Aim to throw it, or place a useful tool.");
-            LobbyKit.TextAction(column, "Open help controls", "View controls", 20, () => ShowTab("controls")).Size(-1, 44);
             Wrapped(column, "Cosmetics never change your stats.", 17, LobbyKit.Muted, 26);
-            var go = LobbyKit.Button(column, "Got it", LobbyKit.PrimaryFill, () => Menu.Open(LobbyMenu.Play), 6);
-            go.Size(-1, 56);
-            var label = LobbyKit.Text(go.Body(), "Play", 24, LobbyKit.PrimaryInk, TextAlignmentOptions.Center);
-            label.rectTransform.Fill();
+            var actions = LobbyKit.Row(column, HelpActions, HelpGap);
+            actions.Size(-1, PlayHeight);
+            actions.GetComponent<HorizontalLayoutGroup>().childForceExpandHeight = false;
+            var controls = LobbyKit.TextAction(actions, "Open help controls", "View controls", 20, () => ShowTab("controls"));
+            LobbyChoiceShape.Action(controls);
+            controls.Size(HelpViewWidth, ActionHeight);
+            LobbyKit.Rect(actions, "Space").Size(-1, 1, 1);
+            LobbyKit.Primary(actions, HelpPlay, "Play", () => Menu.Open(LobbyMenu.Play), PlayWord, PlayArrow).Size(PlayWidth, PlayHeight);
         }
 
         static void Step(Transform row, string number, string title, string art, string text)
@@ -373,8 +379,9 @@ namespace Wreckabulary
             {
                 pick(name.Substring(prefix.Length + 1));
                 RefreshSetting(name);
-            }, 46, 17);
-            track.Size(Mathf.Min(width, 480), 46);
+            }, ActionHeight, 17);
+            LobbyChoiceShape.Choices(track, prefix + " " + picked);
+            track.Size(Mathf.Min(width, 480), ActionHeight);
             track.GetComponent<LayoutElement>().minWidth = Mathf.Min(width, 48f * choices.Count);
         }
 
@@ -385,8 +392,16 @@ namespace Wreckabulary
                 string id = name + (option ? " on" : " off");
                 var chip = LobbyKit.Chip(controls, option ? "On" : "Off", value == option, () => { set(option); RefreshSetting(id); }, size: 20);
                 chip.name = id;
-                chip.Size(96, 46);
+                chip.Size(96, ActionHeight);
+                LobbyChoiceShape.Choice(chip, value == option);
             }
+        }
+
+        static Button Pill(Transform parent, string name, string text, float size, Action click)
+        {
+            var button = LobbyKit.Pill(parent, name, text, size, click);
+            LobbyChoiceShape.Action(button);
+            return button;
         }
 
         void Stepper(RectTransform controls, string name, string value, Action<int> step)
@@ -484,7 +499,7 @@ namespace Wreckabulary
             var keep = LobbyKit.Button(bar, "Keep display", LobbyKit.PrimaryFill, Keep, 6);
             LobbyKit.Text(keep.Body(), "Keep", 22, LobbyKit.PrimaryInk, TextAlignmentOptions.Center).rectTransform.Fill();
             keep.Size(150, 52);
-            LobbyKit.Pill(bar, "Revert display", "Revert", 22, Revert).Size(150, 52);
+            Pill(bar, "Revert display", "Revert", 22, Revert).Size(150, 52);
             if (timer) timer.Show(words, seconds => $"Keep this display? It goes back in {seconds} s.");
         }
 

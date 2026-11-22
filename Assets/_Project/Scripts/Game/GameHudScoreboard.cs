@@ -48,7 +48,7 @@ namespace Wreckabulary
         bool boardPinned;
 
         public bool ScoreboardShown => boardRoot && boardRoot.activeSelf;
-        public bool ScoreboardReady => boardRoot && AcceptsGameplayInput && BarShown && !hubScene && !ResultShown && !LeaveAsked;
+        public bool ScoreboardReady => boardRoot && AcceptsGameplayInput && BarSeated && !hubScene && !ResultShown && !LeaveAsked;
         public int ScoreboardBlocks { get; private set; }
 
         public IReadOnlyList<string> ScoreboardLines
@@ -255,7 +255,7 @@ namespace Wreckabulary
             Box(block.side.rectTransform, 0f, height - BoardInset - BoardSideLabel, BoardTotal, BoardSideLabel);
             if (data.Total != block.shownTotal) { block.shownTotal = data.Total; block.total.text = data.Total.ToString(); }
             var captain = SideCaptain(data.Rows[0].Seat);
-            block.total.color = captain ? PlayerHud.Vivid(captain.Color) : BagInk;
+            block.total.color = captain ? SeatColour(captain) : BagInk;
             bool yours = solo && data.Mine;
             if (!named || (data.Team == block.shownTeam && yours == block.shownYours)) return;
             block.shownTeam = data.Team; block.shownYours = yours;

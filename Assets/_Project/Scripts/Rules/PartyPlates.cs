@@ -69,7 +69,8 @@ namespace Wreckabulary.Rules
     public static class PartyPlates
     {
         public const int Places = 4;
-        public const string OpenLabel = "Add player", OpenHint = "Add a player on this PC";
+        public const string OpenLabel = "Add player", OpenHint = "Add a player";
+        public const string PadJoinKey = "START", KeyboardJoinKey = ".", JoinKeyJoiner = "or";
         public const string LeaderTag = "LEADER", ReadyTag = "READY";
         public const string YouWord = "You", LeaderWord = "leader", ReadyWord = "ready";
         public const string CouchPrefix = "Player ";
@@ -136,13 +137,25 @@ namespace Wreckabulary.Rules
                 if (plates.Count >= Places) break;
                 plates.Add(new PartyPlate(PartyPlateKind.Friend, plates.Count, member.Name, Tag(member.Leader, member.Ready)));
             }
-            if (plates.Count < Places) plates.Add(new PartyPlate(PartyPlateKind.Open, plates.Count, OpenLabel, ""));
+            while (plates.Count < Places) plates.Add(new PartyPlate(PartyPlateKind.Open, plates.Count, OpenLabel, ""));
             return plates;
         }
 
         public static int Standing(IReadOnlyList<PartyPlate> plates) => Count(plates, null);
 
         public static int Friends(IReadOnlyList<PartyPlate> plates) => Count(plates, PartyPlateKind.Friend);
+
+        public static int Free(IReadOnlyList<PartyPlate> plates)
+        {
+            int count = 0;
+            if (plates != null)
+                foreach (var plate in plates)
+                    if (plate.Kind == PartyPlateKind.Open) count++;
+            return count;
+        }
+
+        public static IReadOnlyList<string> JoinKeys(bool keyboard) =>
+            keyboard ? new[] { PadJoinKey, KeyboardJoinKey } : new[] { PadJoinKey };
 
         static int Count(IReadOnlyList<PartyPlate> plates, PartyPlateKind? kind)
         {
@@ -176,6 +189,24 @@ namespace Wreckabulary.Rules
             float leftmost = 0f;
             for (int place = 0; place < count; place++) leftmost = Math.Min(leftmost, Offset(place, count));
             return leftmost - OpenGap;
+        }
+
+        public static float[] OpenOffsets(int count)
+        {
+            count = Math.Max(1, Math.Min(count, Places));
+            float leftmost = 0f, rightmost = 0f;
+            for (int place = 0; place < count; place++)
+            {
+                leftmost = Math.Min(leftmost, Offset(place, count));
+                rightmost = Math.Max(rightmost, Offset(place, count));
+            }
+            var offsets = new float[Places - count];
+            for (int free = 0; free < offsets.Length; free++)
+            {
+                int step = free / 2 + 1;
+                offsets[free] = free % 2 == 0 ? leftmost - OpenGap * step : rightmost + OpenGap * step;
+            }
+            return offsets;
         }
 
         public static PlateBox Settle(PlateBox plate, PlateBox bounds, PlateBox? blocked, float margin)

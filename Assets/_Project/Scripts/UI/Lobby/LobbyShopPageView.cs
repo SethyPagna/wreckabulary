@@ -28,6 +28,7 @@ namespace Wreckabulary
         [Range(140f, 240f)] public float SelectionActionWidth = 200f;
         public CategoryBinding[] Categories = Array.Empty<CategoryBinding>();
         UnityAction closeListener;
+        const float TabIcon = 26f, MinText = 15f;
         static readonly string[] Required = { ShopPage.Looks, ShopPage.Gear, ShopPage.Colours, ShopPage.Rooms, ShopPage.Extras };
 
         public void Validate()
@@ -69,7 +70,10 @@ namespace Wreckabulary
             {
                 string id = binding.Id;
                 binding.Action.Bind("Shop category " + id, binding.Action.Label.text, () => choose(id), id == category);
+                binding.Action.SetIcon(LobbyIcons.Get(ShopPage.IconFor(id)), TabIcon);
+                binding.Action.Label.fontSizeMin = Mathf.Max(binding.Action.Label.fontSizeMin, MinText);
             }
+            Footnote.fontSizeMin = Mathf.Max(Footnote.fontSizeMin, MinText);
             return Categories.Single(binding => binding.Id == category).Action.Button;
         }
 

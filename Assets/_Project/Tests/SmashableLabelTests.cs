@@ -60,6 +60,60 @@ namespace Wreckabulary.Tests
             Assert.IsFalse(SmashableLabel.Crowds(SmashableLabel.ScreenBox(new Vector2(520f, 300f), line, 4), taken), "a word's width apart reads");
         }
 
+        [Test]
+        public void TheOverheadViewNamesAtMostFiveThingsPerPlayer()
+        {
+            Assert.AreEqual(5, SmashableLabel.OverheadPerPlayer);
+            Assert.IsFalse(SmashableLabel.Thinned(true, 0));
+            Assert.IsFalse(SmashableLabel.Thinned(true, SmashableLabel.OverheadPerPlayer - 1));
+            Assert.IsTrue(SmashableLabel.Thinned(true, SmashableLabel.OverheadPerPlayer), "The sixth name near one player yields.");
+            Assert.IsFalse(SmashableLabel.Thinned(false, 9), "Over the shoulder the short reach already keeps names few.");
+        }
+
+        [UnityTest]
+        public IEnumerator EightPiecesAroundOnePlayerShowOnlyTheNearestFive()
+        {
+            var camera = new GameObject("Overhead camera").AddComponent<Camera>();
+            camera.tag = "MainCamera";
+            camera.transform.position = new Vector3(0f, 9f, -6.5f);
+            camera.transform.LookAt(Vector3.zero);
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ground.transform.position = Vector3.down * .5f;
+            ground.transform.localScale = new Vector3(40f, 1f, 40f);
+            var spots = new[]
+            {
+                new Vector3(3f, .05f, 0f), new Vector3(-3.1f, .05f, 0f), new Vector3(0f, .05f, 3.2f), new Vector3(0f, .05f, -3.3f),
+                new Vector3(3.4f, .05f, 3.4f), new Vector3(-3.5f, .05f, 3.5f), new Vector3(3.6f, .05f, -3.6f), new Vector3(-3.7f, .05f, -3.7f),
+            };
+            var pieces = new Smashable[spots.Length];
+            for (int i = 0; i < spots.Length; i++) pieces[i] = FurnitureCatalog.Spawn("TABLE", spots[i], 0f, World.Transient);
+            var player = Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
+            player.Setup(0, new Roommate());
+            player.Respawn(Vector3.zero);
+            player.Inventory.Collects = false;
+            var labels = new SmashableLabel[pieces.Length];
+            bool Labelled()
+            {
+                bool all = true;
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    if (!labels[i]) labels[i] = pieces[i].GetComponent<SmashableLabel>();
+                    if (!labels[i]) all = false;
+                }
+                return all;
+            }
+            yield return TestScenes.WaitUntil(Labelled, 10f, "every piece to add its own label");
+            yield return new WaitForSeconds(.8f);
+            int shown = 0;
+            foreach (var label in labels) if (label.Alpha > .5f) shown++;
+            Assert.LessOrEqual(shown, SmashableLabel.OverheadPerPlayer, "At most five names around one player from above.");
+            for (int i = 0; i < SmashableLabel.OverheadPerPlayer; i++)
+                Assert.Greater(labels[i].Alpha, .5f, "the nearest pieces read: " + i);
+            for (int i = SmashableLabel.OverheadPerPlayer; i < labels.Length; i++)
+                Assert.IsTrue(labels[i].Crowded, "the farther pieces yield: " + i);
+            Object.Destroy(player.gameObject);
+        }
+
         [UnityTest]
         public IEnumerator OnlyTheNearerOfTwoTouchingNamesShowsFromAbove()
         {
@@ -177,6 +231,50 @@ namespace Wreckabulary.Tests
                 SmashableLabel.Pulse = null;
                 if (saved.HasValue) PlayerPrefs.SetInt(GameplayPrefs.NamesKey, saved.Value); else PlayerPrefs.DeleteKey(GameplayPrefs.NamesKey);
                 PlayerPrefs.Save();
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator NamesStepAsideWhileTheResultCardShows()
+        {
+            try
+            {
+                var camera = new GameObject("Overhead camera").AddComponent<Camera>();
+                camera.tag = "MainCamera";
+                camera.transform.position = new Vector3(0f, 18f, -13f);
+                camera.transform.LookAt(Vector3.zero);
+                var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                ground.transform.position = Vector3.down * .5f;
+                ground.transform.localScale = new Vector3(40f, 1f, 40f);
+                var table = FurnitureCatalog.Spawn("TABLE", new Vector3(2f, .05f, 0f), 0f, World.Transient);
+                var player = Object.Instantiate(GameAssets.I.playerPrefab, Vector3.zero, Quaternion.identity);
+                player.Setup(0, new Roommate());
+                player.Respawn(Vector3.zero);
+                player.Inventory.Collects = false;
+                var hud = new GameObject("Label card HUD", typeof(Canvas)).AddComponent<GameHud>();
+                yield return null;
+                hud.ShowTouchControls(false);
+                var label = table.GetComponent<SmashableLabel>();
+                yield return TestScenes.WaitUntil(() => hud.AcceptsGameplayInput && label.Alpha > .9f, 10f, "the name to read in play");
+                Assert.IsFalse(SmashableLabel.Covered);
+                hud.ShowResult(new HudResult { Round = 1, Heading = "Round over" }, () => { });
+                yield return null;
+                yield return null;
+                Assert.IsTrue(SmashableLabel.Covered, "The result card covers the house.");
+                Assert.AreEqual(0f, label.Alpha, "No name draws over the result card.");
+                Assert.IsTrue(!label.Text || !label.Text.gameObject.activeSelf);
+                SmashableLabel.Pulse = s => s == table;
+                yield return new WaitForSecondsRealtime(.3f);
+                Assert.AreEqual(0f, label.Alpha, "Not even a hint.");
+                SmashableLabel.Pulse = null;
+                hud.HideResult();
+                yield return TestScenes.WaitUntil(() => !SmashableLabel.Covered && label.Alpha > .9f, 10f, "the name back after the card");
+                Object.Destroy(hud.gameObject);
+                Object.Destroy(player.gameObject);
+            }
+            finally
+            {
+                SmashableLabel.Pulse = null;
             }
         }
 

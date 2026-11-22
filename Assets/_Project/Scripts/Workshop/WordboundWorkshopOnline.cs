@@ -42,7 +42,7 @@ namespace Wreckabulary.Workshop
         void OnlinePreparationPanel()
         {
             float width = Mathf.Min(560, ScreenWidth - 32);
-            GUILayout.BeginArea(new Rect((ScreenWidth - width) * .5f, 80, width, 150), panel);
+            BeginSheet(new Rect((ScreenWidth - width) * .5f, 80, width, 150));
             GUILayout.Label("Preparing online play", heading);
             GUILayout.Label(status, new GUIStyle(GUI.skin.label) { wordWrap = true });
             GUILayout.EndArea();

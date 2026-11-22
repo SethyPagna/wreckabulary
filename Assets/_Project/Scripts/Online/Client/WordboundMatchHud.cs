@@ -36,8 +36,9 @@ namespace Wreckabulary.Online
         readonly Dictionary<string, WorldBodyState> canonicalBodies = new Dictionary<string, WorldBodyState>(StringComparer.Ordinal);
         readonly HashSet<Collider> staticSurfaces = new HashSet<Collider>();
         WordboundCourseWorld sightWorld;
-        readonly HudPanel statusPanel = new HudPanel(), actionPanel = new HudPanel(),
-            inventoryPanel = new HudPanel(), menuHintPanel = new HudPanel();
+        readonly HudPanel statusPanel = new HudPanel();
+        const int HintSlots = (int)WordboundControl.Menu + 1;
+        readonly string[] hintKeys = new string[HintSlots], hintFallbacks = new string[HintSlots], hintTexts = new string[HintSlots];
         bool panelsReady;
         public event Action ReturnRequested;
         public event Action PlayAgainRequested;
@@ -81,6 +82,7 @@ namespace Wreckabulary.Online
             frame = next;
             canonicalBodies.Clear();
             if (next == null) { inventory = null; actor = null; return; }
+            NoteRunStarted(next);
             ObserveProgress(before, next);
             foreach (var body in next.Bodies) canonicalBodies.Add(body.Id, body);
             inventory = next.Economy.Players.Single(p => p.PlayerId == seat);
@@ -178,6 +180,7 @@ namespace Wreckabulary.Online
 
         void MenuRequested()
         {
+            if (GuideKeepsMenu()) return;
             ReleaseDefense(); crafting = false; helpOpen = false; leaveConfirm = false; ResetMenuInput();
             if (!double.IsNaN(introShownAt)) CloseIntro();
             if (view.MenuOpen) PrepareRecipeMenu();
@@ -309,7 +312,7 @@ namespace Wreckabulary.Online
 
         void OnGUI()
         {
-            if (!initialized) return;
+            if (!initialized || guideOpen) return;
             Matrix4x4 saved = GUI.matrix;
             bool enabled = GUI.enabled;
             float scale = Mathf.Clamp(Mathf.Min(Screen.width / 1280f, Screen.height / 720f), .6f, 1.8f);
@@ -330,7 +333,17 @@ namespace Wreckabulary.Online
         string Hint(WordboundControl control, string fallback)
         {
             string hint = view.ControlHint(control);
-            return string.IsNullOrEmpty(hint) ? fallback : "[" + hint + "] " + fallback;
+            if (string.IsNullOrEmpty(hint)) return fallback;
+            int slot = (int)control;
+            if (slot < 0 || slot >= HintSlots) return "[" + hint + "] " + fallback;
+            if (!string.Equals(hintKeys[slot], hint, StringComparison.Ordinal) ||
+                !string.Equals(hintFallbacks[slot], fallback, StringComparison.Ordinal))
+            {
+                hintKeys[slot] = hint;
+                hintFallbacks[slot] = fallback;
+                hintTexts[slot] = "[" + hint + "] " + fallback;
+            }
+            return hintTexts[slot];
         }
 
         sealed class HudPanel
@@ -341,6 +354,8 @@ namespace Wreckabulary.Online
             float measuredWidth = -1, measuredHeight;
             bool dirty = true;
             GUIStyle measuredLabel, measuredBox;
+            public int Count => count;
+            public GUIContent Row(int index) => rows[index];
             public void Begin() { count = 0; }
             public void Add(string text)
             {
@@ -408,12 +423,15 @@ namespace Wreckabulary.Online
             _ => "That action could not be completed."
         };
 
-        void OnDisable() { ReleaseDefense(); ResetMenuInput(); ReleaseEye(); ReleaseVoice(); }
+        void OnDisable() { ReleaseDefense(); ResetMenuInput(); ReleaseEye(); ReleaseVoice(); CloseGuide(); }
 
         void OnDestroy()
         {
+            RecordRunTime();
+            CloseGuide();
             ui.Dispose();
             DisposeGuidance();
+            DisposeKit();
             DisposeLookEye();
             LeaveVoice();
             if (controller) { controller.FrameChanged -= ApplyFrame; controller.Faulted -= ConnectionFailed; }

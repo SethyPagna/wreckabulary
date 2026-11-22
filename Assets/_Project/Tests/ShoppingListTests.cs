@@ -80,7 +80,8 @@ namespace Wreckabulary.Tests
             var list = OnScreen(director.View.Root);
             Assert.IsFalse(list.Overlaps(OnScreen((RectTransform)safe.Find("Player bar/Backing"))), "The list sits clear of the player bar and its plate.");
             Assert.IsFalse(list.Overlaps(OnScreen((RectTransform)safe.Find("Match label"))), "...and below the match label.");
-            Assert.Less(list.yMax, OnScreen((RectTransform)safe.Find("Match label")).yMin, "where the old roster was");
+            Assert.Less(list.yMax, OnScreen((RectTransform)safe.Find("Player bar/Backing")).yMin, "the list runs along the top, under the bar");
+            Assert.AreEqual(OnScreen((RectTransform)safe).center.x, list.center.x, 1f, "centred, not down the left side");
         }
 
         [UnityTest]

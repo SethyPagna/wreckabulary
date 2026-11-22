@@ -12,7 +12,7 @@ namespace Wreckabulary.Art
         static readonly Dictionary<string, Material> materials = new Dictionary<string, Material>();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { sphere = null; cone = null; materials.Clear(); }
+        static void ResetStatics() { sphere = null; cone = null; materials.Clear(); hiddenSource = null; }
 
         public static Vector3 OnFace(float x, float y, float lift, out Vector3 normal)
         {
@@ -244,6 +244,7 @@ namespace Wreckabulary.Art
         public static Material Paint(Material template, string name, Color colour, float smoothness, float glow = 0f)
         {
             if (materials.TryGetValue(name, out var cached) && cached) return cached;
+            template = Visible(template);
             if (!template) return null;
             var material = new Material(template) { name = name };
             if (material.HasProperty("_BaseMap")) material.SetTexture("_BaseMap", null);
@@ -265,20 +266,53 @@ namespace Wreckabulary.Art
             return material;
         }
 
+        public const string HiddenName = "cute_hidden";
+
+        public static readonly string[] HiddenPasses =
+        {
+            "UniversalForward", "UniversalForwardOnly", "UniversalGBuffer", "ShadowCaster", "DepthOnly", "DepthNormals",
+            "DepthNormalsOnly", "MotionVectors", "XRMotionVectors", "Universal2D", "SRPDefaultUnlit", "Meta", "ForwardLit", "GBuffer",
+        };
+
+        static readonly string[] HiddenBlendOff = { "_SrcBlend", "_SrcBlendAlpha", "_ZWrite" };
+        static readonly string[] HiddenBlendKeep = { "_DstBlend", "_DstBlendAlpha" };
+        static Material hiddenSource;
+
+        static Material Visible(Material template) =>
+            template && hiddenSource && template.name == HiddenName ? hiddenSource : template;
+
         public static Material Hidden(Material template)
         {
-            const string name = "cute_hidden";
-            if (materials.TryGetValue(name, out var cached) && cached) return cached;
+            if (materials.TryGetValue(HiddenName, out var cached) && cached) return cached;
+            template = Visible(template);
             if (!template) return null;
-            var material = new Material(template) { name = name };
+            hiddenSource = template;
+            var material = new Material(template) { name = HiddenName };
+            foreach (string pass in HiddenPasses) material.SetShaderPassEnabled(pass, false);
+            foreach (string property in HiddenBlendOff) if (material.HasProperty(property)) material.SetFloat(property, 0f);
+            foreach (string property in HiddenBlendKeep) if (material.HasProperty(property)) material.SetFloat(property, 1f);
             if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 1f);
             if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", 1f);
             material.EnableKeyword("_ALPHATEST_ON");
             material.SetColor("_BaseColor", new Color(1f, 1f, 1f, 0f));
             material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
-            materials[name] = material;
+            materials[HiddenName] = material;
             return material;
         }
+
+        public static bool DrawsNothing(Material material)
+        {
+            if (!material) return false;
+            foreach (string pass in HiddenPasses) if (material.GetShaderPassEnabled(pass)) return false;
+            return true;
+        }
+
+        public static void KeepOnRegularPath(Renderer renderer)
+        {
+            if (renderer && !renderer.GetComponent<CuteRegularPath>()) renderer.gameObject.AddComponent<CuteRegularPath>();
+        }
+
+        public static bool OnRegularPath(Renderer renderer) => renderer && renderer.GetComponent<CuteRegularPath>();
 
         public static Transform Part(Transform parent, string name, Mesh mesh, Material material, Vector3 position, Quaternion rotation, Vector3 scale, bool shadows = false)
         {
@@ -291,6 +325,7 @@ namespace Wreckabulary.Art
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = shadows ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
+            KeepOnRegularPath(renderer);
             return t;
         }
 

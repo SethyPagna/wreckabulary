@@ -27,6 +27,7 @@ namespace Wreckabulary
         string lastLetters, lastWheel, nameMarkup;
         WorldSpaceBillboard billboard;
         LineRenderer ring, youRing;
+        Color ringColour;
 
         public LineRenderer SeatRing => ring;
         public LineRenderer YouRing => youRing;
@@ -80,7 +81,7 @@ namespace Wreckabulary
             bool remoteCraft = !followed && player.Summoner && player.Summoner.IsSpelling;
             SetIfChanged(wheelText, remoteCraft ? WheelLines() : ContextLine(), ref lastWheel);
             bool wrecked = player.IsEliminated;
-            ShowRing(SeatTags.ShowsRing(wrecked));
+            ShowRing(SeatTags.ShowsRing(wrecked), GameHud.SeatColour(player));
             ShowYouRing(SeatTags.MarksYou(IsYou(human, humans), wrecked));
         }
 
@@ -91,11 +92,14 @@ namespace Wreckabulary
             return human && humans == 1;
         }
 
-        void ShowRing(bool on)
+        void ShowRing(bool on, Color colour)
         {
             if (!on && !ring) return;
-            if (!ring) ring = MakeRing("Seat ring", Vivid(player.Color), RingRadius, RingWidth, RingLift);
+            if (!ring) { ring = MakeRing("Seat ring", colour, RingRadius, RingWidth, RingLift); ringColour = colour; }
             if (ring.enabled != on) ring.enabled = on;
+            if (colour == ringColour) return;
+            ringColour = colour;
+            ring.sharedMaterial = Mark(colour);
         }
 
         void ShowYouRing(bool on)

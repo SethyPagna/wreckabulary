@@ -8,6 +8,9 @@ namespace Wreckabulary
 {
     public sealed class LobbyShopOfferView : MonoBehaviour
     {
+        public const string MarkLayer = "Marks", FreeLabel = "FREE", EquipLabel = "EQUIP";
+        public const string WearingPrefix = "Wearing ", WearPrefix = "Wear ", BuyPrefix = "Buy ";
+        const float MarkSize = 34f, MarkInset = 8f, MarkIcon = 18f;
         public Button Preview;
         public RectTransform Face;
         public RectTransform Art;
@@ -21,6 +24,7 @@ namespace Wreckabulary
         public Color EquippedColour = LobbyKit.Cyan;
         UnityAction previewListener;
         bool worn;
+        RectTransform marks, tick, locked;
 
         public void Validate()
         {
@@ -38,7 +42,7 @@ namespace Wreckabulary
         }
 
         public void Bind(string id, string title, string description, bool owned, bool equipped, int price,
-            bool spotlight, Action preview, Action action)
+            bool spotlight, Action preview, Action action, bool affordable = true)
         {
             Validate();
             if (previewListener != null) Preview.onClick.RemoveListener(previewListener);
@@ -48,16 +52,55 @@ namespace Wreckabulary
             Title.text = title;
             Hint.Text = (description ?? "").Replace("\n", " · ");
             worn = equipped;
-            Action.Bind((worn ? "Wearing " : owned ? "Wear " : "Buy ") + id,
-                worn ? "EQUIPPED" : owned ? "EQUIP" : price == 0 ? "FREE" : price.ToString(),
-                worn ? null : action, worn, worn ? Check : owned ? null : Coin);
+            if (worn) Action.Bind(WearingPrefix + id, "", null, true);
+            else if (owned) Action.Bind(WearPrefix + id, EquipLabel, action, false);
+            else if (price > 0) Action.BindPrice(BuyPrefix + id, price, !affordable, action);
+            else Action.Bind(BuyPrefix + id, FreeLabel, action, false);
+            Action.gameObject.SetActive(!worn);
+            ShowMarks(owned);
             SetPreview(spotlight);
         }
 
         public void SetPreview(bool selected)
         {
             Outline.enabled = worn || selected;
-            Outline.color = selected ? PreviewColour : EquippedColour;
+            Outline.color = worn ? EquippedColour : PreviewColour;
+        }
+
+        void ShowMarks(bool owned)
+        {
+            if (!marks)
+            {
+                marks = Layer(Face, Art);
+                tick = Tick(marks);
+                locked = Lock(marks);
+            }
+            tick.gameObject.SetActive(worn);
+            locked.gameObject.SetActive(!owned && !worn);
+            marks.SetAsLastSibling();
+        }
+
+        public static RectTransform Layer(RectTransform face, RectTransform art)
+        {
+            var layer = LobbyKit.Rect(face, MarkLayer);
+            layer.anchorMin = art.anchorMin; layer.anchorMax = art.anchorMax; layer.pivot = art.pivot;
+            layer.offsetMin = art.offsetMin; layer.offsetMax = art.offsetMax;
+            layer.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            return layer;
+        }
+
+        public static RectTransform Tick(RectTransform host) =>
+            Corner(host, LoadoutPage.CheckMark, LobbyIcons.Check, LobbyKit.Selection, LobbyKit.OnSelection);
+
+        public static RectTransform Lock(RectTransform host) =>
+            Corner(host, LoadoutPage.LockMark, LobbyIcons.Lock, LobbyKit.Panel, LobbyKit.Navy);
+
+        static RectTransform Corner(RectTransform host, string name, string icon, Color fill, Color ink)
+        {
+            var disc = LobbyKit.Rect(host, name).Pin(Vector2.one, new Vector2(-MarkInset, -MarkInset), new Vector2(MarkSize, MarkSize));
+            LobbyKit.Face(disc, fill, Mathf.RoundToInt(MarkSize / 2f), LobbyKit.Line, 1);
+            LobbyKit.Icon(disc, icon, ink).rectTransform.Pin(new Vector2(.5f, .5f), Vector2.zero, new Vector2(MarkIcon, MarkIcon));
+            return disc;
         }
 
         void OnDestroy()

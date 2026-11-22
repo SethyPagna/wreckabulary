@@ -11,15 +11,19 @@ namespace Wreckabulary
     {
         public const float NearDistance = 4f, OverheadDistance = 6f, FadeBand = 1f, UpperStorey = 1.8f;
         public const float ShowingHeadStart = 1f, LetterWidth = .78f, Padding = .2f;
+        public const int OverheadPerPlayer = 5;
         const float ScreenEm = .028f, MinEm = .12f, MaxEm = 1f, Gap = .25f, FadeSpeed = 4f, Opacity = .9f;
+        const float FontSize = 10f, Spacing = 1f, OutlineWidth = .24f, FaceDilate = .08f;
         const float PulseGrow = .18f, PulseRate = 5f;
         static readonly Color Ink = new(1f, .97f, .91f), Gold = new(1f, .84f, .36f);
         static readonly List<SmashableLabel> live = new();
         static readonly List<SmashableLabel> wanted = new();
         static readonly List<Rect> kept = new();
+        static readonly int[] shownPer = new int[PlayerBar.MostSeats];
         static readonly System.Comparison<SmashableLabel> NearestFirst =
             (a, b) => a.rank != b.rank ? a.rank.CompareTo(b.rank) : a.order.CompareTo(b.order);
         static int resolvedFrame = -1, nextOrder;
+        static bool covered;
         static Transform root;
         static Material material, onTop;
         static Material materialSource;
@@ -32,13 +36,14 @@ namespace Wreckabulary
         Camera view;
         float rise = -1f, alpha, visibility, rank;
         bool overhead, crowded, pulsing;
-        int order;
+        int order, seat = -1;
 
         public TextMeshPro Text => text;
         public float Alpha => alpha;
         public bool Crowded => crowded;
         public bool Pulsing => pulsing;
         public static bool Named => GameplayPrefs.FurnitureNames || Match.Mode == HouseModes.Tutorial;
+        public static bool Covered => covered;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -51,6 +56,7 @@ namespace Wreckabulary
             live.Clear(); wanted.Clear(); kept.Clear();
             resolvedFrame = -1;
             nextOrder = 0;
+            covered = false;
         }
 
         public static float Visibility(bool overhead, float nearestPlayer, float heightAbovePlayers)
@@ -72,6 +78,8 @@ namespace Wreckabulary
                 if (box.Overlaps(taken[i])) return true;
             return false;
         }
+
+        public static bool Thinned(bool overhead, int alreadyShown) => overhead && alreadyShown >= OverheadPerPlayer;
 
         void Awake()
         {
@@ -98,7 +106,7 @@ namespace Wreckabulary
         {
             if (resolvedFrame != Time.frameCount) Resolve();
             var camera = view;
-            alpha = Mathf.MoveTowards(alpha, crowded ? 0f : visibility, Time.unscaledDeltaTime * FadeSpeed);
+            alpha = covered ? 0f : Mathf.MoveTowards(alpha, crowded ? 0f : visibility, Time.unscaledDeltaTime * FadeSpeed);
             if (alpha <= 0f || !camera)
             {
                 if (text && text.gameObject.activeSelf) text.gameObject.SetActive(false);
@@ -125,8 +133,10 @@ namespace Wreckabulary
             resolvedFrame = Time.frameCount;
             wanted.Clear();
             kept.Clear();
-            bool named = Named;
-            var pulse = Pulse;
+            var hud = GameHud.Active;
+            covered = hud && hud.FullCardShown;
+            bool named = Named && !covered;
+            var pulse = covered ? null : Pulse;
             foreach (var label in live)
             {
                 label.crowded = false;
@@ -138,14 +148,21 @@ namespace Wreckabulary
                 if (label.visibility > 0f) wanted.Add(label);
             }
             wanted.Sort(NearestFirst);
+            if (wanted.Count > 0 && hud) hud.CollectHudRects(kept);
+            System.Array.Clear(shownPer, 0, shownPer.Length);
             foreach (var label in wanted)
             {
                 var camera = label.view;
                 var at = camera.WorldToScreenPoint(label.LabelPoint());
                 if (at.z <= 0f) { label.crowded = true; continue; }
                 var box = ScreenBox(at, ScreenEm * camera.pixelHeight, label.smashable.Word.Length);
-                if (!label.pulsing && Crowds(box, kept)) label.crowded = true;
-                else kept.Add(box);
+                bool counted = label.seat >= 0 && label.seat < shownPer.Length;
+                if (!label.pulsing && (Crowds(box, kept) || (counted && Thinned(label.overhead, shownPer[label.seat])))) label.crowded = true;
+                else
+                {
+                    kept.Add(box);
+                    if (counted) shownPer[label.seat]++;
+                }
             }
         }
 
@@ -159,6 +176,7 @@ namespace Wreckabulary
         {
             camera = null;
             nearest = float.PositiveInfinity;
+            seat = -1;
             if (!smashable || smashable.IsBroken || !body) return 0f;
             if (GameHud.Active && GameHud.Active.BagOpen) return 0f;
             var rig = CameraRig.Instance;
@@ -173,7 +191,8 @@ namespace Wreckabulary
                 if (player.Combat && player.Combat.Held == body) return 0f;
                 if (!CameraRig.IsHuman(player) || player.IsEliminated) continue;
                 var feet = player.transform.position;
-                nearest = Mathf.Min(nearest, Vector3.Distance(feet, at));
+                float distance = Vector3.Distance(feet, at);
+                if (distance < nearest) { nearest = distance; seat = player.Index; }
                 highest = Mathf.Max(highest, feet.y);
             }
             if (float.IsNegativeInfinity(highest)) return 0f;
@@ -184,7 +203,7 @@ namespace Wreckabulary
         bool Ensure()
         {
             if (text) return true;
-            var font = GameAssets.I ? GameAssets.I.font : null;
+            var font = LobbyFonts.Black ? LobbyFonts.Black : GameAssets.I ? GameAssets.I.font : null;
             if (!font || !font.material) return false;
             if (!root) root = new GameObject("Furniture labels").transform;
             var label = new GameObject("Label " + smashable.Word);
@@ -192,9 +211,9 @@ namespace Wreckabulary
             text = label.AddComponent<TextMeshPro>();
             text.font = font;
             text.fontSharedMaterial = LabelMaterial(font.material);
-            text.fontSize = 10f;
-            text.fontStyle = FontStyles.Bold;
-            text.characterSpacing = 6f;
+            text.fontSize = FontSize;
+            text.fontStyle = FontStyles.Normal;
+            text.characterSpacing = Spacing;
             text.alignment = TextAlignmentOptions.Center;
             text.textWrappingMode = TextWrappingModes.NoWrap;
             text.color = Ink;
@@ -224,8 +243,8 @@ namespace Wreckabulary
             material = new Material(source) { name = "Furniture label" };
             material.EnableKeyword(ShaderUtilities.Keyword_Outline);
             material.SetColor("_OutlineColor", new Color(.04f, .12f, .12f, .9f));
-            material.SetFloat("_OutlineWidth", .22f);
-            material.SetFloat("_FaceDilate", .1f);
+            material.SetFloat("_OutlineWidth", OutlineWidth);
+            material.SetFloat("_FaceDilate", FaceDilate);
             ShaderUtilities.UpdateShaderRatios(material);
             onTop = new Material(material) { name = "Furniture label overhead" };
             onTop.SetFloat("unity_GUIZTestMode", (float)CompareFunction.Always);

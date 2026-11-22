@@ -16,8 +16,10 @@ namespace Wreckabulary.Online
         static readonly string[] RegionLabels = { "Asia", "Europe", "US" };
         static readonly string[] MapSourceLabels = { "Matchmaking maps", "Private seed" };
         static readonly string[] Formats = { "Solo", "Duo", "Squad" };
+        static readonly GUIContent NameCaption = new GUIContent("Name");
         readonly CancellationTokenSource lifetime = new CancellationTokenSource();
         readonly WordboundUiStyles ui = new WordboundUiStyles();
+        readonly WordboundPaperLook paper = new WordboundPaperLook();
         public WordboundUiTheme Theme;
         WordboundHttpTransport transport;
         WordboundPartyCoordinator coordinator;
@@ -229,6 +231,7 @@ namespace Wreckabulary.Online
         void DrawPartyGui(Vector2 viewport)
         {
             using var themeScope = ui.Apply(Theme);
+            paper.Dress(ui);
             PrepareCenteredStyles();
             DrawOnlineBackground(viewport);
             if (LobbySearchShown) { DrawLobbySearch(viewport); return; }
@@ -254,9 +257,11 @@ namespace Wreckabulary.Online
                 partyRect = available;
                 if (compactPartyLayout && guestHeight > 0)
                     partyRect.height = Mathf.Clamp(guestHeight, ui.ChromeHeight, available.height);
+                if (compactPartyLayout) partyRect.y = available.y + Mathf.Floor((available.height - partyRect.height) * .5f);
                 if (compactPartyLayout && !compactPartyScroll) scroll = Vector2.zero;
             }
             GUILayout.BeginArea(partyRect, ui.Panel);
+            paper.Sheet(new Rect(Vector2.zero, partyRect.size));
             bool scrolling = !compactPartyLayout || compactPartyScroll;
             if (scrolling) scroll = GUILayout.BeginScrollView(scroll, false, compactPartyLayout);
             if (compactPartyLayout) GUILayout.BeginVertical(GUILayout.ExpandHeight(false));
@@ -277,6 +282,7 @@ namespace Wreckabulary.Online
             if (Event.current.type == EventType.Repaint) partyViewportHeight = scrolling ?
                 Mathf.Max(60, GUILayoutUtility.GetLastRect().height - 16) : Mathf.Max(1, partyRect.height - ui.Panel.padding.vertical);
             GUILayout.EndArea();
+            paper.Tape(partyRect);
         }
         void DrawPartyContents()
         {
@@ -313,7 +319,7 @@ namespace Wreckabulary.Online
             {
                 DrawCreateSettings();
                 GUILayout.Space(8); GUILayout.BeginHorizontal();
-                GUILayout.Label("Name", GUILayout.Width(44), GUILayout.MinHeight(ui.RowHeight));
+                GUILayout.Label(NameCaption, GUILayout.Width(Mathf.Ceil(GUI.skin.label.CalcSize(NameCaption).x)), GUILayout.MinHeight(ui.RowHeight));
                 displayName = PartyText("name", displayName, 32);
                 PartyControl("connect", "Connect", () => Invoke(() => coordinator.Connect(RememberName())));
                 GUILayout.EndHorizontal();
@@ -536,7 +542,7 @@ namespace Wreckabulary.Online
                 LeavePartyVoice();
                 lifetime.Cancel(); coordinator?.Dispose(); transport?.Dispose();
             }
-            finally { ui.Dispose(); }
+            finally { ui.Dispose(); paper.Dispose(); }
         }
     }
 
