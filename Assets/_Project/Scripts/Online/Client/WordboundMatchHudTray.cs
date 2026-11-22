@@ -65,7 +65,7 @@ namespace Wreckabulary.Online
             vitalsFrame = frame;
             vitalsActor = actor;
             healthPeak = Mathf.Max(healthPeak, actor.Health, HealthFloor);
-            var own = OwnProgress();
+            var own = ProgressOf(actorId);
             bool knocked = own != null && own.Eliminated, alive = actor.Health > 0f && !knocked, waiting = knocked && own.RespawnAt >= 0;
             float respawn = waiting ? Mathf.Max(0f, (own.RespawnAt - frame.Progress.Tick) / (float)ModeDefinition.TickRate) : 0f;
             vitalsShare = alive ? SeatVitals.Share(actor.Health, healthMax > 0f ? healthMax : healthPeak) : 0f;
@@ -74,15 +74,6 @@ namespace Wreckabulary.Online
             if (reading == vitalsReading) return;
             vitalsReading = reading;
             vitalsContent.text = SeatVitals.Label(reading);
-        }
-
-        PlayerProgress OwnProgress()
-        {
-            if (frame == null) return null;
-            var players = frame.Progress.Players;
-            for (int i = 0; i < players.Count; i++)
-                if (players[i].Id == actorId) return players[i];
-            return null;
         }
 
         void RefreshHands()
@@ -174,10 +165,14 @@ namespace Wreckabulary.Online
         {
             if (actor == null || kitNumber == null) return default;
             float left = EyeMargin, bottom = height - EyeMargin;
-            var bar = new Rect(left + VitalsBarX, bottom - VitalsBarHeight, VitalsBarWidth, VitalsBarHeight);
-            PaintCross(new Vector2(left + VitalsCross * .5f, bar.center.y));
-            PaintHealthBar(bar);
-            var area = Rect.MinMaxRect(left, bar.yMin, bar.xMax, bottom);
+            var bar = SeatStripShown ? default : new Rect(left + VitalsBarX, bottom - VitalsBarHeight, VitalsBarWidth, VitalsBarHeight);
+            var area = new Rect(left, bottom, 0f, 0f);
+            if (bar.width > 0f)
+            {
+                PaintCross(new Vector2(left + VitalsCross * .5f, bar.center.y));
+                PaintVitalsBar(bar, vitalsContent, vitalsShare, vitalsBand, kitNumber, VitalsNumberPad);
+                area = Rect.MinMaxRect(left, bar.yMin, bar.xMax, bottom);
+            }
             if (trayKeepsake)
             {
                 var chip = new Rect(left, area.yMin - KeepsakeGap - PlateTagHeight, Mathf.Ceil(kitTag.CalcSize(keepsakeContent).x) + KitOutline * 2f, PlateTagHeight);
@@ -188,16 +183,16 @@ namespace Wreckabulary.Online
             return area;
         }
 
-        void PaintHealthBar(Rect bar)
+        static void PaintVitalsBar(Rect bar, GUIContent text, float share, HealthBand band, GUIStyle style, float pad)
         {
-            KitFill(bar, kitSmallShape, HudBarTrack);
-            var number = new Rect(bar.x + VitalsNumberPad, bar.y, bar.width - VitalsNumberPad * 2f, bar.height);
-            KitPlain(number, vitalsContent, kitNumber, HudOnGame);
-            var fill = new Rect(bar.x, bar.y, Mathf.Round(bar.width * vitalsShare), bar.height);
-            KitFill(fill, kitSmallShape, BandColour(vitalsBand));
-            if (!Painting || fill.width <= 0f || string.IsNullOrEmpty(vitalsContent.text)) return;
+            KitFlat(bar, HudBarTrack);
+            var number = new Rect(bar.x + pad, bar.y, bar.width - pad * 2f, bar.height);
+            KitPlain(number, text, style, HudOnGame);
+            var fill = new Rect(bar.x, bar.y, Mathf.Round(bar.width * share), bar.height);
+            KitFlat(fill, BandColour(band));
+            if (!Painting || fill.width <= 0f || string.IsNullOrEmpty(text.text)) return;
             GUI.BeginGroup(fill);
-            try { KitPlain(new Rect(number.x - fill.x, number.y - fill.y, number.width, number.height), vitalsContent, kitNumber, HudInk); }
+            try { KitPlain(new Rect(number.x - fill.x, number.y - fill.y, number.width, number.height), text, style, HudInk); }
             finally { GUI.EndGroup(); }
         }
 

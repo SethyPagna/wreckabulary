@@ -380,7 +380,7 @@ namespace Wreckabulary
             }
             soloVitals = MakeVitals(vitals, new Vector2(0f, 1f), PlayerBar.SoloNumberSize);
             LayVitals(soloVitals, VitalsBarX, 0f, PlayerBar.SoloWidth, PlayerBar.SoloHeight,
-                -(PlayerBar.SoloHeight + PlayerBar.SoloStaminaGap), PlayerBar.SoloStaminaHeight, PlayerBar.SoloPad);
+                -(PlayerBar.SoloHeight + PlayerBar.SoloStaminaGap), PlayerBar.SoloWidth, PlayerBar.SoloStaminaHeight, PlayerBar.SoloPad);
         }
 
         void BuildEffects()

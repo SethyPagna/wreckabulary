@@ -149,7 +149,7 @@ namespace Wreckabulary.Tests
             Assert.AreEqual(ScoreCentre.None, hud.Centre, "Everyone for themselves has no centre score.");
             Assert.IsFalse(Part(hud, "Centre").gameObject.activeSelf);
             Assert.AreEqual("", hud.CentreScore);
-            Assert.AreEqual(PlayerBar.RoomyCard + PlayerBar.RoomyGap, X(hud, 2) - X(hud, 1), Slack, "The cards keep their normal spacing.");
+            Assert.AreEqual(PlayerBar.RoomyCard + PlayerBar.SideGap, X(hud, 2) - X(hud, 1), Slack, "Each seat is its own side: only two outlines apart.");
             hud.SetScoreboard(new[] { seats[0], seats[2] }, p => p.Index + 1, 0, true);
             yield return TestScenes.WaitUntil(() => hud.CentreScore == "1 : 3", Slow, "a duel's score line");
             AssertCentreBetween(hud, 1, 2, PlayerBar.RoomyCard);
@@ -180,6 +180,8 @@ namespace Wreckabulary.Tests
             float half = ScoreLine.ClockWidth * .5f;
             Assert.LessOrEqual(X(hud, 2) + PlayerBar.RoomyCard * .5f, -half + Slack, "Two cards sit left of the clock...");
             Assert.GreaterOrEqual(X(hud, 3) - PlayerBar.RoomyCard * .5f, half - Slack, "...and two right of it.");
+            Assert.AreEqual(-half - PlayerBar.Outline, X(hud, 2) + PlayerBar.RoomyCard * .5f, Slack, "The seat outline meets the clock's outline, no gap.");
+            Assert.IsTrue(Part(hud, "Centre/Outline").GetComponent<Image>().enabled, "The clock block has its own outline.");
             var clock = Part(hud, "Centre/Clock").GetComponent<TMP_Text>();
             Assert.GreaterOrEqual(clock.fontSizeMin, SmallestText);
             Assert.Greater(clock.fontSizeMax, SmallestText * 2f, "The lone clock reads at score size.");
@@ -190,7 +192,7 @@ namespace Wreckabulary.Tests
             hud.SetTimer("");
             yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.None, Slow, "no clock, no centre");
             Assert.IsFalse(Part(hud, "Centre").gameObject.activeSelf);
-            Assert.AreEqual(PlayerBar.RoomyCard + PlayerBar.RoomyGap, X(hud, 2) - X(hud, 1), Slack, "The cards close up again.");
+            Assert.AreEqual(PlayerBar.RoomyCard + PlayerBar.SideGap, X(hud, 2) - X(hud, 1), Slack, "The cards close up again.");
         }
 
         [UnityTest]
@@ -252,6 +254,209 @@ namespace Wreckabulary.Tests
             AssertSameColour(new Color(1f, .941f, .851f), Tag(2), "Names go back to cream.");
             yield return TestScenes.WaitUntil(() => Ring(seats[1]) != red, Slow, "the ring to follow");
             AssertSameColour(PlayerHud.Vivid(seats[1].Color), Ring(seats[1]), "And so does the ring.");
+        }
+
+        static Rect Box(GameHud hud, string path)
+        {
+            var corners = new Vector3[4];
+            Part(hud, path).GetWorldCorners(corners);
+            var bar = Bar(hud);
+            Vector3 low = bar.InverseTransformPoint(corners[0]), high = bar.InverseTransformPoint(corners[2]);
+            return Rect.MinMaxRect(low.x, low.y, high.x, high.y);
+        }
+
+        static bool Outlined(GameHud hud, int side) => Part(hud, $"Side {side}").GetComponent<Image>().enabled;
+
+        static void AssertTouching(Rect left, Rect right, string message) => Assert.AreEqual(left.xMax, right.xMin, Slack, message);
+
+        static void AssertInside(RectTransform outer, RectTransform inner, string message)
+        {
+            var corners = new Vector3[4];
+            outer.GetWorldCorners(corners);
+            var o = Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+            inner.GetWorldCorners(corners);
+            var i = Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+            Assert.IsTrue(i.xMin >= o.xMin - Slack && i.xMax <= o.xMax + Slack && i.yMin >= o.yMin - Slack && i.yMax <= o.yMax + Slack, $"{message}: {i} inside {o}");
+        }
+
+        static void AssertSquare(GameHud hud, int cards)
+        {
+            var line = Part(hud, "Card 1/Frame").GetComponent<Image>().sprite;
+            Assert.IsNotNull(line, "Frames are drawn from a line box...");
+            Assert.AreEqual(4, line.texture.width, "...a square one, not a rounded sprite.");
+            Assert.AreEqual(FilterMode.Point, line.texture.filterMode);
+            Assert.IsNull(Part(hud, "Backing").GetComponent<Image>().sprite, "The plate is square.");
+            Assert.AreSame(line, Part(hud, "Centre/Outline").GetComponent<Image>().sprite, "So is the centre block's outline.");
+            for (int side = 1; side <= PlayerBar.MostSeats; side++)
+                Assert.AreSame(line, Part(hud, $"Side {side}").GetComponent<Image>().sprite, $"Side {side} outline is square");
+            for (int card = 1; card <= cards; card++)
+            {
+                Assert.AreSame(line, Part(hud, $"Card {card}/Frame").GetComponent<Image>().sprite, $"card {card} frame");
+                Assert.AreSame(line, Part(hud, $"Card {card}/You").GetComponent<Image>().sprite, $"card {card} rim");
+                foreach (var path in new[] { "Backing", "Shade", "Health track", "Health track/Health", "Stamina track", "Stamina track/Stamina" })
+                    Assert.IsNull(Part(hud, $"Card {card}/{path}").GetComponent<Image>().sprite, $"card {card} {path} is square");
+            }
+        }
+
+        static void AssertNamesShow(GameHud hud, int cards)
+        {
+            for (int card = 1; card <= cards; card++)
+                foreach (var line in new[] { "Name", "Score" })
+                {
+                    var text = Part(hud, $"Card {card}/{line}").GetComponent<TMP_Text>();
+                    text.ForceMeshUpdate();
+                    Assert.Greater(text.text.Length, 0, $"card {card} {line}");
+                    Assert.IsFalse(text.isTextTruncated, $"card {card} {line} shows whole: {text.text}");
+                    Assert.GreaterOrEqual(text.fontSize, SmallestText, $"card {card} {line}");
+                }
+        }
+
+        [UnityTest]
+        public IEnumerator TeamMatesTouchAndEachSideHasOneOutlineAgainstTheScore()
+        {
+            var seats = Seats(0, 1, 0, 1);
+            GameHud hud = null;
+            yield return Hud(seats[0], h => hud = h);
+            hud.SetScoreboard(seats, p => p.Team == 0 ? 2 : 1, 3, true);
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.Score && hud.CentreScore == "2 : 1", Slow, "a two-side bar");
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            Rect Card(int card) => Box(hud, $"Card {card}");
+            Rect Health(int card) => Box(hud, $"Card {card}/Health track");
+            Rect Stamina(int card) => Box(hud, $"Card {card}/Stamina track");
+            Assert.AreEqual(PlayerBar.Portrait(4), Card(1).width, Slack, "A card is as wide as its portrait.");
+            AssertTouching(Card(1), Card(2), "Team-mates' cards touch.");
+            AssertTouching(Card(3), Card(4), "On both sides.");
+            for (int card = 1; card <= 4; card++)
+            {
+                Assert.AreEqual(Box(hud, $"Card {card}/Frame").yMin, Health(card).yMax, Slack, $"card {card}: the health bar hangs right under the portrait");
+                Assert.AreEqual(Card(card).center.x, Health(card).center.x, Slack, $"card {card}: health is centred");
+                Assert.AreEqual(Card(card).center.x, Stamina(card).center.x, Slack, $"card {card}: stamina is centred");
+            }
+            foreach (var (a, b) in new[] { (1, 2), (3, 4) })
+            {
+                float join = Health(b).xMin - Health(a).xMax;
+                Assert.GreaterOrEqual(join, -Slack, $"cards {a} and {b}: health bars never overlap");
+                Assert.LessOrEqual(join, PlayerBar.Hairline + Slack, $"cards {a} and {b}: health bars run on with only a hairline between");
+                Assert.GreaterOrEqual(Stamina(b).xMin - Stamina(a).xMax, 10f, $"cards {a} and {b}: the shorter stamina bars leave a gap that marks each player");
+                Assert.Less(Stamina(a).width, Health(a).width);
+                Assert.GreaterOrEqual(Stamina(a).height, PlayerBar.StaminaHeight - Slack, "Stamina is thick enough to read.");
+            }
+            Assert.IsTrue(Outlined(hud, 1) && Outlined(hud, 2), "One outline per side...");
+            Assert.IsFalse(Outlined(hud, 3), "...and no more.");
+            Rect left = Box(hud, "Side 1"), right = Box(hud, "Side 2"), middle = Box(hud, "Centre/Outline");
+            Assert.AreEqual(Card(1).xMin - PlayerBar.Outline, left.xMin, Slack, "The left outline wraps both team-mates...");
+            Assert.AreEqual(Card(2).xMax + PlayerBar.Outline, left.xMax, Slack);
+            Assert.AreEqual(Card(3).xMin - PlayerBar.Outline, right.xMin, Slack, "...and so does the right.");
+            Assert.AreEqual(Card(4).xMax + PlayerBar.Outline, right.xMax, Slack);
+            Assert.AreEqual(Card(1).yMax + PlayerBar.Outline, left.yMax, Slack, "The outline clears the cards above...");
+            Assert.AreEqual(Card(1).yMin - PlayerBar.Outline, left.yMin, Slack, "...and below.");
+            Assert.IsTrue(Part(hud, "Centre/Outline").GetComponent<Image>().enabled, "The score block has its own outline.");
+            AssertTouching(left, middle, "The left side meets the score block with no gap and no overlap...");
+            AssertTouching(middle, right, "...and so does the right.");
+            Assert.AreEqual(left.yMax, middle.yMax, Slack, "All three boxes line up.");
+            Assert.AreEqual(left.yMin, middle.yMin, Slack);
+            var plate = Box(hud, "Backing");
+            foreach (var box in new[] { left, middle, right })
+                Assert.IsTrue(plate.xMin <= box.xMin + Slack && plate.xMax >= box.xMax - Slack && plate.yMin <= box.yMin + Slack && plate.yMax >= box.yMax - Slack, $"The plate holds {box}");
+            AssertSameColour(PlayerHud.Vivid(seats[0].Color), Part(hud, "Side 1").GetComponent<Image>().color, "The left outline wears its side's colour.");
+            AssertSameColour(PlayerHud.Vivid(seats[1].Color), Part(hud, "Side 2").GetComponent<Image>().color, "The right one too.");
+            AssertSquare(hud, 4);
+            AssertNamesShow(hud, 4);
+        }
+
+        [UnityTest]
+        public IEnumerator EveryoneForThemselvesOutlinesEachSeatInItsOwnColour()
+        {
+            var seats = Seats(0, 1, 2, 3);
+            GameHud hud = null;
+            yield return Hud(seats[0], h => hud = h);
+            hud.SetScoreboard(seats, p => p.Index, 3, true);
+            hud.SetTimer("3:30");
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.Clock && CardScore(hud, 4) == "3/3", Slow, "four seats and a clock");
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            for (int side = 1; side <= 4; side++)
+            {
+                Assert.IsTrue(Outlined(hud, side), $"Seat {side} is its own side.");
+                Assert.AreEqual(Box(hud, $"Card {side}").width + 2f * PlayerBar.Outline, Box(hud, $"Side {side}").width, Slack, $"Side {side} wraps one card");
+                AssertSameColour(PlayerHud.Vivid(seats[side - 1].Color), Part(hud, $"Side {side}").GetComponent<Image>().color, $"Side {side} wears its seat's colour");
+            }
+            Assert.IsFalse(Outlined(hud, 5));
+            var middle = Box(hud, "Centre/Outline");
+            AssertTouching(Box(hud, "Side 1"), Box(hud, "Side 2"), "Neighbouring outlines touch...");
+            AssertTouching(Box(hud, "Side 2"), middle, "...the clock block...");
+            AssertTouching(middle, Box(hud, "Side 3"), "...on both sides...");
+            AssertTouching(Box(hud, "Side 3"), Box(hud, "Side 4"), "...with no space between.");
+            AssertSquare(hud, 4);
+            AssertNamesShow(hud, 4);
+        }
+
+        [UnityTest]
+        public IEnumerator ACrewIsOneOutlinedGroupWithTheClockTouchingOnItsRight()
+        {
+            var seats = Seats(0, 0);
+            GameHud hud = null;
+            yield return Hud(seats[0], h => hud = h);
+            hud.SetScoreboard(seats, _ => 0, 3, true);
+            hud.SetTimer("5:29");
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.Clock && Name(hud, 2).Length > 0, Slow, "a crew and its clock");
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            Rect Card(int card) => Box(hud, $"Card {card}");
+            CollectionAssert.AreEqual(new[] { "P1", "P2" }, new[] { Name(hud, 1), Name(hud, 2) });
+            AssertTouching(Card(1), Card(2), "The crew's cards touch, not split around the clock.");
+            Assert.IsTrue(Outlined(hud, 1), "One outline wraps the crew...");
+            Assert.IsFalse(Outlined(hud, 2), "...only one.");
+            Rect crew = Box(hud, "Side 1"), clock = Box(hud, "Centre/Outline");
+            Assert.AreEqual(Card(1).xMin - PlayerBar.Outline, crew.xMin, Slack);
+            Assert.AreEqual(Card(2).xMax + PlayerBar.Outline, crew.xMax, Slack);
+            Assert.IsTrue(Part(hud, "Centre/Outline").GetComponent<Image>().enabled, "The clock keeps its own outline.");
+            Assert.AreEqual(ScoreLine.ClockWidth, clock.width, Slack);
+            AssertTouching(crew, clock, "The clock sits right of the crew, touching, no overlap.");
+            Assert.AreEqual(-crew.xMin, clock.xMax, Slack, "The crew and the clock are centred together.");
+            Assert.AreEqual(Bar(hud).rect.width * .5f, clock.xMax, Slack, "Nothing else on the bar.");
+            Assert.AreEqual(crew.yMax, clock.yMax, Slack, "Both boxes line up.");
+            Assert.AreEqual(crew.yMin, clock.yMin, Slack);
+            var plate = Box(hud, "Backing");
+            Assert.AreEqual(-plate.xMin, plate.xMax, Slack, "The plate is centred on screen.");
+            AssertSquare(hud, 2);
+            AssertNamesShow(hud, 2);
+
+            seats[1].Team = 1;
+            yield return TestScenes.WaitUntil(() => Outlined(hud, 2), Slow, "two sides again");
+            Canvas.ForceUpdateCanvases();
+            Assert.AreEqual(0f, Part(hud, "Centre").anchoredPosition.x, Slack, "Versus keeps the clock in the middle, between the sides.");
+            AssertTouching(Box(hud, "Side 1"), Box(hud, "Centre/Outline"), "Each side meets the clock...");
+            AssertTouching(Box(hud, "Centre/Outline"), Box(hud, "Side 2"), "...from its own side.");
+        }
+
+        [UnityTest]
+        public IEnumerator EightSeatsInTwoTeamsTouchAndFitPhoneWindows()
+        {
+            var seats = Seats(0, 1, 0, 1, 0, 1, 0, 1);
+            GameHud hud = null;
+            yield return Hud(seats[0], h => hud = h);
+            hud.SetScoreboard(seats, p => p.Team == 0 ? 1 : 0, 3, true);
+            yield return TestScenes.WaitUntil(() => hud.Centre == ScoreCentre.Score && Name(hud, 8).Length > 0, Slow, "an eight-seat bar");
+            Assert.Less(Bar(hud).rect.width, 892f, "Eight seats take less room than the old spaced cards.");
+            var safe = (RectTransform)hud.transform.Find("Safe HUD");
+            foreach (var units in new[] { new Vector2(1920f, 1080f), new Vector2(2119.6f, 978.3f) })
+            {
+                safe.anchorMin = safe.anchorMax = safe.pivot = Vector2.zero;
+                safe.anchoredPosition = Vector2.zero;
+                safe.sizeDelta = units;
+                yield return new WaitForSecondsRealtime(.2f);
+                Canvas.ForceUpdateCanvases();
+                for (int card = 2; card <= 8; card++)
+                    if (card != 5) AssertTouching(Box(hud, $"Card {card - 1}"), Box(hud, $"Card {card}"), $"{units}: cards {card - 1} and {card} touch");
+                AssertTouching(Box(hud, "Side 1"), Box(hud, "Centre/Outline"), $"{units}: the left team meets the score");
+                AssertTouching(Box(hud, "Centre/Outline"), Box(hud, "Side 2"), $"{units}: so does the right");
+                Assert.IsFalse(Outlined(hud, 3), $"{units}: two teams, two outlines");
+                AssertInside(safe, Part(hud, "Backing"), $"{units}: the plate fits the window");
+                AssertSquare(hud, 8);
+                AssertNamesShow(hud, 8);
+            }
         }
 
         [UnityTest]
@@ -527,7 +732,11 @@ namespace Wreckabulary.Tests
             yield return TestScenes.WaitUntil(() => victimCard.Find("Health track/Number").GetComponent<TMP_Text>().text == "", Slow, "the knocked-out card to drop its number");
             Assert.IsFalse(victimCard.Find("Stamina track").gameObject.activeSelf, "A knocked-out seat shows no stamina.");
             Assert.AreEqual(Mathf.CeilToInt(attacker.Health.Current).ToString(), attackerCard.Find("Health track/Number").GetComponent<TMP_Text>().text, "A standing seat shows its health in its bar.");
-            Assert.AreEqual(PlayerBar.SnugPortrait, ((RectTransform)attackerCard.Find("Health track")).rect.width, Slack, "Eight seats get snug bars.");
+            Assert.AreEqual(PlayerBar.HealthWidth(PlayerBar.MostSeats), ((RectTransform)attackerCard.Find("Health track")).rect.width, Slack, "Eight seats get snug bars.");
+            Assert.AreEqual(PlayerBar.SnugCard, attackerCard.rect.width, Slack, "A card is its portrait.");
+            Assert.IsTrue(Part(hud, "Side 1").GetComponent<Image>().enabled && Part(hud, "Side 2").GetComponent<Image>().enabled, "Each team has one outline...");
+            Assert.IsFalse(Part(hud, "Side 3").GetComponent<Image>().enabled, "...and only one.");
+            Assert.IsTrue(Part(hud, "Centre/Outline").GetComponent<Image>().enabled, "The lives and clock block has its own outline.");
             hud.ToggleScoreboard();
             Assert.IsTrue(hud.ScoreboardShown);
             Assert.AreEqual(2, hud.ScoreboardBlocks);

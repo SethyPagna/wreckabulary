@@ -19,15 +19,16 @@ namespace Wreckabulary.Rules
     public static class PlayerBar
     {
         public static readonly bool StaminaShown = true;
-        public const int RoomySeats = 4, MostSeats = 8, BarRadius = 4;
+        public const int RoomySeats = 4, MostSeats = 8;
         public const float Top = 10f, Clearance = 12f, Margin = 8f, Edge = 24f, TeamGap = 36f;
-        public const float RoomyCard = 96f, SnugCard = 78f, RoomyPortrait = 68f, SnugPortrait = 56f;
-        public const float RoomyGap = 8f, SnugGap = 6f, Frame = 5f, Inset = 3f;
-        public const float HealthGap = 4f, HealthHeight = 22f, StaminaGap = 3f, StaminaHeight = 5f, NameGap = 2f, NameHeight = 22f, ScoreHeight = 20f;
+        public const float RoomyPortrait = 68f, SnugPortrait = 56f, RoomyCard = RoomyPortrait, SnugCard = SnugPortrait;
+        public const float RoomyGap = 8f, SnugGap = 6f, Frame = 4f, Inset = 3f;
+        public const float Outline = 3f, SideGap = 2f * Outline, Hairline = 1f, YouRim = 2f, StaminaShare = .75f;
+        public const float HealthGap = 0f, HealthHeight = 22f, StaminaGap = 2f, StaminaHeight = 8f, NameGap = 2f, NameHeight = 24f, ScoreHeight = 22f;
         public const float NumberSize = 18f, NumberMin = 16f, NumberPad = 4f;
         public const float SoloWidth = 240f, SoloHeight = 36f, SoloNumberSize = 30f, SoloPad = 8f, SoloStaminaGap = 4f, SoloStaminaHeight = 6f;
-        public const float NameSize = 18f, ScoreSize = 16f, StatusSize = 16f, StatusMin = 15f;
-        public const float PlatePad = 10f, PlateRadius = 12f;
+        public const float NameSize = 18f, ScoreSize = 16f, StatusSize = 16f, StatusMin = 15f, TextMin = 15f;
+        public const float PlatePad = 10f;
         public static float Height => CardHeight(RoomySeats);
         public static float Shift => Height + PlatePad + Clearance;
 
@@ -40,6 +41,12 @@ namespace Wreckabulary.Rules
         public static float Portrait(int seats) => Snug(seats) ? SnugPortrait : RoomyPortrait;
 
         public static float CardGap(int seats) => Snug(seats) ? SnugGap : RoomyGap;
+
+        public static float HealthWidth(int seats) => CardWidth(seats) - Hairline;
+
+        public static float StaminaWidth(int seats) => CardWidth(seats) * StaminaShare;
+
+        public static float BoxHeight(int seats) => CardHeight(seats) + 2f * Outline;
 
         public static float HealthY(int seats) => Portrait(seats) + HealthGap;
 
@@ -74,19 +81,80 @@ namespace Wreckabulary.Rules
             return shared && mixed;
         }
 
+        static void Order(IReadOnlyList<int> teams, int[] order, int n)
+        {
+            for (int i = 0; i < n; i++) order[i] = i;
+            if (!Grouped(teams)) return;
+            for (int i = 1; i < n; i++)
+            {
+                int seat = order[i], j = i - 1;
+                while (j >= 0 && teams[order[j]] > teams[seat]) { order[j + 1] = order[j]; j--; }
+                order[j + 1] = seat;
+            }
+        }
+
+        public static bool Joined(IReadOnlyList<int> teams, int[] order, int slot, int split)
+        {
+            if (teams == null || order == null || slot <= 0 || slot >= order.Length || (split > 0 && slot == split)) return false;
+            int before = order[slot - 1], seat = order[slot];
+            return before >= 0 && seat >= 0 && before < teams.Count && seat < teams.Count && ScoreLine.SameSide(teams, before, seat);
+        }
+
+        public static bool OneCrew(IReadOnlyList<int> teams, int count)
+        {
+            if (teams == null || count < 2 || count > teams.Count) return false;
+            for (int i = 1; i < count; i++)
+                if (!ScoreLine.SameSide(teams, 0, i)) return false;
+            return true;
+        }
+
+        public static float Strip(IReadOnlyList<int> teams, int[] order, float[] centres, float centreWidth, out int split) =>
+            Strip(teams, order, centres, centreWidth, out split, out _);
+
+        public static float Strip(IReadOnlyList<int> teams, int[] order, float[] centres, float centreWidth, out int split, out float centreX)
+        {
+            split = 0;
+            centreX = 0f;
+            float centre = Math.Max(0f, centreWidth);
+            if (teams == null || order == null || centres == null) return centre;
+            int n = Math.Min(teams.Count, Math.Min(order.Length, centres.Length));
+            if (n == 0) return centre;
+            Order(teams, order, n);
+            bool centred = centre > 0f && n > 1;
+            float card = CardWidth(n), x = 0f;
+            if (centred && OneCrew(teams, n))
+            {
+                split = n;
+                float width = n * card + 2f * Outline + centre, start = -width * .5f + Outline;
+                for (int i = 0; i < n; i++) centres[i] = start + card * (i + .5f);
+                centreX = width * .5f - centre * .5f;
+                return width;
+            }
+            if (centred) split = ScoreLine.Split(teams, order, n);
+            for (int i = 0; i < n; i++)
+            {
+                if (i > 0 && !Joined(teams, order, i, split)) x += SideGap;
+                centres[i] = x + card * .5f;
+                x += card;
+            }
+            if (!centred)
+            {
+                for (int i = 0; i < n; i++) centres[i] -= x * .5f;
+                return x + 2f * Outline;
+            }
+            float half = card * .5f, reach = centre * .5f + Outline;
+            float left = centres[split - 1] + half, right = centres[split] - half;
+            float leftSpan = left - (centres[0] - half), rightSpan = centres[n - 1] + half - right;
+            for (int i = 0; i < n; i++) centres[i] += i < split ? -reach - left : reach - right;
+            return 2f * (reach + Math.Max(leftSpan, rightSpan) + Outline);
+        }
+
         public static float Arrange(IReadOnlyList<int> teams, int[] order, float[] centres)
         {
             if (teams == null || order == null || centres == null) return 0f;
             int n = Math.Min(teams.Count, Math.Min(order.Length, centres.Length));
             bool grouped = Grouped(teams);
-            for (int i = 0; i < n; i++) order[i] = i;
-            if (grouped)
-                for (int i = 1; i < n; i++)
-                {
-                    int seat = order[i], j = i - 1;
-                    while (j >= 0 && teams[order[j]] > teams[seat]) { order[j + 1] = order[j]; j--; }
-                    order[j + 1] = seat;
-                }
+            Order(teams, order, n);
             float card = CardWidth(n), gap = CardGap(n), x = 0f;
             for (int i = 0; i < n; i++)
             {

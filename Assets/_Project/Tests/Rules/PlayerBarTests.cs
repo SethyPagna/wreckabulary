@@ -6,12 +6,12 @@ namespace Wreckabulary.Rules.Tests
 {
     public class PlayerBarTests
     {
-        static (int[] order, float[] centres, float width) Arrange(params int[] teams)
+        static (int[] order, float[] centres, float width, int split) Strip(float centre, params int[] teams)
         {
             var order = new int[PlayerBar.MostSeats];
             var centres = new float[PlayerBar.MostSeats];
-            float width = PlayerBar.Arrange(teams, order, centres);
-            return (order, centres, width);
+            float width = PlayerBar.Strip(teams, order, centres, centre, out int split);
+            return (order, centres, width, split);
         }
 
         [Test]
@@ -26,17 +26,28 @@ namespace Wreckabulary.Rules.Tests
         [Test]
         public void FourSeatsGetRoomyCardsAndEightGetSnugOnes()
         {
-            Assert.AreEqual(96f, PlayerBar.CardWidth(4));
             Assert.AreEqual(68f, PlayerBar.Portrait(4));
-            Assert.AreEqual(78f, PlayerBar.CardWidth(5));
+            Assert.AreEqual(PlayerBar.Portrait(4), PlayerBar.CardWidth(4), "A card is exactly its portrait, so cards can touch.");
             Assert.AreEqual(56f, PlayerBar.Portrait(8));
+            Assert.AreEqual(PlayerBar.Portrait(5), PlayerBar.CardWidth(5));
+            Assert.AreEqual(PlayerBar.Portrait(4), PlayerBar.HealthY(4), "The health bar sits directly under the portrait, no gap.");
+            Assert.AreEqual(PlayerBar.CardWidth(4) - PlayerBar.HealthWidth(4), PlayerBar.Hairline, "Health bars span the card but for a hairline between neighbours.");
+            Assert.LessOrEqual(PlayerBar.Hairline, 1f);
+            foreach (int seats in new[] { 4, 8 })
+            {
+                Assert.That(PlayerBar.StaminaWidth(seats) / PlayerBar.CardWidth(seats), Is.InRange(.7f, .8f), "Stamina is narrower than its card...");
+                Assert.GreaterOrEqual(PlayerBar.CardWidth(seats) - PlayerBar.StaminaWidth(seats), 10f, "...so neighbouring stamina bars show a clear gap.");
+            }
+            Assert.GreaterOrEqual(PlayerBar.StaminaHeight, 8f, "Stamina is thick enough to notice.");
+            Assert.AreEqual(2f * PlayerBar.Outline, PlayerBar.SideGap, "Two sides meet where their outlines touch.");
+            Assert.AreEqual(PlayerBar.CardHeight(4) + 2f * PlayerBar.Outline, PlayerBar.BoxHeight(4));
+            Assert.Less(PlayerBar.Outline, PlayerBar.PlatePad, "Outlines stay on the plate.");
             Assert.Less(PlayerBar.CardHeight(8), PlayerBar.CardHeight(4));
             Assert.AreEqual(PlayerBar.CardHeight(4), PlayerBar.Height);
             Assert.AreEqual(PlayerBar.Height + PlayerBar.PlatePad + 12f, PlayerBar.Shift, "Top-centre text moves down by the bar, its backing plate and a 12 px gap.");
             Assert.AreEqual(408f + 20f, PlayerBar.PlateWidth(408f), "The plate pads the cards by 10 px each side.");
             Assert.AreEqual(PlayerBar.CardHeight(8) + 20f, PlayerBar.PlateHeight(8));
             Assert.Greater(PlayerBar.NameY(4), PlayerBar.HealthY(4) + PlayerBar.HealthHeight - .01f, "The name sits under the health bar.");
-            Assert.Greater(PlayerBar.HealthY(4), PlayerBar.Portrait(4), "The health bar sits right under the portrait.");
             Assert.GreaterOrEqual(PlayerBar.StaminaY(4), PlayerBar.HealthY(4) + PlayerBar.HealthHeight, "Stamina sits under the health bar.");
             if (PlayerBar.StaminaShown)
                 Assert.GreaterOrEqual(PlayerBar.NameY(4), PlayerBar.StaminaY(4) + PlayerBar.StaminaHeight, "The name sits under the stamina bar.");
@@ -63,45 +74,136 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [Test]
-        public void FreeForAllKeepsSeatOrderCentredOnTheScreen()
+        public void FreeForAllCardsTouchAndEachSeatIsItsOwnSide()
         {
-            var (order, centres, width) = Arrange(0, 1, 2, 3);
+            var (order, centres, width, split) = Strip(0f, 0, 1, 2, 3);
+            float card = PlayerBar.CardWidth(4);
             CollectionAssert.AreEqual(new[] { 0, 1, 2, 3 }, First(order, 4));
-            Assert.AreEqual(4 * 96f + 3 * 8f, width, .01f);
+            Assert.AreEqual(0, split, "No centre block, no split.");
+            Assert.AreEqual(4 * card + 3 * PlayerBar.SideGap + 2f * PlayerBar.Outline, width, .01f, "Cards, the outlines between them and the two outer outlines; no other gaps.");
             Assert.AreEqual(-centres[0], centres[3], .01f, "Centred on the screen.");
-            for (int i = 1; i < 4; i++) Assert.AreEqual(96f + 8f, centres[i] - centres[i - 1], .01f);
+            for (int i = 1; i < 4; i++)
+            {
+                Assert.AreEqual(card + PlayerBar.SideGap, centres[i] - centres[i - 1], .01f, "Neighbours are only their two outlines apart.");
+                Assert.IsFalse(PlayerBar.Joined(new[] { 0, 1, 2, 3 }, order, i, split), "Every seat gets its own outline.");
+            }
         }
 
         [Test]
-        public void OneTeamOrNoSharedTeamsIsNotSplit()
+        public void OneSideIsOneTouchingStrip()
         {
             Assert.IsFalse(PlayerBar.Grouped(new[] { 0, 0, 0 }), "Co-op: everyone on one side.");
             Assert.IsFalse(PlayerBar.Grouped(new[] { 0, 1, 2, 3 }), "Everyone against everyone.");
             Assert.IsTrue(PlayerBar.Grouped(new[] { 0, 1, 0, 1 }));
-            var (order, _, width) = Arrange(0, 0, 0);
+            var (order, centres, width, _) = Strip(0f, 0, 0, 0);
+            float card = PlayerBar.CardWidth(3);
             CollectionAssert.AreEqual(new[] { 0, 1, 2 }, First(order, 3));
-            Assert.AreEqual(3 * 96f + 2 * 8f, width, .01f);
+            Assert.AreEqual(3 * card + 2f * PlayerBar.Outline, width, .01f);
+            for (int i = 1; i < 3; i++)
+            {
+                Assert.AreEqual(card, centres[i] - centres[i - 1], .01f, "Teammates' cards touch.");
+                Assert.IsTrue(PlayerBar.Joined(new[] { 0, 0, 0 }, order, i, 0), "One outline wraps the whole crew.");
+            }
+            Assert.IsFalse(PlayerBar.Joined(new[] { 0, 0, 0 }, order, 0, 0));
         }
 
         [Test]
-        public void DuosSortByTeamThenSeatAndSplitTheTeams()
+        public void ACrewStaysOneGroupWithTheClockTouchingOnItsRight()
         {
-            var (order, centres, width) = Arrange(0, 1, 0, 1);
+            foreach (var (centre, seats) in new[] { (ScoreLine.ClockWidth, 2), (ScoreLine.ClockWidth, 4), (ScoreLine.CentreWidth, 3), (ScoreLine.ClockWidth, 8) })
+            {
+                var teams = new int[seats];
+                var order = new int[PlayerBar.MostSeats];
+                var centres = new float[PlayerBar.MostSeats];
+                float width = PlayerBar.Strip(teams, order, centres, centre, out int split, out float centreX);
+                float card = PlayerBar.CardWidth(seats), half = card * .5f;
+                string at = $"{seats} seats, centre {centre}";
+                Assert.AreEqual(seats, split, $"{at}: the whole crew sits left of the centre block.");
+                Assert.AreEqual(seats * card + 2f * PlayerBar.Outline + centre, width, .01f, $"{at}: one outline round the crew, then the block; no gaps.");
+                Assert.AreEqual(-width * .5f + PlayerBar.Outline, centres[0] - half, .01f, $"{at}: the pair is centred on screen.");
+                Assert.AreEqual(width * .5f, centreX + centre * .5f, .01f, $"{at}: the block closes the bar on the right.");
+                Assert.AreEqual(centreX - centre * .5f, centres[seats - 1] + half + PlayerBar.Outline, .01f, $"{at}: the crew's outline meets the block's.");
+                Assert.Greater(centreX, 0f, $"{at}: the block sits right of the crew.");
+                for (int i = 1; i < seats; i++)
+                {
+                    Assert.AreEqual(card, centres[i] - centres[i - 1], .01f, $"{at}: crewmates touch.");
+                    Assert.IsTrue(PlayerBar.Joined(teams, order, i, split), $"{at}: one outline wraps the whole crew.");
+                }
+            }
+            Assert.IsTrue(PlayerBar.OneCrew(new[] { 2, 2, 2 }, 3));
+            Assert.IsTrue(PlayerBar.OneCrew(new[] { 0, 0, 1 }, 2), "Only the seats on the bar count.");
+            Assert.IsFalse(PlayerBar.OneCrew(new[] { 0, 0, 1 }, 3));
+            Assert.IsFalse(PlayerBar.OneCrew(new[] { -1, -1 }, 2), "No team means each seat is its own side.");
+            Assert.IsFalse(PlayerBar.OneCrew(new[] { 0 }, 1), "One seat is not a crew bar.");
+            Assert.IsFalse(PlayerBar.OneCrew(null, 2));
+        }
+
+        [Test]
+        public void VersusAndEveryoneForThemselvesKeepTheBlockInTheMiddle()
+        {
+            foreach (var (centre, teams) in new[] { (ScoreLine.CentreWidth, new[] { 0, 1, 0, 1 }), (ScoreLine.ClockWidth, new[] { 0, 1, 2, 3 }), (ScoreLine.ClockWidth, new[] { 0, 1 }), (ScoreLine.CentreWidth, new[] { 0, 0, 0, 0, 1, 1, 1, 1 }) })
+            {
+                var order = new int[PlayerBar.MostSeats];
+                var centres = new float[PlayerBar.MostSeats];
+                float width = PlayerBar.Strip(teams, order, centres, centre, out int split, out float centreX);
+                Assert.AreEqual(0f, centreX, $"{string.Join(",", teams)}: the block stays in the middle.");
+                Assert.AreEqual(PlayerBar.Strip(teams, new int[PlayerBar.MostSeats], new float[PlayerBar.MostSeats], centre, out int plain), width, .01f, "Both overloads agree.");
+                Assert.AreEqual(plain, split);
+                Assert.Greater(split, 0);
+                Assert.Less(split, teams.Length);
+            }
+            var crewOnly = new float[PlayerBar.MostSeats];
+            PlayerBar.Strip(new[] { 0, 0, 0 }, new int[PlayerBar.MostSeats], crewOnly, 0f, out int none, out float noBlock);
+            Assert.AreEqual(0, none, "A crew with no clock is one centred strip, as before.");
+            Assert.AreEqual(0f, noBlock);
+            Assert.AreEqual(-crewOnly[0], crewOnly[2], .01f);
+        }
+
+        [Test]
+        public void DuosTouchInsideATeamAndMeetTheScoreBlock()
+        {
+            var teams = new[] { 0, 1, 0, 1 };
+            var (order, centres, width, split) = Strip(ScoreLine.CentreWidth, teams);
+            float card = PlayerBar.CardWidth(4), half = card * .5f, reach = ScoreLine.CentreWidth * .5f + PlayerBar.Outline;
             CollectionAssert.AreEqual(new[] { 0, 2, 1, 3 }, First(order, 4), "P1 and P3 left, P2 and P4 right.");
-            Assert.AreEqual(4 * 96f + 2 * 8f + 36f, width, .01f);
-            Assert.AreEqual(96f + 36f, centres[2] - centres[1], .01f, "A 36 px gap between the teams.");
-            Assert.AreEqual(-centres[0], centres[3], .01f);
+            Assert.AreEqual(2, split);
+            Assert.AreEqual(card, centres[1] - centres[0], .01f, "Teammates touch.");
+            Assert.AreEqual(card, centres[3] - centres[2], .01f);
+            Assert.AreEqual(-reach, centres[1] + half, .01f, "The left team's outline meets the score block's.");
+            Assert.AreEqual(reach, centres[2] - half, .01f, "So does the right team's.");
+            Assert.AreEqual(ScoreLine.CentreWidth + 4f * PlayerBar.Outline + 4f * card, width, .01f);
+            Assert.IsTrue(PlayerBar.Joined(teams, order, 1, split));
+            Assert.IsFalse(PlayerBar.Joined(teams, order, 2, split), "The centre ends one outline and starts the next.");
+            Assert.IsTrue(PlayerBar.Joined(teams, order, 3, split));
         }
 
         [Test]
-        public void WarFitsEightSnugCardsInUnderNineHundredPixels()
+        public void FreeForAllWithAClockKeepsTwoSeatsEachSide()
         {
-            var (order, centres, width) = Arrange(0, 0, 0, 0, 1, 1, 1, 1);
+            var (_, centres, width, split) = Strip(ScoreLine.ClockWidth, 0, 1, 2, 3);
+            float card = PlayerBar.CardWidth(4), half = card * .5f, reach = ScoreLine.ClockWidth * .5f + PlayerBar.Outline;
+            Assert.AreEqual(2, split, "Two seats left of the clock, two right, as before.");
+            Assert.AreEqual(-reach, centres[1] + half, .01f);
+            Assert.AreEqual(reach, centres[2] - half, .01f);
+            Assert.AreEqual(card + PlayerBar.SideGap, centres[1] - centres[0], .01f);
+            Assert.AreEqual(2f * (reach + 2f * card + PlayerBar.SideGap + PlayerBar.Outline), width, .01f);
+            Assert.AreEqual(ScoreLine.ClockWidth, PlayerBar.Strip(new int[0], new int[8], new float[8], ScoreLine.ClockWidth, out split), "With no cards the bar is the clock.");
+            Assert.AreEqual(0f, PlayerBar.Strip(null, new int[8], new float[8], 0f, out split));
+        }
+
+        [Test]
+        public void WarFitsEightTouchingSnugCardsNarrowerThanBefore()
+        {
+            var (order, centres, width, split) = Strip(ScoreLine.CentreWidth, 0, 0, 0, 0, 1, 1, 1, 1);
+            float card = PlayerBar.CardWidth(8);
             CollectionAssert.AreEqual(new[] { 0, 1, 2, 3, 4, 5, 6, 7 }, order);
-            Assert.LessOrEqual(width, 900f);
-            Assert.AreEqual(8 * 78f + 6 * 6f + 36f, width, .01f);
-            Assert.Less(centres[3] + 39f + 30f, centres[4] - 39f, "Team two starts after the gap.");
-            var (mixed, _, _) = Arrange(0, 1, 0, 1, 0, 1, 0, 1);
+            Assert.AreEqual(4, split);
+            Assert.AreEqual(ScoreLine.CentreWidth + 4f * PlayerBar.Outline + 8f * card, width, .01f);
+            Assert.Less(width, 892f, "Narrower than the spaced 4v4 bar (892).");
+            for (int i = 1; i < 8; i++)
+                if (i != split) Assert.AreEqual(card, centres[i] - centres[i - 1], .01f, "Teammates touch.");
+            Assert.Greater(centres[4] - card * .5f, centres[3] + card * .5f, "The score block sits between the teams.");
+            var (mixed, _, _, _) = Strip(ScoreLine.CentreWidth, 0, 1, 0, 1, 0, 1, 0, 1);
             CollectionAssert.AreEqual(new[] { 0, 2, 4, 6, 1, 3, 5, 7 }, mixed, "Stable: seat order inside each team.");
         }
 
