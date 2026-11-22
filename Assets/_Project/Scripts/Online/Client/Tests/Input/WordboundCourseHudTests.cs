@@ -179,7 +179,8 @@ namespace Wreckabulary.Online.Tests
             Assert.AreEqual(4, toasts.Count);
             Assert.AreEqual("note 5", toasts[3].Text);
             f.Grid.Call("PreparePanels");
-            Assert.AreEqual(100, (int)f.Grid.Get("trayHealth"));
+            Assert.AreEqual(100, (int)f.Grid.Get("vitalsReading"));
+            Assert.AreEqual("100", ((GUIContent)f.Grid.Get("vitalsContent")).text, "The health number sits inside the bar, with no HP word.");
             var hands = (string[])f.Grid.Get("handWords");
             Assert.AreEqual(2, hands.Length);
             Assert.IsNull(hands[0], "Hand 1 is empty."); Assert.IsNull(hands[1], "Hand 2 is empty.");
@@ -194,6 +195,44 @@ namespace Wreckabulary.Online.Tests
             string spell = PromptText(f, "spellKeys"), menu = PromptText(f, "menuKeys");
             StringAssert.StartsWith("[", spell); StringAssert.EndsWith("] Spell", spell);
             StringAssert.StartsWith("[", menu); StringAssert.EndsWith("] Menu", menu);
+        }
+
+        [Test]
+        public void OwnHealthIsTheHouseBarWithItsNumberTurningAmberThenRed()
+        {
+            using var f = new WordboundRecipeContextFixture("TimeRun");
+            void Health(float health)
+            {
+                f.Grid.Set("actor", new MatchActorState(Player, health, 100));
+                f.Grid.Call("PreparePanels");
+            }
+            void Shows(string number, float share, HealthBand band)
+            {
+                Assert.AreEqual(number, ((GUIContent)f.Grid.Get("vitalsContent")).text);
+                Assert.AreEqual(share, (float)f.Grid.Get("vitalsShare"), .001f, number);
+                Assert.AreEqual(band, (HealthBand)f.Grid.Get("vitalsBand"), number);
+            }
+            void Ticks(int count)
+            {
+                for (int i = 0; i < count; i++) f.Progress.Advance(f.Progress.Tick + 1, (f.Progress.Tick + 1) * 17);
+                f.SetFrame();
+            }
+            Health(100); Shows("100", 1f, HealthBand.Healthy);
+            Health(50); Shows("50", .5f, HealthBand.Hurt);
+            Health(25); Shows("25", .25f, HealthBand.Critical);
+            Health(.3f); Shows("1", .003f, HealthBand.Critical);
+            f.Grid.Set("healthMax", 200f);
+            Health(100); Shows("100", .5f, HealthBand.Hurt);
+            f.Grid.Set("healthMax", 0f);
+            Health(40); Shows("40", .4f, HealthBand.Hurt);
+            Assert.IsTrue(f.Progress.RecoverPlayer(Player));
+            f.SetFrame();
+            Health(0); Shows("DOWN 2s", 0f, HealthBand.Critical);
+            Ticks(ModeDefinition.TickRate);
+            Health(0); Shows("DOWN 1s", 0f, HealthBand.Critical);
+            Ticks(ModeDefinition.TickRate);
+            Assert.IsFalse(Frame(f).Progress.Players.Single(p => p.Id == Player).Eliminated, "The respawn tick brings the player back.");
+            Health(100); Shows("100", 1f, HealthBand.Healthy);
         }
 
         static string PromptText(WordboundRecipeContextFixture f, string field)

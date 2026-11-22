@@ -15,12 +15,12 @@ namespace Wreckabulary.Online
             HudEmptyCell = KitHex(0xead9b7, .35f), HudCellRim = KitHex(0x1e2a2e, .55f), HudReserved = KitHex(0xc8e6d8),
             HudReservedInk = KitHex(0x2f6b5c), HudGlass = KitHex(0x1d2b2b, .28f), HudGlassActive = KitHex(0x1d2b2b, .40f),
             HudGlassEdge = KitHex(0xfff7e8, .85f), HudGlassIdle = KitHex(0xffffff, .17f), HudGold = KitHex(0xffe7b8),
-            HudBrand = KitHex(0xf2d295), HudLowHp = KitHex(0xff8a6b), HudMint = KitHex(0x9ff8d3), HudTrack = KitHex(0x10292b, .75f),
+            HudBrand = KitHex(0xf2d295), HudBarTrack = KitHex(0x0b1f1f, .78f), HudAmber = KitHex(0xffc568), HudCritical = KitHex(0xd16849),
             HudKeyPill = KitHex(0x1e2a2e, .8f), HudTileGot = KitHex(0xe8c48b), HudTileGotInk = KitHex(0x3b2614),
             HudHealth = KitHex(0x419681), HudEmptyHand = KitHex(0xfff7e8, .72f);
         Texture2D kitSmall, kitLarge, kitSmallRing, kitLargeRing;
         GUIStyle kitSmallShape, kitLargeShape, kitSmallRim, kitLargeRim, kitPill;
-        GUIStyle kitTitle, kitTag, kitDetail, kitNumber, kitUnit, kitTile, kitCap, kitPrompt, kitPromptWrap, kitKeyWord, kitWord, kitBrand;
+        GUIStyle kitTitle, kitTag, kitDetail, kitNumber, kitTile, kitCap, kitPrompt, kitPromptWrap, kitKeyWord, kitWord, kitBrand;
         Font kitBodyFont, kitBlackFont;
         bool kitFontsLoaded;
         int kitGeneration;
@@ -62,8 +62,7 @@ namespace Wreckabulary.Online
             kitTitle = KitText(KitBlack, PlateTitleFont, TextAnchor.MiddleLeft);
             kitTag = KitText(KitBlack, PlateTagFont, TextAnchor.MiddleLeft);
             kitDetail = KitText(KitBody, PlateDetailFont, TextAnchor.UpperLeft, true);
-            kitNumber = KitText(KitBlack, VitalsNumberFont, TextAnchor.LowerLeft);
-            kitUnit = KitText(KitBlack, VitalsUnitFont, TextAnchor.LowerLeft);
+            kitNumber = KitText(KitBlack, VitalsNumberFont, TextAnchor.MiddleLeft);
             kitTile = KitText(KitBlack, TrayTileFont, TextAnchor.MiddleCenter);
             kitCap = KitText(KitBlack, KitCapFont, TextAnchor.MiddleCenter);
             kitPrompt = KitText(KitBody, KitPromptFont, TextAnchor.MiddleLeft);

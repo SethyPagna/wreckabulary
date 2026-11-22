@@ -14,7 +14,7 @@ namespace Wreckabulary.Tests
     {
         const int Seats = 4, Humans = 2, SavedSeats = 8;
         const float Spacing = 2f, FramesToSettle = .5f, TuckDrop = .01f, HatSlack = .005f, PixelChange = .08f;
-        const float WaitForPortrait = 5f, SunIntensity = 1.1f, LampIntensity = 4f, LampRange = 4f, FacingApart = 3f;
+        const float WaitForPortrait = 5f, SunIntensity = 1.1f, LampIntensity = 4f, LampRange = 4f, FacingApart = 3f, MovedSinceLastFrame = 1f;
         const int FacePixels = 150, SameLightPixels = 300;
         const string HairSlot = "Hair", EyesSlot = "Eyes", HeadwearSlot = "Headwear", TopSlot = "Top";
         const string OldSave = "Back=Satchel:olive;Badge=TBadge;Bottoms=Joggers:olive;Footwear=Boots:forest;Gloves=Mittens:charcoal;Top=Hoodie:mint|";
@@ -256,18 +256,47 @@ namespace Wreckabulary.Tests
             var portrait = SeatPortrait.For(player);
             var skins = appearance.AvatarModel.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             Assert.IsNotEmpty(skins);
-            Assert.IsFalse(portrait.Wants, "the first portrait waits a frame so the skin, hood and clothes catch up with the bones");
-            foreach (var skin in skins)
-                Assert.IsTrue(skin.updateWhenOffscreen, skin.name + " keeps its pose while no camera sees it, like a bot in another room");
+            var skinLayers = skins.Select(skin => skin.gameObject.layer).ToArray();
+            Assert.IsFalse(portrait.Wants, "the first portrait waits a frame so the outfit settles first");
             yield return TestScenes.WaitUntil(() => portrait.Wants, WaitForPortrait, "the seat to be ready for its portrait");
             Assert.IsNotNull(portrait.Refresh(true), "the portrait is drawn");
             Assert.IsTrue(FaceOf(player).ShownHair.Tucked, "the hair is tucked under the hood when the picture is taken");
+            CollectionAssert.AreEqual(skinLayers, skins.Select(skin => skin.gameObject.layer), "the skin, hood and clothes keep their own layers");
+            AssertNothingLeftOnThePortraitLayer();
             int renders = portrait.Renders;
             appearance.ApplyOutfit(appearance.CurrentOutfit);
             Assert.IsFalse(portrait.Wants, "a new outfit also waits a frame before it is drawn");
             yield return TestScenes.WaitUntil(() => portrait.Wants, WaitForPortrait, "a new outfit to ask for a new portrait");
             portrait.Refresh(true);
             Assert.AreEqual(renders + 1, portrait.Renders, "and is then drawn once");
+        }
+
+        static void AssertNothingLeftOnThePortraitLayer() =>
+            Assert.IsFalse(Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Any(part => part.gameObject.layer == SeatPortrait.Layer),
+                "nothing is left on the portrait layer after the picture");
+
+        [UnityTest]
+        public IEnumerator ASeatThatMovedSinceTheLastFrameIsDrawnInOnePiece()
+        {
+            if (!SeatPortrait.CanRender) Assert.Ignore("Portraits need a native graphics device.");
+            var player = Spawn(0, new ScriptedBinding());
+            var appearance = player.GetComponent<PlayerAppearance>();
+            var portrait = SeatPortrait.For(player);
+            yield return new WaitForSecondsRealtime(FramesToSettle);
+            Time.timeScale = 0f;
+            try
+            {
+                yield return TestScenes.WaitUntil(() => portrait.Wants, WaitForPortrait, "the seat to be ready for its portrait");
+                var still = Pixels(portrait.Refresh(true));
+                appearance.ApplyOutfit(appearance.CurrentOutfit);
+                yield return TestScenes.WaitUntil(() => portrait.Wants, WaitForPortrait, "a new outfit to ask for a new portrait");
+                player.transform.position += Vector3.forward * MovedSinceLastFrame;
+                var moved = Pixels(portrait.Refresh(true));
+                Assert.Less(Changed(still, moved), SameLightPixels,
+                    "a seat that walked since the last frame keeps its skin and hood with its face and hair, so the picture does not change");
+                AssertNothingLeftOnThePortraitLayer();
+            }
+            finally { Time.timeScale = 1f; }
         }
 
         [UnityTest]

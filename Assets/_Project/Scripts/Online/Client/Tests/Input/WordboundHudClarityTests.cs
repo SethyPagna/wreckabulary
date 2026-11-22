@@ -198,6 +198,7 @@ namespace Wreckabulary.Online.Tests
             {
                 f.Grid.Set("initialized", true);
                 f.Grid.View.SetMenuOpen(false);
+                f.Grid.Set("actor", new MatchActorState(WordboundRecipeContextFixture.Player, 40, 100));
                 f.Grid.Call("PreparePanels");
                 float scale = Mathf.Clamp(Mathf.Min(pixelsWide / 1280f, pixelsHigh / 720f), .6f, 1.8f);
                 window = ScriptableObject.CreateInstance<OverlayWindow>(); window.Hud = f.Grid.Hud;
@@ -239,6 +240,16 @@ namespace Wreckabulary.Online.Tests
                     var vitals = (Rect)Field("vitalsRect").GetValue(Hud);
                     var tray = (Rect)Field("trayRect").GetValue(Hud);
                     var action = (Rect)Field("actionRect").GetValue(Hud);
+                    var bar = (Rect)Field("healthBarRect").GetValue(Hud);
+                    var number = (GUIStyle)Field("kitNumber").GetValue(Hud);
+                    Assert.AreEqual(160f, bar.width, .5f, "The health bar is the house solo bar at the course scale.");
+                    Assert.AreEqual(24f, bar.height, .5f);
+                    Assert.AreEqual(Size.y - 18, bar.yMax, .5f, "The health bar rests on the bottom margin.");
+                    Assert.IsTrue(bar.xMin >= vitals.xMin && bar.xMax <= vitals.xMax && bar.yMin >= vitals.yMin && bar.yMax <= vitals.yMax,
+                        "The bar is inside the health block.");
+                    Assert.AreEqual("40", ((GUIContent)Field("vitalsContent").GetValue(Hud)).text);
+                    Assert.GreaterOrEqual(number.fontSize, 15);
+                    Assert.LessOrEqual(number.CalcSize(new GUIContent("DOWN 99s")).x, bar.width - 10f, "The longest reading fits inside the bar.");
                     var pieces = new[] { ("title", plate), ("health", vitals), ("bag", tray), ("prompt", action) };
                     foreach (var (name, rect) in pieces)
                     {
