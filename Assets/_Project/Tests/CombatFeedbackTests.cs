@@ -148,12 +148,14 @@ namespace Wreckabulary.Tests
             yield return new WaitForSeconds(.15f);
             var hud = Object.FindAnyObjectByType<GameHud>();
             Assert.AreSame(player, hud.LocalPlayer);
-            var stamina = hud.transform.Find("Safe HUD/Vitals/Stamina").GetComponent<TMP_Text>();
-            Assert.That(stamina.text, Does.StartWith("100"));
+            Assert.IsFalse(hud.HealthOnBar, "Alone in the lobby, health and stamina sit bottom left.");
+            var track = (RectTransform)hud.transform.Find("Safe HUD/Vitals/Stamina track");
+            var stamina = (RectTransform)track.Find("Stamina");
+            Assert.AreEqual("100", hud.transform.Find("Safe HUD/Vitals/Health track/Number").GetComponent<TMP_Text>().text, "Health is a bar with its number beside the stamina bar.");
+            Assert.AreEqual(track.rect.width, stamina.rect.width, .5f);
             Assert.IsTrue(player.Health.Dodge());
             yield return new WaitForSeconds(.15f);
-            Assert.That(stamina.text, Does.StartWith("70"));
-            Assert.AreEqual(91, hud.transform.Find("Safe HUD/Vitals/Stamina track/Stamina fill").GetComponent<RectTransform>().rect.width, .01f);
+            Assert.AreEqual(track.rect.width * .7f, stamina.rect.width, .5f, "One dodge spends 30 of 100 stamina.");
             hud.TogglePause(); yield return new WaitForSecondsRealtime(.2f);
             Assert.AreEqual(70, player.Health.Stamina);
             hud.TogglePause(); yield return new WaitForSeconds(1.3f);

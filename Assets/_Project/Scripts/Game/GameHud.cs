@@ -53,6 +53,7 @@ namespace Wreckabulary
         const float BagTop = 105f, BagSide = 35f, BagBottom = 35f, BagColumn = 375f, BookColumn = 840f, BagGap = 24f;
         const float Chip = 52f, ChipGap = 10f;
         const float VitalsX = 39f, VitalsY = 38f, TrayY = 52f, AsideVitalsY = 276f;
+        const float VitalsBarX = 46f, VitalsCrossX = 17f, VitalsCross = 33f, EffectsWidth = 320f, EffectsHeight = 26f, EffectsSize = 18f, EffectsGap = 6f;
         const float SideGap = 12f, SideRowHeight = 54f, SideRowGap = 6f, RoomHeight = 64f, RoomGap = 16f;
         const float ObjectiveWidth = 252f, ObjectiveMinHeight = 48f;
         public const float BookTitleTop = 4f, BookTitleHeight = 40f, BookKeyGap = 4f, BookKeyHeight = 30f, BookCardsGap = 6f, BookTextLeft = 48f;
@@ -85,10 +86,10 @@ namespace Wreckabulary
         GameObject typewriterControls;
         TextMeshProUGUI typewriterChoice;
         TextMeshProUGUI matchTag, matchTitle, matchDetail, roomPill, objective, statusText;
-        TextMeshProUGUI staminaValue, interactPrompt;
-        Image staminaFill;
+        TextMeshProUGUI effects, interactPrompt;
+        VitalsView soloVitals;
         readonly List<Image> crosshairTicks = new();
-        TextMeshProUGUI aliveText, hintText, hpValue, shieldText, bagPanelCount, touchToggle, spellKey, bagKey;
+        TextMeshProUGUI aliveText, hintText, bagPanelCount, touchToggle, spellKey, bagKey;
         TextMeshProUGUI craftStatus, buildLabel, spellHint;
         long spellHintKey = long.MinValue;
         SpellNeeds spellHintNeeds;
@@ -126,7 +127,7 @@ namespace Wreckabulary
         InputBinding tipTextBinding;
         int tipTextVersion = -1;
         string matchShown, layoutShown, objectiveShown, roomShown = "\u0000";
-        int roundShown, targetShown, aliveShown = int.MinValue, hpShown = int.MinValue, staminaShown = int.MinValue, keyVersion = -1;
+        int roundShown, targetShown, aliveShown = int.MinValue, effectsShown = int.MinValue, keyVersion = -1;
         InputBinding keyBinding;
         string spellLabel = "", spellHintLabel = "", bagLabel = "", interactLabel = "";
         bool hubScene;
@@ -207,10 +208,10 @@ namespace Wreckabulary
             safe.offsetMin = safe.offsetMax = Vector2.zero;
             StateController.Register(UIState.GameplayHUD, safe.gameObject.AddComponent<CanvasGroup>());
             StyleLegacyText();
-            BuildTop(); BuildSide(); BuildStatus(); BuildVitals(); BuildTray(); BuildHint();
+            BuildTop(); BuildSide(); BuildStatus(); BuildVitals(); BuildEffects(); BuildTray(); BuildHint();
             BuildComposer(); BuildTouchControls(); BuildNavigation(); BuildBagPanel(); BuildPause(); BuildCrosshair(); BuildCards();
             BuildScoreboard();
-            foreach (var part in new[] { side, tray, vitals, hint, status, bar, (RectTransform)craftRoot.transform, (RectTransform)touchRoot.transform, (RectTransform)typewriterControls.transform })
+            foreach (var part in new[] { side, tray, vitals, effects.rectTransform, hint, status, bar, (RectTransform)craftRoot.transform, (RectTransform)touchRoot.transform, (RectTransform)typewriterControls.transform })
                 bagHides.Add(part.gameObject.AddComponent<CanvasGroup>());
             ShowTouchControls(Application.isMobilePlatform);
             ApplySafeArea();
@@ -369,27 +370,26 @@ namespace Wreckabulary
 
         void BuildVitals()
         {
-            vitals = Rect("Vitals", safe, Vector2.zero, new Vector2(39f, 110f), new Vector2(360f, 80f));
+            vitals = Rect("Vitals", safe, Vector2.zero, new Vector2(VitalsX, VitalsY), new Vector2(VitalsBarX + PlayerBar.SoloWidth, PlayerBar.SoloTall));
             vitals.pivot = Vector2.zero;
-            var cross = Rect("HP cross", vitals, new Vector2(0f, 1f), new Vector2(17f, -40f), new Vector2(33f, 33f));
-            foreach (var (bar, size) in new[] { ("Across", new Vector2(33f, 11f)), ("Down", new Vector2(11f, 33f)) })
+            var cross = Rect("HP cross", vitals, new Vector2(0f, 1f), new Vector2(VitalsCrossX, -PlayerBar.SoloHeight * .5f), new Vector2(VitalsCross, VitalsCross));
+            foreach (var (bar, size) in new[] { ("Across", new Vector2(VitalsCross, VitalsCross / 3f)), ("Down", new Vector2(VitalsCross / 3f, VitalsCross)) })
             {
                 var piece = CreateImage(bar, cross, new Vector2(.5f, .5f), Vector2.zero, size, OnGame);
                 var shadow = piece.gameObject.AddComponent<Shadow>(); shadow.effectColor = Shade; shadow.effectDistance = new Vector2(0f, -2f);
             }
-            hpValue = Text("HP", vitals, new Vector2(0f, 1f), new Vector2(46f, -8f), new Vector2(162f, 64f), 56f, OnGame, TextAlignmentOptions.Left);
-            hpValue.rectTransform.pivot = new Vector2(0f, 1f);
-            OnGameText(hpValue);
-            shieldText = Text("Shield", vitals, new Vector2(0f, 1f), new Vector2(46f, -67f), new Vector2(320f, 26f), 18f, Hex(0x9ff8d3), TextAlignmentOptions.Left);
-            shieldText.rectTransform.pivot = new Vector2(0f, 1f);
-            OnGameText(shieldText);
-            staminaValue = Text("Stamina", vitals, new Vector2(0f, 1f), new Vector2(220f, -14f), new Vector2(140f, 46f), 36f, Hex(0x9ff8d3), TextAlignmentOptions.Left);
-            staminaValue.rectTransform.pivot = new Vector2(0f, 1f);
-            OnGameText(staminaValue);
-            var track = CreateImage("Stamina track", vitals, new Vector2(0f, 1f), new Vector2(220f, -63f), new Vector2(130f, 5f), Hex(0x10292b, .75f));
-            track.rectTransform.pivot = new Vector2(0f, 1f);
-            staminaFill = CreateImage("Stamina fill", track.transform, new Vector2(0f, .5f), Vector2.zero, new Vector2(130f, 5f), Hex(0x9ff8d3));
-            staminaFill.rectTransform.pivot = new Vector2(0f, .5f);
+            soloVitals = MakeVitals(vitals, new Vector2(0f, 1f), PlayerBar.SoloNumberSize);
+            LayVitals(soloVitals, VitalsBarX, 0f, PlayerBar.SoloWidth, PlayerBar.SoloHeight,
+                -(PlayerBar.SoloHeight + PlayerBar.SoloStaminaGap), PlayerBar.SoloStaminaHeight, PlayerBar.SoloPad);
+        }
+
+        void BuildEffects()
+        {
+            effects = Text("Effects", safe, Vector2.zero, Vector2.zero, new Vector2(EffectsWidth, EffectsHeight), EffectsSize, Breath, TextAlignmentOptions.BottomLeft);
+            effects.rectTransform.pivot = Vector2.zero;
+            OnGameText(effects);
+            effects.text = "";
+            effects.gameObject.SetActive(false);
         }
 
         void BuildTray()
@@ -1082,29 +1082,32 @@ namespace Wreckabulary
         void RefreshVitals()
         {
             bool shown = LocalPlayer && !FullCardShown;
-            vitals.gameObject.SetActive(shown);
-            if (!shown) return;
-            var health = LocalPlayer.Health;
-            int hp = health.IsDowned ? -1 - Mathf.CeilToInt(health.BleedOutLeft) : Mathf.CeilToInt(health.Current);
-            if (hp != hpShown)
-            {
-                hpShown = hp;
-                hpValue.text = health.IsDowned ? $"DOWN <size=40%>{Mathf.CeilToInt(health.BleedOutLeft)}s</size>" : $"{hp}<size=30%> HP</size>";
-            }
-            int stamina = Mathf.CeilToInt(health.Stamina);
-            if (stamina != staminaShown) { staminaShown = stamina; staminaValue.text = $"{stamina}<size=45%> STA</size>"; }
-            var staminaColor = health.Stamina < health.Rules.DodgeStamina ? Hex(0xffc568) : Hex(0x9ff8d3);
-            staminaValue.color = staminaFill.color = staminaColor;
-            staminaFill.rectTransform.sizeDelta = new Vector2(130f * health.StaminaFraction, 5f);
-            bool low = health.IsDowned || health.Current < 30f;
-            hpValue.color = low ? LowHp : OnGame;
-            hpValue.rectTransform.localScale = Vector3.one * (low ? 1f + .06f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 5f)) : 1f);
+            bool solo = shown && !HealthOnBar;
+            if (vitals.gameObject.activeSelf != solo) vitals.gameObject.SetActive(solo);
+            if (solo) ShowVitals(soloVitals, LocalPlayer.Health, true);
+            RefreshEffects(shown, solo);
+        }
+
+        void RefreshEffects(bool shown, bool solo)
+        {
+            var health = shown ? LocalPlayer.Health : null;
+            int shield = health ? Mathf.CeilToInt(health.Bubble) : 0;
+            bool bleeding = health && health.BleedingLeft > 0f, slowed = shown && LocalPlayer.SlowLeft > 0f;
+            int key = shown ? shield * 4 + (bleeding ? 2 : 0) + (slowed ? 1 : 0) : -1;
+            if (key != effectsShown) { effectsShown = key; effects.text = EffectsLine(shield, bleeding, slowed); }
+            bool on = effects.text.Length > 0;
+            if (effects.gameObject.activeSelf != on) effects.gameObject.SetActive(on);
+            var at = vitals.anchoredPosition + new Vector2(VitalsBarX, solo ? PlayerBar.SoloTall + EffectsGap : 0f);
+            if (effects.rectTransform.anchoredPosition != at) effects.rectTransform.anchoredPosition = at;
+        }
+
+        string EffectsLine(int shield, bool bleeding, bool slowed)
+        {
             sb.Clear();
-            if (health.Bubble > 0f) sb.Append($"+{Mathf.CeilToInt(health.Bubble)} SHIELD");
-            if (health.BleedingLeft > 0f) sb.Append(sb.Length > 0 ? "  " : "").Append("<color=#FF6B5E>BLEEDING</color>");
-            if (LocalPlayer.SlowLeft > 0f) sb.Append(sb.Length > 0 ? "  " : "").Append("<color=#FFC568>SLOWED</color>");
-            shieldText.text = sb.ToString();
-            for (int i = 0; i < 2; i++) ShowHand(hands[i], i, false);
+            if (shield > 0) sb.Append('+').Append(shield).Append(" SHIELD");
+            if (bleeding) sb.Append(sb.Length > 0 ? "  " : "").Append("<color=#FF6B5E>BLEEDING</color>");
+            if (slowed) sb.Append(sb.Length > 0 ? "  " : "").Append("<color=#FFC568>SLOWED</color>");
+            return sb.ToString();
         }
         void ShowHand(HandView view, int slot, bool detail)
         {
@@ -1141,6 +1144,7 @@ namespace Wreckabulary
             bool shown = LocalPlayer && !FullCardShown;
             tray.gameObject.SetActive(shown);
             if (!shown) return;
+            for (int i = 0; i < 2; i++) ShowHand(hands[i], i, false);
             var inv = LocalPlayer.Inventory;
             FillCells(trayCells, inv);
             var summon = LocalPlayer.Summoner;

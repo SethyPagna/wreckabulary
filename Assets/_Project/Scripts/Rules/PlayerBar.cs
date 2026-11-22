@@ -18,16 +18,18 @@ namespace Wreckabulary.Rules
 
     public static class PlayerBar
     {
-        public const int RoomySeats = 4, MostSeats = 8;
+        public static readonly bool StaminaShown = true;
+        public const int RoomySeats = 4, MostSeats = 8, BarRadius = 4;
         public const float Top = 10f, Clearance = 12f, Margin = 8f, Edge = 24f, TeamGap = 36f;
         public const float RoomyCard = 96f, SnugCard = 78f, RoomyPortrait = 68f, SnugPortrait = 56f;
         public const float RoomyGap = 8f, SnugGap = 6f, Frame = 5f, Inset = 3f;
-        public const float HealthGap = 4f, HealthHeight = 6f, NameGap = 2f, NameHeight = 22f, ScoreHeight = 20f;
+        public const float HealthGap = 4f, HealthHeight = 22f, StaminaGap = 3f, StaminaHeight = 5f, NameGap = 2f, NameHeight = 22f, ScoreHeight = 20f;
+        public const float NumberSize = 18f, NumberMin = 16f, NumberPad = 4f;
+        public const float SoloWidth = 240f, SoloHeight = 36f, SoloNumberSize = 30f, SoloPad = 8f, SoloStaminaGap = 4f, SoloStaminaHeight = 6f;
         public const float NameSize = 18f, ScoreSize = 16f, StatusSize = 16f, StatusMin = 15f;
         public const float PlatePad = 10f, PlateRadius = 12f;
-        public const float LowHealth = .35f;
-        public static readonly float Height = CardHeight(RoomySeats);
-        public static readonly float Shift = Height + PlatePad + Clearance;
+        public static float Height => CardHeight(RoomySeats);
+        public static float Shift => Height + PlatePad + Clearance;
 
         public static bool Visible(int seats) => seats > 1;
 
@@ -41,7 +43,13 @@ namespace Wreckabulary.Rules
 
         public static float HealthY(int seats) => Portrait(seats) + HealthGap;
 
-        public static float NameY(int seats) => HealthY(seats) + HealthHeight + NameGap;
+        public static float StaminaY(int seats) => HealthY(seats) + HealthHeight + StaminaGap;
+
+        static float StaminaRow => StaminaShown ? StaminaGap + StaminaHeight : 0f;
+
+        public static float NameY(int seats) => HealthY(seats) + HealthHeight + StaminaRow + NameGap;
+
+        public static float SoloTall => SoloHeight + (StaminaShown ? SoloStaminaGap + SoloStaminaHeight : 0f);
 
         public static float ScoreY(int seats) => NameY(seats) + NameHeight;
 
@@ -50,8 +58,6 @@ namespace Wreckabulary.Rules
         public static float PlateWidth(float width) => width + 2f * PlatePad;
 
         public static float PlateHeight(int seats) => CardHeight(seats) + 2f * PlatePad;
-
-        public static bool Healthy(float fraction) => fraction > LowHealth;
 
         public static float ShiftFor(float top, float scale) => ShiftFor(top, scale, Height);
 

@@ -11,22 +11,28 @@ namespace Wreckabulary
     {
         public const int Size = 128, Layer = 31;
         const float Distance = 3f, Yaw = 20f, Pitch = 8f, HeadDrop = .3f, HeadSpan = .95f;
+        const float KeyPitch = 45f, KeyYaw = -30f, PlainKeyIntensity = 1.1f;
+        static readonly Color PlainKeyColour = new(1f, .91f, .76f);
 
         static Camera lens;
+        static Light key;
         static UniversalRenderPipeline.SingleCameraRequest request;
         static readonly List<Renderer> parts = new();
         static readonly List<int> layers = new();
+        static readonly List<Light> dimmed = new();
 
         PlayerController player;
         PlayerAppearance appearance;
         RenderTexture texture;
-        GameObject framed;
+        GameObject framed, posed;
+        SkinnedMeshRenderer[] skins;
         Transform head, chest;
         Renderer face;
-        int renderedVersion = int.MinValue;
+        int renderedVersion = int.MinValue, posedVersion = int.MinValue, posedFrame;
 
         public static readonly Color Background = new(.086f, .188f, .184f, 0f);
         public static bool CanRender => SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null;
+        public static Light KeyLight => key;
         public Texture Texture => renderedVersion != int.MinValue ? texture : null;
         public int Renders { get; private set; }
 
@@ -42,8 +48,21 @@ namespace Wreckabulary
             get
             {
                 if (!CanRender || !Ready(out var model)) return false;
-                return model != framed || appearance.OutfitVersion != renderedVersion;
+                return (model != framed || appearance.OutfitVersion != renderedVersion) && Posed(model);
             }
+        }
+
+        bool Posed(GameObject model)
+        {
+            if (model != posed || appearance.OutfitVersion != posedVersion)
+            {
+                if (model != posed) skins = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                foreach (var skin in skins) if (skin) skin.updateWhenOffscreen = true;
+                posed = model;
+                posedVersion = appearance.OutfitVersion;
+                posedFrame = Time.frameCount;
+            }
+            return Time.frameCount > posedFrame;
         }
 
         public Texture Refresh(bool allowRender)
@@ -118,6 +137,7 @@ namespace Wreckabulary
 
         bool Draw(GameObject model)
         {
+            CuteFace.Settle(skins);
             if (!Frame(model, out var centre, out float half)) return false;
             if (!texture)
             {
@@ -139,6 +159,7 @@ namespace Wreckabulary
             camera.enabled = true;
             try
             {
+                LightUp();
                 request.destination = texture;
                 if (RenderPipeline.SupportsRenderRequest(camera, request)) RenderPipeline.SubmitRenderRequest(camera, request);
                 else
@@ -150,6 +171,7 @@ namespace Wreckabulary
             }
             finally
             {
+                LightDown();
                 camera.enabled = false;
                 for (int i = 0; i < parts.Count; i++) if (parts[i]) parts[i].gameObject.layer = layers[i];
                 request.destination = null;
@@ -157,6 +179,42 @@ namespace Wreckabulary
             }
             Renders++;
             return true;
+        }
+
+        static void LightUp()
+        {
+            var lamp = Key();
+            var sun = RenderSettings.sun;
+            bool lit = sun && sun != lamp && sun.isActiveAndEnabled && sun.intensity > 0f;
+            lamp.color = lit ? sun.color : PlainKeyColour;
+            lamp.intensity = lit ? sun.intensity : PlainKeyIntensity;
+            lamp.useColorTemperature = lit && sun.useColorTemperature;
+            if (lit) lamp.colorTemperature = sun.colorTemperature;
+            dimmed.Clear();
+            foreach (var other in Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (other != lamp && other.enabled) { other.enabled = false; dimmed.Add(other); }
+            lamp.enabled = true;
+        }
+
+        static void LightDown()
+        {
+            if (key) key.enabled = false;
+            foreach (var other in dimmed) if (other) other.enabled = true;
+            dimmed.Clear();
+        }
+
+        static Light Key()
+        {
+            if (key) return key;
+            var holder = new GameObject("Seat portrait light") { hideFlags = HideFlags.HideInHierarchy };
+            holder.transform.SetParent(Lens().transform, false);
+            holder.transform.localRotation = Quaternion.Euler(KeyPitch, KeyYaw, 0f);
+            key = holder.AddComponent<Light>();
+            key.enabled = false;
+            key.type = LightType.Directional;
+            key.shadows = LightShadows.None;
+            key.cullingMask = 1 << Layer;
+            return key;
         }
 
         static Camera Lens()
