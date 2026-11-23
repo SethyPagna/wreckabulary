@@ -496,7 +496,7 @@ namespace Wreckabulary.Rules.Surroundings
         {
             if (style.Skyline == null) return;
             cards = CardAsks();
-            skyline = new CourseSkylinePlanner(style.Skyline, seed, box, groundY, style.Clear);
+            skyline = new CourseSkylinePlanner(style.Skyline, seed, footprint, groundY, style.Clear);
             skyline.Plan(TownBlocks);
             var sources = cards.Select((c, k) => $"{c.Source} #{k}").ToList();
             thinnedCards = skyline.Thin(cards.Select(c => c.Piece).ToList(), sources, cards.Select(CardShape).ToList());
@@ -523,6 +523,7 @@ namespace Wreckabulary.Rules.Surroundings
             int fades = g.Fades.Count;
             double halfDiagonal = footprint.HalfDiagonal;
             zones.Add(Disc(halfDiagonal + g.Reach, g.Slot, g.Tint, groundY - FadeStep * fades, "ground"));
+            if (g.CityReach > 0) zones.Add(Disc(halfDiagonal + g.CityReach, g.CitySlot, g.CityTint, groundY - FadeStep * (fades - .5f), "city ground"));
             for (int k = 0; k < fades; k++)
                 zones.Add(Disc(halfDiagonal + g.Fades[k].reach, g.Slot, g.Fades[k].tint, groundY - FadeStep * (fades - 1 - k), $"ground fade {k}"));
             if (segments.Count > 0)

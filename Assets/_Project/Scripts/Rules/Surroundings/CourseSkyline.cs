@@ -9,13 +9,30 @@ namespace Wreckabulary.Rules.Surroundings
 {
     public static class CourseSkyline
     {
-        public const int HighRenderers = 6, HighTriangles = 60000, LowRenderers = 2, LowTriangles = 12000;
+        public const int HighRenderers = 8, HighTriangles = 120000, LowRenderers = 3, LowTriangles = 24000;
+        public const float FarClip = 1800f, ViewMargin = 100f, EyeLift = 10f;
         public const string WallSlot = SurroundingsSlots.Plaster, GlassSlot = "bk_glass_dark", MetalSlot = "bk_metal";
 
         public static readonly IReadOnlyList<string> Slots = new[] { WallSlot, GlassSlot, MetalSlot };
 
+        public static float ViewReach => FarClip - ViewMargin;
+
         public static IReadOnlyList<SkylineMeshPart> Parts(CourseSkylineResult skyline) =>
             CourseSkylineGeometry.Parts(skyline ?? throw new ArgumentNullException(nameof(skyline)));
+
+        public static double FarthestView(CourseFootprint footprint, IEnumerable<SkylineBox> boxes)
+        {
+            double eye = footprint.Top + EyeLift, farthest = 0;
+            var corners = new[] { (footprint.MinX, footprint.MinZ), (footprint.MaxX, footprint.MinZ), (footprint.MaxX, footprint.MaxZ), (footprint.MinX, footprint.MaxZ) };
+            foreach (var b in boxes)
+                foreach (var c in b.Corners())
+                    foreach (var (x, z) in corners)
+                    {
+                        double flat = Math.Sqrt((c.x - x) * (c.x - x) + (c.z - z) * (c.z - z)), rise = Math.Max(Math.Abs(b.Y - eye), Math.Abs(b.TopY - eye));
+                        farthest = Math.Max(farthest, Math.Sqrt(flat * flat + rise * rise));
+                    }
+            return farthest;
+        }
     }
 
     sealed class CourseSkylineLot
@@ -24,34 +41,41 @@ namespace Wreckabulary.Rules.Surroundings
         public Footprint Lot;
         public Rect Bounds;
         public Flat At;
-        public double Yaw, Width, Depth, Height, Distance, Heading, Weight;
+        public double Yaw, Width, Depth, Height, Distance, Heading, Weight, Core;
         public int Cluster;
-        public bool Downtown, Dropped;
+        public bool Downtown, Dropped, Crane;
+        public string Type, Landmark;
         public CourseFacadeSpec Facade;
         public uint Wall, Pane;
-        public double Roll;
+        public double Roll, CraneRoll;
     }
 
     sealed class CourseSkylinePlanner
     {
-        const double Slack = 1e-6, RingLift = .3, CoreFloor = .75;
+        const double Slack = 1e-6, RingLift = .3, CoreFloor = .75, DowntownSkew = .75, NeedleTurn = 80, NeedleReach = 150, ClockStep = 25;
+        const double TopAllowance = 70, CraneHeight = 70, ReachStep = .3;
+        const int ReachSteps = 4;
+
+        static readonly string[] CraneTypes = { CourseSkylineTypes.Block, CourseSkylineTypes.Curtain, CourseSkylineTypes.Deco, CourseSkylineTypes.Slab };
 
         readonly CourseSkylineSpec spec;
         readonly ulong seed;
         readonly Rect box;
         readonly Flat centre;
+        readonly CourseFootprint footprint;
         readonly float groundY, clear;
         readonly List<double> headings = new List<double>();
         readonly List<CourseSkylineLot> lots = new List<CourseSkylineLot>();
         readonly List<string> thinned = new List<string>();
 
-        public CourseSkylinePlanner(CourseSkylineSpec spec, ulong seed, Rect box, float groundY, float clear)
+        public CourseSkylinePlanner(CourseSkylineSpec spec, ulong seed, CourseFootprint footprint, float groundY, float clear)
         {
             this.spec = spec;
             this.seed = seed;
-            this.box = box;
+            this.footprint = footprint;
             this.groundY = groundY;
             this.clear = clear;
+            box = footprint.Rect;
             centre = box.Centre;
         }
 
@@ -62,6 +86,8 @@ namespace Wreckabulary.Rules.Surroundings
         static float Q(double value, double step) => (float)(Math.Round(value / step, MidpointRounding.AwayFromZero) * step);
 
         static double Lerp(double a, double b, double t) => a + (b - a) * t;
+
+        static double Lerp((float min, float max) range, double t) => range.min + (range.max - range.min) * t;
 
         static double Clamp01(double t) => t < 0 ? 0 : t > 1 ? 1 : t;
 
@@ -80,6 +106,9 @@ namespace Wreckabulary.Rules.Surroundings
             for (int i = -cells; i <= cells; i++)
                 for (int j = -cells; j <= cells; j++)
                     Consider(i, j, blocked);
+            PlaceLandmarks();
+            foreach (var lot in Live.ToList())
+                if (FarthestView(lot) > CourseSkyline.ViewReach) lot.Dropped = true;
         }
 
         void PickHeadings()
@@ -113,6 +142,7 @@ namespace Wreckabulary.Rules.Surroundings
             double roll = rng.NextDouble(), tallness = rng.NextDouble(), wide = rng.NextDouble(), deep = rng.NextDouble();
             double jx = rng.NextDouble(), jz = rng.NextDouble(), turn = rng.NextDouble(), look = rng.NextDouble();
             double wallPick = rng.NextDouble(), panePick = rng.NextDouble(), lowRoll = rng.NextDouble(), outlier = rng.NextDouble();
+            double typePick = rng.NextDouble(), craneRoll = rng.NextDouble();
             var cell = centre + new Flat(i * spec.Cell, j * spec.Cell);
             double distance = box.Distance(cell);
             var (weight, cluster) = WeightAt((cell - centre).Yaw);
@@ -123,9 +153,9 @@ namespace Wreckabulary.Rules.Surroundings
             if (!inDown && !inRing) return;
             double chance = inDown ? Lerp(ring.Chance, down.Chance, weight) : ring.Chance;
             if (roll >= chance) return;
-            double height = !inDown && outlier < ring.TallChance ? Lerp(ring.Tall.min, ring.Tall.max, tallness) : Height(inDown, weight, distance, tallness);
-            var widths = inDown ? down.Width : ring.Width;
-            double width = Math.Min(Lerp(widths.min, widths.max, wide), spec.LotLimit), depth = Math.Min(Lerp(widths.min, widths.max, deep), spec.LotLimit);
+            var type = PickType(inDown ? weight : 0, typePick);
+            double height = HeightFor(type, inDown, weight, distance, tallness, outlier);
+            var (width, depth) = SizeFor(type.Id, inDown, wide, deep);
             double yaw = 90 * Math.Min(3, (int)(turn * 4));
             double lotW = width + 2 * spec.Plaza, lotD = depth + 2 * spec.Plaza;
             bool square = Math.Abs(yaw % 180) < 1;
@@ -137,40 +167,120 @@ namespace Wreckabulary.Rules.Surroundings
             var bounds = shape.Bounds();
             double gap = shape.Distance(box);
             if (gap < clear - Slack || blocked(shape, bounds)) return;
-            var facade = PickFacade((height - ring.Height.min) / Math.Max(1, down.Height.max - ring.Height.min), look);
+            var facade = spec.Facade(type.Facades, look);
             lots.Add(new CourseSkylineLot
             {
                 Key = key, Lot = shape, Bounds = bounds, At = at, Yaw = yaw, Width = Q(width, .001), Depth = Q(depth, .001), Height = Q(height, .01),
-                Distance = gap, Heading = (at - centre).Yaw, Weight = weight, Cluster = cluster, Downtown = inDown, Facade = facade,
-                Wall = facade.Walls[Math.Min(facade.Walls.Count - 1, (int)(wallPick * facade.Walls.Count))],
-                Pane = facade.Panes[Math.Min(facade.Panes.Count - 1, (int)(panePick * facade.Panes.Count))],
-                Roll = lowRoll,
+                Distance = gap, Heading = (at - centre).Yaw, Weight = weight, Core = weight * CoreAt(distance), Cluster = cluster, Downtown = inDown,
+                Type = type.Id, Facade = facade, Wall = Pick(facade.Walls, wallPick), Pane = Pick(facade.Panes, panePick), Roll = lowRoll, CraneRoll = craneRoll,
             });
         }
 
-        double Height(bool inDown, double weight, double distance, double tallness)
+        static uint Pick(IReadOnlyList<uint> list, double pick) => list[Math.Min(list.Count - 1, (int)(pick * list.Count))];
+
+        CourseTypeSpec PickType(double downtown, double pick)
         {
-            var ring = spec.Ring.Height;
-            var band = spec.Downtown.Band;
-            double middle = (band.From + band.To) * .5, half = Math.Max(1, (band.To - band.From) * .5);
-            double core = Clamp01(1 - Math.Abs(distance - middle) / half);
-            double lift = inDown ? weight * (CoreFloor + (1 - CoreFloor) * core) : weight * RingLift;
-            double low = Lerp(ring.min, band.Height.min, lift), high = Lerp(ring.max, band.Height.max, lift);
-            return Lerp(low, high, tallness);
+            double total = spec.Types.Sum(t => t.WeightAt(downtown));
+            double at = pick * total;
+            foreach (var type in spec.Types)
+            {
+                double w = type.WeightAt(downtown);
+                if (w <= 0) continue;
+                at -= w;
+                if (at < 0) return type;
+            }
+            return spec.Types.Last(t => t.WeightAt(downtown) > 0);
         }
 
-        CourseFacadeSpec PickFacade(double tall, double pick)
+        double CoreAt(double distance)
         {
-            float t = (float)Clamp01(tall);
-            double total = spec.Facades.Sum(f => f.WeightAt(t));
-            if (total <= 0) return spec.Facades[0];
-            double at = pick * total;
-            foreach (var facade in spec.Facades)
+            var band = spec.Downtown.Band;
+            double middle = (band.From + band.To) * .5, half = Math.Max(1, (band.To - band.From) * .5);
+            return Clamp01(1 - Math.Abs(distance - middle) / half);
+        }
+
+        double HeightFor(CourseTypeSpec type, bool inDown, double weight, double distance, double tallness, double outlier)
+        {
+            if (type.Height.HasValue) return Lerp(type.Height.Value, tallness);
+            var ring = spec.Ring;
+            if (!inDown && outlier < ring.TallChance) return Lerp(ring.Tall, tallness);
+            var band = spec.Downtown.Band;
+            double rise = ring.RowRise * Clamp01((distance - ring.From) / Math.Max(1, ring.To - ring.From));
+            double lift = inDown ? weight * (CoreFloor + (1 - CoreFloor) * CoreAt(distance)) : weight * RingLift;
+            double low = Lerp(ring.Height.min + rise, band.Height.min, lift), high = Lerp(ring.Height.max + rise, band.Height.max, lift);
+            return Lerp(low, high, inDown ? Math.Pow(tallness, DowntownSkew) : tallness);
+        }
+
+        (double width, double depth) SizeFor(string type, bool inDown, double wide, double deep)
+        {
+            double limit = spec.LotLimit;
+            var widths = inDown ? spec.Downtown.Band.Width : spec.Ring.Width;
+            switch (type)
             {
-                at -= facade.WeightAt(t);
-                if (at < 0) return facade;
+                case CourseSkylineTypes.Loft: case CourseSkylineTypes.LPlan: case CourseSkylineTypes.UPlan:
+                    return (limit * Lerp(.82, 1, wide), limit * Lerp(.82, 1, deep));
+                case CourseSkylineTypes.Slab: return (limit * Lerp(.85, 1, wide), Lerp(8, 10.5, deep));
+                case CourseSkylineTypes.Twin: return (limit * Lerp(.88, 1, wide), limit * Lerp(.4, .5, deep));
+                case CourseSkylineTypes.Round: case CourseSkylineTypes.Deco:
+                    double side = Math.Min(Lerp(widths, wide), limit);
+                    return (side, side);
+                default: return (Math.Min(Lerp(widths, wide), limit), Math.Min(Lerp(widths, deep), limit));
             }
-            return spec.Facades[spec.Facades.Count - 1];
+        }
+
+        void PlaceLandmarks()
+        {
+            var band = spec.Downtown.Band;
+            for (int k = 0; k < headings.Count; k++)
+            {
+                var best = Live.Where(l => l.Downtown && l.Cluster == k && l.Landmark == null).OrderByDescending(l => l.Core).ThenBy(l => l.Key).FirstOrDefault();
+                if (best != null) Make(best, CourseSkylineTypes.Supertall, spec.Supertall.Height, spec.SupertallFacades, Random("landmark:supertall", k));
+            }
+            var rng = Random("landmark:needle");
+            if (rng.NextDouble() < spec.NeedleChance)
+            {
+                double heading = (headings.Count > 0 ? headings[0] : 0) + 180 + (rng.NextDouble() - .5) * NeedleTurn;
+                var needle = Nearest(heading, NeedleReach, Math.Min(spec.LotLimit, 20));
+                if (needle != null) Make(needle, CourseSkylineTypes.Needle, spec.Needle.Height, Array.Empty<string>(), rng);
+            }
+            var clockRng = Random("landmark:clock");
+            var clock = Nearest(clockRng.NextDouble() * 360, spec.Ring.From + ClockStep, 0);
+            if (clock != null) Make(clock, CourseSkylineTypes.Clock, spec.Clock.Height, spec.ClockFacades, clockRng);
+            foreach (var lot in Live)
+                lot.Crane = lot.Downtown && lot.Landmark == null && lot.Height >= CraneHeight && lot.CraneRoll < spec.CraneChance && CraneTypes.Contains(lot.Type);
+        }
+
+        CourseSkylineLot Nearest(double heading, double distance, double least)
+        {
+            var dir = Flat.Heading(heading);
+            double reach = Math.Abs(dir.X) * (box.MaxX - box.MinX) * .5 + Math.Abs(dir.Z) * (box.MaxZ - box.MinZ) * .5 + distance;
+            var target = centre + dir * reach;
+            return Live.Where(l => l.Landmark == null && Math.Min(l.Lot.HalfWidth, l.Lot.HalfDepth) * 2 - 2 * spec.Plaza >= least)
+                .OrderBy(l => (l.At - target).Length).ThenBy(l => l.Key).FirstOrDefault();
+        }
+
+        void Make(CourseSkylineLot lot, string type, (float min, float max) heights, IReadOnlyList<string> facades, Pcg32 rng)
+        {
+            double side = Math.Min(lot.Lot.HalfWidth, lot.Lot.HalfDepth) * 2 - 2 * spec.Plaza;
+            lot.Type = type;
+            lot.Landmark = type;
+            lot.Width = lot.Depth = Q(side, .001);
+            lot.Height = Q(Lerp(heights, rng.NextDouble()), .01);
+            lot.Facade = facades.Count > 0 ? spec.Facade(facades, rng.NextDouble()) : lot.Facade;
+            lot.Wall = Pick(lot.Facade.Walls, rng.NextDouble());
+            lot.Pane = Pick(lot.Facade.Panes, rng.NextDouble());
+        }
+
+        double FarthestView(CourseSkylineLot lot)
+        {
+            double eye = footprint.Top + CourseSkyline.EyeLift, rise = Math.Max(Math.Abs(groundY - eye), Math.Abs(groundY + lot.Height + TopAllowance - eye)), farthest = 0;
+            foreach (var c in lot.Lot.Corners())
+                foreach (var corner in box.Corners())
+                {
+                    double flat = (c - corner).Length;
+                    farthest = Math.Max(farthest, Math.Sqrt(flat * flat + rise * rise));
+                }
+            return farthest;
         }
 
         public HashSet<int> Thin(IReadOnlyList<string> pieces, IReadOnlyList<string> sources, IReadOnlyList<Footprint> cards)
@@ -202,12 +312,11 @@ namespace Wreckabulary.Rules.Surroundings
 
         public CourseSkylineResult Finish(CourseSurroundingsTier tier, List<string> problems)
         {
-            var live = Live.ToList();
-            var kept = Trim(live, true, out int trimmed);
+            var kept = Trim(Live.ToList(), true, out int trimmed, out float reach);
             if (tier == CourseSurroundingsTier.Low)
             {
-                var picked = kept.Where(k => k.lot.Roll < (k.lot.Downtown ? spec.KeepDowntown : spec.KeepRing)).Select(k => k.lot).ToList();
-                kept = Trim(picked, false, out trimmed);
+                var picked = kept.Where(k => k.lot.Landmark != null || k.lot.Roll < (k.lot.Downtown ? spec.KeepDowntown : spec.KeepRing)).Select(k => k.lot).ToList();
+                kept = Trim(picked, false, out trimmed, out reach);
             }
             var towers = kept.Select(k => k.tower).ToList();
             for (int n = 0; n < towers.Count; n++) towers[n].Ordinal = n;
@@ -217,23 +326,36 @@ namespace Wreckabulary.Rules.Surroundings
             result.Groups = CourseSkylineGeometry.Groups(towers);
             result.ThinnedCards = thinned.ToList();
             result.Trimmed = trimmed;
+            result.DetailReach = reach;
             Check(result, problems);
             result.Canonical = Canonical(result);
             result.Hash = Hash64.ToHex(Hash64.Of(result.Canonical));
             return result;
         }
 
-        List<(CourseSkylineLot lot, CourseTower tower)> Trim(List<CourseSkylineLot> chosen, bool full, out int trimmed)
+        List<(CourseSkylineLot lot, CourseTower tower)> Trim(List<CourseSkylineLot> chosen, bool full, out int trimmed, out float reach)
         {
             int rendererLimit = full ? CourseSkyline.HighRenderers : CourseSkyline.LowRenderers;
             int triangleLimit = full ? CourseSkyline.HighTriangles : CourseSkyline.LowTriangles;
-            var kept = chosen.Select(l => (lot: l, tower: Tower(l, full))).ToList();
-            int triangles = kept.Sum(k => k.tower.Triangles);
-            var order = kept.OrderBy(k => k.lot.Downtown ? 1 : 0).ThenBy(k => k.lot.Height).ThenByDescending(k => k.lot.Distance).ThenByDescending(k => k.lot.Key).ToList();
+            bool Fits(List<(CourseSkylineLot lot, CourseTower tower)> set) =>
+                set.Sum(k => k.tower.Triangles) <= triangleLimit && CourseSkylineGeometry.Groups(set.Select(k => k.tower)).Sum(g => g.Renderers) <= rendererLimit;
             trimmed = 0;
+            reach = 0;
+            List<(CourseSkylineLot lot, CourseTower tower)> kept = null;
+            for (int step = 0; step < (full ? ReachSteps : 1); step++)
+            {
+                reach = full ? Q(spec.DetailReach * Math.Max(0, 1 - step * ReachStep), .01) : 0;
+                if (step == ReachSteps - 1) reach = 0;
+                float detail = reach;
+                kept = chosen.Select(l => (lot: l, tower: Tower(l, full, detail))).ToList();
+                if (Fits(kept)) return kept;
+            }
+            int triangles = kept.Sum(k => k.tower.Triangles);
+            var order = kept.OrderBy(k => k.lot.Landmark != null ? 1 : 0).ThenBy(k => k.lot.Downtown ? 1 : 0).ThenByDescending(k => k.lot.Distance)
+                .ThenBy(k => k.lot.Height).ThenByDescending(k => k.lot.Key).ToList();
             foreach (var entry in order)
             {
-                if (triangles <= triangleLimit && CourseSkylineGeometry.Groups(kept.Select(k => k.tower)).Sum(g => g.Renderers) <= rendererLimit) break;
+                if (triangles <= triangleLimit && Fits(kept)) break;
                 kept.Remove(entry);
                 triangles -= entry.tower.Triangles;
                 trimmed++;
@@ -241,14 +363,19 @@ namespace Wreckabulary.Rules.Surroundings
             return kept;
         }
 
-        CourseTower Tower(CourseSkylineLot lot, bool full) => new CourseTower
+        CourseTower Tower(CourseSkylineLot lot, bool full, float reach)
         {
-            X = (float)lot.At.X, Z = (float)lot.At.Z, Yaw = (float)lot.Yaw, Width = (float)lot.Width, Depth = (float)lot.Depth,
-            LotWidth = (float)lot.Lot.HalfWidth * 2, LotDepth = (float)lot.Lot.HalfDepth * 2, Ground = Q(groundY, .001), Height = (float)lot.Height,
-            Distance = Q(lot.Distance, .01), Heading = Q(lot.Heading, .01), Weight = Q(lot.Weight, .001), Downtown = lot.Downtown, Facade = lot.Facade.Id,
-            Wall = lot.Wall, Pane = lot.Pane, Source = lot.Downtown ? "downtown " + lot.Cluster : "ring",
-            Boxes = new CourseTowerBuilder(spec, lot, groundY, full).Build(Random("tower", lot.Key)),
-        };
+            bool detailed = full && (lot.Landmark != null || lot.Distance <= reach);
+            return new CourseTower
+            {
+                X = (float)lot.At.X, Z = (float)lot.At.Z, Yaw = (float)lot.Yaw, Width = (float)lot.Width, Depth = (float)lot.Depth,
+                LotWidth = (float)lot.Lot.HalfWidth * 2, LotDepth = (float)lot.Lot.HalfDepth * 2, Ground = Q(groundY, .001), Height = (float)lot.Height,
+                Distance = Q(lot.Distance, .01), Heading = Q(lot.Heading, .01), Weight = Q(lot.Weight, .001), Downtown = lot.Downtown, Detailed = detailed,
+                Crane = lot.Crane, Type = lot.Type, Landmark = lot.Landmark, Facade = lot.Facade.Id, Wall = lot.Wall, Pane = lot.Pane,
+                Source = lot.Landmark ?? (lot.Downtown ? "downtown " + lot.Cluster : "ring"),
+                Boxes = new CourseTowerShape(spec, lot, groundY, full, detailed).Build(Random("tower", lot.Key)),
+            };
+        }
 
         void Check(CourseSkylineResult result, List<string> problems)
         {
@@ -258,20 +385,23 @@ namespace Wreckabulary.Rules.Surroundings
             foreach (var tower in result.Towers)
                 foreach (var b in tower.Boxes)
                 {
-                    var shape = new Footprint(b.X, b.Z, b.Width, b.Depth, b.Yaw);
-                    if (shape.Distance(box) < clear - Slack) Problem($"skyline clear: the {b.Part} of the {tower.Source} tower at ({tower.X}, {tower.Z}) is inside the {clear} m margin");
-                    if (b.Y < groundY - Slack) Problem($"skyline ground: the {b.Part} of the {tower.Source} tower at ({tower.X}, {tower.Z}) sinks below the street");
+                    var shape = new Footprint(b.X, b.Z, b.Width * b.Reach, b.Depth * b.Reach, b.Yaw);
+                    if (shape.Distance(box) < clear - Slack) Problem($"skyline clear: the {b.Part} of the {tower.Source} {tower.Type} at ({tower.X}, {tower.Z}) is inside the {clear} m margin");
+                    if (b.Y < groundY - Slack) Problem($"skyline ground: the {b.Part} of the {tower.Source} {tower.Type} at ({tower.X}, {tower.Z}) sinks below the street");
                 }
+            double farthest = CourseSkyline.FarthestView(footprint, result.Boxes);
+            if (farthest > CourseSkyline.FarClip) Problem($"skyline far clip: a tower point is {farthest:0} m from a course corner, beyond the {CourseSkyline.FarClip} m camera far clip");
         }
 
         static string Canonical(CourseSkylineResult r)
         {
             var text = new StringBuilder();
-            text.Append("skyline ").Append(r.Tier).Append(' ').Append(string.Join(",", r.Headings.Select(h => F(h)))).Append('\n');
+            text.Append("skyline ").Append(r.Tier).Append(' ').Append(string.Join(",", r.Headings.Select(h => F(h)))).Append(" reach ").Append(F(r.DetailReach)).Append('\n');
             foreach (string card in r.ThinnedCards) text.Append("thin ").Append(card).Append('\n');
             foreach (var t in r.Towers)
             {
-                text.Append("tower ").Append(string.Join(" ", new[] { t.X, t.Z, t.Yaw, t.Width, t.Depth, t.Height, t.Top }.Select(F))).Append(' ')
+                text.Append("tower ").Append(t.Type).Append(' ').Append(t.Landmark ?? "-").Append(t.Crane ? " crane " : " - ").Append(t.Detailed ? "rich " : "plain ")
+                    .Append(string.Join(" ", new[] { t.X, t.Z, t.Yaw, t.Width, t.Depth, t.Height, t.Top }.Select(F))).Append(' ')
                     .Append(t.Facade).Append(' ').Append(Hex(t.Wall)).Append(' ').Append(Hex(t.Pane)).Append(' ').Append(t.Source).Append(' ')
                     .Append(t.Boxes.Count).Append(' ').Append(t.Triangles).Append('\n');
             }
@@ -282,169 +412,6 @@ namespace Wreckabulary.Rules.Surroundings
         static string F(float x) => (x == 0 ? 0.0 : x).ToString("0.###", CultureInfo.InvariantCulture);
 
         static string Hex(uint rgb) => rgb.ToString("x6", CultureInfo.InvariantCulture);
-    }
-
-    sealed class CourseTowerBuilder
-    {
-        const int Draws = 40;
-        const float PlazaHeight = .2f, PlinthOut = .6f, ShopLift = .6f, ShopShare = .5f, ShopProud = .1f, RoofSlab = .5f;
-        const float ParapetOut = .15f, ParapetHeight = 1.1f, PierWidth = .8f, PierProud = .12f, PierSpacing = 5.5f, CornerPier = 1f;
-        const float MinSegment = 6f, RoofMargin = 1.2f, HutWidth = 3.2f, HutDepth = 3.8f, HutHeight = 2.8f;
-        const float StandSize = 2.4f, StandHeight = 1.8f, TankSize = 2.9f, TankHeight = 3.2f, CapSize = 2.2f, CapHeight = .6f;
-        const float AcWidth = 2f, AcDepth = 1.3f, AcHeight = 1.1f, AntennaSize = .4f;
-        const float CrownLower = .62f, CrownUpper = .36f, CrownLowerHeight = 3.5f, CrownUpperHeight = 4f;
-        const float FinWidth = .3f;
-        const int MaxPiers = 4, MaxFins = 7;
-
-        readonly CourseSkylineSpec spec;
-        readonly CourseSkylineLot lot;
-        readonly float ground;
-        readonly bool full;
-        readonly List<SkylineBox> boxes = new List<SkylineBox>();
-        readonly float[] draw = new float[Draws];
-        Flat across, along;
-
-        public CourseTowerBuilder(CourseSkylineSpec spec, CourseSkylineLot lot, float ground, bool full)
-        {
-            this.spec = spec;
-            this.lot = lot;
-            this.ground = ground;
-            this.full = full;
-        }
-
-        float R(int k) => draw[k];
-
-        T Pick<T>(IReadOnlyList<T> list, int k) => list[Math.Min(list.Count - 1, (int)(R(k) * list.Count))];
-
-        static float Q(double value) => (float)(Math.Round(value / .001, MidpointRounding.AwayFromZero) * .001);
-
-        public List<SkylineBox> Build(Pcg32 rng)
-        {
-            for (int k = 0; k < Draws; k++) draw[k] = rng.NextFloat();
-            along = Flat.Heading(lot.Yaw);
-            across = along.Right;
-            float width = (float)lot.Width, depth = (float)lot.Depth, height = (float)lot.Height;
-            float plinth = Math.Min(spec.Plinth.min + (spec.Plinth.max - spec.Plinth.min) * R(0), height * .3f);
-            float storey = spec.Storey.min + (spec.Storey.max - spec.Storey.min) * R(1);
-            float glass = lot.Facade.Glass.min + (lot.Facade.Glass.max - lot.Facade.Glass.min) * R(2);
-            uint trim = Pick(spec.Trim, 3);
-            if (full) Add("plaza", CourseSkyline.WallSlot, 0, 0, ground, (float)lot.Lot.HalfWidth * 2, (float)lot.Lot.HalfDepth * 2, PlazaHeight, spec.Pavement, true);
-            Add("plinth", CourseSkyline.WallSlot, 0, 0, ground, width + 2 * PlinthOut, depth + 2 * PlinthOut, plinth, trim, true);
-            if (full) Add("shop", CourseSkyline.GlassSlot, 0, 0, ground + ShopLift, width + 2 * (PlinthOut + ShopProud), depth + 2 * (PlinthOut + ShopProud), (plinth - ShopLift) * ShopShare, lot.Pane, false);
-            var segments = Segments(height - plinth, storey);
-            float y = ground + plinth, w = width, d = depth, ox = 0, oz = 0;
-            for (int s = 0; s < segments.Count; s++)
-            {
-                if (s > 0)
-                {
-                    float nw = Math.Max(MinSegment, w * (.68f + .18f * R(8 + s * 4))), nd = Math.Max(MinSegment, d * (.68f + .18f * R(9 + s * 4)));
-                    ox += (w - nw) * .5f * (R(10 + s * 4) * 2 - 1) * .8f;
-                    oz += (d - nd) * .5f * (R(11 + s * 4) * 2 - 1) * .8f;
-                    w = nw;
-                    d = nd;
-                }
-                Segment(ox, oz, y, w, d, segments[s], storey, glass, trim);
-                y += segments[s] + RoofSlab;
-            }
-            if (full) Roof(ox, oz, y, w, d, trim);
-            return boxes;
-        }
-
-        List<float> Segments(float body, float storey)
-        {
-            int count = lot.Height < 30 ? 1 : lot.Height < 55 ? 1 + (int)(R(4) * 2) : 1 + (int)(R(4) * 3);
-            count = Math.Max(1, Math.Min(count, (int)((body - RoofSlab) / (2 * storey + RoofSlab))));
-            float free = body - count * RoofSlab;
-            var shares = new List<float>();
-            if (count == 1) shares.Add(1);
-            else if (count == 2) { float first = .6f + .2f * R(5); shares.Add(first); shares.Add(1 - first); }
-            else { float first = .5f + .15f * R(5), second = (1 - first) * (.55f + .2f * R(6)); shares.Add(first); shares.Add(second); shares.Add(1 - first - second); }
-            return shares.Select(s => s * free).ToList();
-        }
-
-        void Segment(float ox, float oz, float y, float w, float d, float height, float storey, float glass, uint trim)
-        {
-            float inset = spec.Inset;
-            Add("glass", CourseSkyline.GlassSlot, ox, oz, y, w - 2 * inset, d - 2 * inset, height, lot.Pane, false);
-            int storeys = Math.Max(2, (int)Math.Round(height / storey));
-            int bands = full ? storeys : (storeys + spec.StoreysPerBand - 1) / spec.StoreysPerBand;
-            float step = height / bands, band = step * (1 - glass);
-            for (int k = 0; k < bands; k++) Add("band", CourseSkyline.WallSlot, ox, oz, y + k * step, w, d, band, lot.Wall, false);
-            if (full && lot.Facade.Piers) Ribs("pier", ox, oz, y, w, d, height, PierWidth, PierSpacing, MaxPiers, true);
-            if (full && lot.Facade.Fins > 0) Ribs("fin", ox, oz, y, w, d, height, FinWidth, lot.Facade.Fins, MaxFins, false);
-            Add("roof", CourseSkyline.WallSlot, ox, oz, y + height, w, d, RoofSlab, spec.Roof, true);
-            if (full) Add("parapet", CourseSkyline.WallSlot, ox, oz, y + height, w + 2 * ParapetOut, d + 2 * ParapetOut, ParapetHeight, trim, false);
-        }
-
-        void Ribs(string part, float ox, float oz, float y, float w, float d, float height, float width, float spacing, int most, bool corners)
-        {
-            float rib = spec.Inset + PierProud * 2;
-            foreach (int side in new[] { -1, 1 })
-            {
-                float faceZ = side * (d * .5f + PierProud - rib * .5f), faceX = side * (w * .5f + PierProud - rib * .5f);
-                foreach (float t in Spots(w, spacing, most)) Add(part, CourseSkyline.WallSlot, ox + t, oz + faceZ, y, width, rib, height, lot.Wall, false);
-                foreach (float t in Spots(d, spacing, most)) Add(part, CourseSkyline.WallSlot, ox + faceX, oz + t, y, rib, width, height, lot.Wall, false);
-                if (!corners) continue;
-                foreach (int other in new[] { -1, 1 })
-                    Add(part, CourseSkyline.WallSlot, ox + side * (w * .5f + PierProud - CornerPier * .5f), oz + other * (d * .5f + PierProud - CornerPier * .5f), y, CornerPier, CornerPier, height, lot.Wall, false);
-            }
-        }
-
-        static IEnumerable<float> Spots(float face, float spacing, int most)
-        {
-            int count = Math.Max(1, Math.Min(most, (int)(face / spacing) - 1));
-            for (int i = 0; i < count; i++) yield return -face * .5f + face * (i + 1) / (count + 1);
-        }
-
-        void Roof(float ox, float oz, float y, float w, float d, uint trim)
-        {
-            bool crown = lot.Downtown && lot.Height >= 60 && R(20) < .45f;
-            bool antenna = lot.Downtown && lot.Height >= 50 && R(21) < .5f;
-            float top = y;
-            if (crown)
-            {
-                Add("crown", CourseSkyline.WallSlot, ox, oz, y, w * CrownLower, d * CrownLower, CrownLowerHeight, lot.Wall, true);
-                Add("crown", CourseSkyline.WallSlot, ox, oz, y + CrownLowerHeight, w * CrownUpper, d * CrownUpper, CrownUpperHeight, trim, true);
-                top = y + CrownLowerHeight + CrownUpperHeight;
-            }
-            else Details(ox, oz, y, w, d, trim);
-            if (antenna) Add("antenna", CourseSkyline.MetalSlot, ox, oz, top, AntennaSize, AntennaSize, 8 + 10 * R(22), SurroundingsSlots.NoTint, true);
-        }
-
-        void Details(float ox, float oz, float y, float w, float d, uint trim)
-        {
-            float qx = w * .25f, qz = d * .25f, roomX = w * .5f - RoofMargin, roomZ = d * .5f - RoofMargin;
-            if (roomX < AcWidth || roomZ < AcWidth) return;
-            int first = (int)(R(23) * 4) % 4;
-            var quads = Enumerable.Range(0, 4).Select(k => (first + k) % 4).Select(q => (x: ox + (q % 2 == 0 ? -qx : qx), z: oz + (q < 2 ? -qz : qz))).ToList();
-            if (roomX >= HutWidth && roomZ >= HutDepth) Add("hut", CourseSkyline.WallSlot, quads[0].x, quads[0].z, y, HutWidth, HutDepth, HutHeight, trim, true);
-            float tankChance = lot.Facade.Piers ? .7f : lot.Facade.Glass.max >= .7f ? .1f : .4f;
-            if (R(24) < tankChance && roomX >= TankSize && roomZ >= TankSize)
-            {
-                var spot = quads[3];
-                Add("stand", CourseSkyline.MetalSlot, spot.x, spot.z, y, StandSize, StandSize, StandHeight, SurroundingsSlots.NoTint, true);
-                Add("tank", CourseSkyline.WallSlot, spot.x, spot.z, y + StandHeight, TankSize, TankSize, TankHeight, spec.Tank, true);
-                Add("tank", CourseSkyline.WallSlot, spot.x, spot.z, y + StandHeight + TankHeight, CapSize, CapSize, CapHeight, spec.Roof, true);
-            }
-            int units = 1 + (int)(R(25) * 3);
-            for (int k = 0; k < units; k++)
-            {
-                var spot = quads[1 + k % 2];
-                float shift = units > 2 && k == 2 ? AcDepth * 1.4f : 0;
-                Add("ac", CourseSkyline.MetalSlot, spot.x, spot.z + shift, y, AcWidth, AcDepth, AcHeight, SurroundingsSlots.NoTint, true);
-            }
-        }
-
-        void Add(string part, string slot, float lx, float lz, float y, float width, float depth, float height, uint tint, bool top)
-        {
-            if (width <= 0 || depth <= 0 || height <= 0) return;
-            var at = lot.At + across * lx + along * lz;
-            boxes.Add(new SkylineBox
-            {
-                Part = part, Slot = slot, X = Q(at.X), Y = Q(y), Z = Q(at.Z), Width = Q(width), Depth = Q(depth), Height = Q(height),
-                Yaw = (float)lot.Yaw, Tint = tint, Top = top,
-            });
-        }
     }
 
     static class CourseSkylineGeometry
@@ -480,6 +447,24 @@ namespace Wreckabulary.Rules.Surroundings
             public int Vertices => Colours.Count;
         }
 
+        readonly struct V
+        {
+            public readonly double X, Y, Z;
+
+            public V(double x, double y, double z)
+            {
+                X = x; Y = y; Z = z;
+            }
+
+            public static V operator +(V a, V b) => new V(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+            public static V operator -(V a, V b) => new V(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+            public static V operator *(V a, double s) => new V(a.X * s, a.Y * s, a.Z * s);
+
+            public double Dot(V o) => X * o.X + Y * o.Y + Z * o.Z;
+            public V Cross(V o) => new V(Y * o.Z - Z * o.Y, Z * o.X - X * o.Z, X * o.Y - Y * o.X);
+            public V Unit => this * (1 / Math.Sqrt(Math.Max(1e-24, Dot(this))));
+        }
+
         public static List<SkylineMeshPart> Parts(CourseSkylineResult skyline)
         {
             var parts = new List<SkylineMeshPart>();
@@ -507,38 +492,61 @@ namespace Wreckabulary.Rules.Surroundings
             Colours = builder.Colours.ToArray(), Indices = builder.Indices.ToArray(),
         };
 
-        static void Append(Builder builder, SkylineBox b)
+        static V[] Ring(SkylineBox b, double y, double scale)
         {
-            double yaw = b.Yaw * Math.PI / 180;
-            var along = (x: Math.Sin(yaw), z: Math.Cos(yaw));
-            var across = (x: along.z, z: -along.x);
-            double hw = b.Width * .5, hd = b.Depth * .5, hh = b.Height * .5, cy = b.Y + hh;
-            Face(builder, b.Tint, (b.X + along.x * hd, cy, b.Z + along.z * hd), (along.x, 0, along.z), (across.x * hw, 0, across.z * hw), (0, hh, 0));
-            Face(builder, b.Tint, (b.X - along.x * hd, cy, b.Z - along.z * hd), (-along.x, 0, -along.z), (-across.x * hw, 0, -across.z * hw), (0, hh, 0));
-            Face(builder, b.Tint, (b.X + across.x * hw, cy, b.Z + across.z * hw), (across.x, 0, across.z), (-along.x * hd, 0, -along.z * hd), (0, hh, 0));
-            Face(builder, b.Tint, (b.X - across.x * hw, cy, b.Z - across.z * hw), (-across.x, 0, -across.z), (along.x * hd, 0, along.z * hd), (0, hh, 0));
-            if (b.Top) Face(builder, b.Tint, (b.X, b.Y + b.Height, b.Z), (0, 1, 0), (along.x * hd, 0, along.z * hd), (across.x * hw, 0, across.z * hw));
+            double yaw = b.Yaw * Math.PI / 180, ax = Math.Sin(yaw), az = Math.Cos(yaw), rx = az, rz = -ax;
+            double reach = 1 / Math.Cos(Math.PI / b.Sides), hw = b.Width * .5 * scale * reach, hd = b.Depth * .5 * scale * reach;
+            var ring = new V[b.Sides];
+            for (int k = 0; k < b.Sides; k++)
+            {
+                double a = 2 * Math.PI * k / b.Sides + Math.PI / b.Sides, u = Math.Cos(a) * hw, v = Math.Sin(a) * hd;
+                ring[k] = new V(b.X + rx * u + ax * v, y, b.Z + rz * u + az * v);
+            }
+            return ring;
         }
 
-        static void Face(Builder builder, uint tint, (double x, double y, double z) c, (double x, double y, double z) n, (double x, double y, double z) u, (double x, double y, double z) v)
+        static void Append(Builder builder, SkylineBox b)
         {
-            int start = builder.Vertices;
-            foreach (var (su, sv) in new[] { (-1, -1), (1, -1), (1, 1), (-1, 1) })
+            var axis = new V(b.X, b.Y + b.Height * .5, b.Z);
+            var bottom = Ring(b, b.Y, 1);
+            var top = b.Apex ? null : Ring(b, b.TopY, b.Taper);
+            var apex = new V(b.X, b.TopY, b.Z);
+            for (int k = 0; k < b.Sides; k++)
             {
-                builder.Positions.Add((float)(c.x + u.x * su + v.x * sv));
-                builder.Positions.Add((float)(c.y + u.y * su + v.y * sv));
-                builder.Positions.Add((float)(c.z + u.z * su + v.z * sv));
-                builder.Normals.Add((float)n.x);
-                builder.Normals.Add((float)n.y);
-                builder.Normals.Add((float)n.z);
+                var b0 = bottom[k];
+                var b1 = bottom[(k + 1) % b.Sides];
+                var face = b.Apex ? new[] { b0, b1, apex } : new[] { b0, b1, top[(k + 1) % b.Sides], top[k] };
+                Emit(builder, b.Tint, face, (b0 + b1) * .5 - axis);
+            }
+            if (b.Capped) Emit(builder, b.Tint, top, new V(0, 1, 0));
+        }
+
+        static void Emit(Builder builder, uint tint, V[] face, V outward)
+        {
+            var normal = (face[1] - face[0]).Cross(face[2] - face[0]);
+            if (normal.Dot(outward) < 0)
+            {
+                Array.Reverse(face);
+                normal = normal * -1;
+            }
+            normal = normal.Unit;
+            int start = builder.Vertices;
+            foreach (var p in face)
+            {
+                builder.Positions.Add((float)p.X);
+                builder.Positions.Add((float)p.Y);
+                builder.Positions.Add((float)p.Z);
+                builder.Normals.Add((float)normal.X);
+                builder.Normals.Add((float)normal.Y);
+                builder.Normals.Add((float)normal.Z);
                 builder.Colours.Add(tint);
             }
-            builder.Indices.Add(start);
-            builder.Indices.Add(start + 1);
-            builder.Indices.Add(start + 2);
-            builder.Indices.Add(start);
-            builder.Indices.Add(start + 2);
-            builder.Indices.Add(start + 3);
+            for (int i = 1; i + 1 < face.Length; i++)
+            {
+                builder.Indices.Add(start);
+                builder.Indices.Add(start + i);
+                builder.Indices.Add(start + i + 1);
+            }
         }
     }
 }

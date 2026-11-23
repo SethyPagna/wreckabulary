@@ -17,15 +17,20 @@ namespace Wreckabulary.Rules.Surroundings
         public float Yaw { get; internal set; }
         public uint Tint { get; internal set; } = SurroundingsSlots.NoTint;
         public bool Top { get; internal set; }
+        public int Sides { get; internal set; } = 4;
+        public float Taper { get; internal set; } = 1f;
 
         public float TopY => Y + Height;
-        public int Faces => Top ? 5 : 4;
-        public int Triangles => Faces * 2;
-        public int Vertices => Faces * 4;
+        public bool Apex => Taper <= 0f;
+        public bool Capped => Top && !Apex;
+        public int SideVertices => Apex ? 3 : 4;
+        public int Triangles => Sides * (Apex ? 1 : 2) + (Capped ? Sides - 2 : 0);
+        public int Vertices => Sides * SideVertices + (Capped ? Sides : 0);
+        public float Reach => Math.Max(1f, Taper);
 
         public (double x, double z)[] Corners()
         {
-            double yaw = Yaw * Math.PI / 180, hw = Width * .5, hd = Depth * .5;
+            double yaw = Yaw * Math.PI / 180, hw = Width * .5 * Reach, hd = Depth * .5 * Reach;
             double ax = Math.Sin(yaw), az = Math.Cos(yaw), rx = az, rz = -ax;
             return new[] { (-1, -1), (1, -1), (1, 1), (-1, 1) }
                 .Select(c => (X + rx * hw * c.Item1 + ax * hd * c.Item2, Z + rz * hw * c.Item1 + az * hd * c.Item2)).ToArray();
@@ -48,6 +53,10 @@ namespace Wreckabulary.Rules.Surroundings
         public float Heading { get; internal set; }
         public float Weight { get; internal set; }
         public bool Downtown { get; internal set; }
+        public bool Detailed { get; internal set; }
+        public bool Crane { get; internal set; }
+        public string Type { get; internal set; }
+        public string Landmark { get; internal set; }
         public string Facade { get; internal set; }
         public uint Wall { get; internal set; }
         public uint Pane { get; internal set; }
@@ -89,6 +98,7 @@ namespace Wreckabulary.Rules.Surroundings
         public IReadOnlyList<SkylineGroup> Groups { get; internal set; } = Array.Empty<SkylineGroup>();
         public IReadOnlyList<string> ThinnedCards { get; internal set; } = Array.Empty<string>();
         public int Trimmed { get; internal set; }
+        public float DetailReach { get; internal set; }
         public int RendererLimit { get; internal set; }
         public int TriangleLimit { get; internal set; }
         public string Canonical { get; internal set; } = "";
@@ -99,6 +109,8 @@ namespace Wreckabulary.Rules.Surroundings
         public int Triangles => Groups.Sum(g => g.Triangles);
         public int Vertices => Groups.Sum(g => g.Vertices);
         public bool Empty => Towers.Count == 0;
+
+        public int Count(string type) => Towers.Count(t => t.Type == type);
 
         public static CourseSkylineResult None(CourseSurroundingsTier tier) => new CourseSkylineResult
         {
