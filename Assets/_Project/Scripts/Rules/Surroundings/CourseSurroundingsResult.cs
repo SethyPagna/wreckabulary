@@ -69,6 +69,7 @@ namespace Wreckabulary.Rules.Surroundings
         public int TriangleLimit { get; internal set; }
         public string Canonical { get; internal set; }
         public string Hash { get; internal set; }
+        public CourseSkylineResult Skyline { get; internal set; } = CourseSkylineResult.None(CourseSurroundingsTier.High);
 
         public bool Valid => Problems.Count == 0;
         public int Renderers => Groups.Sum(g => g.Renderers);

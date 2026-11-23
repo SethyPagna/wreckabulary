@@ -81,7 +81,9 @@ namespace Wreckabulary.Art
             if (scene.IsValid() && scene.isLoaded && built.scene != scene) SceneManager.MoveGameObjectToScene(built, scene);
             built.transform.SetPositionAndRotation(world.transform.position, world.transform.rotation);
             built.AddComponent<BackdropLife>();
-            Debug.Log($"[Wreckabulary] Course backdrop {id} {layout.Tier}: {layout.Renderers} renderers, {layout.Triangles} triangles, {layout.Placements.Count} pieces, {layout.Trimmed} trimmed.");
+            var skyline = layout.Skyline;
+            Debug.Log($"[Wreckabulary] Course backdrop {id} {layout.Tier}: {layout.Renderers} renderers, {layout.Triangles} triangles, {layout.Placements.Count} pieces, {layout.Trimmed} trimmed; " +
+                $"skyline {skyline.Towers.Count} towers, {skyline.Renderers} renderers, {skyline.Triangles} triangles, {skyline.Trimmed} trimmed.");
             return built;
         }
 

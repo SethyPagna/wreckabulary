@@ -24,8 +24,10 @@ namespace Wreckabulary.Rules.Surroundings
         internal CourseLandmarkSpec Landmark;
         internal readonly List<CourseCardSpec> Cards = new List<CourseCardSpec>();
         internal CourseLowSpec Low;
+        internal CourseSkylineSpec Skyline;
 
         public IReadOnlyList<string> SkippedLowSlots => Low.SkipSlots;
+        public bool HasSkyline => Skyline != null;
 
         public IEnumerable<string> Pieces
         {
@@ -57,6 +59,7 @@ namespace Wreckabulary.Rules.Surroundings
                 Scatter = CourseScatterSpec.Read(root["farScatter"]),
                 Landmark = root.Has("landmark") ? CourseLandmarkSpec.Read(root["landmark"]) : null,
                 Low = CourseLowSpec.Read(root["low"]),
+                Skyline = root.Has("skyline") ? CourseSkylineSpec.Read(root["skyline"]) : null,
             };
             if (style.MidReach < style.NearReach) throw root["midReach"].Error("must be at least nearReach");
             if (root.Has("palette"))
