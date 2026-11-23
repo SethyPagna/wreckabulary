@@ -28,7 +28,7 @@ namespace Wreckabulary
         static bool colourAccented;
         static readonly Color CardBacking = Hex(0x16302f), WreckedFrame = Hex(0x8b9592), WreckedTint = Hex(0x6d7472);
         static readonly Color WreckedShade = Hex(0x0b1515, .55f), DownShade = Hex(0x0b1515, .28f), PulseFrame = Hex(0xff8a6b);
-        static readonly Color HealthTrack = Hex(0x0b1f1f, .78f), ScoreInk = Hex(0xffe7b8), YouEdge = Color.white, Plate = Hex(0x121c24, .72f), CentreFill = Hex(0x121c24);
+        static readonly Color HealthTrack = Hex(0x0b1f1f, .78f), ScoreInk = Hex(0xffe7b8), Plate = Hex(0x121c24, .72f), CentreFill = Hex(0x121c24);
         static readonly Color Amber = Hex(0xffc568), Breath = Hex(0x9ff8d3);
 
         sealed class VitalsView
@@ -44,14 +44,14 @@ namespace Wreckabulary
         {
             public RectTransform root;
             public VitalsView vitals;
-            public Image you, backing, shade, frame, lead, cross;
+            public Image backing, shade, frame, lead, cross;
             public RawImage portrait;
             public TextMeshProUGUI letter, status, name, score;
             public PlayerController seat;
             public SeatPortrait face;
             public string shownName, shownUnit;
             public int shownWins = int.MinValue, shownTarget = int.MinValue, shownStatus = int.MinValue, shownLook = -1, shownSeats = -1;
-            public bool shownYou, pulsing, shownLead;
+            public bool pulsing, shownLead;
             public Texture shownPicture;
             public Color vivid, nameColour;
             public float shownX = float.NaN;
@@ -274,8 +274,6 @@ namespace Wreckabulary
             card.shade.sprite = null;
             card.frame = CardImage("Frame", root, Mint);
             SquareFrame(card.frame, PlayerBar.Frame);
-            card.you = CardImage("You", root, YouEdge);
-            SquareFrame(card.you, PlayerBar.YouRim);
             card.cross = CardImage("Cross", root, OnGame);
             card.cross.type = Image.Type.Simple;
             card.cross.sprite = LobbyIcons.Get(LobbyIcons.Close);
@@ -296,7 +294,7 @@ namespace Wreckabulary
             card.score = CardText("Score", root, PlayerBar.ScoreSize, ScoreInk);
             FitLine(card.score, PlayerBar.ScoreSize);
             OnGameText(card.score); AddHudShadow(card.score);
-            card.you.enabled = card.shade.enabled = card.letter.enabled = card.portrait.enabled = card.cross.enabled = false;
+            card.shade.enabled = card.letter.enabled = card.portrait.enabled = card.cross.enabled = false;
             SizeSeatCard(card, PlayerBar.RoomySeats, true);
             root.gameObject.SetActive(false);
             return card;
@@ -454,7 +452,6 @@ namespace Wreckabulary
             card.shownSeats = shape;
             float width = PlayerBar.CardWidth(seats), side = PlayerBar.Portrait(seats), rim = PlayerBar.Frame;
             card.root.sizeDelta = new Vector2(width, PlayerBar.CardHeight(seats, scored));
-            Place(card.you.rectTransform, 0f, side, side);
             Place(card.backing.rectTransform, 0f, side, side);
             Place(card.portrait.rectTransform, -rim, side - 2f * rim, side - 2f * rim);
             Place(card.letter.rectTransform, 0f, side, side);
@@ -858,8 +855,8 @@ namespace Wreckabulary
             var vivid = SeatColour(p);
             var nameColour = SeatAccented(World.Players) ? PlayerHud.Vivid(p.Color) : Cream;
             if (nameColour != card.nameColour) card.name.color = card.nameColour = nameColour;
-            if (look == card.shownLook && picture == card.shownPicture && you == card.shownYou && vivid == card.vivid) return;
-            card.shownLook = look; card.shownPicture = picture; card.shownYou = you; card.vivid = vivid;
+            if (look == card.shownLook && picture == card.shownPicture && vivid == card.vivid) return;
+            card.shownLook = look; card.shownPicture = picture; card.vivid = vivid;
             card.cross.enabled = look == 2;
             bool drawn = picture;
             card.portrait.texture = picture;
@@ -872,7 +869,6 @@ namespace Wreckabulary
             card.shade.color = look == 2 ? WreckedShade : DownShade;
             card.frame.color = look == 2 ? WreckedFrame : vivid;
             card.pulsing = look == 1;
-            card.you.enabled = you;
         }
 
         void PulseCards()

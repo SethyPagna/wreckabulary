@@ -787,8 +787,8 @@ namespace Wreckabulary.Tests
             Assert.IsTrue((bar.Find("Card 1/Name").GetComponent<TMPro.TMP_Text>().fontStyle & TMPro.FontStyles.Bold) != 0, "Names are bold.");
             Assert.Greater(bar.Find("Card 1/Name").GetComponent<TMPro.TMP_Text>().outlineWidth, 0f, "Names carry a dark outline over light floors.");
             Assert.IsFalse(cardName.gameObject.activeSelf, "Names are not drawn under the cards; the portrait and its colour say who it is.");
-            Assert.IsTrue(bar.Find("Card 1/You").GetComponent<Image>().enabled, "Your own card has a white outline.");
-            Assert.IsFalse(bar.Find("Card 3/You").GetComponent<Image>().enabled);
+            for (int i = 1; i <= 3; i++)
+                Assert.IsNull(bar.Find($"Card {i}/You"), "No white rim on any card, your own included; the seat colour says who it is.");
             var frame = bar.Find("Card 1/Frame").GetComponent<Image>();
             Color.RGBToHSV(frame.color, out _, out float saturation, out float value);
             Assert.GreaterOrEqual(value, .94f, "The seat frame is a brightened seat colour.");
@@ -842,7 +842,7 @@ namespace Wreckabulary.Tests
             {
                 var card = (RectTransform)bar.Find($"Card {i}");
                 AssertEncloses(plate, card, Wreckabulary.Rules.PlayerBar.PlatePad - 1f, "The plate pads every card");
-                foreach (var part in new[] { "You", "Score", "Health track", "Stamina track" })
+                foreach (var part in new[] { "Frame", "Score", "Health track", "Stamina track" })
                     AssertEncloses(plate, (RectTransform)card.Find(part), 1f, $"Card {i} {part} sits on the plate");
             }
             var label = (RectTransform)safe.Find("Match label");

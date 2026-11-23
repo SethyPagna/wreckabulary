@@ -106,7 +106,9 @@ namespace Wreckabulary.Rules.Surroundings
 
     sealed class CourseGroundSpec
     {
-        public string Slot, ApronSlot;
+        public string Slot, ApronSlot, CitySlot;
+        public uint CityTint;
+        public float CityReach;
         public uint Tint, ApronTint;
         public float Reach;
         public List<(float reach, uint tint)> Fades = new List<(float, uint)>();
@@ -121,9 +123,13 @@ namespace Wreckabulary.Rules.Surroundings
                 Reach = AtLeast(At(n, "reach"), 560f, 10f),
                 Fades = fade.Items.Select(f => (AtLeast(At(f, "reach"), 0f, 1f), SurroundingsPlan.Tint(At(f, "tint")))).ToList(),
                 ApronSlot = At(apron, "slot").String("bk_stone"), ApronTint = SurroundingsPlan.OptionalTint(At(apron, "tint")) ?? SurroundingsSlots.NoTint,
+                CitySlot = At(At(n, "city"), "slot").String("bk_stone"), CityTint = SurroundingsPlan.OptionalTint(At(At(n, "city"), "tint")) ?? SurroundingsSlots.NoTint,
+                CityReach = At(At(n, "city"), "reach").Float(0f),
             };
             for (int i = 0; i < g.Fades.Count; i++)
                 if (!(g.Fades[i].reach < (i == 0 ? g.Reach : g.Fades[i - 1].reach))) throw fade.Error("reaches must shrink, the outer ring first, inside the ground reach");
+            if (g.CityReach > 0 && !(g.CityReach < g.Reach && (g.Fades.Count == 0 || g.CityReach > g.Fades[0].reach)))
+                throw At(At(n, "city"), "reach").Error("must lie between the outer fade and the ground reach");
             return g;
         }
     }

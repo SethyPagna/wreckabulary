@@ -14,7 +14,8 @@
       { "reach": 86, "tint": "#EEEEDD" },
       { "reach": 72, "tint": "#FFFFFF" }
     ],
-    "apron": { "slot": "bk_stone", "tint": "#FFFFFF" }
+    "apron": { "slot": "bk_stone", "tint": "#FFFFFF" },
+    "city": { "slot": "bk_stone", "tint": "#CFCBC1", "reach": 330 }
   },
   "palette": {
     "plaster": ["#F4E3D3", "#E4DCCF", "#F7EEDC", "#E0E6E9", "#EAD7CC", "#DCE2D6", "#F2E7E1", "#E9E1D2"],
@@ -38,24 +39,43 @@
   },
   "landmark": { "piece": "landmark_water_tower", "reach": 105, "yaw": 35 },
   "cards": [
-    { "piece": "card_roofline_a", "reach": 240, "spacing": 80, "scale": [2.5, 2.9], "jitter": 5 },
-    { "piece": "card_roofline_a", "reach": 254, "spacing": 90, "scale": [2.7, 3.1], "jitter": 5 },
-    { "piece": "card_hills_a", "reach": 285, "spacing": 160, "scale": [1.8, 2.1], "jitter": 8 }
+    { "piece": "card_roofline_a", "reach": 300, "spacing": 80, "scale": [2.8, 3.2], "jitter": 5 },
+    { "piece": "card_roofline_a", "reach": 318, "spacing": 90, "scale": [3.0, 3.4], "jitter": 5 },
+    { "piece": "card_hills_a", "reach": 390, "spacing": 160, "scale": [2.2, 2.6], "jitter": 8 }
   ],
   "low": { "skipSlots": ["bk_line"], "keepTrees": 0.5, "keepBackRow": 0.5, "keepScatter": 0.4 },
   "skyline": {
-    "cell": 36, "jitter": 4, "gap": 8, "plaza": 2.5, "cardGap": 4, "inset": 0.3,
+    "cell": 30, "jitter": 3, "gap": 4, "plaza": 1.0, "cardGap": 4, "inset": 0.3, "detailReach": 190, "farStoreysPerBand": 2,
     "storey": [3.3, 3.8], "plinth": [3.6, 5.0],
-    "downtown": { "clusters": [1, 2], "spread": 34, "second": 110, "core": 0.3, "from": 105, "to": 232, "chance": 0.95, "height": [48, 90], "width": [14, 22] },
-    "ring": { "from": 88, "to": 200, "chance": 0.55, "height": [20, 40], "width": [16, 23], "tallChance": 0.12, "tall": [44, 62] },
+    "downtown": { "clusters": [1, 2], "spread": 36, "second": 110, "core": 0.3, "from": 100, "to": 300, "chance": 1.0, "height": [70, 200], "width": [16, 24] },
+    "ring": { "from": 80, "to": 300, "chance": 0.85, "height": [22, 46], "rowRise": 18, "width": [16, 24], "tallChance": 0.15, "tall": [55, 95] },
+    "types": {
+      "block": { "ring": 3, "downtown": 0.8, "facades": ["brick", "stone", "glass"] },
+      "loft": { "ring": 2, "downtown": 0, "facades": ["brick"], "height": [14, 26] },
+      "lplan": { "ring": 1.4, "downtown": 0.2, "facades": ["brick", "stone"], "height": [18, 40] },
+      "uplan": { "ring": 1, "downtown": 0.15, "facades": ["brick", "stone"], "height": [18, 36] },
+      "slab": { "ring": 0.8, "downtown": 1, "facades": ["stone", "glass"] },
+      "deco": { "ring": 0.4, "downtown": 1.4, "facades": ["deco"] },
+      "round": { "ring": 0.3, "downtown": 0.9, "facades": ["glass", "stone"] },
+      "curtain": { "ring": 0.3, "downtown": 1.8, "facades": ["glass"] },
+      "twin": { "ring": 0, "downtown": 0.35, "facades": ["glass", "stone"] }
+    },
+    "landmarks": {
+      "supertall": { "height": [220, 260], "facades": ["glass", "deco"] },
+      "needle": { "chance": 0.75, "height": [180, 215] },
+      "clock": { "height": [44, 58], "facades": ["stone"], "face": "#F4F1E6", "hands": "#3A3A3A" },
+      "crane": { "chance": 0.1, "tint": "#F2C230" }
+    },
     "facades": {
-      "brick": { "weight": [0.55, 0.12], "glass": [0.34, 0.44], "piers": true, "walls": ["#B96E5D", "#C47A62", "#A9604F", "#CE9473", "#B5826A"], "panes": ["#FFFFFF", "#D8E2E6"] },
-      "glass": { "weight": [0.05, 0.7], "glass": [0.72, 0.82], "fins": 3.2, "walls": ["#F2F4F8", "#E2E6EC", "#D5DBE2"], "panes": ["#C8E4FF", "#CFF2E6", "#B4CCE8"] },
-      "stone": { "weight": [0.5, 0.25], "glass": [0.46, 0.58], "walls": ["#EDDBBA", "#E3CFAE", "#DBDEE6", "#CFD2D6"], "panes": ["#FFFFFF", "#D8E2E6", "#C8E4FF"] }
+      "brick": { "glass": [0.34, 0.44], "piers": true, "walls": ["#B96E5D", "#C47A62", "#A9604F", "#CE9473", "#B5826A", "#9E5A47"], "panes": ["#FFFFFF", "#D8E2E6"] },
+      "deco": { "glass": [0.36, 0.48], "piers": true, "walls": ["#F0DFC0", "#E6D2AE", "#D9B99A", "#EFE6D6", "#E2C7A0"], "panes": ["#D8E2E6", "#FFFFFF"] },
+      "glass": { "glass": [0.72, 0.82], "fins": 3.2, "walls": ["#F2F4F8", "#E2E6EC", "#D5DBE2", "#C7D3DC"], "panes": ["#C8E4FF", "#CFF2E6", "#B4CCE8", "#A8D0D8"] },
+      "stone": { "glass": [0.46, 0.58], "walls": ["#EDDBBA", "#E3CFAE", "#DBDEE6", "#CFD2D6", "#E8E0D0"], "panes": ["#FFFFFF", "#D8E2E6", "#C8E4FF"] }
     },
     "trim": ["#A49F97", "#8F8A84", "#B8B2A8"],
+    "caps": ["#8FB8A5", "#6E7782", "#B5664E", "#D9B45A"],
     "roof": "#B0ADA6", "pavement": "#DAD6CC", "tank": "#9C7556",
     "thinCards": ["card_roofline_a"],
-    "low": { "keepDowntown": 0.75, "keepRing": 0.4, "storeysPerBand": 2 }
+    "low": { "keepDowntown": 0.5, "keepRing": 0.3, "storeysPerBand": 3 }
   }
 }
