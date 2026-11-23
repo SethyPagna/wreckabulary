@@ -449,12 +449,20 @@ namespace Wreckabulary.Qa
                 holder.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(aim - eye));
                 yield return context.WaitFrames(4);
                 yield return Shot(context, "solo_" + tag + "_city");
+                float heading = layout.Skyline.Headings.Count > 0 ? layout.Skyline.Headings[0] : 0f;
+                var centre = course.TransformPoint(new Vector3(box.CentreX, box.Top + 4f, box.CentreZ));
+                var look = course.TransformDirection(Quaternion.Euler(0f, heading, 0f) * new Vector3(0f, .12f, 1f));
+                holder.transform.SetPositionAndRotation(centre, Quaternion.LookRotation(look));
+                yield return context.WaitFrames(4);
+                yield return Shot(context, "solo_" + tag + "_skyline");
             }
             finally { Object.Destroy(holder); }
             context.Note("solo_" + tag + "_city", new Dictionary<string, object> {
                 ["course"] = layout.CourseId, ["tier"] = layout.Tier.ToString(), ["renderers"] = layout.Renderers,
                 ["triangles"] = layout.Triangles, ["pieces"] = layout.Placements.Count, ["colliders"] = colliders,
-                ["clear_margin_m"] = layout.Clear, ["scope"] = "A QA camera above one corner of the course looks across it; the game camera is untouched." });
+                ["clear_margin_m"] = layout.Clear, ["skyline_towers"] = layout.Skyline.Towers.Count,
+                ["skyline_renderers"] = layout.Skyline.Renderers, ["skyline_triangles"] = layout.Skyline.Triangles,
+                ["scope"] = "A QA camera above one corner of the course looks across it, then from above the centre towards the first downtown; the game camera is untouched." });
             yield return context.WaitFrames(2);
         }
         static IEnumerator Shot(QaContext context, string name)

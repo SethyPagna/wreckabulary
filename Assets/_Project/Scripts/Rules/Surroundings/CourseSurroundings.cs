@@ -89,6 +89,9 @@ namespace Wreckabulary.Rules.Surroundings
         SurroundingsPiece road, pavement;
         double roadHalf, walk;
         Rect apron;
+        CourseSkylinePlanner skyline;
+        List<CourseAsk> cards;
+        HashSet<int> thinnedCards = new HashSet<int>();
 
         public CourseLayoutBuilder(CourseSurroundingsStyle style, SurroundingsKit kit, string courseId, CourseFootprint footprint)
         {
@@ -117,6 +120,7 @@ namespace Wreckabulary.Rules.Surroundings
                 foreach (var s in segments) StreetLife(s);
                 PlaceGardens();
                 PlaceLandmark();
+                PlanSkyline();
                 PlaceScatter();
                 PlaceCards();
             }
@@ -201,6 +205,7 @@ namespace Wreckabulary.Rules.Surroundings
         bool Blocked(CourseItem item, CourseAsk ask)
         {
             if (item.Kind == CourseKind.Card) return false;
+            if (skyline != null && skyline.Covers(item.Shape, item.Bounds)) return true;
             foreach (var other in items)
             {
                 if (other.Kind == CourseKind.Card || !other.Bounds.Overlaps(item.Bounds)) continue;
@@ -463,8 +468,9 @@ namespace Wreckabulary.Rules.Surroundings
             }
         }
 
-        void PlaceCards()
+        List<CourseAsk> CardAsks()
         {
+            var asks = new List<CourseAsk>();
             for (int i = 0; i < style.Cards.Count; i++)
             {
                 var ring = style.Cards[i];
@@ -477,9 +483,37 @@ namespace Wreckabulary.Rules.Surroundings
                     var rng = Random($"cards:{i}", k + 1);
                     double r = radius + (rng.NextFloat() - .5) * 2 * ring.Jitter;
                     var at = centre + Flat.Heading(phase + k * step) * r;
-                    Place(new CourseAsk { Piece = ring.Piece, At = at, Yaw = (centre - at).Yaw, Scale = rng.Range(ring.Scale.min, ring.Scale.max), Kind = CourseKind.Card, Source = $"cards {i}" });
+                    asks.Add(new CourseAsk { Piece = ring.Piece, At = at, Yaw = (centre - at).Yaw, Scale = rng.Range(ring.Scale.min, ring.Scale.max), Kind = CourseKind.Card, Source = $"cards {i}" });
                 }
             }
+            return asks;
+        }
+
+        Footprint CardShape(CourseAsk ask) =>
+            ShapeOf(kit.Piece(ask.Piece), new Flat(Q(ask.At.X, .001), Q(ask.At.Z, .001)), Q(Shapes.Wrap360(ask.Yaw), .01), Q(ask.Scale, .001));
+
+        void PlanSkyline()
+        {
+            if (style.Skyline == null) return;
+            cards = CardAsks();
+            skyline = new CourseSkylinePlanner(style.Skyline, seed, box, groundY, style.Clear);
+            skyline.Plan(TownBlocks);
+            var sources = cards.Select((c, k) => $"{c.Source} #{k}").ToList();
+            thinnedCards = skyline.Thin(cards.Select(c => c.Piece).ToList(), sources, cards.Select(CardShape).ToList());
+        }
+
+        bool TownBlocks(Footprint shape, Rect bounds)
+        {
+            foreach (var other in items)
+                if (other.Kind != CourseKind.Card && other.Bounds.Overlaps(bounds) && shape.Overlaps(other.Shape)) return true;
+            return false;
+        }
+
+        void PlaceCards()
+        {
+            var asks = cards ?? CardAsks();
+            for (int k = 0; k < asks.Count; k++)
+                if (!thinnedCards.Contains(k)) Place(asks[k]);
         }
 
         List<SurroundingsGround> Ground()
@@ -585,11 +619,13 @@ namespace Wreckabulary.Rules.Surroundings
                     trimmed++;
                 }
             var groups = Groups(kept, ground, tier, skipped);
+            var towers = skyline != null ? skyline.Finish(tier, problems) : CourseSkylineResult.None(tier);
             var result = new CourseSurroundingsResult
             {
                 CourseId = courseId, StyleId = style.Id, Name = style.Name, Tier = tier, Footprint = footprint, Clear = style.Clear, GroundY = Q(groundY, .001),
                 Placements = kept.Select(i => i.Placement).ToList(), Distances = kept.Select(i => (float)i.Distance).ToList(),
                 Ground = ground, Groups = groups, SkippedSlots = skipped, Trimmed = trimmed, RendererLimit = rendererLimit, TriangleLimit = triangleLimit,
+                Skyline = towers,
             };
             if (result.Renderers > rendererLimit) Problem("budget", $"{tier}: {result.Renderers} renderers, at most {rendererLimit}");
             if (result.Triangles > triangleLimit) Problem("budget", $"{tier}: {result.Triangles} triangles, at most {triangleLimit}");
@@ -643,6 +679,7 @@ namespace Wreckabulary.Rules.Surroundings
             foreach (var p in r.Placements)
                 text.Append("place ").Append(p.Ring).Append(' ').Append(p.Piece).Append(' ').Append(Join(p.X, p.Y, p.Z, p.Yaw, p.Scale)).Append(' ')
                     .Append(Hex(p.PlasterTint)).Append(' ').Append(Hex(p.RoofTint)).Append(' ').Append(Hex(p.PaintTint)).Append(' ').Append(p.Source).Append('\n');
+            if (!r.Skyline.Empty) text.Append("skyline ").Append(r.Skyline.Hash).Append('\n');
             return text.ToString();
         }
 

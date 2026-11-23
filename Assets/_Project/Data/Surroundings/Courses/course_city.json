@@ -38,9 +38,24 @@
   },
   "landmark": { "piece": "landmark_water_tower", "reach": 105, "yaw": 35 },
   "cards": [
-    { "piece": "card_roofline_a", "reach": 150, "spacing": 70, "scale": [2.2, 2.6], "jitter": 6 },
-    { "piece": "card_roofline_a", "reach": 185, "spacing": 80, "scale": [2.5, 2.9], "jitter": 6 },
-    { "piece": "card_hills_a", "reach": 265, "spacing": 150, "scale": [1.7, 2.0], "jitter": 8 }
+    { "piece": "card_roofline_a", "reach": 240, "spacing": 80, "scale": [2.5, 2.9], "jitter": 5 },
+    { "piece": "card_roofline_a", "reach": 254, "spacing": 90, "scale": [2.7, 3.1], "jitter": 5 },
+    { "piece": "card_hills_a", "reach": 285, "spacing": 160, "scale": [1.8, 2.1], "jitter": 8 }
   ],
-  "low": { "skipSlots": ["bk_line"], "keepTrees": 0.5, "keepBackRow": 0.5, "keepScatter": 0.4 }
+  "low": { "skipSlots": ["bk_line"], "keepTrees": 0.5, "keepBackRow": 0.5, "keepScatter": 0.4 },
+  "skyline": {
+    "cell": 36, "jitter": 4, "gap": 8, "plaza": 2.5, "cardGap": 4, "inset": 0.3,
+    "storey": [3.3, 3.8], "plinth": [3.6, 5.0],
+    "downtown": { "clusters": [1, 2], "spread": 34, "second": 110, "core": 0.3, "from": 105, "to": 232, "chance": 0.95, "height": [48, 90], "width": [14, 22] },
+    "ring": { "from": 88, "to": 200, "chance": 0.55, "height": [20, 40], "width": [16, 23], "tallChance": 0.12, "tall": [44, 62] },
+    "facades": {
+      "brick": { "weight": [0.55, 0.12], "glass": [0.34, 0.44], "piers": true, "walls": ["#B96E5D", "#C47A62", "#A9604F", "#CE9473", "#B5826A"], "panes": ["#FFFFFF", "#D8E2E6"] },
+      "glass": { "weight": [0.05, 0.7], "glass": [0.72, 0.82], "fins": 3.2, "walls": ["#F2F4F8", "#E2E6EC", "#D5DBE2"], "panes": ["#C8E4FF", "#CFF2E6", "#B4CCE8"] },
+      "stone": { "weight": [0.5, 0.25], "glass": [0.46, 0.58], "walls": ["#EDDBBA", "#E3CFAE", "#DBDEE6", "#CFD2D6"], "panes": ["#FFFFFF", "#D8E2E6", "#C8E4FF"] }
+    },
+    "trim": ["#A49F97", "#8F8A84", "#B8B2A8"],
+    "roof": "#B0ADA6", "pavement": "#DAD6CC", "tank": "#9C7556",
+    "thinCards": ["card_roofline_a"],
+    "low": { "keepDowntown": 0.75, "keepRing": 0.4, "storeysPerBand": 2 }
+  }
 }

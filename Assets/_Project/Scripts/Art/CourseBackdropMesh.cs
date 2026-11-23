@@ -62,7 +62,9 @@ namespace Wreckabulary.Art
                 var buffer = Current(groups, SurroundingsRing.Far, zone.Slot, corners.Count);
                 AppendGround(buffer, zone, corners);
             }
-            return Assemble(layout, kit, name, readable, owned, groups);
+            var root = Assemble(layout, kit, name, readable, owned, groups);
+            if (!layout.Skyline.Empty) CourseSkylineMesh.Build(layout.Skyline, kit, name, readable, owned).transform.SetParent(root.transform, false);
+            return root;
         }
 
         static SlotMesh SlotOf(CourseBackdropKit.Piece piece, int submesh, Dictionary<(string, int), SlotMesh> slots, Dictionary<string, PieceData> pieces)
