@@ -13,12 +13,13 @@ namespace Wreckabulary.Rules.Tests
         const string Folder = "Assets/_Project/Data/Surroundings";
         const string StyleFile = "Courses/course_city.json";
         const string DepotId = "wordbound-parcel-service-v2";
-        const double Tolerance = 1e-3;
-        const float LowestBody = 20f, TallestBody = 90f, TallestTop = 120f, VisibleAboveWalls = 45f;
+        const double Tolerance = 1e-3, EyeHeight = 1.7;
+        const float LowestBody = 14f, TallestBody = 200f, TopAboveBody = 45f, Downtown = 120f;
+        const float SupertallLow = 220f, SupertallHigh = 260f, NeedleLow = 180f, NeedleHigh = 215f, ClockLow = 44f, ClockHigh = 58f;
 
         static readonly string[] Shapes = { "arena", "depot", "flagship", "offset", "ribbon" };
         static readonly CourseSurroundingsTier[] Tiers = { CourseSurroundingsTier.High, CourseSurroundingsTier.Low };
-        static readonly string[] Details = { "plaza", "shop", "pier", "fin", "parapet", "hut", "stand", "tank", "ac", "crown", "antenna" };
+        static readonly string[] Details = { "plaza", "shop", "pier", "fin", "mullion", "parapet", "hut", "stand", "tank", "ac", "antenna", "chimney", "hand", "skeleton", "crane" };
         static readonly Dictionary<(string, string, CourseSurroundingsTier), CourseSurroundingsResult> built = new Dictionary<(string, string, CourseSurroundingsTier), CourseSurroundingsResult>();
         static SurroundingsKit kit;
         static CourseSurroundingsStyle style;
@@ -109,6 +110,22 @@ namespace Wreckabulary.Rules.Tests
         static (double x, double z)[] Grown(CourseFootprint f, double by) =>
             new[] { (f.MinX - by, (double)f.MinZ - by), (f.MaxX + by, f.MinZ - by), (f.MaxX + by, f.MaxZ + by), (f.MinX - by, f.MaxZ + by) };
 
+        static double Coverage(CourseSurroundingsResult result, double elevation)
+        {
+            var f = result.Footprint;
+            double cx = f.CentreX, cz = f.CentreZ, eye = f.Floor + EyeHeight;
+            var filled = new bool[360];
+            foreach (var t in result.Skyline.Towers)
+            {
+                double distance = Math.Sqrt((t.X - cx) * (t.X - cx) + (t.Z - cz) * (t.Z - cz));
+                if (Math.Atan2(t.Top - eye, distance) * 180 / Math.PI < elevation) continue;
+                double heading = Math.Atan2(t.X - cx, t.Z - cz) * 180 / Math.PI;
+                var turns = Lot(t).Select(c => ((Math.Atan2(c.x - cx, c.z - cz) * 180 / Math.PI - heading + 540) % 360) - 180).ToList();
+                for (int a = (int)Math.Ceiling(heading + turns.Min()); a <= heading + turns.Max(); a++) filled[((a % 360) + 360) % 360] = true;
+            }
+            return filled.Count(x => x) / 360.0;
+        }
+
         [Test]
         public void TheStyleBringsASkylineThatOnlyUsesKitSlots()
         {
@@ -139,6 +156,7 @@ namespace Wreckabulary.Rules.Tests
             var other = Build("depot", CourseSurroundingsTier.High, "wordbound-lost-address").Skyline;
             Assert.AreNotEqual(depot.Hash, other.Hash);
             CollectionAssert.AreNotEqual(depot.Headings, other.Headings, "the downtown turns with the course id");
+            CollectionAssert.AreNotEqual(depot.Towers.Select(t => t.Type).ToList(), other.Towers.Select(t => t.Type).ToList(), "the architecture changes with the course id");
             Assert.AreNotEqual(depot.Hash, Build("flagship", CourseSurroundingsTier.High).Skyline.Hash);
         }
 
@@ -149,7 +167,7 @@ namespace Wreckabulary.Rules.Tests
             var clusters = new HashSet<int>();
             for (int n = 0; n < 16; n++)
             {
-                var skyline = CourseSurroundings.Build(Style(), Kit(), "course-" + n, Footprint("arena"), CourseSurroundingsTier.High).Skyline;
+                var skyline = CourseSurroundings.Build(Style(), Kit(), "course-" + n, Footprint("arena"), CourseSurroundingsTier.Low).Skyline;
                 Assert.That(skyline.Headings.Count, Is.InRange(1, 2));
                 clusters.Add(skyline.Headings.Count);
                 headings.Add(skyline.Headings[0]);
@@ -163,24 +181,20 @@ namespace Wreckabulary.Rules.Tests
         {
             var result = Build(shape, tier);
             var skyline = result.Skyline;
-            var f = result.Footprint;
-            var margin = Grown(f, result.Clear);
+            var margin = Grown(result.Footprint, result.Clear);
             Assert.IsNotEmpty(skyline.Towers);
             foreach (var t in skyline.Towers)
             {
                 Assert.AreEqual(result.GroundY, t.Ground, 1e-3);
                 foreach (var b in t.Boxes)
                 {
-                    Assert.IsFalse(Overlap(b.Corners(), margin), $"the {b.Part} of the tower at ({t.X}, {t.Z}) is inside the course bounds plus {result.Clear} m");
-                    Assert.GreaterOrEqual(b.Y, result.GroundY - 1e-3, $"the {b.Part} of the tower at ({t.X}, {t.Z}) sinks below the street");
-                    Assert.IsTrue(b.Corners().All(c => InLot(t, c)), $"the {b.Part} of the tower at ({t.X}, {t.Z}) leaves its lot");
+                    Assert.IsFalse(Overlap(b.Corners(), margin), $"the {b.Part} of the {t.Type} at ({t.X}, {t.Z}) is inside the course bounds plus {result.Clear} m");
+                    Assert.GreaterOrEqual(b.Y, result.GroundY - 1e-3, $"the {b.Part} of the {t.Type} at ({t.X}, {t.Z}) sinks below the street");
+                    Assert.IsTrue(b.Corners().All(c => InLot(t, c)), $"the {b.Part} of the {t.Type} at ({t.X}, {t.Z}) leaves its lot");
                 }
                 var lot = Lot(t);
                 foreach (var p in result.Placements)
-                {
-                    bool hit = Overlap(lot, Corners(p));
-                    Assert.IsFalse(hit, $"the {t.Source} tower at ({t.X}, {t.Z}) overlaps {p.Piece} ({p.Source})");
-                }
+                    Assert.IsFalse(Overlap(lot, Corners(p)), $"the {t.Type} at ({t.X}, {t.Z}) overlaps {p.Piece} ({p.Source})");
             }
             for (int a = 0; a < skyline.Towers.Count; a++)
                 for (int b = a + 1; b < skyline.Towers.Count; b++)
@@ -188,21 +202,66 @@ namespace Wreckabulary.Rules.Tests
         }
 
         [TestCaseSource(nameof(Shapes))]
-        public void HeightsRiseFromTheRingToTheDowntown(string shape)
+        public void HeightsRiseToTallDowntownsWithOneSupertallEach(string shape)
         {
-            var towers = Build(shape, CourseSurroundingsTier.High).Skyline.Towers;
-            foreach (var t in towers)
+            var skyline = Build(shape, CourseSurroundingsTier.High).Skyline;
+            var towers = skyline.Towers;
+            foreach (var t in towers.Where(t => t.Landmark == null))
             {
-                Assert.That(t.Height, Is.InRange(LowestBody - Tolerance, TallestBody + Tolerance), $"the {t.Source} tower at ({t.X}, {t.Z})");
-                Assert.That(t.Top - t.Ground, Is.InRange(t.Height - Tolerance, TallestTop), $"the {t.Source} tower at ({t.X}, {t.Z})");
+                Assert.That(t.Height, Is.InRange(LowestBody - Tolerance, TallestBody + Tolerance), $"the {t.Type} at ({t.X}, {t.Z})");
+                Assert.That(t.Top - t.Ground, Is.InRange(t.Height - Tolerance, t.Height + TopAboveBody), $"the {t.Type} at ({t.X}, {t.Z})");
             }
-            var downtown = towers.Where(t => t.Downtown).ToList();
-            var ring = towers.Where(t => !t.Downtown).ToList();
-            Assert.IsNotEmpty(downtown);
-            Assert.IsNotEmpty(ring);
-            Assert.Greater(downtown.Average(t => t.Height), ring.Average(t => t.Height) + 10, "the downtown is clearly taller than the ring");
-            Assert.GreaterOrEqual(towers.Count(t => t.Height >= VisibleAboveWalls), 5, "enough towers rise well above the course walls");
-            Assert.GreaterOrEqual(towers.Max(t => t.Height), 60f);
+            foreach (var t in towers.Where(t => t.Landmark != null))
+                Assert.AreEqual(t.Height, t.Top - t.Ground, .6, $"the {t.Landmark} reaches its stated height");
+            var supertalls = towers.Where(t => t.Type == CourseSkylineTypes.Supertall).ToList();
+            Assert.AreEqual(skyline.Headings.Count, supertalls.Count, "one supertall per downtown");
+            Assert.IsTrue(supertalls.All(t => t.Downtown && t.Height >= SupertallLow - Tolerance && t.Height <= SupertallHigh + Tolerance));
+            Assert.AreEqual(supertalls.Max(t => t.Top), towers.Max(t => t.Top), 1e-3, "a supertall is the tallest point on the skyline");
+            Assert.IsTrue(towers.Where(t => t.Type == CourseSkylineTypes.Needle).All(t => t.Height >= NeedleLow - Tolerance && t.Height <= NeedleHigh + Tolerance));
+            Assert.IsTrue(towers.Where(t => t.Type == CourseSkylineTypes.Clock).All(t => t.Height >= ClockLow - Tolerance && t.Height <= ClockHigh + Tolerance));
+            var downtown = towers.Where(t => t.Downtown && t.Landmark == null).ToList();
+            var ring = towers.Where(t => !t.Downtown && t.Landmark == null).ToList();
+            Assert.Greater(downtown.Average(t => t.Height), ring.Average(t => t.Height) + 30, "the downtown is clearly taller than the ring");
+            Assert.GreaterOrEqual(downtown.Count(t => t.Height >= Downtown), 8, "the downtown reaches 120 to 200 m");
+        }
+
+        [TestCaseSource(nameof(Shapes))]
+        public void TheCityHasManyArchitectures(string shape)
+        {
+            var skyline = Build(shape, CourseSurroundingsTier.High).Skyline;
+            var plain = skyline.Towers.Where(t => t.Landmark == null).Select(t => t.Type).Distinct().ToList();
+            Assert.GreaterOrEqual(plain.Count, 7, string.Join(", ", plain));
+            Assert.AreEqual(1, skyline.Count(CourseSkylineTypes.Clock), "one clock tower");
+            Assert.LessOrEqual(skyline.Count(CourseSkylineTypes.Needle), 1, "at most one needle tower");
+            Assert.GreaterOrEqual(skyline.Towers.Select(t => t.Wall).Distinct().Count(), 12, "walls vary through the palette");
+            Assert.IsTrue(skyline.Boxes.Any(b => b.Sides > 4), "round and octagonal towers are prisms");
+            Assert.IsTrue(skyline.Boxes.Any(b => b.Apex), "pyramids and spires come to a point");
+            Assert.IsTrue(skyline.Boxes.Any(b => b.Part == "mullion"), "curtain walls have vertical mullions");
+            Assert.IsTrue(skyline.Boxes.Any(b => b.Part == "tank"), "lofts carry water tanks");
+            Assert.IsTrue(skyline.Boxes.Any(b => b.Part == "face"), "the clock tower has faces");
+        }
+
+        [Test]
+        public void SomeDowntownTopsAreStillBeingBuilt()
+        {
+            var towers = Shapes.SelectMany(s => Build(s, CourseSurroundingsTier.High).Skyline.Towers).ToList();
+            var cranes = towers.Where(t => t.Crane).ToList();
+            Assert.IsNotEmpty(cranes);
+            Assert.IsTrue(cranes.All(t => t.Downtown && t.Landmark == null));
+            Assert.IsTrue(cranes.Where(t => t.Detailed).All(t => t.Boxes.Any(b => b.Part == "crane") && t.Boxes.Any(b => b.Part == "skeleton")));
+            Assert.IsTrue(towers.Where(t => !t.Crane).All(t => t.Boxes.All(b => b.Part != "crane")));
+        }
+
+        [TestCaseSource(nameof(Shapes))]
+        public void ThePackedCityFillsTheHorizon(string shape)
+        {
+            double high = Coverage(Build(shape, CourseSurroundingsTier.High), 8), tall = Coverage(Build(shape, CourseSurroundingsTier.High), 12);
+            double low = Coverage(Build(shape, CourseSurroundingsTier.Low), 4);
+            string summary = $"high {high:0.00} at 8 deg, {tall:0.00} at 12 deg; low {low:0.00} at 4 deg";
+            TestContext.WriteLine(summary);
+            Assert.GreaterOrEqual(high, .97, summary);
+            Assert.GreaterOrEqual(tall, .8, summary);
+            Assert.GreaterOrEqual(low, .7, summary);
         }
 
         [TestCaseSource(nameof(Cases))]
@@ -221,33 +280,51 @@ namespace Wreckabulary.Rules.Tests
             Assert.LessOrEqual(result.Triangles, result.TriangleLimit, "the town keeps its own budget");
         }
 
+        [TestCaseSource(nameof(Cases))]
+        public void NothingReachesPastTheCameraFarClip(string shape, CourseSurroundingsTier tier)
+        {
+            var result = Build(shape, tier);
+            Assert.LessOrEqual(CourseSkyline.FarthestView(result.Footprint, result.Skyline.Boxes), CourseSkyline.ViewReach);
+        }
+
+        [Test]
+        public void AVeryLargeCourseKeepsItsTowersInsideTheFarClip()
+        {
+            var large = new CourseFootprint(-700, -500, 700, 500, 0, 12);
+            var result = CourseSurroundings.Draft(Style(), Kit(), "large", large, CourseSurroundingsTier.High);
+            Assert.IsTrue(result.Valid, string.Join("\n", result.Problems));
+            Assert.LessOrEqual(CourseSkyline.FarthestView(large, result.Skyline.Boxes), CourseSkyline.ViewReach);
+        }
+
         [TestCaseSource(nameof(Shapes))]
         public void TheLowSkylineIsALighterCopyOfTheHighSkyline(string shape)
         {
             var high = Build(shape, CourseSurroundingsTier.High).Skyline;
             var low = Build(shape, CourseSurroundingsTier.Low).Skyline;
             Assert.Less(low.Towers.Count, high.Towers.Count);
-            Assert.Less(low.Triangles, high.Triangles);
+            Assert.LessOrEqual(low.Triangles, high.Triangles * .3, "low is clearly lighter");
             Assert.LessOrEqual(low.Renderers, high.Renderers);
             var spots = high.Towers.ToDictionary(t => (t.X, t.Z), t => t);
             foreach (var t in low.Towers)
             {
-                Assert.IsTrue(spots.TryGetValue((t.X, t.Z), out var twin), $"the low tower at ({t.X}, {t.Z}) is not in the high skyline");
+                Assert.IsTrue(spots.TryGetValue((t.X, t.Z), out var twin), $"the low {t.Type} at ({t.X}, {t.Z}) is not in the high skyline");
+                Assert.AreEqual(twin.Type, t.Type);
                 Assert.AreEqual(twin.Yaw, t.Yaw);
                 Assert.AreEqual(twin.Height, t.Height);
-                Assert.Less(t.Boxes.Count(b => b.Part == "band"), twin.Boxes.Count(b => b.Part == "band") + 1, "low has no more window bands");
-                Assert.Less(t.Triangles, twin.Triangles);
+                Assert.LessOrEqual(t.Boxes.Count(b => b.Part == "band"), twin.Boxes.Count(b => b.Part == "band"), "low has no more window bands");
+                Assert.LessOrEqual(t.Triangles, twin.Triangles);
             }
-            Assert.IsFalse(low.Boxes.Any(b => Details.Contains(b.Part)), "low has no plazas, piers, fins, parapets or roof details");
+            foreach (var landmark in high.Towers.Where(t => t.Landmark != null))
+                Assert.IsTrue(low.Towers.Any(t => t.X == landmark.X && t.Z == landmark.Z), $"low keeps the {landmark.Landmark}");
+            Assert.IsFalse(low.Boxes.Any(b => Details.Contains(b.Part)), "low has no plazas, ribs, parapets, roof details or cranes");
             Assert.IsFalse(low.Groups.Any(g => g.Slot == CourseSkyline.MetalSlot), "low draws walls and glass only");
             Assert.Less(low.Boxes.Count(b => b.Part == "band"), high.Boxes.Count(b => b.Part == "band"), "low has fewer window bands");
-            Assert.IsTrue(high.Boxes.Any(b => b.Part == "hut" || b.Part == "tank" || b.Part == "crown"), "high has roof details");
         }
 
         [Test]
         public void TheGeometryMatchesTheBoxesAndFacesOutward()
         {
-            var skyline = Build("depot", CourseSurroundingsTier.High).Skyline;
+            var skyline = Build("flagship", CourseSurroundingsTier.High).Skyline;
             var parts = CourseSkyline.Parts(skyline);
             Assert.AreEqual(skyline.Renderers, parts.Count);
             Assert.AreEqual(skyline.Vertices, parts.Sum(p => p.Vertices));
@@ -256,31 +333,32 @@ namespace Wreckabulary.Rules.Tests
             foreach (string slot in CourseSkyline.Slots)
             {
                 var boxes = skyline.Boxes.Where(b => b.Slot == slot).ToList();
-                var mine = parts.Where(p => p.Slot == slot).OrderBy(p => p.Index).ToList();
-                int box = 0, face = 0;
-                foreach (var part in mine)
+                int box = 0;
+                foreach (var part in parts.Where(p => p.Slot == slot).OrderBy(p => p.Index))
                 {
                     Assert.LessOrEqual(part.Vertices, SurroundingsLayout.MergeVertexLimit);
                     Assert.AreEqual(part.Vertices, part.Colours.Length);
                     Assert.AreEqual(part.Positions.Length, part.Normals.Length);
                     Assert.IsTrue(part.Indices.All(i => i >= 0 && i < part.Vertices));
-                    Assert.IsTrue(part.Colours.All(c => c <= 0xFFFFFF));
-                    for (int v = 0; v < part.Vertices; v += 4)
+                    var owner = new int[part.Vertices];
+                    for (int v = 0, first = box; v < part.Vertices; box++)
                     {
-                        var b = boxes[box];
-                        Vec P(int k) => new Vec(part.Positions[(v + k) * 3], part.Positions[(v + k) * 3 + 1], part.Positions[(v + k) * 3 + 2]);
-                        var n = new Vec(part.Normals[v * 3], part.Normals[v * 3 + 1], part.Normals[v * 3 + 2]);
-                        var middle = (P(0) + P(1) + P(2) + P(3)) * .25;
-                        var centre = new Vec(b.X, b.Y + b.Height * .5, b.Z);
-                        Assert.Greater((middle - centre).Dot(n), 0, $"face {face} of the {b.Part} at ({b.X}, {b.Z}) points inwards");
-                        Assert.AreEqual(b.Tint, part.Colours[v]);
-                        if (++face == b.Faces) { face = 0; box++; }
+                        Assert.Less(box, boxes.Count, $"{part.Label} has more vertices than its boxes");
+                        for (int k = 0; k < boxes[box].Vertices; k++, v++)
+                        {
+                            owner[v] = box;
+                            Assert.AreEqual(boxes[box].Tint, part.Colours[v]);
+                        }
                     }
                     for (int i = 0; i < part.Indices.Length; i += 3)
                     {
                         Vec Corner(int k) => new Vec(part.Positions[part.Indices[i + k] * 3], part.Positions[part.Indices[i + k] * 3 + 1], part.Positions[part.Indices[i + k] * 3 + 2]);
                         var normal = new Vec(part.Normals[part.Indices[i] * 3], part.Normals[part.Indices[i] * 3 + 1], part.Normals[part.Indices[i] * 3 + 2]);
-                        Assert.Greater((Corner(1) - Corner(0)).Cross(Corner(2) - Corner(0)).Dot(normal), 0, $"triangle {i / 3} of {part.Label} is wound inwards");
+                        var b = boxes[owner[part.Indices[i]]];
+                        Assert.IsTrue(owner[part.Indices[i + 1]] == owner[part.Indices[i]] && owner[part.Indices[i + 2]] == owner[part.Indices[i]], "a triangle stays inside one box");
+                        Assert.Greater((Corner(1) - Corner(0)).Cross(Corner(2) - Corner(0)).Dot(normal), 0, $"triangle {i / 3} of {part.Label} is wound against its normal");
+                        var middle = (Corner(0) + Corner(1) + Corner(2)) * (1.0 / 3);
+                        Assert.Greater((middle - new Vec(b.X, b.Y + b.Height * .5, b.Z)).Dot(normal), 0, $"a face of the {b.Part} at ({b.X}, {b.Z}) points inwards");
                     }
                 }
                 Assert.AreEqual(boxes.Count, box, $"every {slot} box became faces");
@@ -303,22 +381,33 @@ namespace Wreckabulary.Rules.Tests
                 thinned += result.Skyline.ThinnedCards.Count;
                 foreach (var card in result.Placements.Where(p => p.Card))
                     foreach (var t in result.Skyline.Towers)
-                        Assert.IsFalse(Overlap(Lot(t), Corners(card)), $"{card.Piece} ({card.Source}) cuts through the tower at ({t.X}, {t.Z})");
+                        Assert.IsFalse(Overlap(Lot(t), Corners(card)), $"{card.Piece} ({card.Source}) cuts through the {t.Type} at ({t.X}, {t.Z})");
             }
             Assert.Greater(thinned, 0, "some roofline cards give way to downtown towers");
         }
 
         [Test]
-        public void TheDepotGetsADowntownAndARingOfBlocks()
+        public void TheCityStandsOnAGreyGroundBelowTheTownFades()
+        {
+            var result = Build("depot", CourseSurroundingsTier.High);
+            var city = result.Ground.Single(g => g.Source == "city ground");
+            var grass = result.Ground.Single(g => g.Source == "ground");
+            var fades = result.Ground.Where(g => g.Source.StartsWith("ground fade", StringComparison.Ordinal)).ToList();
+            Assert.Greater(city.Y, grass.Y);
+            Assert.IsTrue(fades.All(f => f.Y > city.Y && f.Radius < city.Radius));
+            double farthest = result.Skyline.Towers.Max(t => Lot(t).Max(c => Math.Sqrt((c.x - city.CentreX) * (c.x - city.CentreX) + (c.z - city.CentreZ) * (c.z - city.CentreZ))));
+            Assert.Greater(city.Radius, farthest, "the grey ground reaches past the last tower");
+        }
+
+        [Test]
+        public void TheDepotIsAPackedCity()
         {
             var skyline = Build("depot", CourseSurroundingsTier.High).Skyline;
             string summary = $"{skyline.Towers.Count} towers, {skyline.Towers.Count(t => t.Downtown)} downtown, {skyline.Renderers} renderers, {skyline.Triangles} tris, " +
-                $"facades {string.Join("/", skyline.Towers.GroupBy(t => t.Facade).Select(g => g.Key + " " + g.Count()))}";
+                $"types {string.Join("/", skyline.Towers.GroupBy(t => t.Type).OrderBy(g => g.Key).Select(g => g.Key + " " + g.Count()))}";
             TestContext.WriteLine(summary);
-            Assert.GreaterOrEqual(skyline.Towers.Count, 30, summary);
-            Assert.GreaterOrEqual(skyline.Towers.Count(t => t.Downtown), 8, summary);
-            Assert.GreaterOrEqual(skyline.Towers.Select(t => t.Facade).Distinct().Count(), 3, summary);
-            Assert.GreaterOrEqual(skyline.Towers.Select(t => t.Wall).Distinct().Count(), 6, summary);
+            Assert.GreaterOrEqual(skyline.Towers.Count, 200, summary);
+            Assert.GreaterOrEqual(skyline.Towers.Count(t => t.Downtown), 40, summary);
             Assert.That(skyline.Renderers, Is.InRange(3, CourseSkyline.HighRenderers), summary);
         }
 
@@ -333,6 +422,7 @@ namespace Wreckabulary.Rules.Tests
                 Assert.IsNotEmpty(result.Skyline.Towers);
                 Assert.LessOrEqual(result.Skyline.Triangles, result.Skyline.TriangleLimit);
                 Assert.LessOrEqual(result.Skyline.Renderers, result.Skyline.RendererLimit);
+                Assert.IsTrue(result.Skyline.Towers.Count(t => t.Landmark != null) >= 2, "landmarks survive trimming");
             }
         }
 
@@ -340,10 +430,12 @@ namespace Wreckabulary.Rules.Tests
         public void ABrokenSkylineStyleIsRefused()
         {
             string json = Read(StyleFile);
-            Assert.Throws<FormatException>(() => CourseSurroundingsStyle.FromJson(json.Replace("\"cell\": 36", "\"cell\": 20"), "cell.json"));
+            Assert.Throws<FormatException>(() => CourseSurroundingsStyle.FromJson(json.Replace("\"cell\": 30", "\"cell\": 20"), "cell.json"));
             Assert.Throws<FormatException>(() => CourseSurroundingsStyle.FromJson(json.Replace("\"clusters\": [1, 2]", "\"clusters\": [1, 3]"), "clusters.json"));
             Assert.Throws<FormatException>(() => CourseSurroundingsStyle.FromJson(json.Replace("\"glass\": [0.72, 0.82]", "\"glass\": [0.72, 0.95]"), "glass.json"));
-            Assert.Throws<FormatException>(() => CourseSurroundingsStyle.FromJson(json.Replace("\"height\": [48, 90]", "\"height\": [48, 260]"), "height.json"));
+            Assert.Throws<FormatException>(() => CourseSurroundingsStyle.FromJson(json.Replace("\"height\": [70, 200]", "\"height\": [70, 360]"), "height.json"));
+            Assert.Throws<FormatException>(() => CourseSurroundingsStyle.FromJson(json.Replace("\"twin\": {", "\"tower\": {"), "type.json"));
+            Assert.Throws<FormatException>(() => CourseSurroundingsStyle.FromJson(json.Replace("\"facades\": [\"glass\"] }", "\"facades\": [\"steel\"] }"), "facade.json"));
         }
 
         readonly struct Vec

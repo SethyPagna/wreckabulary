@@ -23,7 +23,7 @@ namespace Wreckabulary.Rules
         public const float Top = 10f, Clearance = 12f, Margin = 8f, Edge = 24f, TeamGap = 36f;
         public const float RoomyPortrait = 68f, SnugPortrait = 56f, RoomyCard = RoomyPortrait, SnugCard = SnugPortrait;
         public const float RoomyGap = 8f, SnugGap = 6f, Frame = 4f, Inset = 3f;
-        public const float Outline = 3f, SideGap = 2f * Outline, Hairline = 1f, YouRim = 2f, StaminaTrim = 4f;
+        public const float Outline = 3f, SideGap = 2f * Outline, Hairline = 1f, StaminaTrim = 4f;
         public const float HealthGap = 0f, HealthHeight = 22f, StaminaGap = 2f, StaminaHeight = 8f, ScoreGap = 2f, NameHeight = 24f, ScoreHeight = 22f;
         public const float NumberSize = 18f, NumberMin = 16f, NumberPad = 4f;
         public const float SoloWidth = 240f, SoloHeight = 36f, SoloNumberSize = 30f, SoloPad = 8f, SoloStaminaGap = 4f, SoloStaminaHeight = 6f;

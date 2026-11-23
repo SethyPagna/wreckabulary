@@ -127,9 +127,11 @@ namespace Wreckabulary.Tests
         static MeshRenderer[] Town(GameObject root) =>
             root.GetComponentsInChildren<MeshRenderer>(true).Where(r => r.transform.parent.name != CourseSkylineMesh.RootName).ToArray();
 
-        static void AssertSkyline(GameObject root, CourseSurroundingsResult layout, int limit)
+        void AssertSkyline(GameObject root, CourseSurroundingsResult layout, int limit)
         {
             Assert.IsNotEmpty(layout.Skyline.Towers, "every course gets a skyline");
+            Assert.IsTrue(layout.Skyline.Count(CourseSkylineTypes.Supertall) >= 1, "every downtown has its supertall");
+            Assert.LessOrEqual(layout.Skyline.Triangles, layout.Skyline.TriangleLimit);
             var skyline = root.transform.Find(CourseSkylineMesh.RootName);
             Assert.IsNotNull(skyline, "the towers hang under the backdrop root");
             var renderers = skyline.GetComponentsInChildren<MeshRenderer>(true);
@@ -138,6 +140,10 @@ namespace Wreckabulary.Tests
             Assert.IsTrue(renderers.All(r => r.shadowCastingMode == UnityEngine.Rendering.ShadowCastingMode.Off), "far towers cast no shadows");
             Assert.IsTrue(renderers.All(r => r.sharedMaterial), "every skyline renderer has its backdrop material");
             Assert.IsEmpty(skyline.GetComponentsInChildren<Collider>(true), "the towers have no colliders");
+            var footprint = layout.Footprint;
+            var corners = new[] { new Vector3(footprint.MinX, footprint.Top + CourseSkyline.EyeLift, footprint.MinZ), new Vector3(footprint.MaxX, footprint.Top + CourseSkyline.EyeLift, footprint.MinZ),
+                new Vector3(footprint.MaxX, footprint.Top + CourseSkyline.EyeLift, footprint.MaxZ), new Vector3(footprint.MinX, footprint.Top + CourseSkyline.EyeLift, footprint.MaxZ) };
+            float farthest = 0f;
             int triangles = 0;
             foreach (var filter in skyline.GetComponentsInChildren<MeshFilter>(true))
             {
@@ -147,6 +153,11 @@ namespace Wreckabulary.Tests
                 var indices = mesh.triangles;
                 triangles += indices.Length / 3;
                 Assert.IsTrue(mesh.colors32.All(c => c.a == 0), $"{filter.name} would sway in the wind");
+                foreach (var vertex in vertices)
+                {
+                    var local = world.transform.InverseTransformPoint(filter.transform.TransformPoint(vertex));
+                    foreach (var corner in corners) farthest = Mathf.Max(farthest, Vector3.Distance(local, corner));
+                }
                 for (int i = 0; i < indices.Length; i += 3)
                 {
                     var face = Vector3.Cross(vertices[indices[i + 1]] - vertices[indices[i]], vertices[indices[i + 2]] - vertices[indices[i]]);
@@ -154,6 +165,7 @@ namespace Wreckabulary.Tests
                 }
             }
             Assert.AreEqual(layout.Skyline.Triangles, triangles);
+            Assert.LessOrEqual(farthest, CourseSkyline.ViewReach + RealMeshSlack, "every tower stays inside the course camera far clip");
         }
 
         void AssertNotSimulated(GameObject root, int surfaces)

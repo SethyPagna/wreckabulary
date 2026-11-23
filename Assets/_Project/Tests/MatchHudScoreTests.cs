@@ -300,7 +300,7 @@ namespace Wreckabulary.Tests
             for (int card = 1; card <= cards; card++)
             {
                 Assert.AreSame(line, Part(hud, $"Card {card}/Frame").GetComponent<Image>().sprite, $"card {card} frame");
-                Assert.AreSame(line, Part(hud, $"Card {card}/You").GetComponent<Image>().sprite, $"card {card} rim");
+                Assert.IsNull(Part(hud, $"Card {card}/You"), $"card {card} has no white rim");
                 foreach (var path in new[] { "Backing", "Shade", "Health track", "Health track/Health", "Stamina track", "Stamina track/Stamina" })
                     Assert.IsNull(Part(hud, $"Card {card}/{path}").GetComponent<Image>().sprite, $"card {card} {path} is square");
             }
