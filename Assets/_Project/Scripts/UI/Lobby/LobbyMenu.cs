@@ -934,7 +934,7 @@ namespace Wreckabulary
 
         public string Blocked => Queue == Matchmaking
             ? "House modes are played on this screen. For online matches, choose Online."
-            : null;
+            : PlayPage.Refusal(this);
 
         public void Go()
         {
