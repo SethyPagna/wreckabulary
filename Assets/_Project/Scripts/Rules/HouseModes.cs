@@ -88,9 +88,9 @@ namespace Wreckabulary.Rules
             },
             new HouseMode
             {
-                Id = BossFight, Name = "Boss Fight", Family = HouseModeFamily.Arcade, Tag = "BOSS FIGHT", MaxSeats = 1, Maps = new[] { BossFightTuning.Map },
-                Goal = "Spell the boss's name, then knock it out",
-                Blurb = "Smash furniture for letters and spell each part of the boss's name to break its shield. Dodge the red circles, then hit it until it falls.",
+                Id = BossFight, Name = "Boss Fight", Family = HouseModeFamily.Arcade, Tag = "SOLO BOSS", MaxSeats = 1, Maps = new[] { BossFightTuning.Map },
+                Goal = "Crack the Calculator's shield, then knock it out",
+                Blurb = "Smash furniture into letters and spell CALC, ULA and TOR to crack the Calculator's three shields, then hit it before time runs out.",
             },
         };
 
