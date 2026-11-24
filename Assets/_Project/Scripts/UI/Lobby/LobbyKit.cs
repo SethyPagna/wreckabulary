@@ -348,6 +348,7 @@ namespace Wreckabulary
             Rules.HouseModes.Escape => Hex(0xd7263d),
             Rules.HouseModes.ShoppingList => Hex(0xa6c43a),
             Rules.HouseModes.RiddleRush => Hex(0x38c27a),
+            Rules.HouseModes.BossFight => Hex(0x2e5d8f),
             Rules.HouseModes.Tutorial => Hex(0xf2b230),
             LobbyMenu.WorkshopMode => Hex(0x22b8a5),
             LobbyMenu.RoomMode => Hex(0xff3d9e),

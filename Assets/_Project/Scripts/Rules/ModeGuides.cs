@@ -97,6 +97,11 @@ namespace Wreckabulary.Rules
                 ("Collect letters by hand", "{Press} {Grab} on each loose letter to put it in your bag.", "TABLE"),
                 ("Spell and strike", "Use {Spell} to spell an item, then knock out your rivals.", "BAT"),
                 ("Most knockouts wins", "First to 10 knockouts wins, or the most when time runs out.", "HAMMER")),
+            Guide(HouseModes.BossFight,
+                ("Smash for letters", "{Press} {Attack} to break furniture into letters.", "TABLE"),
+                ("Spell its name", "Spell each part of the boss's name to break a shield.", "CLOCK"),
+                ("Dodge the circles", "Step out of a red circle before it lands.", "BOMB"),
+                ("Hit it hard", "With the shield down, {Press} {Attack} until it falls.", "HAMMER")),
         };
 
         static readonly Dictionary<string, ModeGuide> ByMode = Guides.ToDictionary(g => g.Mode, StringComparer.Ordinal);
